@@ -36,3 +36,4 @@ pnpm suite workflow edge-run capkit  # Run workflow
 - Published to npm
 
 *Shipped v1.0 [13/16]* 🚀
+# ABSuite-core
