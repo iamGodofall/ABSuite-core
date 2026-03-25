@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  absuite-db:
+    image: sqlite:latest  # or postgres
+  capkit:
+    build: ./packages/capkit
+  edge-run:
+    build: ./packages/edge-run
+  dashboard:
+    build: .
+    ports:
+      - "3000:3000"
+

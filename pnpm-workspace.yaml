@@ -1,0 +1,6 @@
+packages:
+  - 'capkit'
+  - 'edge-run' 
+  - 'quickbench'
+  - 'connector-starter'
+
