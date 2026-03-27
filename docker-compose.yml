@@ -1,13 +1,83 @@
-version: '3.8'
 services:
   absuite-db:
-    image: sqlite:latest  # or postgres
+    image: nouchka/sqlite3
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "mkdir -p /data && touch /data/absuite.db && while true; do sleep 3600; done"]
+    container_name: absuite-db
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /data/absuite.db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   capkit:
     build: ./packages/capkit
+    ports:
+      - "8081:8081"
+    depends_on:
+      absuite-db:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   edge-run:
     build: ./packages/edge-run
-  dashboard:
-    build: .
     ports:
-      - "3000:3000"
+      - "8082:8082"
+    depends_on:
+      - absuite-db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  dashboard:
+    build: ./packages/dashboard-ui
+    container_name: absuite-core-dashboard
+    ports:
+      - "3001:3001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/docker-compose.yml
+    depends_on:
+      - capkit
+      - edge-run
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  quickbench:
+    build: ./packages/quickbench
+    ports:
+      - "8083:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "sleep 30"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  connector-starter:
+    build: ./packages/connector-starter
+    ports:
+      - "8084:8084"
+    healthcheck:
+      test: ["CMD-SHELL", "sleep 30"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    restart: "no"
+    command: ["list"]
 

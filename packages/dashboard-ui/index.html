@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>&#10;  <meta charset="UTF-8">&#10;  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ABSuite Dashboard</title>
+  <style>
+    body { font-family: Arial; margin: 40px; background: #0a0a0a; color: white; }
+    .service { background: #1a1a1a; padding: 20px; margin: 10px 0; border-radius: 8px; }
+    .status { padding: 10px; border-radius: 4px; }
+    .up { background: #4a5; }
+    .down { background: #a44; }
+    button { background: #4a9; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>🚀 ABSuite Dashboard</h1>
+  <div id="services"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const servicesDiv = document.getElementById('services');
+    
+    ['absuite-db', 'capkit', 'edge-run', 'dashboard', 'quickbench', 'connector-starter'].forEach(service => {
+      const div = document.createElement('div');
+      div.className = 'service';
+      div.innerHTML = `
+        <h3>${service}</h3>
+        <div id="status-${service}" class="status down">Status: Unknown</div>
+        <button onclick="restart('${service}')">Restart</button>
+      `;
+      servicesDiv.appendChild(div);
+    });
+
+    socket.on('status', data => {
+      Object.keys(data).forEach(service => {
+        const statusEl = document.getElementById(`status-${service}`);
+        statusEl.textContent = `Status: ${data[service]}`;
+        statusEl.className = `status ${data[service] === 'up' ? 'up' : 'down'}`;
+      });
+    });
+    
+    function restart(service) {
+      socket.emit('restart', service);
+    }
+  </script>
+</body>
+</html>
