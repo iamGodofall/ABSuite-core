@@ -8,16 +8,17 @@ export const SERVICES = ['capkit', 'edge-run', 'quickbench', 'connector-starter'
 export type ServiceName = typeof SERVICES[number];
 
 export function startService(service: ServiceName, useDocker: boolean = true, cwd: string = '.') {
+  const packageDir = service === 'dashboard' ? 'dashboard-ui' : service;
   console.log(`🎯 Orchestrator: Starting ${service}...`);
   try {
     if (useDocker) {
       execSync(`docker compose up -d ${service}`, { stdio: 'inherit', cwd });
     } else {
       try {
-        execSync(`pnpm --filter ${service} run build`, { stdio: 'inherit', cwd });
+        execSync(`pnpm --filter ${packageDir} run build`, { stdio: 'inherit', cwd: '.' });
       } catch {}
-      const child = spawn('npm', ['run', 'start'], { 
-        cwd: `packages/${service}`,
+      const child = spawn('pnpm', ['run', 'start'], { 
+        cwd: `packages/${packageDir}`,
         stdio: 'inherit',
         detached: true 
       });

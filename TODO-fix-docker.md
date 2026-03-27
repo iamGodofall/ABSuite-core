@@ -1,6 +1,7 @@
 # ABSuite Docker Fixes TODO
 
 ## Current State
+
 - CLI lists all 6 services
 - `suite:start dashboard` → dashboard + deps (db/capkit/edge-run) up 4/4
 - All containers exist but Restarting/unhealthy
@@ -9,6 +10,7 @@
 - Healthchecks fail
 
 ## Steps
+
 - [ ] 1. Add "start" scripts to connector-starter/quickbench package.json
 - [ ] 2. Volume docker-compose.yml to dashboard
 - [ ] 3. Fix dashboard/server.ts docker commands (use -f flag)

@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import path from 'path';
 import { execSync } from 'child_process';
+import * as fs from 'fs';
 
 const SERVICES = ['capkit', 'edge-run', 'quickbench', 'connector-starter', 'dashboard', 'absuite-db'] as const;
 type ServiceName = typeof SERVICES[number];
@@ -30,7 +31,7 @@ function suiteStatus(): Record<ServiceName, 'up' | 'down'> {
     });
     // Check absuite-db
 execSync('docker compose -f /docker-compose.yml ps absuite-db --format "{{.Status}}" > /tmp/db_status 2>/dev/null || echo "down" > /tmp/db_status');
-    const dbStatus = require('fs').readFileSync('/tmp/db_status', 'utf8').trim();
+    const dbStatus = fs.readFileSync('/tmp/db_status', 'utf8').trim();
     status['absuite-db'] = dbStatus.includes('Up') ? 'up' : 'down';
   } catch (e) {
     console.error('Status check failed:', e);
