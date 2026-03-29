@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: absuite
+  labels:
+    app: dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      containers:
+      - name: dashboard
+        image: absuite/dashboard:latest
+        ports:
+        - containerPort: 3001
+        envFrom:
+        - configMapRef:
+            name: absuite-config
+        env:
+        - name: CAPKIT_URL
+          value: "http://capkit:8081"
+        - name: EDGERUN_URL
+          value: "http://edge-run:8082"
+        - name: QUICKBENCH_URL
+          value: "http://quickbench:8083"
+        - name: CONNECTOR_URL
+          value: "http://connector:8084"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: absuite
+spec:
+  selector:
+    app: dashboard
+  ports:
+  - port: 3001
+    targetPort: 3001
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: absuite-ingress
+  namespace: absuite
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - absuite.example.com
+    secretName: absuite-tls
+  rules:
+  - host: absuite.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dashboard
+            port:
+              number: 3001
+      - path: /api/capkit
+        pathType: Prefix
+        backend:
+          service:
+            name: capkit
+            port:
+              number: 8081
+      - path: /api/edge-run
+        pathType: Prefix
+        backend:
+          service:
+            name: edge-run
+            port:
+              number: 8082

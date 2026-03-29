@@ -24,6 +24,7 @@ export function startService(service: ServiceName, useDocker: boolean = true, cw
       });
       child.unref(); // Daemonize
       child.on('close', (code: number) => console.log(`🎯 ${service} exited: ${code}`));
+      child.on('error', (err) => console.error(`❌ ${service} spawn error:`, err.message));
     }
     console.log(`✅ ${service} active`);
     return { status: 'up' as const, service };

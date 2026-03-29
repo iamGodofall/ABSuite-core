@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: absuite-config
+  namespace: absuite
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  DATABASE_PATH: "/data/absuite.db"
+  CAPKIT_PORT: "8081"
+  EDGERUN_PORT: "8082"
+  QUICKBENCH_PORT: "8083"
+  CONNECTOR_PORT: "8084"
+  DASHBOARD_PORT: "3001"
+  OLLAMA_HOST: "http://ollama:11434"
+  JWT_SECRET: "change-me-in-production"
+  HMAC_SECRET: "change-me-in-production"
+  ENABLE_SIEM: "false"
+  ENABLE_SLA: "true"
+  MAX_AGENTS_PER_TENANT: "100"
+  MAX_REQUESTS_PER_MINUTE: "1000"
+  AUDIT_RETENTION_DAYS: "90"

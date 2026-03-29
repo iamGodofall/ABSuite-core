@@ -1,0 +1,27 @@
+apiVersion: v2
+name: absuite
+description: ABSuite - Enterprise AI Agent Platform
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - ai
+  - agents
+  - llm
+  - security
+  - sovereign
+home: https://absuite.dev
+sources:
+  - https://github.com/absuite/core
+maintainers:
+  - name: ABSuite Team
+    email: support@absuite.dev
+dependencies:
+  - name: postgresql
+    version: 12.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: 17.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

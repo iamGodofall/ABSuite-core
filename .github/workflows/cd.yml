@@ -1,0 +1,225 @@
+name: CD - Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'pnpm'
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Run linter
+      run: pnpm lint
+    
+    - name: Run tests
+      run: pnpm test --coverage
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+    
+    - name: Build and push Dashboard
+      uses: docker/build-push-action@v5
+      with:
+        context: ./packages/dashboard-ui
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/absuite/dashboard:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Build and push CapKit
+      uses: docker/build-push-action@v5
+      with:
+        context: ./packages/capkit
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/absuite/capkit:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Build and push Edge-Run
+      uses: docker/build-push-action@v5
+      with:
+        context: ./packages/edge-run
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/absuite/edge-run:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Build and push QuickBench
+      uses: docker/build-push-action@v5
+      with:
+        context: ./packages/quickbench
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/absuite/quickbench:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Build and push Connector
+      uses: docker/build-push-action@v5
+      with:
+        context: ./packages/connector-starter
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/absuite/connector:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name absuite-staging
+    
+    - name: Deploy to Staging
+      run: |
+        helm upgrade --install absuite ./helm-chart \
+          --namespace absuite-staging \
+          --set absuite.domain=staging.absuite.dev \
+          --set dashboard.image.tag=${{ github.sha }} \
+          --set capkit.image.tag=${{ github.sha }} \
+          --set edgeRun.image.tag=${{ github.sha }} \
+          --set quickbench.image.tag=${{ github.sha }} \
+          --set connector.image.tag=${{ github.sha }} \
+          --wait \
+          --timeout 10m
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name absuite-production
+    
+    - name: Deploy to Production
+      run: |
+        helm upgrade --install absuite ./helm-chart \
+          --namespace absuite \
+          --set absuite.domain=absuite.dev \
+          --set dashboard.image.tag=${{ github.sha }} \
+          --set capkit.image.tag=${{ github.sha }} \
+          --set edgeRun.image.tag=${{ github.sha }} \
+          --set quickbench.image.tag=${{ github.sha }} \
+          --set connector.image.tag=${{ github.sha }} \
+          --set absuite.ai.openai.enabled=true \
+          --set absuite.ai.openai.apiKey=${{ secrets.OPENAI_API_KEY }} \
+          --set absuite.security.jwtSecret=${{ secrets.JWT_SECRET }} \
+          --set absuite.security.hmacSecret=${{ secrets.HMAC_SECRET }} \
+          --wait \
+          --timeout 10m
+    
+    - name: Run smoke tests
+      run: |
+        kubectl run smoke-test --rm -i --restart=Never \
+          --image=curlimages/curl:latest \
+          -- curl -f http://absuite.dev/health
+    
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: 'ABSuite ${{ github.ref }} deployed to production!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

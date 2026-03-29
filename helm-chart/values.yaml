@@ -1,0 +1,264 @@
+# ABSuite Helm Chart Values
+# This is a YAML-formatted file for configuring ABSuite deployment
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "standard"
+
+# ABSuite configuration
+absuite:
+  # Domain configuration
+  domain: absuite.example.com
+  tls:
+    enabled: true
+    issuer: letsencrypt-prod
+  
+  # AI Provider configuration
+  ai:
+    defaultProvider: ollama
+    providers:
+      ollama:
+        enabled: true
+        host: "http://ollama:11434"
+      openai:
+        enabled: false
+        apiKey: ""
+      anthropic:
+        enabled: false
+        apiKey: ""
+  
+  # Security configuration
+  security:
+    jwtSecret: "change-me-in-production"
+    hmacSecret: "change-me-in-production"
+    requireMFA: false
+  
+  # RBAC configuration
+  rbac:
+    enabled: true
+    ldap:
+      enabled: false
+      url: ""
+      bindDN: ""
+      searchBase: ""
+  
+  # SIEM configuration
+  siem:
+    enabled: false
+    provider: splunk  # splunk, datadog, elk, custom
+    endpoint: ""
+    apiKey: ""
+  
+  # SLA configuration
+  sla:
+    enabled: true
+    targets:
+      uptime: 99.9
+      responseTime: 100
+      errorRate: 1.0
+
+# Dashboard UI configuration
+dashboard:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: absuite/dashboard
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 3001
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# CapKit (Security & AI) configuration
+capkit:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: absuite/capkit
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8081
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# Edge-Run (Scheduler) configuration
+edgeRun:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: absuite/edge-run
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8082
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+
+# QuickBench (Benchmarking) configuration
+quickbench:
+  enabled: true
+  replicaCount: 1
+  
+  image:
+    repository: absuite/quickbench
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8083
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+# Connector (Adapters) configuration
+connector:
+  enabled: true
+  replicaCount: 2
+  
+  image:
+    repository: absuite/connector
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8084
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+
+# Database configuration
+database:
+  enabled: true
+  type: sqlite  # sqlite, postgresql
+  
+  sqlite:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "standard"
+  
+  postgresql:
+    enabled: false
+    auth:
+      username: absuite
+      password: change-me
+      database: absuite
+
+# Redis configuration (for caching/sessions)
+redis:
+  enabled: false
+  architecture: standalone
+  auth:
+    enabled: true
+    password: change-me
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  grafana:
+    enabled: true
+    adminPassword: admin
+
+# Logging configuration
+logging:
+  level: info
+  format: json
+  retention: 30d
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

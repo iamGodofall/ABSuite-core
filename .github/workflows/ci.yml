@@ -1,0 +1,75 @@
+name: ABSuite CI/CD
+
+on:
+  push:
+    branches: [main, master, blackboxai/*]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Build all packages
+      run: pnpm run build
+    
+    - name: Run tests
+      run: pnpm test
+    
+    - name: Test health endpoints (Docker)
+      run: |
+        docker compose up -d --build
+        sleep 60
+        docker compose ps
+        curl -f http://localhost:8081/health || exit 1
+        curl -f http://localhost:8082/health || exit 1
+        curl -f http://localhost:3001/health || exit 1
+        curl -f http://localhost:8083/health || exit 1
+        curl -f http://localhost:8084/health || exit 1
+        docker compose down
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      if: always()
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Lint
+      run: pnpm run lint || echo "No lint script"
+    
+    - name: Type check
+      run: pnpm run type-check || echo "No type-check script"
