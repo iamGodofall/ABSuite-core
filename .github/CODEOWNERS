@@ -1,0 +1,17 @@
+# CODEOWNERS — ABSuite Core
+
+# Default owner for everything
+*       @iamGodofall
+
+# Package-level owners
+/packages/capkit/            @iamGodofall
+/packages/edge-run/          @iamGodofall
+/packages/quickbench/        @iamGodofall
+/packages/connector-starter/ @iamGodofall
+/packages/dashboard-ui/      @iamGodofall
+
+# Docs
+/docs/**                     @iamGodofall
+
+# Configuration
+/.github/**                  @iamGodofall

@@ -1,0 +1,34 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build artifacts
+dist
+build
+*.tsbuildinfo
+
+# Development
+.env
+.env.local
+.git
+.gitignore
+*.log
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile*
+
+# Docs and configs (not needed in image)
+*.md
+!README.md
+.github

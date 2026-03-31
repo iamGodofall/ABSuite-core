@@ -8,19 +8,15 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   server: { 
+    host: true,
+    cors: true,
     port: 3001, 
     open: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8081',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
-      },
-      '/socket.io': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        ws: true
-      }
+    hmr: {
+      host: 'localhost',
+      port: 3001,
+      clientPort: 3001,
+      protocol: 'ws'
     }
   },
   build: {

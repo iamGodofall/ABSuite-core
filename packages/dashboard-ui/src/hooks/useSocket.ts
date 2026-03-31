@@ -72,6 +72,7 @@ export function useSocket() {
   return {
     socket: socketRef.current,
     isConnected,
+    connected: isConnected,
     status,
     error,
     emit,

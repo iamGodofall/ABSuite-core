@@ -5,10 +5,17 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export interface Service {
+  id: string;
   name: string;
   status: 'up' | 'down' | 'unknown';
   port: number;
   features: string[];
+  metrics?: {
+    cpu: number;
+    memory: number;
+    requests: number;
+    errors: number;
+  };
   health: {
     cpu: number;
     memory: number;
@@ -19,6 +26,7 @@ export interface Service {
 
 const DEFAULT_SERVICES: Service[] = [
   {
+    id: 'capkit',
     name: 'capkit',
     status: 'unknown',
     port: 8081,
@@ -27,6 +35,7 @@ const DEFAULT_SERVICES: Service[] = [
     lastCheck: new Date(),
   },
   {
+    id: 'edge-run',
     name: 'edge-run',
     status: 'unknown',
     port: 8082,
@@ -35,6 +44,7 @@ const DEFAULT_SERVICES: Service[] = [
     lastCheck: new Date(),
   },
   {
+    id: 'quickbench',
     name: 'quickbench',
     status: 'unknown',
     port: 8083,
@@ -43,6 +53,7 @@ const DEFAULT_SERVICES: Service[] = [
     lastCheck: new Date(),
   },
   {
+    id: 'connector-starter',
     name: 'connector-starter',
     status: 'unknown',
     port: 8084,
@@ -51,6 +62,7 @@ const DEFAULT_SERVICES: Service[] = [
     lastCheck: new Date(),
   },
   {
+    id: 'dashboard',
     name: 'dashboard',
     status: 'up',
     port: 3001,
@@ -68,7 +80,7 @@ export function useServices() {
   const refreshServices = useCallback(async () => {
     try {
       // Try to fetch from orchestrator API
-      const response = await fetch('/api/status');
+      const response = await fetch('/status');
       if (response.ok) {
         const data = await response.json();
         setServices(prev => 
@@ -90,7 +102,7 @@ export function useServices() {
 
   const startService = useCallback(async (serviceName: string) => {
     try {
-      const response = await fetch(`/api/start/${serviceName}`, { method: 'POST' });
+      const response = await fetch(`/start/${serviceName}`, { method: 'POST' });
       if (response.ok) {
         await refreshServices();
       } else {
@@ -104,7 +116,7 @@ export function useServices() {
 
   const stopService = useCallback(async (serviceName: string) => {
     try {
-      const response = await fetch(`/api/stop/${serviceName}`, { method: 'POST' });
+      const response = await fetch(`/stop/${serviceName}`, { method: 'POST' });
       if (response.ok) {
         await refreshServices();
       } else {
@@ -115,6 +127,13 @@ export function useServices() {
       setError(`Failed to stop ${serviceName}`);
     }
   }, [refreshServices]);
+
+  const restartService = useCallback(async (serviceName: string) => {
+    await stopService(serviceName);
+    setTimeout(async () => {
+      await startService(serviceName);
+    }, 1000);
+  }, [stopService, startService]);
 
   useEffect(() => {
     refreshServices();
@@ -129,5 +148,6 @@ export function useServices() {
     refreshServices,
     startService,
     stopService,
+    restartService,
   };
 }

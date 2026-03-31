@@ -1,0 +1,25 @@
+{
+  "name": "@absuite/cli",
+  "version": "1.0.0",
+  "description": "ABSuite CLI — unified command-line interface",
+  "type": "module",
+  "bin": {
+    "absuite": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "echo \"CLI tests not yet implemented\" && exit 0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": ["absuite", "cli", "agent-builder"]
+}

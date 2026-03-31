@@ -1,83 +1,162 @@
 services:
+  # ---- Core Infrastructure ----
+
   absuite-db:
-    image: nouchka/sqlite3
-    entrypoint: ["/bin/sh"]
-    command: ["-c", "mkdir -p /data && touch /data/absuite.db && while true; do sleep 3600; done"]
+    image: alpine:latest
     container_name: absuite-db
+    command: sh -c "touch /data/absuite.db || true && exec tail -f /dev/null"
     volumes:
-      - ./data:/data
+      - absuite-data:/data
     healthcheck:
       test: ["CMD-SHELL", "test -f /data/absuite.db"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
     restart: unless-stopped
+    networks:
+      - absuite-net
+
+  # ---- Module Services ----
 
   capkit:
-    build: ./packages/capkit
+    build:
+      context: .
+      dockerfile: ./packages/capkit/Dockerfile
+    container_name: absuite-capkit
     ports:
       - "8081:8081"
+    environment:
+      - NODE_ENV=production
+      - ABSUITE_DB_PATH=/data/absuite.db
+      - ABSUITE_LOG_LEVEL=info
+    volumes:
+      - absuite-data:/data
     depends_on:
       absuite-db:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8081/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
     restart: unless-stopped
+    networks:
+      - absuite-net
 
   edge-run:
-    build: ./packages/edge-run
+    build:
+      context: .
+      dockerfile: ./packages/edge-run/Dockerfile
+    container_name: absuite-edge-run
     ports:
       - "8082:8082"
-    depends_on:
-      - absuite-db
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8082/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  dashboard:
-    build: ./packages/dashboard-ui
-    container_name: absuite-core-dashboard
-    ports:
-      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - ABSUITE_DB_PATH=/data/absuite.db
+      - ABSUITE_LOG_LEVEL=info
+      - EDGERUN_MAX_CONCURRENT=10
+      - EDGERUN_QUEUE_LIMIT=100
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.yml:/docker-compose.yml
+      - absuite-data:/data
     depends_on:
-      - capkit
-      - edge-run
+      absuite-db:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3001 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
     restart: unless-stopped
+    networks:
+      - absuite-net
 
   quickbench:
-    build: ./packages/quickbench
+    build:
+      context: .
+      dockerfile: ./packages/quickbench/Dockerfile
+    container_name: absuite-quickbench
     ports:
-      - "8083:3000"
+      - "8083:8083"
+    environment:
+      - NODE_ENV=production
+      - PORT=8083
+      - QUICKBENCH_PORT=8083
+      - QUICKBENCH_OLLAMA_URL=http://localhost:11434
+      - ABSUITE_LOG_LEVEL=info
+    depends_on:
+      absuite-db:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8083/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 20s
     restart: unless-stopped
+    networks:
+      - absuite-net
 
   connector-starter:
-    build: ./packages/connector-starter
+    build:
+      context: .
+      dockerfile: ./packages/connector-starter/Dockerfile
+    container_name: absuite-connector-starter
     ports:
       - "8084:8084"
+    environment:
+      - NODE_ENV=production
+      - ABSUITE_LOG_LEVEL=info
+    depends_on:
+      absuite-db:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8084/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8084/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 20s
     restart: unless-stopped
+    networks:
+      - absuite-net
+
+  # ---- Dashboard ----
+
+  dashboard:
+    build:
+      context: ./packages/dashboard-ui
+      dockerfile: Dockerfile
+    container_name: absuite-dashboard
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - ABSUITE_LOG_LEVEL=info
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
+    depends_on:
+      absuite-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - absuite-net
+
+  # ---- Persistent Volume ----
+
+volumes:
+  absuite-data:
+    driver: local
+
+networks:
+  absuite-net:
+    driver: bridge

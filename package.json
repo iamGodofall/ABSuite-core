@@ -1,1 +1,55 @@
-{"name":"absuite-core","workspaces":["packages/*"],"version":"1.0.0","description":"ABSuite Central Orchestrator","main":"dist/index.js","bin":{"absuite-core":"dist/cli.js"},"scripts":{"build":"tsc","dev":"ts-node src/index.ts","test":"jest","start":"node dist/index.js"},"keywords":["absuite","orchestrator","agents"],"author":"Senior Systems Engineer","license":"MIT","devDependencies":{"@types/jest":"^30.0.0","@types/node":"^25.5.0","@types/yargs":"^17.0.35","jest":"^30.3.0","ts-jest":"^29.4.6","typescript":"^6.0.2","yargs":"^18.0.0"},"dependencies":{"@types/socket.io":"^3.0.2","tsx":"^4.21.0"}}
+{
+  "name": "absuite-core",
+  "version": "1.0.0",
+  "description": "ABSuite — Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "tsx src/index.ts",
+    "start": "docker compose -f docker-compose.yml up -d",
+    "stop": "docker compose -f docker-compose.yml down",
+    "restart": "docker compose -f docker-compose.yml restart",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r exec rm -rf dist node_modules",
+    "cli": "pnpm --filter @absuite/cli run dev",
+    "cli:build": "pnpm --filter @absuite/cli build"
+  },
+  "bin": {
+    "absuite": "./packages/cli/dist/index.js"
+  },
+  "keywords": [
+    "absuite",
+    "ai-agents",
+    "agent-builder",
+    "infrastructure",
+    "llm",
+    "orchestration",
+    "security",
+    "benchmarks"
+  ],
+  "author": "ABSuite Contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "@types/yargs": "^17.0.35",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "yargs": "^18.0.0"
+  },
+  "dependencies": {
+    "@types/socket.io": "^3.0.2",
+    "socket.io": "^4.8.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
