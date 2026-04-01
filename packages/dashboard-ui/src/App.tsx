@@ -7,19 +7,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import {
-  Home, Bot, BarChart3, Settings, Menu, Sun, Moon, Zap, Shield, Activity,
+  Home, Bot, Menu, Zap, Shield, Activity,
   Play, StopCircle, RefreshCw, Bell, Search, ChevronLeft, ChevronRight,
-  Server, Cpu, HardDrive, Clock, GitBranch, Slack, MessageSquare, Github,
-  FolderKanban, ActivitySquare, Plus, Copy, Check, ExternalLink,
+  Server, Cpu, HardDrive, Slack, MessageSquare, Github,
+  FolderKanban, ActivitySquare, Plus, Copy, Check,
   AlertCircle, CheckCircle2, XCircle, X, Loader2, TrendingUp, TrendingDown,
-  ArrowDownToLine, ArrowUpToLine, Trash2, Download, Upload, Eye,
-  Hexagon, Layers, Network, Gauge, Puzzle, Wrench
+  Download, Upload, Eye, Hexagon, Network, Gauge, Wrench
 } from 'lucide-react';
 import { useServices, Service } from './hooks/useServices';
+
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
 import { cn } from './utils';
+import type { ProviderOption } from './types';
 import './styles/globals.css';
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,19 +29,33 @@ type TabId = 'overview' | 'services' | 'ai-studio' | 'benchmarks' | 'connectors'
 
 interface LogEntry { time: string; level: 'info' | 'warn' | 'error'; message: string; }
 interface BenchmarkResult { id: string; service: string; type: string; p50: number; p95: number; p99: number; rps: number; status: string; timestamp: string; }
-interface Connector { id: string; name: string; icon: React.ReactNode; enabled: boolean; description: string; }
 interface RecentGeneration { id: string; type: 'token' | 'policy'; provider: string; preview: string; timestamp: string; }
+
+const getAdminHeaders = (): HeadersInit => {
+  if (typeof window === 'undefined') return {};
+  const adminKey = window.localStorage.getItem('absuiteAdminApiKey')?.trim();
+  return adminKey ? { 'x-absuite-admin-key': adminKey } : {};
+};
+
+const DEMO_BENCHMARK_HISTORY: BenchmarkResult[] = [
+  { id: 'demo-1', service: 'capkit', type: 'latency', p50: 118, p95: 312, p99: 845, rps: 423, status: 'complete', timestamp: new Date(Date.now() - 3600000).toLocaleTimeString() },
+  { id: 'demo-2', service: 'edge-run', type: 'throughput', p50: 89, p95: 201, p99: 567, rps: 891, status: 'complete', timestamp: new Date(Date.now() - 7200000).toLocaleTimeString() },
+];
 
 // ─── Utility Components ─────────────────────────────────────────────────────
 
-const StatusDot = ({ status }: { status: 'up' | 'down' | 'unknown' }) => {
-  const colors = {
+const StatusDot = ({ status }: { status: Service['status'] }) => {
+  const colors: Record<Service['status'], string> = {
     up: 'bg-emerald-500 status-dot-up',
     down: 'bg-red-500 status-dot-down',
     unknown: 'bg-amber-500 status-dot-unknown',
+    starting: 'bg-blue-400 status-dot-starting animate-pulse',
+    stopping: 'bg-yellow-400 status-dot-stopping',
+    failed: 'bg-red-400 status-dot-failed'
   };
   return <span className={cn('w-2.5 h-2.5 rounded-full inline-block', colors[status])} />;
 };
+
 
 const CopyBlock = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false);
@@ -115,38 +131,92 @@ const ServiceActionBtn = ({ icon: Icon, label, variant, onClick, loading }: { ic
   );
 };
 
+const NoticeCard = ({ tone = 'info', title, message }: { tone?: 'info' | 'warn' | 'error'; title: string; message: string }) => {
+  const toneStyles = {
+    info: 'border-blue-500/30 bg-blue-500/10 text-blue-200',
+    warn: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+    error: 'border-red-500/30 bg-red-500/10 text-red-200',
+  } as const;
+
+  return (
+    <div className={cn('glass-card border p-4', toneStyles[tone])}>
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <div className="text-sm font-semibold">{title}</div>
+          <p className="mt-1 text-sm opacity-90">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Overview Tab ────────────────────────────────────────────────────────────
 
-const OverviewTab = ({ services, onServiceAction }: { services: Service[]; onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void }) => {
+const OverviewTab = ({ services, demoMode, error, onServiceAction }: { services: Service[]; demoMode: boolean; error: string | null; onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
 
   const upCount = services.filter(s => s.status === 'up').length;
-  const downCount = services.filter(s => s.status === 'down').length;
+  const downCount = services.filter(s => s.status === 'down' || s.status === 'failed').length;
   const avgCpu = services.length ? Math.round(services.reduce((a, s) => a + (s.metrics?.cpu ?? 0), 0) / services.length) : 0;
   const avgMem = services.length ? Math.round(services.reduce((a, s) => a + (s.metrics?.memory ?? 0), 0) / services.length) : 0;
 
   useEffect(() => {
-    const initial: LogEntry[] = Array.from({ length: 5 }, (_, i) => ({
-      time: new Date(Date.now() - i * 45000).toLocaleTimeString(),
-      level: 'info',
-      message: `Service health check passed — all systems nominal`,
-    }));
-    setLogs(initial);
-    const interval = setInterval(() => {
-      const msgs = [
-        'INFO: Heartbeat received from all registered services',
-        'INFO: Security scan completed — no threats detected',
-        'INFO: Cache synchronized across edge nodes',
-        'WARN: High memory usage on edge-run (72%)',
-        'INFO: Benchmark results archived successfully',
-        'INFO: Connector status updated for GitHub integration',
-        'INFO: AI policy cache refreshed',
-      ];
-      setLogs(prev => [{ time: new Date().toLocaleTimeString(), level: 'info' as const, message: msgs[Math.floor(Math.random() * msgs.length)] }, ...prev.slice(0, 19)]);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+    if (demoMode) {
+      const initial: LogEntry[] = Array.from({ length: 5 }, (_, i) => ({
+        time: new Date(Date.now() - i * 45000).toLocaleTimeString(),
+        level: 'info',
+        message: 'Demo event stream active — showcase telemetry is being simulated.',
+      }));
+      setLogs(initial);
+      const interval = setInterval(() => {
+        const messages = [
+          'Demo: Heartbeat received from all registered services',
+          'Demo: Security scan completed — no threats detected',
+          'Demo: Benchmark results archived successfully',
+          'Demo: Connector status updated for GitHub integration',
+        ];
+        setLogs(prev => [{ time: new Date().toLocaleTimeString(), level: 'info' as const, message: messages[Math.floor(Math.random() * messages.length)]! }, ...prev.slice(0, 19)]);
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+
+    const liveLogs: LogEntry[] = [];
+    if (error) {
+      liveLogs.push({
+        time: new Date().toLocaleTimeString(),
+        level: 'error',
+        message: error,
+      });
+    }
+
+    if (services.length === 0) {
+      liveLogs.push({
+        time: new Date().toLocaleTimeString(),
+        level: 'warn',
+        message: 'No live service telemetry is available yet.',
+      });
+    } else {
+      liveLogs.push(...services.map(service => {
+        const level: LogEntry['level'] = service.status === 'up'
+          ? 'info'
+          : service.status === 'starting' || service.status === 'stopping' || service.status === 'unknown'
+            ? 'warn'
+            : 'error';
+
+        return {
+          time: service.lastCheck.toLocaleTimeString(),
+          level,
+          message: service.status === 'up'
+            ? `${service.name} is responding on :${service.port}.`
+            : `${service.name} is currently ${service.status} on :${service.port}.`,
+        };
+      }));
+    }
+
+    setLogs(liveLogs.slice(0, 20));
+  }, [demoMode, services, error]);
 
   const handleAction = async (id: string, action: 'start' | 'stop' | 'restart') => {
     setActionLoading(prev => ({ ...prev, [id]: true }));
@@ -156,6 +226,16 @@ const OverviewTab = ({ services, onServiceAction }: { services: Service[]; onSer
 
   return (
     <div className="space-y-6">
+      {demoMode ? (
+        <NoticeCard tone="warn" title="Demo mode is active" message="This tab is using showcase activity data. Switch back to Live to monitor the real suite." />
+      ) : (
+        <NoticeCard
+          tone={error ? 'error' : 'info'}
+          title={error ? 'Live mode reports a real issue' : 'Live mode is active'}
+          message={error ? `${error} No fake fallback data is being shown.` : 'This activity feed and service grid reflect the real orchestrator state.'}
+        />
+      )}
+
       {/* Stats Bar */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Services Up" value={upCount} icon={CheckCircle2} trend="up" sub={`${downCount} down`} />
@@ -252,13 +332,15 @@ const ServicesTab = ({ services, onServiceAction }: { services: Service[]; onSer
   const svc = services.find(s => s.id === selected) ?? services[0];
 
   useEffect(() => {
-    if (!svc) return;
+    const serviceId = svc?.id;
+    if (!serviceId) return;
+
     setLoadingLogs(true);
-    fetch(`/logs/${svc.id}`).then(r => r.json()).then(data => {
+    fetch(`/logs/${serviceId}`, { headers: getAdminHeaders() }).then(r => r.json()).then(data => {
       setLogs(data.logs ?? []);
       setLoadingLogs(false);
     }).catch(() => { setLogs([]); setLoadingLogs(false); });
-  }, [selected, svc?.id]);
+  }, [svc?.id]);
 
   if (!svc) return <div className="text-text-muted">No services available</div>;
 
@@ -354,50 +436,129 @@ const ServicesTab = ({ services, onServiceAction }: { services: Service[]; onSer
 
 // ─── AI Studio Tab ───────────────────────────────────────────────────────────
 
-const AIStudioTab = () => {
-  const [provider, setProvider] = useState('openai');
+const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
+  const [provider, setProvider] = useState('ollama');
   const [tokenName, setTokenName] = useState('');
   const [tokenPerms, setTokenPerms] = useState('read,execute');
   const [tokenExpiry, setTokenExpiry] = useState('24h');
   const [tokenResult, setTokenResult] = useState('');
   const [tokenLoading, setTokenLoading] = useState(false);
+  const [tokenError, setTokenError] = useState('');
 
   const [policyDesc, setPolicyDesc] = useState('');
   const [policyResult, setPolicyResult] = useState('');
   const [policyLoading, setPolicyLoading] = useState(false);
+  const [policyError, setPolicyError] = useState('');
 
   const [recentGens, setRecentGens] = useState<RecentGeneration[]>([]);
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [providersError, setProvidersError] = useState('');
+  const [recommendedProvider, setRecommendedProvider] = useState('none');
+  useEffect(() => {
+    let active = true;
+    const fallbackProviders: ProviderOption[] = [
+      { name: 'ollama', label: 'Ollama', type: 'local', available: demoMode, configured: true, defaultModel: 'llama3.2', description: 'Sovereign local inference via Ollama.' },
+      { name: 'lmstudio', label: 'LM Studio', type: 'local', available: false, configured: true, defaultModel: 'local-model', description: 'OpenAI-compatible local desktop inference.' },
+      { name: 'github-models', label: 'GitHub Models', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'GitHub-hosted model access.' },
+      { name: 'openrouter', label: 'OpenRouter', type: 'cloud', available: false, configured: false, defaultModel: 'openai/gpt-4o-mini', description: 'One API for many hosted models.' },
+      { name: 'groq', label: 'Groq', type: 'cloud', available: false, configured: false, defaultModel: 'llama-3.3-70b-versatile', description: 'Fast low-latency inference.' },
+      { name: 'openai', label: 'OpenAI', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'OpenAI GPT models.' },
+      { name: 'anthropic', label: 'Anthropic', type: 'cloud', available: false, configured: false, defaultModel: 'claude-3-5-sonnet-20241022', description: 'Anthropic Claude models.' },
+      { name: 'azure-openai', label: 'Azure OpenAI', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'Enterprise-hosted OpenAI deployments.' },
+    ];
+
+    const loadProviders = async () => {
+      try {
+        const res = await fetch('/ai/providers');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message ?? data.error ?? 'Unable to inspect AI providers');
+
+        if (!active) return;
+
+        const liveProviders: ProviderOption[] = Array.isArray(data.providers)
+          ? (data.providers as ProviderOption[])
+          : [];
+        const nextProviders: ProviderOption[] = demoMode
+          ? (liveProviders.length > 0 ? liveProviders : fallbackProviders)
+          : liveProviders;
+
+        setProviders(nextProviders);
+        setRecommendedProvider(data.recommended ?? 'none');
+        setProvidersError(!demoMode && liveProviders.length === 0 ? 'No live AI providers were reported by CapKit.' : '');
+
+        if (nextProviders.length > 0 && !nextProviders.some(option => option.name === provider)) {
+          const preferredProvider = data.recommended && data.recommended !== 'none'
+            ? data.recommended
+            : nextProviders[0]?.name;
+
+          if (preferredProvider) {
+            setProvider(preferredProvider);
+          }
+        }
+      } catch (err) {
+        if (!active) return;
+        setProviders(demoMode ? fallbackProviders : []);
+        setRecommendedProvider(demoMode ? 'ollama' : 'none');
+        setProvidersError((err as Error).message);
+      }
+    };
+
+    void loadProviders();
+    return () => {
+      active = false;
+    };
+  }, [demoMode, provider]);
 
   const generateToken = async () => {
     if (!tokenName) return;
     setTokenLoading(true);
+    setTokenError('');
+
     try {
-      const res = await fetch(`/capkit/token/generate?name=${encodeURIComponent(tokenName)}&permissions=${encodeURIComponent(tokenPerms)}&expiry=${encodeURIComponent(tokenExpiry)}`);
+      const res = await fetch(`/capkit/token/generate?name=${encodeURIComponent(tokenName)}&permissions=${encodeURIComponent(tokenPerms)}&expiry=${encodeURIComponent(tokenExpiry)}`, { headers: getAdminHeaders() });
       const data = await res.json();
-      setTokenResult(data.token ?? `ck_live_${Math.random().toString(36).slice(2, 18)}...`);
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Token generation failed');
+
+      const generatedToken = data.token ?? JSON.stringify(data.capability ?? data, null, 2);
+      setTokenResult(generatedToken);
       setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
-    } catch { setTokenResult(`ck_live_${Math.random().toString(36).slice(2, 18)}...`); setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]); }
-    setTokenLoading(false);
+    } catch (err) {
+      if (demoMode) {
+        setTokenResult(`ck_demo_${Math.random().toString(36).slice(2, 18)}...`);
+        setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
+      } else {
+        setTokenResult('');
+        setTokenError((err as Error).message);
+      }
+    } finally {
+      setTokenLoading(false);
+    }
   };
 
   const generatePolicy = async () => {
     if (!policyDesc) return;
     setPolicyLoading(true);
+    setPolicyError('');
+
     try {
       const res = await fetch('/ai/policy/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: policyDesc, provider }) });
       const data = await res.json();
-      setPolicyResult(data.policy ?? `Generated AI Policy for: ${policyDesc.slice(0, 40)}...\n\n- Access Level: Medium\n- Rate Limiting: 100 req/min\n- Content Filter: Strict\n- Audit: Enabled`);
-    } catch { setPolicyResult(`Generated AI Policy for: ${policyDesc.slice(0, 40)}...\n\n- Access Level: Medium\n- Rate Limiting: 100 req/min\n- Content Filter: Strict\n- Audit: Enabled`); }
-    setPolicyLoading(false);
-    setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
-  };
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Policy generation failed');
 
-  const providers = [
-    { id: 'openai', name: 'OpenAI', color: 'emerald' },
-    { id: 'anthropic', name: 'Anthropic', color: 'amber' },
-    { id: 'ollama', name: 'Ollama', color: 'blue' },
-    { id: 'azure', name: 'Azure OpenAI', color: 'purple' },
-  ];
+      setPolicyResult(data.policy ?? data.improvedPolicy ?? '');
+      setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
+    } catch (err) {
+      if (demoMode) {
+        setPolicyResult(`Generated demo policy for: ${policyDesc.slice(0, 40)}...\n\n- Access Level: Medium\n- Rate Limiting: 100 req/min\n- Content Filter: Strict\n- Audit: Enabled`);
+        setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
+      } else {
+        setPolicyResult('');
+        setPolicyError((err as Error).message);
+      }
+    } finally {
+      setPolicyLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -406,12 +567,55 @@ const AIStudioTab = () => {
         <h2 className="text-xl font-bold text-text-primary">AI Studio</h2>
       </div>
 
+      {demoMode ? (
+        <NoticeCard tone="warn" title="Demo mode is active" message="AI Studio will use showcase examples if the live providers are unavailable." />
+      ) : (
+        <NoticeCard tone="info" title="Live mode is active" message="This panel only shows real CapKit and provider responses. If a provider is unavailable, the actual error will be shown." />
+      )}
+
       {/* Provider Selector */}
       <div className="glass-card p-5">
-        <div className="text-sm text-text-muted mb-3">Select AI Provider</div>
-        <div className="flex gap-2 flex-wrap">
-          {providers.map(p => (
-            <button key={p.id} onClick={() => setProvider(p.id)} className={cn('px-4 py-2 rounded-xl text-sm font-medium transition-all border', provider === p.id ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-bg-tertiary text-text-muted border-border hover:text-text-primary')}>{p.name}</button>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm text-text-muted">Select AI Provider</div>
+            <div className="text-xs text-text-muted/70">Broad model compatibility is now surfaced from the real backend provider registry.</div>
+          </div>
+          {recommendedProvider !== 'none' && (
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+              Recommended: {recommendedProvider}
+            </span>
+          )}
+        </div>
+        {providersError && <div className="mb-3"><NoticeCard tone={demoMode ? 'warn' : 'error'} title="Provider discovery issue" message={providersError} /></div>}
+        {!providersError && !demoMode && providers.length === 0 && (
+          <div className="mb-3">
+            <NoticeCard tone="error" title="No live providers available" message="CapKit did not report any reachable AI providers. Start or configure one to use AI Studio in live mode." />
+          </div>
+        )}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {providers.map((option: ProviderOption) => (
+            <button
+              key={option.name}
+              onClick={() => setProvider(option.name)}
+              className={cn(
+                'rounded-xl border p-3 text-left transition-all',
+                provider === option.name
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                  : 'border-border bg-bg-tertiary text-text-muted hover:text-text-primary'
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{option.label ?? option.name}</span>
+                <span className={cn(
+                  'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                  option.available ? 'bg-emerald-500/15 text-emerald-300' : option.configured ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-300'
+                )}>
+                  {option.available ? 'ready' : option.configured ? 'configured' : 'needs setup'}
+                </span>
+              </div>
+              <div className="mt-1 text-[11px] text-text-muted/80">{option.type} • {option.defaultModel ?? 'default model'}</div>
+              {option.description && <div className="mt-1 text-xs text-text-muted/70">{option.description}</div>}
+            </button>
           ))}
         </div>
       </div>
@@ -451,6 +655,7 @@ const AIStudioTab = () => {
           <button onClick={generateToken} disabled={!tokenName || tokenLoading} className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {tokenLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Zap className="w-4 h-4" /> Generate Token</>}
           </button>
+          {tokenError && <div className="mt-4"><NoticeCard tone="error" title="Token generation failed" message={tokenError} /></div>}
           {tokenResult && <div className="mt-4"><CopyBlock text={tokenResult} /></div>}
         </div>
 
@@ -467,6 +672,7 @@ const AIStudioTab = () => {
           <button onClick={generatePolicy} disabled={!policyDesc || policyLoading} className="w-full py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {policyLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Shield className="w-4 h-4" /> Generate Policy</>}
           </button>
+          {policyError && <div className="mt-4"><NoticeCard tone="error" title="Policy generation failed" message={policyError} /></div>}
           {policyResult && (
             <div className="mt-4 p-4 bg-bg-primary rounded-xl border border-border">
               <pre className="text-sm text-emerald-400 whitespace-pre-wrap font-mono">{policyResult}</pre>
@@ -496,32 +702,69 @@ const AIStudioTab = () => {
 
 // ─── Benchmarks Tab ─────────────────────────────────────────────────────────
 
-const BenchmarksTab = () => {
+const BenchmarksTab = ({ demoMode }: { demoMode: boolean }) => {
   const [service, setService] = useState('capkit');
   const [benchType, setBenchType] = useState('latency');
   const [requests, setRequests] = useState('100');
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BenchmarkResult | null>(null);
-  const [history, setHistory] = useState<BenchmarkResult[]>([
-    { id: '1', service: 'capkit', type: 'latency', p50: 118, p95: 312, p99: 845, rps: 423, status: 'complete', timestamp: new Date(Date.now() - 3600000).toLocaleTimeString() },
-    { id: '2', service: 'edge-run', type: 'throughput', p50: 89, p95: 201, p99: 567, rps: 891, status: 'complete', timestamp: new Date(Date.now() - 7200000).toLocaleTimeString() },
-  ]);
+  const [history, setHistory] = useState<BenchmarkResult[]>(demoMode ? DEMO_BENCHMARK_HISTORY : []);
+  const [runError, setRunError] = useState('');
+
+  useEffect(() => {
+    if (demoMode) {
+      setHistory(prev => prev.length > 0 ? prev : DEMO_BENCHMARK_HISTORY);
+      return;
+    }
+
+    setHistory(prev => prev.filter(entry => !entry.id.startsWith('demo-')));
+  }, [demoMode]);
 
   const runBenchmark = async () => {
     setRunning(true);
     setResult(null);
+    setRunError('');
+
     try {
-      const res = await fetch('/benchmark/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service, type: benchType, requests: parseInt(requests) }) });
+      const res = await fetch('/benchmark/run', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAdminHeaders() }, body: JSON.stringify({ service, type: benchType, requests: parseInt(requests, 10) }) });
       const data = await res.json();
-      const r: BenchmarkResult = { id: Math.random().toString(), service, type: benchType, p50: data.latency_p50 ?? 120, p95: data.latency_p95 ?? 340, p99: data.latency_p99 ?? 890, rps: data.rps ?? 450, status: 'complete', timestamp: new Date().toLocaleTimeString() };
-      setResult(r);
-      setHistory(prev => [r, ...prev.slice(0, 9)]);
-    } catch {
-      const r: BenchmarkResult = { id: Math.random().toString(), service, type: benchType, p50: Math.round(80 + Math.random() * 80), p95: Math.round(200 + Math.random() * 200), p99: Math.round(500 + Math.random() * 500), rps: Math.round(300 + Math.random() * 400), status: 'complete', timestamp: new Date().toLocaleTimeString() };
-      setResult(r);
-      setHistory(prev => [r, ...prev.slice(0, 9)]);
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Benchmark run failed');
+
+      const benchmarkResult: BenchmarkResult = {
+        id: Math.random().toString(),
+        service,
+        type: benchType,
+        p50: data.latency_p50 ?? 0,
+        p95: data.latency_p95 ?? 0,
+        p99: data.latency_p99 ?? 0,
+        rps: data.rps ?? 0,
+        status: 'complete',
+        timestamp: new Date().toLocaleTimeString(),
+      };
+
+      setResult(benchmarkResult);
+      setHistory(prev => [benchmarkResult, ...prev.slice(0, 9)]);
+    } catch (err) {
+      if (demoMode) {
+        const demoResult: BenchmarkResult = {
+          id: `demo-${Math.random().toString()}`,
+          service,
+          type: benchType,
+          p50: Math.round(80 + Math.random() * 80),
+          p95: Math.round(200 + Math.random() * 200),
+          p99: Math.round(500 + Math.random() * 500),
+          rps: Math.round(300 + Math.random() * 400),
+          status: 'complete',
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setResult(demoResult);
+        setHistory(prev => [demoResult, ...prev.slice(0, 9)]);
+      } else {
+        setRunError((err as Error).message);
+      }
+    } finally {
+      setRunning(false);
     }
-    setRunning(false);
   };
 
   const chartData = history.slice(0, 6).reverse().map(h => ({ name: h.service.slice(0, 6), p50: h.p50, p99: h.p99, rps: h.rps / 10 }));
@@ -532,6 +775,12 @@ const BenchmarksTab = () => {
         <Gauge className="w-6 h-6 text-emerald-400" />
         <h2 className="text-xl font-bold text-text-primary">Benchmarks</h2>
       </div>
+
+      {demoMode ? (
+        <NoticeCard tone="warn" title="Demo mode is active" message="Benchmark history may include showcase runs when the real services are not available." />
+      ) : (
+        <NoticeCard tone={runError ? 'error' : 'info'} title={runError ? 'Live benchmark failed' : 'Live benchmark mode'} message={runError || 'Benchmark runs measure the real target service health endpoint and report actual timing.'} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Run Config */}
@@ -664,7 +913,7 @@ const BenchmarksTab = () => {
 
 // ─── Connectors Tab ───────────────────────────────────────────────────────────
 
-const ConnectorsTab = () => {
+const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
   const [connectors, setConnectors] = useState([
     { id: 'github', name: 'GitHub', icon: <Github className="w-6 h-6" />, enabled: true, description: 'Code repositories, PRs, and CI/CD workflows' },
     { id: 'slack', name: 'Slack', icon: <Slack className="w-6 h-6" />, enabled: true, description: 'Team messaging and notifications' },
@@ -679,23 +928,62 @@ const ConnectorsTab = () => {
   const [agentModel, setAgentModel] = useState('gpt-4o');
   const [agentResult, setAgentResult] = useState('');
   const [agentLoading, setAgentLoading] = useState(false);
+  const [connectorStatusMessage, setConnectorStatusMessage] = useState('');
+  const [connectorStatusTone, setConnectorStatusTone] = useState<'info' | 'warn' | 'error'>('info');
+  const [agentError, setAgentError] = useState('');
 
-  const toggle = (id: string) => setConnectors(prev => prev.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c));
+  const toggle = (id: string) => {
+    if (!demoMode) {
+      setConnectorStatusTone('warn');
+      setConnectorStatusMessage('Connector enable/disable is not persisted yet in Live mode. Use Test Connection for the real status.');
+      return;
+    }
+
+    setConnectors(prev => prev.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c));
+  };
+
   const testConnector = async (id: string) => {
+    setConnectorStatusMessage('');
+
     try {
-      await fetch('/connectors/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectorId: id }) });
-    } catch {}
+      const res = await fetch('/connectors/test', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAdminHeaders() }, body: JSON.stringify({ connectorId: id }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Connector test failed');
+
+      setConnectorStatusTone(data.configured ? 'info' : 'warn');
+      setConnectorStatusMessage(data.message ?? `${id} connection looks healthy.`);
+    } catch (err) {
+      if (demoMode) {
+        setConnectorStatusTone('warn');
+        setConnectorStatusMessage(`${id} is using demo connectivity feedback right now.`);
+      } else {
+        setConnectorStatusTone('error');
+        setConnectorStatusMessage((err as Error).message);
+      }
+    }
   };
 
   const generateAgent = async () => {
     if (!agentPrompt) return;
     setAgentLoading(true);
+    setAgentError('');
+
     try {
       const res = await fetch('/connector-starter/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: agentPrompt, model: agentModel }) });
       const data = await res.json();
-      setAgentResult(data.config ?? `# AI Agent Configuration\nname: my-agent\nmodel: ${agentModel}\ndescription: "${agentPrompt.slice(0, 50)}..."\n\ncapabilities:\n  - read\n  - execute\n  \nendpoints:\n  - ${agentPrompt.slice(0, 30).replace(/\s/g, '-').toLowerCase()}`);
-    } catch { setAgentResult(`# AI Agent Configuration\nname: my-agent\nmodel: ${agentModel}\ndescription: "${agentPrompt.slice(0, 50)}..."\n\ncapabilities:\n  - read\n  - execute\n\nendpoints:\n  - ${agentPrompt.slice(0, 30).replace(/\s/g, '-').toLowerCase()}`); }
-    setAgentLoading(false);
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Agent generation failed');
+
+      setAgentResult(data.config ?? '');
+    } catch (err) {
+      if (demoMode) {
+        setAgentResult(`# AI Agent Configuration\nname: my-agent\nmodel: ${agentModel}\ndescription: "${agentPrompt.slice(0, 50)}..."\n\ncapabilities:\n  - read\n  - execute\n\nendpoints:\n  - ${agentPrompt.slice(0, 30).replace(/\s/g, '-').toLowerCase()}`);
+      } else {
+        setAgentResult('');
+        setAgentError((err as Error).message);
+      }
+    } finally {
+      setAgentLoading(false);
+    }
   };
 
   return (
@@ -707,6 +995,12 @@ const ConnectorsTab = () => {
           <Plus className="w-4 h-4" /> Add Connector
         </button>
       </div>
+
+      {demoMode ? (
+        <NoticeCard tone="warn" title="Demo mode is active" message="Connector toggles and generated agent content may use showcase-only behavior." />
+      ) : (
+        <NoticeCard tone="info" title="Live connector mode" message="Connector tests show the real environment configuration. Unwired features will tell you they are not configured yet." />
+      )}
 
       {/* Connector Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -727,6 +1021,8 @@ const ConnectorsTab = () => {
               </motion.div>
             ))}
           </div>
+
+      {connectorStatusMessage && <NoticeCard tone={connectorStatusTone} title="Connector status" message={connectorStatusMessage} />}
 
       {/* AI Agent Generator */}
       <div className="glass-card p-6">
@@ -753,6 +1049,7 @@ const ConnectorsTab = () => {
           <button onClick={generateAgent} disabled={!agentPrompt || agentLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {agentLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Bot className="w-4 h-4" /> Generate Agent</>}
           </button>
+          {agentError && <NoticeCard tone="error" title="Agent generation failed" message={agentError} />}
           {agentResult && <CopyBlock text={agentResult} />}
         </div>
       </div>
@@ -831,20 +1128,93 @@ const ConnectorsTab = () => {
 
 // ─── Settings Tab ────────────────────────────────────────────────────────────
 
-const SettingsTab = () => {
-  const [endpoints, setEndpoints] = useState([
-    { name: 'CapKit', url: 'http://localhost:3001', status: 'up' },
-    { name: 'Edge-Run', url: 'http://localhost:3002', status: 'up' },
-    { name: 'QuickBench', url: 'http://localhost:3003', status: 'up' },
-    { name: 'Connector Starter', url: 'http://localhost:3004', status: 'down' },
-    { name: 'ABSuite DB', url: 'http://localhost:5432', status: 'up' },
-  ]);
+const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: boolean }) => {
+  const [dbStatus, setDbStatus] = useState<Service['status']>('unknown');
   const [notifs, setNotifs] = useState({ email: true, slack: false, alerts: true });
+  const [adminApiKey, setAdminApiKey] = useState('');
   const [exportMsg, setExportMsg] = useState('');
+  const [endpointMessage, setEndpointMessage] = useState('');
+  const [endpointMessageTone, setEndpointMessageTone] = useState<'info' | 'warn' | 'error'>('info');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setAdminApiKey(window.localStorage.getItem('absuiteAdminApiKey') || '');
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const syncDbStatus = async () => {
+      if (demoMode) {
+        setDbStatus('unknown');
+        return;
+      }
+
+      try {
+        const response = await fetch('/status');
+        const data = await response.json() as Record<string, string>;
+        if (!response.ok) throw new Error(data.error ?? `Status ${response.status}`);
+        if (!active) return;
+
+        const rawStatus = String(data['absuite-db'] || 'unknown').toLowerCase();
+        const normalized: Service['status'] = ['up', 'down', 'unknown', 'starting', 'stopping', 'failed'].includes(rawStatus)
+          ? rawStatus as Service['status']
+          : 'unknown';
+
+        setDbStatus(normalized);
+      } catch {
+        if (active) {
+          setDbStatus('unknown');
+        }
+      }
+    };
+
+    void syncDbStatus();
+    return () => {
+      active = false;
+    };
+  }, [demoMode, services]);
+
+  const endpoints = [
+    ...services.map(service => ({
+      name: service.name,
+      url: `http://localhost:${service.port}`,
+      status: service.status,
+    })),
+    { name: 'ABSuite DB', url: 'http://localhost:3001/service-health/absuite-db', status: dbStatus },
+  ];
 
   const testEndpoint = async (url: string) => {
-    await new Promise(r => setTimeout(r, 800));
-    return Math.random() > 0.3;
+    setEndpointMessage('');
+
+    try {
+      const healthUrl = url.includes('/service-health/') || url.endsWith('/health') ? url : `${url}/health`;
+      const res = await fetch(`/endpoint-check?url=${encodeURIComponent(healthUrl)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Endpoint test failed');
+
+      setEndpointMessageTone('info');
+      setEndpointMessage(`${healthUrl} responded with HTTP ${data.status}.`);
+    } catch (err) {
+      setEndpointMessageTone(demoMode ? 'warn' : 'error');
+      setEndpointMessage(demoMode ? 'Demo mode does not guarantee a live endpoint response.' : (err as Error).message);
+    }
+  };
+
+  const saveAdminApiKey = () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('absuiteAdminApiKey', adminApiKey.trim());
+    setEndpointMessageTone('info');
+    setEndpointMessage(adminApiKey.trim() ? 'Admin API key saved for hardened service management actions.' : 'Admin API key cleared from this browser.');
+  };
+
+  const clearAdminApiKey = () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem('absuiteAdminApiKey');
+    setAdminApiKey('');
+    setEndpointMessageTone('info');
+    setEndpointMessage('Admin API key cleared from this browser.');
   };
 
   const exportConfig = () => {
@@ -863,6 +1233,12 @@ const SettingsTab = () => {
         <Wrench className="w-6 h-6 text-emerald-400" />
         <h2 className="text-xl font-bold text-text-primary">Settings</h2>
       </div>
+
+      {demoMode ? (
+        <NoticeCard tone="warn" title="Demo mode is active" message="Endpoint checks may be unavailable or simulated for presentation purposes." />
+      ) : (
+        <NoticeCard tone="info" title="Live settings mode" message="Endpoint statuses in this panel reflect the actual running suite. Tests call the real health endpoints through the dashboard backend." />
+      )}
 
       {/* Service Endpoints */}
       <div className="glass-card overflow-hidden">
@@ -894,6 +1270,8 @@ const SettingsTab = () => {
         </div>
       </div>
 
+      {endpointMessage && <NoticeCard tone={endpointMessageTone} title="Endpoint test result" message={endpointMessage} />}
+
       {/* Notifications */}
       <div className="glass-card p-5">
         <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Notification Preferences</h3>
@@ -922,6 +1300,26 @@ const SettingsTab = () => {
               </button>
             </label>
           ))}
+        </div>
+      </div>
+
+      {/* Production Access */}
+      <div className="glass-card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Shield className="w-5 h-5 text-emerald-400" />
+          <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider">Production Access</h3>
+        </div>
+        <p className="text-sm text-text-muted mb-3">Service logs and start/stop controls are protected in hardened public mode. Save the admin API key from your deployment environment in this browser to unlock them.</p>
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            type="password"
+            value={adminApiKey}
+            onChange={e => setAdminApiKey(e.target.value)}
+            placeholder="Paste ABSUITE_ADMIN_API_KEY"
+            className="flex-1 bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-emerald-500/50"
+          />
+          <button onClick={saveAdminApiKey} className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 text-sm font-medium">Save key</button>
+          <button onClick={clearAdminApiKey} className="px-4 py-2 rounded-lg bg-bg-tertiary text-text-secondary hover:text-text-primary text-sm font-medium">Clear</button>
         </div>
       </div>
 
@@ -983,24 +1381,51 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; time: string; read: boolean; type: 'info' | 'success' | 'warn' }>>([
+    { id: '1', message: 'Dashboard connected to ABSuite services', time: 'Just now', read: false, type: 'success' },
+    { id: '2', message: 'QuickBench health check passed', time: '5m ago', read: false, type: 'info' },
+    { id: '3', message: 'GitHub connector active', time: '1h ago', read: true, type: 'info' },
+  ]);
+  const unreadCount = notifications.filter(n => !n.read).length;
   const { theme } = useTheme();
-  const { services, isConnected, startService, stopService, restartService } = useServices();
+  const { services, demoMode, toggleDemoMode, loading, error, startService, stopService, restartService } = useServices();
+
+  // Close notification panel on outside click
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.notif-panel') && !target.closest('.notif-trigger')) setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [notifOpen]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setNotifOpen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [notifOpen]);
+
   const { connected } = useSocket();
 
   const handleServiceAction = useCallback(async (id: string, action: 'start' | 'stop' | 'restart') => {
     if (action === 'start') await startService(id);
     else if (action === 'stop') await stopService(id);
-    else if (action === 'restart') { await stopService(id); setTimeout(() => startService(id), 500); }
-  }, [startService, stopService]);
+    else if (action === 'restart') await restartService(id);
+  }, [restartService, startService, stopService]);
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'overview': return <OverviewTab services={services} onServiceAction={handleServiceAction} />;
+      case 'overview': return <OverviewTab services={services} demoMode={demoMode} error={error} onServiceAction={handleServiceAction} />;
       case 'services': return <ServicesTab services={services} onServiceAction={handleServiceAction} />;
-      case 'ai-studio': return <AIStudioTab />;
-      case 'benchmarks': return <BenchmarksTab />;
-      case 'connectors': return <ConnectorsTab />;
-      case 'settings': return <SettingsTab />;
+      case 'ai-studio': return <AIStudioTab demoMode={demoMode} />;
+      case 'benchmarks': return <BenchmarksTab demoMode={demoMode} />;
+      case 'connectors': return <ConnectorsTab demoMode={demoMode} />;
+      case 'settings': return <SettingsTab services={services} demoMode={demoMode} />;
     }
   };
 
@@ -1074,20 +1499,32 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3 ml-auto">
+              <button
+                type="button"
+                onClick={toggleDemoMode}
+                aria-label={demoMode ? 'Switch to live mode' : 'Switch to demo mode'}
+                title={demoMode ? 'Switch to live mode' : 'Switch to demo mode'}
+                className="flex items-center gap-1 rounded-xl border border-border bg-bg-primary/80 p-1 text-[11px] font-semibold"
+              >
+                <span className={cn('rounded-lg px-2.5 py-1 transition-all', !demoMode ? 'bg-emerald-500 text-bg-primary' : 'text-text-muted')}>LIVE</span>
+                <span className={cn('rounded-lg px-2.5 py-1 transition-all', demoMode ? 'bg-amber-500 text-bg-primary' : 'text-text-muted')}>DEMO</span>
+              </button>
+
               {/* Connection Status */}
-              <div className="flex items-center gap-2">
-                <span className={cn('w-2.5 h-2.5 rounded-full', connected || isConnected ? 'bg-emerald-400 live-pulse' : 'bg-red-400')} />
-                <span className="hidden sm:block text-xs text-text-muted">{connected || isConnected ? 'Live' : 'Disconnected'}</span>
+              <div className="flex items-center gap-2 min-w-[120px]">
+                <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', connected ? 'bg-emerald-400 live-pulse' : 'bg-red-400')} />
+                <span className="hidden sm:block text-xs text-text-muted truncate">{loading ? 'Syncing' : connected ? 'Socket Connected' : 'Socket Disconnected'}</span>
               </div>
 
               <button
                 type="button"
                 aria-label="Open notifications"
                 title="Open notifications"
-                className="p-2 rounded-lg hover:bg-bg-tertiary transition-colors relative"
+                onClick={() => setNotifOpen(o => !o)}
+                className="notif-trigger p-2 rounded-lg hover:bg-bg-tertiary transition-colors relative"
               >
                 <Bell className="w-5 h-5 text-text-muted" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full" />
+{unreadCount > 0 && <span className="notification-badge" />}
               </button>
 
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center text-sm font-bold text-bg-primary">E</div>
@@ -1096,6 +1533,14 @@ export default function App() {
 
           {/* Content */}
           <main className="flex-1 overflow-y-auto p-5 dot-grid-bg">
+            <div className="mb-4">
+              {demoMode ? (
+                <NoticeCard tone="warn" title="Demo mode enabled" message="You are viewing showcase behavior in this same dashboard URI. Switch back to Live for the real suite state." />
+              ) : (
+                <NoticeCard tone={error ? 'error' : 'info'} title={error ? 'Live mode reports a real issue' : 'Live mode enabled'} message={error ? `${error} The dashboard is intentionally not showing fake fallback data.` : 'This dashboard is currently showing the real ABSuite service state.'} />
+              )}
+            </div>
+
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -1110,6 +1555,43 @@ export default function App() {
           </main>
         </div>
       </div>
+
+      {/* Notification Panel */}
+      {notifOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+          <div className="notif-panel fixed top-16 right-4 z-50 w-80 glass-panel p-0 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border/40">
+              <div>
+                <h3 className="font-semibold text-text-primary text-sm">Notifications</h3>
+                {unreadCount > 0 && <p className="text-xs text-text-muted">{unreadCount} unread</p>}
+              </div>
+              <button
+                onClick={() => { setNotifications(ns => ns.map(n => ({ ...n, read: true }))); setNotifOpen(false); }}
+                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <p className="text-sm text-text-muted text-center py-8">No notifications</p>
+              ) : (
+                notifications.map(n => (
+                  <div key={n.id} className={cn('flex items-start gap-3 px-4 py-3 border-b border-border/30 hover:bg-bg-tertiary/50 transition-colors', !n.read && 'bg-emerald-500/5')}>
+                    <div className={cn('mt-0.5 w-2 h-2 rounded-full shrink-0', n.type === 'success' && 'bg-emerald-400', n.type === 'info' && 'bg-blue-400', n.type === 'warn' && 'bg-amber-400')} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-text-primary leading-snug">{n.message}</p>
+                      <p className="text-xs text-text-muted mt-0.5">{n.time}</p>
+                    </div>
+                    {!n.read && <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Mobile Menu Overlay */}
       <AnimatePresence>

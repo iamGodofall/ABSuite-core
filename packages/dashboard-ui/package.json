@@ -8,7 +8,7 @@
     "dev": "vite dev",
     "start": "tsx server.ts",
     "preview": "vite preview",
-    "lint": "eslint src --ext .ts,.tsx",
+    "lint": "eslint .",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {

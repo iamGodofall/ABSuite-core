@@ -25,19 +25,27 @@ services:
       dockerfile: ./packages/capkit/Dockerfile
     container_name: absuite-capkit
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       - NODE_ENV=production
       - ABSUITE_DB_PATH=/data/absuite.db
-      - ABSUITE_LOG_LEVEL=info
+      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
+      - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
+      - CAPKIT_JWT_SECRET=${CAPKIT_JWT_SECRET}
+      - ABSUITE_ALLOWED_ORIGINS=${ABSUITE_ALLOWED_ORIGINS:-http://localhost:3001}
     volumes:
       - absuite-data:/data
     depends_on:
       absuite-db:
         condition: service_healthy
     healthcheck:
-
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:8081/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -52,7 +60,7 @@ services:
       dockerfile: ./packages/edge-run/Dockerfile
     container_name: absuite-edge-run
     ports:
-      - "8082:8082"
+      - "127.0.0.1:8082:8082"
     environment:
       - NODE_ENV=production
       - ABSUITE_DB_PATH=/data/absuite.db
@@ -65,7 +73,13 @@ services:
       absuite-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:8082/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -80,18 +94,24 @@ services:
       dockerfile: ./packages/quickbench/Dockerfile
     container_name: absuite-quickbench
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     environment:
       - NODE_ENV=production
       - PORT=8083
       - QUICKBENCH_PORT=8083
-      - QUICKBENCH_OLLAMA_URL=http://localhost:11434
-      - ABSUITE_LOG_LEVEL=info
+      - QUICKBENCH_OLLAMA_URL=${QUICKBENCH_OLLAMA_URL:-http://host.docker.internal:11434}
+      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
     depends_on:
       absuite-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8083/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:8083/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -106,7 +126,7 @@ services:
       dockerfile: ./packages/connector-starter/Dockerfile
     container_name: absuite-connector-starter
     ports:
-      - "8084:8084"
+      - "127.0.0.1:8084:8084"
     environment:
       - NODE_ENV=production
       - ABSUITE_LOG_LEVEL=info
@@ -114,7 +134,13 @@ services:
       absuite-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8084/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:8084/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -127,14 +153,16 @@ services:
 
   dashboard:
     build:
-      context: ./packages/dashboard-ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./packages/dashboard-ui/Dockerfile
     container_name: absuite-dashboard
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=production
-      - ABSUITE_LOG_LEVEL=info
+      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
+      - ABSUITE_ALLOWED_ORIGINS=${ABSUITE_ALLOWED_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
+      - ABSUITE_ADMIN_API_KEY=${ABSUITE_ADMIN_API_KEY:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker-compose.yml:/app/docker-compose.yml:ro
@@ -142,7 +170,13 @@ services:
       absuite-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3001/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
