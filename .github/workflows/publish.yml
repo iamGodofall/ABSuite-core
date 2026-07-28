@@ -1,0 +1,98 @@
+name: Publish to npm
+
+# Manual only. Publishing is irreversible — npm does not allow re-using a
+# version number — so this never fires on a push by accident.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build and pack, publish nothing)'
+        type: boolean
+        default: true
+      scope:
+        description: 'npm scope, e.g. @absuite or @your-username. Leave blank to keep the current one.'
+        type: string
+        required: false
+
+jobs:
+  publish:
+    name: Build, test and publish
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Required for npm provenance — publishes a signed, verifiable record of
+      # exactly which commit and workflow produced each tarball. Fitting for a
+      # project whose whole premise is provable execution.
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # node:sqlite requires 22.5+. Pinning the major avoids a surprise upgrade
+      # changing behaviour under us.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Change scope
+        if: inputs.scope != ''
+        run: node scripts/set-scope.mjs "${{ inputs.scope }}" && pnpm install --no-frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm -r --filter "./packages/*" build
+
+      - name: Show what would be published
+        run: |
+          for p in capkit edge-run quickbench connector-starter mcp; do
+            echo "--- $p ---"
+            (cd "packages/$p" && npm pack --dry-run 2>&1 | grep -E "name:|version:|package size:|total files:")
+          done
+
+      - name: Publish
+        if: inputs.dry_run == false
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -e
+          # CapKit first — the other four depend on it.
+          for p in capkit edge-run quickbench connector-starter mcp; do
+            echo "Publishing $p..."
+            (cd "packages/$p" && npm publish --access public --provenance) || {
+              echo "::error::Failed to publish $p"
+              exit 1
+            }
+          done
+
+      - name: Summary
+        run: |
+          {
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "### Dry run complete"
+              echo ""
+              echo "Nothing was published. Re-run with **Dry run unchecked** to publish for real."
+            else
+              echo "### Published"
+              echo ""
+              for p in capkit edge-run quickbench connector-starter mcp; do
+                echo "- \`$(node -e "process.stdout.write(require('./packages/$p/package.json').name)")\`"
+              done
+              echo ""
+              echo "Verify: \`npm view <package-name>\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
