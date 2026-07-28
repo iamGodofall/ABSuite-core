@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "test": "jest --rootDir ../.. --testPathPatterns packages/capkit"
+    "test": "jest -c ../../jest.config.js --rootDir ../.. --testPathPatterns packages/capkit"
   },
   "keywords": [
     "capability-token",

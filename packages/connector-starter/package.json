@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "test": "jest --rootDir ../.. --testPathPatterns packages/connector-starter"
+    "test": "jest -c ../../jest.config.js --rootDir ../.. --testPathPatterns packages/connector-starter"
   },
   "keywords": [
     "connectors",

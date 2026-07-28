@@ -39,15 +39,28 @@ jobs:
     - name: Run linter
       run: pnpm lint
     
+    - name: Build packages
+      run: pnpm build
+
+    # `pnpm test --coverage` fails instantly: pnpm parses --coverage itself and
+    # rejects it as an unknown option, so the tests never ran. Coverage belongs
+    # to jest, which the dedicated script invokes directly.
     - name: Run tests
-      run: pnpm test --coverage
-    
+      run: pnpm test
+
+    - name: Coverage
+      run: pnpm test:coverage
+
+    # Never block the pipeline on a third-party uploader. A coverage service
+    # being down is not a reason to call the build broken.
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
+      continue-on-error: true
       with:
         files: ./coverage/lcov.info
         flags: unittests
         name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   build:
     needs: test
@@ -88,7 +101,7 @@ jobs:
         context: .
         file: ./packages/dashboard-ui/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/absuite/dashboard:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-dashboard:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -96,9 +109,10 @@ jobs:
     - name: Build and push CapKit
       uses: docker/build-push-action@v5
       with:
-        context: ./packages/capkit
+        context: .
+        file: ./packages/capkit/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/absuite/capkit:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-capkit:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -106,9 +120,10 @@ jobs:
     - name: Build and push Edge-Run
       uses: docker/build-push-action@v5
       with:
-        context: ./packages/edge-run
+        context: .
+        file: ./packages/edge-run/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/absuite/edge-run:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-edge-run:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -116,9 +131,10 @@ jobs:
     - name: Build and push QuickBench
       uses: docker/build-push-action@v5
       with:
-        context: ./packages/quickbench
+        context: .
+        file: ./packages/quickbench/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/absuite/quickbench:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-quickbench:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -126,17 +142,49 @@ jobs:
     - name: Build and push Connector
       uses: docker/build-push-action@v5
       with:
-        context: ./packages/connector-starter
+        context: .
+        file: ./packages/connector-starter/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/absuite/connector:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-connector:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-  deploy-staging:
+    - name: Build and push Trust
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./packages/trust/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-trust:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-guard:
+    name: Are deployment credentials configured?
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      # Without AWS credentials and a cluster, the deploy jobs fail on every
+      # push and turn the whole pipeline red for a reason that has nothing to
+      # do with the code. A red badge nobody trusts is worse than no badge:
+      # people stop reading it, and then it cannot warn them about anything.
+      - id: check
+        run: |
+          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "AWS credentials are not set; skipping deployment." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy-staging:
+    needs: [build, deploy-guard]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && needs.deploy-guard.outputs.configured == 'true'
     
     steps:
     - name: Checkout
@@ -171,9 +219,9 @@ jobs:
           --timeout 10m
 
   deploy-production:
-    needs: deploy-staging
+    needs: [deploy-staging, deploy-guard]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && needs.deploy-guard.outputs.configured == 'true'
     
     steps:
     - name: Checkout

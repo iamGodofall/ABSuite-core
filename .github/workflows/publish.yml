@@ -59,21 +59,42 @@ jobs:
 
       - name: Show what would be published
         run: |
-          for p in capkit edge-run quickbench connector-starter mcp; do
+          for p in capkit trust edge-run quickbench connector-starter mcp cli; do
             echo "--- $p ---"
-            (cd "packages/$p" && npm pack --dry-run 2>&1 | grep -E "name:|version:|package size:|total files:")
+            (cd "packages/$p" && pnpm pack --pack-destination /tmp/preview 2>&1 | tail -1)
+          done
+
+      # Every other package depends on capkit via "workspace:*", which npm
+      # cannot resolve — `npm publish` would ship that string verbatim and
+      # every install would die on `Unsupported URL Type "workspace:"`. pnpm
+      # rewrites it to the real version in the tarball. This check fails the
+      # run before anything reaches the registry, because an npm version can
+      # never be republished and a broken one is permanent.
+      - name: Verify no workspace protocol survives packing
+        run: |
+          set -e
+          for p in capkit trust edge-run quickbench connector-starter mcp cli; do
+            packed=$(cd "packages/$p" && pnpm pack --pack-destination /tmp/verify 2>/dev/null | tail -1)
+            if tar -xzOf "$packed" package/package.json | grep -q 'workspace:'; then
+              echo "::error::$p would publish an unresolvable workspace: dependency"
+              exit 1
+            fi
+            echo "  $p: dependencies resolved"
           done
 
       - name: Publish
         if: inputs.dry_run == false
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
         run: |
           set -e
-          # CapKit first — the other four depend on it.
-          for p in capkit edge-run quickbench connector-starter mcp; do
+          # CapKit first — every other package depends on it, and npm resolves
+          # dependencies at install time against what is actually on the
+          # registry.
+          for p in capkit trust edge-run quickbench connector-starter mcp cli; do
             echo "Publishing $p..."
-            (cd "packages/$p" && npm publish --access public --provenance) || {
+            (cd "packages/$p" && pnpm publish --access public --no-git-checks --provenance) || {
               echo "::error::Failed to publish $p"
               exit 1
             }
@@ -89,7 +110,7 @@ jobs:
             else
               echo "### Published"
               echo ""
-              for p in capkit edge-run quickbench connector-starter mcp; do
+              for p in capkit trust edge-run quickbench connector-starter mcp cli; do
                 echo "- \`$(node -e "process.stdout.write(require('./packages/$p/package.json').name)")\`"
               done
               echo ""

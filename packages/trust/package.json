@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "test": "jest --rootDir ../.. --testPathPatterns packages/trust"
+    "test": "jest -c ../../jest.config.js --rootDir ../.. --testPathPatterns packages/trust"
   },
   "keywords": [
     "ai-governance",

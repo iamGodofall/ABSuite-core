@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'claude/**']
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,6 +18,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # pnpm must exist BEFORE setup-node, because `cache: 'pnpm'` shells out to
+      # the pnpm binary to work out where the store lives. Installing it
+      # afterwards via corepack is too late — setup-node fails with "Unable to
+      # locate executable file: pnpm" in under ten seconds, which is what every
+      # run of this workflow did until this was fixed.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      # node:sqlite needs 22.5+. The whole persistence layer is built on it.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -25,7 +36,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: corepack enable && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Type check
         run: pnpm build
@@ -46,6 +57,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -53,7 +69,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: corepack enable && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build packages
         run: pnpm build
@@ -72,15 +88,49 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker images
+      # Compose interpolates these at build and run time. Without them the
+      # config is invalid and the services refuse to start, so CI supplies
+      # throwaway values — they never leave the runner.
+      - name: Generate ephemeral secrets for the smoke test
         run: |
-          docker compose -f docker-compose.yml build
+          {
+            echo "CAPKIT_HMAC_SECRET=$(openssl rand -hex 32)"
+            echo "CAPKIT_JWT_SECRET=$(openssl rand -hex 32)"
+            echo "CAPKIT_ADMIN_KEY=$(openssl rand -hex 32)"
+          } >> "$GITHUB_ENV"
 
-      - name: Run health checks
+      - name: Build images
+        run: docker compose -f docker-compose.yml build
+
+      # Starting them is the part a build alone cannot catch: a missing env
+      # var, a bad entrypoint, a service that exits on boot.
+      - name: Start the suite and wait for health
         run: |
           docker compose -f docker-compose.yml up -d
-          sleep 10
-          docker compose -f docker-compose.yml ps
+
+          for service in capkit edge-run quickbench connector-starter trust; do
+            echo "Waiting for $service..."
+            for attempt in $(seq 1 30); do
+              if docker compose ps "$service" | grep -q "healthy"; then
+                echo "  $service is healthy"
+                break
+              fi
+              if [ "$attempt" -eq 30 ]; then
+                echo "::error::$service never became healthy"
+                docker compose logs "$service"
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Show final state
+        if: always()
+        run: docker compose -f docker-compose.yml ps
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
 
   release:
     name: Release

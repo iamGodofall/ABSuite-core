@@ -1,7 +1,7 @@
 {
   "name": "@absuite/mcp",
   "version": "1.0.0",
-  "description": "Model Context Protocol server for ABSuite — capability-checked, cryptographically attested tool calls for AI agents.",
+  "description": "Model Context Protocol server for ABSuite \u2014 capability-checked, cryptographically attested tool calls for AI agents.",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +17,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/cli.js",
     "dev": "tsx src/cli.ts",
-    "test": "jest --rootDir ../.. --testPathPatterns packages/mcp"
+    "test": "jest -c ../../jest.config.js --rootDir ../.. --testPathPatterns packages/mcp"
   },
   "keywords": [
     "mcp",
