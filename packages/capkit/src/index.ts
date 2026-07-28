@@ -72,6 +72,13 @@ export {
 
 export { MetricsRegistry, createServiceMetrics, type LabelSet } from './metrics';
 
+export {
+  TokenBucket,
+  TenantRateLimiter,
+  type RateLimitVerdict,
+  type TenantRateLimiterOptions,
+} from './rate-limit';
+
 export { SIGNUP_PAGE, SignupThrottle, validateSignup, type SignupLimits } from './signup';
 
 export {

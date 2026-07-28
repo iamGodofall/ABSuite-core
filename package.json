@@ -18,7 +18,10 @@
     "cli": "pnpm --filter @absuite/cli run dev",
     "cli:build": "pnpm --filter @absuite/cli build",
     "publish:packages": "pnpm -r --filter \"@absuite/*\" build && pnpm -r --filter \"@absuite/*\" publish --access public --no-git-checks",
-    "publish:dry": "pnpm -r --filter \"@absuite/*\" exec npm pack --dry-run"
+    "publish:dry": "pnpm -r --filter \"@absuite/*\" exec npm pack --dry-run",
+    "backup": "node scripts/backup.mjs create",
+    "backup:verify": "node scripts/backup.mjs verify",
+    "backup:restore": "node scripts/backup.mjs restore"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"

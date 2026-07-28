@@ -15,6 +15,12 @@ export interface Plan {
   label: string;
   /** Monthly price in minor units (cents). */
   priceCents: number;
+  /**
+   * Burst ceiling, requests per minute. Deliberately outside `limits`, which
+   * are monthly counters — this caps rate, not volume, and the two are
+   * enforced by different mechanisms.
+   */
+  rateLimitPerMinute: number;
   limits: {
     /** Distinct token subjects per month. -1 means unlimited. */
     agents: number;
@@ -33,6 +39,7 @@ export interface Plan {
 export const PLANS: Record<PlanId, Plan> = {
   free: {
     id: 'free',
+    rateLimitPerMinute: 60,
     label: 'Free',
     priceCents: 0,
     limits: { agents: 3, validations: 10_000, auditRetentionDays: 7, schedules: 5, benchmarkRuns: 100 },
@@ -40,6 +47,7 @@ export const PLANS: Record<PlanId, Plan> = {
   },
   team: {
     id: 'team',
+    rateLimitPerMinute: 300,
     label: 'Team',
     priceCents: 4900,
     limits: { agents: 25, validations: 500_000, auditRetentionDays: 90, schedules: 50, benchmarkRuns: 2_000 },
@@ -47,6 +55,7 @@ export const PLANS: Record<PlanId, Plan> = {
   },
   business: {
     id: 'business',
+    rateLimitPerMinute: 1200,
     label: 'Business',
     priceCents: 29900,
     limits: { agents: 250, validations: 5_000_000, auditRetentionDays: 365, schedules: 500, benchmarkRuns: 25_000 },
@@ -54,6 +63,7 @@ export const PLANS: Record<PlanId, Plan> = {
   },
   enterprise: {
     id: 'enterprise',
+    rateLimitPerMinute: -1,
     label: 'Enterprise',
     priceCents: 0, // negotiated
     limits: { agents: -1, validations: -1, auditRetentionDays: 2555, schedules: -1, benchmarkRuns: -1 },

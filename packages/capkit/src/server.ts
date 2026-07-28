@@ -19,6 +19,7 @@ import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './b
 import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload } from './trace';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
+import { TenantRateLimiter } from './rate-limit';
 
 const PORT = Number(process.env.CAPKIT_PORT || process.env.PORT || 8081);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -66,6 +67,10 @@ const revocations = revocationStoreFromEnv();
 const storage = getStorage();
 const tenancy = new TenantService(storage);
 const metrics = createServiceMetrics('capkit');
+
+// Monthly quotas cap volume; this caps rate, so one tenant cannot saturate the
+// node while still sitting inside their plan allowance.
+const rateLimiter = new TenantRateLimiter();
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 
 // Ed25519 keypair for signing execution traces. Asymmetric on purpose: an
@@ -112,6 +117,7 @@ app.use((req, res, next) => {
 });
 
 metrics.counter('absuite_executions_total', 'Verifiable executions recorded, by outcome');
+metrics.counter('absuite_rate_limited_total', 'Requests rejected for exceeding a burst rate limit');
 
 // Request metrics. Recorded on finish so the duration covers the handler.
 app.use((req, res, next) => {
@@ -188,7 +194,36 @@ function enforceQuota(metric: 'validations' | 'agents' | 'schedules' | 'benchmar
   };
 }
 
+/**
+ * Per-tenant burst limiting, applied after the tenant is known.
+ *
+ * Unmetered callers (no tenant key) are limited by address instead, so an
+ * anonymous flood cannot take the service down either.
+ */
+function enforceRateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (req.path === '/health' || req.path === '/ready' || req.path === '/metrics') return next();
+
+  const tenant = (req as TenantRequest).tenant;
+  const key = tenant ? `tenant:${tenant.id}` : `ip:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+  const perMinute = tenant ? tenancy.planFor(tenant).rateLimitPerMinute : undefined;
+
+  const verdict = rateLimiter.consume(key, perMinute);
+
+  if (verdict.limit > 0) {
+    res.setHeader('X-RateLimit-Limit', String(verdict.limit));
+    res.setHeader('X-RateLimit-Remaining', String(verdict.remaining));
+  }
+
+  if (!verdict.allowed) {
+    res.setHeader('Retry-After', String(verdict.retryAfter));
+    metrics.increment('absuite_rate_limited_total', { tenant: tenant?.id ?? 'anonymous' });
+    return fail(res, 429, 'RATE_LIMITED', `Rate limit of ${verdict.limit}/min exceeded. Retry in ${verdict.retryAfter}s.`);
+  }
+  return next();
+}
+
 app.use(resolveTenant);
+app.use(enforceRateLimit);
 
 /**
  * Authorise a request against a required scope.

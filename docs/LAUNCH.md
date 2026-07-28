@@ -66,10 +66,16 @@ customer asks (months).
 - **Single-node SQLite.** Correct and durable for one node. Horizontal scaling
   needs Postgres. The `Storage` and `RevocationStore` interfaces exist so this
   is an implementation swap, not a rewrite.
-- **No backup automation.** The database is one file — snapshot the volume on a
-  schedule. Untested backups are not backups.
-- **No rate limiting per tenant.** Quotas cap monthly usage but not burst rate.
-  A single tenant can still saturate a node.
+- ~~No backup automation.~~ **Resolved.** `scripts/backup.mjs` snapshots the live
+  database and **verifies every snapshot before keeping it** — integrity check,
+  schema check, and a full execution-chain walk. A snapshot that fails is
+  discarded rather than stored. Restore was tested against a deliberately
+  corrupted database; tenants, usage and the signed chain all came back intact.
+- ~~No rate limiting per tenant.~~ **Resolved.** Token-bucket limiting per
+  tenant, sized by plan (free 60/min, team 300, business 1200, enterprise
+  unlimited). Verified: a free tenant flooding 70 requests got 60 through and 10
+  `429`s while a second tenant was completely unaffected. Health and readiness
+  probes are exempt so a flood cannot starve the orchestrator's checks.
 - ~~No secret rotation procedure.~~ **Resolved.** `KeyRing` keeps recently
   retired keys verifying, so rotation no longer invalidates tokens in flight.
   Set `CAPKIT_PREVIOUS_SECRETS` to the outgoing secret when you rotate.
@@ -93,7 +99,10 @@ customer asks (months).
 
 ### Operations
 
-- [ ] Volume backing `ABSUITE_DB_PATH` is on persistent, snapshotted storage
+- [ ] Volume backing `ABSUITE_DB_PATH` is on persistent storage
+- [ ] `node scripts/backup.mjs create` scheduled (cron or a sidecar), with
+      `prune --keep 7` so snapshots do not fill the disk
+- [ ] **A restore has actually been performed once**, not just assumed
 - [ ] `/health` wired to the orchestrator's liveness probe
 - [ ] `/ready` wired to the readiness probe
 - [ ] `/metrics` scraped; alert on `absuite_quota_rejections_total` and error-rate
@@ -114,6 +123,30 @@ customer asks (months).
 - [ ] Data-processing terms cover the audit log — it records subjects and actions
 - [ ] Audit retention matches what the plan promises
 - [ ] MIT licence retained in every published package
+
+---
+
+## 3b. Backups
+
+```bash
+node scripts/backup.mjs create          # snapshot + verify, discards if invalid
+node scripts/backup.mjs verify <file>   # re-check an existing snapshot
+node scripts/backup.mjs restore <file>  # moves the current db aside first
+node scripts/backup.mjs prune --keep 7  # retain the newest seven
+```
+
+Copying a live SQLite file with `cp` is unsafe: a write in flight yields a torn
+copy, and in WAL mode the `.db` alone is missing everything still in the log.
+The script checkpoints and folds the WAL in so each snapshot stands alone.
+
+Restore never overwrites silently — the current database is moved aside first,
+so a mistaken restore is itself recoverable.
+
+Suggested cron:
+
+```cron
+0 * * * * cd /srv/absuite && node scripts/backup.mjs create && node scripts/backup.mjs prune --keep 24
+```
 
 ---
 
