@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify an ABSuite execution trace</title>
+<meta name="description" content="Independently verify that an AI agent's recorded action has not been altered — in your browser, with no server and no account.">
+<style>
+  :root{color-scheme:light dark;--bg:#fff;--fg:#18181b;--muted:#71717a;--border:#e4e4e7;--accent:#7C3AED;--card:#fafafa;--ok:#059669;--okbg:#ecfdf5;--bad:#dc2626;--badbg:#fef2f2;--code:#f4f4f5}
+  @media (prefers-color-scheme:dark){:root{--bg:#09090b;--fg:#fafafa;--muted:#a1a1aa;--border:#27272a;--accent:#a78bfa;--card:#18181b;--ok:#34d399;--okbg:#052e2b;--bad:#f87171;--badbg:#2c1618;--code:#18181b}}
+  *{box-sizing:border-box}
+  body{margin:0;padding:2rem 1rem 4rem;background:var(--bg);color:var(--fg);font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:48rem;margin:0 auto}
+  h1{font-size:2rem;margin:0 0 .5rem;letter-spacing:-.025em}
+  .lede{color:var(--muted);margin:0 0 .5rem;font-size:1.05rem}
+  .sub{color:var(--muted);font-size:.9rem;margin:0 0 2rem}
+  h2{font-size:1rem;margin:2rem 0 .5rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  textarea{width:100%;min-height:8rem;padding:.75rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;
+    color:var(--fg);background:var(--code);border:1px solid var(--border);border-radius:.5rem;resize:vertical}
+  textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
+  button{padding:.7rem 1.1rem;font:inherit;font-weight:600;border-radius:.5rem;border:1px solid var(--border);
+    background:var(--card);color:var(--fg);cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:transparent}
+  button:hover{opacity:.9}
+  #result{margin-top:1.5rem;border-radius:.75rem;padding:1.25rem;border:1px solid var(--border);display:none}
+  #result.ok{background:var(--okbg);border-color:var(--ok)}
+  #result.bad{background:var(--badbg);border-color:var(--bad)}
+  .verdict{font-size:1.15rem;font-weight:700;margin:0 0 .75rem;display:flex;align-items:center;gap:.5rem}
+  #result.ok .verdict{color:var(--ok)}
+  #result.bad .verdict{color:var(--bad)}
+  .checks{list-style:none;padding:0;margin:0;font-size:.9rem}
+  .checks li{padding:.3rem 0;display:flex;gap:.6rem}
+  .checks .mark{width:1.2rem;flex:none;font-weight:700}
+  .pass{color:var(--ok)} .fail{color:var(--bad)}
+  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82em;background:var(--code);
+    padding:.1rem .35rem;border-radius:.25rem}
+  .note{font-size:.85rem;color:var(--muted);margin-top:.6rem}
+  .explain{background:var(--card);border:1px solid var(--border);border-radius:.75rem;padding:1.25rem;margin-top:2.5rem}
+  .explain p{margin:.6rem 0}
+  footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);color:var(--muted);font-size:.85rem}
+  a{color:var(--accent)}
+  .warn{background:var(--badbg);border:1px solid var(--bad);border-radius:.5rem;padding:.75rem;margin-bottom:1.5rem;font-size:.9rem;display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>Verify an execution trace</h1>
+  <p class="lede">Check that an AI agent's recorded action has not been altered — <strong>in your browser</strong>.</p>
+  <p class="sub">No server. No account. No trust in us required. The verification runs locally using only the operator's <em>public</em> key, which cannot be used to forge a record.</p>
+
+  <div class="warn" id="unsupported">
+    Your browser does not support Ed25519 in WebCrypto. Try current Chrome, Edge, Safari 17+ or Firefox 129+.
+  </div>
+
+  <h2>1. Public key</h2>
+  <textarea id="key" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"></textarea>
+  <p class="note">Fetch from the operator: <code>curl https://their-host/executions/public-key</code></p>
+
+  <h2>2. Execution trace</h2>
+  <textarea id="trace" spellcheck="false" placeholder='{ "id": "exec_...", "subject": "agent-001", ... }'></textarea>
+
+  <div class="row">
+    <button class="primary" id="verify">Verify</button>
+    <button id="demo">Load a valid example</button>
+    <button id="tamper">Tamper with it</button>
+  </div>
+
+  <div id="result">
+    <p class="verdict" id="verdict"></p>
+    <ul class="checks" id="checks"></ul>
+  </div>
+
+  <div class="explain">
+    <h2 style="margin-top:0">Why this is stronger than a hash chain</h2>
+    <p>Many audit systems hash-chain their records: each entry includes a hash of the one before it, so editing history breaks the chain.</p>
+    <p><strong>That proves a record was not edited after the fact. It does not prove who wrote it.</strong> Anyone — including the operator being audited — can construct a perfectly valid hash chain containing whatever they like.</p>
+    <p>ABSuite hash-chains <em>and</em> signs each record with <strong>Ed25519</strong>. Verification needs only the public key, and the public key cannot produce a signature. So the operator cannot fabricate history, and the auditor cannot fabricate an accusation.</p>
+    <p>Inputs and outputs are stored as <strong>hashes, never as content</strong> — a trace proves what happened without anyone retaining the underlying data.</p>
+  </div>
+
+  <footer>
+    <p><strong>ABSuite</strong> — cryptographic proof of what your AI agents were allowed to do and what they actually did.</p>
+    <p>MIT licensed · <a href="https://github.com/iamGodofall/ABSuite-core">Source on GitHub</a> · <code>npm install @absuite/capkit</code></p>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  if (!(window.crypto && crypto.subtle)) { $('unsupported').style.display = 'block'; }
+
+  /**
+   * Canonical form of a trace — must match canonicalTrace() in capkit/trace.ts
+   * exactly, field order included, or the hash will not reproduce.
+   * `hash` and `signature` are excluded because they are derived from this.
+   */
+  function canonical(t) {
+    return JSON.stringify([
+      t.id,
+      t.tenantId != null ? t.tenantId : null,
+      t.subject,
+      t.jti != null ? t.jti : null,
+      (t.scope || []).slice().sort(),
+      t.module,
+      t.action,
+      t.inputHash,
+      t.outputHash != null ? t.outputHash : null,
+      t.outcome,
+      t.error != null ? t.error : null,
+      t.startedAt,
+      t.completedAt != null ? t.completedAt : null,
+      t.durationMs != null ? t.durationMs : null,
+      (t.steps || []).map(function (s) {
+        return [s.seq, s.name, s.at, s.detail != null ? s.detail : null];
+      }),
+      t.prevHash
+    ]);
+  }
+
+  function toHex(buffer) {
+    return Array.prototype.map.call(new Uint8Array(buffer), function (b) {
+      return b.toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  function b64ToBytes(b64) {
+    var bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  /** PEM -> DER for WebCrypto's SPKI import. */
+  function pemToDer(pem) {
+    var body = pem.replace(/-----BEGIN PUBLIC KEY-----/, '')
+                  .replace(/-----END PUBLIC KEY-----/, '')
+                  .replace(/\s+/g, '');
+    return b64ToBytes(body);
+  }
+
+  function show(ok, verdict, checks) {
+    var box = $('result');
+    box.style.display = 'block';
+    box.className = ok ? 'ok' : 'bad';
+    $('verdict').textContent = (ok ? '✓  ' : '✗  ') + verdict;
+    $('checks').innerHTML = checks.map(function (c) {
+      return '<li><span class="mark ' + (c.pass ? 'pass' : 'fail') + '">' +
+             (c.pass ? '✓' : '✗') + '</span><span>' + c.text + '</span></li>';
+    }).join('');
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  $('verify').addEventListener('click', async function () {
+    var checks = [];
+    var trace, pem;
+
+    try {
+      trace = JSON.parse($('trace').value);
+    } catch (e) {
+      return show(false, 'That is not valid JSON', [{ pass: false, text: e.message }]);
+    }
+    pem = $('key').value.trim();
+
+    if (!trace.hash) {
+      return show(false, 'Trace has no hash field', [{ pass: false, text: 'Not an ABSuite execution trace.' }]);
+    }
+
+    // 1. Content integrity — recompute the hash from the trace's own fields.
+    var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical(trace)));
+    var recomputed = toHex(digest);
+    var contentIntact = recomputed === trace.hash;
+
+    checks.push({
+      pass: contentIntact,
+      text: contentIntact
+        ? 'Content matches its hash — no field has been altered.'
+        : 'Content does NOT match its hash. A field was changed after signing.'
+    });
+
+    if (!contentIntact) {
+      checks.push({ pass: false, text: 'Expected ' + trace.hash.slice(0, 24) + '…, computed ' + recomputed.slice(0, 24) + '…' });
+      return show(false, 'Tampering detected', checks);
+    }
+
+    // 2. Authorship — only the private key holder could have produced this.
+    if (!pem) {
+      checks.push({ pass: true, text: 'Signature not checked (no public key supplied).' });
+      return show(true, 'Content intact, authorship unverified', checks);
+    }
+    if (!trace.signature) {
+      checks.push({ pass: false, text: 'Trace carries no signature.' });
+      return show(false, 'Unsigned trace', checks);
+    }
+
+    var valid = false, err = null;
+    try {
+      var key = await crypto.subtle.importKey('spki', pemToDer(pem), { name: 'Ed25519' }, false, ['verify']);
+      valid = await crypto.subtle.verify(
+        'Ed25519', key,
+        b64ToBytes(trace.signature),
+        new TextEncoder().encode(trace.hash)
+      );
+    } catch (e) { err = e.message; }
+
+    if (err) {
+      checks.push({ pass: false, text: 'Could not check signature: ' + err });
+      return show(false, 'Verification error', checks);
+    }
+
+    checks.push({
+      pass: valid,
+      text: valid
+        ? 'Ed25519 signature valid — signed by the holder of the matching private key.'
+        : 'Signature does NOT verify. The record was not signed by this key.'
+    });
+
+    if (valid) {
+      checks.push({ pass: true, text: 'Action: ' + trace.action });
+      checks.push({ pass: true, text: 'Performed by: ' + trace.subject + ' — outcome: ' + trace.outcome });
+      if (trace.scope && trace.scope.length) {
+        checks.push({ pass: true, text: 'Authorised under: ' + trace.scope.join(', ') });
+      }
+    }
+
+    show(valid, valid ? 'Genuine and unaltered' : 'Signature invalid', checks);
+  });
+
+  // A pre-signed example so the page demonstrates itself with no setup.
+  var EXAMPLE_KEY = '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAR4+IuZlZ9RDqhS+eWvJuovDPDdApODwajAnSXNAu0To=\n-----END PUBLIC KEY-----';
+  var EXAMPLE_TRACE = '{\n  \"id\": \"exec_cf2dd58f9a2b477996eb8d552654d1d9\",\n  \"subject\": \"billing-agent-001\",\n  \"jti\": \"c0b3a912-256f-4421-ba38-b6b6be50301a\",\n  \"scope\": [\n    \"write:invoices\",\n    \"notify:customers\"\n  ],\n  \"module\": \"edge-run\",\n  \"action\": \"http:POST https://api.acme.com/invoices/send\",\n  \"inputHash\": \"5faba30e285ef03436e65bf8118961e42b52f2573c20882cc976887c34ff2354\",\n  \"outputHash\": \"3144c559ea088872460d86a2157658b95fede4f62027af6c5bf98d1652ea3d61\",\n  \"outcome\": \"success\",\n  \"startedAt\": \"2026-07-28T14:30:00.000Z\",\n  \"completedAt\": \"2026-07-28T14:30:01.284Z\",\n  \"durationMs\": 1284,\n  \"steps\": [\n    {\n      \"seq\": 1,\n      \"name\": \"queued\",\n      \"at\": \"2026-07-28T14:29:59.900Z\"\n    },\n    {\n      \"seq\": 2,\n      \"name\": \"started\",\n      \"at\": \"2026-07-28T14:30:00.000Z\"\n    },\n    {\n      \"seq\": 3,\n      \"name\": \"completed\",\n      \"at\": \"2026-07-28T14:30:01.284Z\",\n      \"detail\": \"attempt 1\"\n    }\n  ],\n  \"prevHash\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"hash\": \"29d5776df1c6d5cea7d460b80fb3ff6d0477169afba308d03a9f5f06a8d0bb17\",\n  \"signature\": \"XUnmlwrmxp4VOn6QMUwdYYxXjmY4RkW2CbTmFpPO8PGYJIM863E3F9qO5ZsT2fo7EZ0/hXONGrnw4AHPj5dCCA==\",\n  \"keyId\": \"absuite-trace-key\"\n}';
+
+  $('demo').addEventListener('click', function () {
+    $('key').value = EXAMPLE_KEY;
+    $('trace').value = EXAMPLE_TRACE;
+    $('result').style.display = 'none';
+  });
+
+  $('tamper').addEventListener('click', function () {
+    if (!$('trace').value.trim()) { $('key').value = EXAMPLE_KEY; $('trace').value = EXAMPLE_TRACE; }
+    try {
+      var t = JSON.parse($('trace').value);
+      // The classic cover-up: turn a failure into a success.
+      t.outcome = t.outcome === 'success' ? 'failure' : 'success';
+      $('trace').value = JSON.stringify(t, null, 2);
+      $('result').style.display = 'none';
+    } catch (e) { /* leave whatever the user typed */ }
+  });
+})();
+</script>
+</body>
+</html>

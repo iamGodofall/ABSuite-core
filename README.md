@@ -106,6 +106,11 @@ were never able to sign it:
 `GET /executions-verify-chain` walks the whole log and names the sequence number
 of the first record that breaks.
 
+**Try it without installing anything:** [`docs/verify.html`](./docs/verify.html)
+is a standalone page that verifies a trace entirely in your browser using
+WebCrypto — no server, no account, no trust in us required. Open it, click
+*Load a valid example*, then click *Tamper with it* and verify again.
+
 ---
 
 ## 🚀 Quick Start
