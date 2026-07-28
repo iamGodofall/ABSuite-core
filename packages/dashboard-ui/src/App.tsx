@@ -25,7 +25,7 @@ import './styles/globals.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TabId = 'overview' | 'services' | 'ai-studio' | 'benchmarks' | 'connectors' | 'settings';
+type TabId = 'overview' | 'services' | 'ai-studio' | 'benchmarks' | 'connectors' | 'proof' | 'settings';
 
 interface LogEntry { time: string; level: 'info' | 'warn' | 'error'; message: string; }
 interface BenchmarkResult { id: string; service: string; type: string; p50: number; p95: number; p99: number; rps: number; status: string; timestamp: string; }
@@ -1366,6 +1366,228 @@ const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: bo
   );
 };
 
+
+// ─── Proof ───────────────────────────────────────────────────────────────────
+
+type Trace = {
+  id: string; subject: string; module: string; action: string;
+  outcome: 'success' | 'failure'; scope?: string[]; error?: string;
+  startedAt: string; completedAt?: string; durationMs?: number;
+  hash: string; signature?: string; prevHash: string;
+};
+
+type Verdict = { valid: boolean; reason?: string; contentIntact: boolean; signatureValid: boolean | null };
+
+/**
+ * The regulator-facing view.
+ *
+ * Shows recorded executions and lets anyone verify one, including after
+ * deliberately tampering with it. Verification runs against the server's
+ * public key — the same check an outside auditor performs with no credentials
+ * at all — so this demonstrates the claim rather than asserting it.
+ */
+const ProofTab = () => {
+  const [traces, setTraces] = useState<Trace[]>([]);
+  const [selected, setSelected] = useState<Trace | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [chain, setChain] = useState<{ valid: boolean; checked: number; brokenAt?: number; reason?: string } | null>(null);
+  const [publicKey, setPublicKey] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [tampered, setTampered] = useState(false);
+
+  const load = async () => {
+    setError('');
+    try {
+      const [execRes, keyRes] = await Promise.all([
+        fetch('/executions?limit=25', { headers: getAdminHeaders() }),
+        fetch('/executions/public-key'),
+      ]);
+      const execData = await execRes.json();
+      if (!execRes.ok) throw new Error(execData?.error?.message ?? 'Could not load executions');
+
+      setTraces(Array.isArray(execData.executions) ? execData.executions : []);
+      const keyData = await keyRes.json();
+      setPublicKey(keyData.publicKey ?? '');
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const verify = async (trace: Trace) => {
+    setBusy(true); setVerdict(null); setError('');
+    try {
+      const res = await fetch('/executions/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trace }),
+      });
+      setVerdict(await res.json());
+    } catch (err) {
+      setError((err as Error).message);
+    } finally { setBusy(false); }
+  };
+
+  const verifyChain = async () => {
+    setBusy(true); setError('');
+    try {
+      const res = await fetch('/executions-verify-chain', { headers: getAdminHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? 'Chain verification failed');
+      setChain(data);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally { setBusy(false); }
+  };
+
+  /** Flip the outcome, exactly as someone covering up a failure would. */
+  const tamper = () => {
+    if (!selected) return;
+    setSelected({ ...selected, outcome: selected.outcome === 'success' ? 'failure' : 'success' });
+    setTampered(true); setVerdict(null);
+  };
+
+  const reset = () => {
+    const original = traces.find(t => t.id === selected?.id);
+    if (original) { setSelected(original); setTampered(false); setVerdict(null); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <NoticeCard
+        tone="info"
+        title="Cryptographic proof of what your agents actually did"
+        message="Every execution is hash-chained and signed with Ed25519. Verification uses only the public key — which cannot produce a signature — so an auditor can confirm a record without being able to forge one."
+      />
+
+      {error && <NoticeCard tone="error" title="Could not load proof data" message={error} />}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-bg-tertiary border border-border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-text-primary">Recorded executions</h3>
+            <button className="px-3 py-1.5 rounded-lg text-text-muted hover:text-text-primary text-xs font-medium transition-all" onClick={() => void load()}>Refresh</button>
+          </div>
+
+          {traces.length === 0 ? (
+            <p className="text-sm text-text-muted">
+              No executions recorded yet. Queue a task in Edge-Run and it will appear here, signed.
+            </p>
+          ) : (
+            <div className="space-y-1 max-h-96 overflow-y-auto">
+              {traces.map(trace => (
+                <button
+                  key={trace.id}
+                  onClick={() => { setSelected(trace); setTampered(false); setVerdict(null); }}
+                  className={cn(
+                    'w-full text-left px-3 py-2 rounded-lg border transition-colors',
+                    selected?.id === trace.id
+                      ? 'border-emerald-500/50 bg-emerald-500/5'
+                      : 'border-border hover:border-border-strong'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={cn('w-1.5 h-1.5 rounded-full flex-none',
+                      trace.outcome === 'success' ? 'bg-emerald-500' : 'bg-red-500')} />
+                    <span className="text-xs font-mono text-text-primary truncate">{trace.action}</span>
+                  </div>
+                  <div className="text-[11px] text-text-muted mt-0.5">
+                    {trace.subject} · {new Date(trace.startedAt).toLocaleString()}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 pt-3 border-t border-border">
+            <button className="px-4 py-2 rounded-lg bg-bg-primary border border-border hover:border-border-strong text-text-primary font-semibold text-sm transition-all disabled:opacity-50" onClick={() => void verifyChain()} disabled={busy}>
+              Verify the entire chain
+            </button>
+            {chain && (
+              <p className={cn('text-xs mt-2', chain.valid ? 'text-emerald-500' : 'text-red-500')}>
+                {chain.valid
+                  ? `Chain intact — ${chain.checked} record(s) verified.`
+                  : `Chain BROKEN at record ${chain.brokenAt}: ${chain.reason}`}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-bg-tertiary border border-border rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Verify a record</h3>
+
+          {!selected ? (
+            <p className="text-sm text-text-muted">Select an execution to inspect and verify it.</p>
+          ) : (
+            <>
+              <dl className="text-xs space-y-1 mb-3">
+                {([
+                  ['Action', selected.action],
+                  ['Performed by', selected.subject],
+                  ['Outcome', selected.outcome],
+                  ['Authorised under', (selected.scope ?? []).join(', ') || '—'],
+                  ['Duration', selected.durationMs != null ? `${selected.durationMs} ms` : '—'],
+                ] as const).map(([label, value]) => (
+                  <div key={label} className="flex gap-2">
+                    <dt className="text-text-muted w-28 flex-none">{label}</dt>
+                    <dd className={cn('text-text-primary font-mono break-all',
+                      label === 'Outcome' && tampered && 'text-amber-500 font-bold')}>{value}</dd>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <dt className="text-text-muted w-28 flex-none">Hash</dt>
+                  <dd className="text-text-muted font-mono break-all">{selected.hash.slice(0, 32)}…</dd>
+                </div>
+              </dl>
+
+              {tampered && (
+                <div className="mb-3">
+                  <NoticeCard tone="warn" title="Record edited in your browser"
+                    message="The outcome was flipped, as someone hiding a failure would. Verify it now — the signature was never over this content." />
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <button className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50" onClick={() => void verify(selected)} disabled={busy}>Verify</button>
+                <button className="px-4 py-2 rounded-lg bg-bg-primary border border-border hover:border-border-strong text-text-primary font-semibold text-sm transition-all disabled:opacity-50" onClick={tamper} disabled={busy}>Tamper with it</button>
+                {tampered && <button className="px-3 py-1.5 rounded-lg text-text-muted hover:text-text-primary text-xs font-medium transition-all" onClick={reset}>Reset</button>}
+              </div>
+
+              {verdict && (
+                <div className={cn('mt-4 rounded-lg border p-3',
+                  verdict.valid ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-red-500/50 bg-red-500/5')}>
+                  <p className={cn('text-sm font-semibold mb-2', verdict.valid ? 'text-emerald-500' : 'text-red-500')}>
+                    {verdict.valid ? 'Genuine and unaltered' : 'Verification failed'}
+                  </p>
+                  <ul className="text-xs space-y-1">
+                    <li className={verdict.contentIntact ? 'text-emerald-500' : 'text-red-500'}>
+                      {verdict.contentIntact ? '✓' : '✗'} Content {verdict.contentIntact ? 'matches its hash' : 'does NOT match its hash'}
+                    </li>
+                    <li className={verdict.signatureValid === false ? 'text-red-500' : 'text-emerald-500'}>
+                      {verdict.signatureValid === null ? '–' : verdict.signatureValid ? '✓' : '✗'} Signature{' '}
+                      {verdict.signatureValid === null ? 'not checked' : verdict.signatureValid ? 'valid (Ed25519)' : 'does NOT verify'}
+                    </li>
+                  </ul>
+                  {verdict.reason && <p className="text-xs text-text-muted mt-2">{verdict.reason}</p>}
+                </div>
+              )}
+            </>
+          )}
+
+          {publicKey && (
+            <details className="mt-4">
+              <summary className="text-xs text-text-muted cursor-pointer">Public key an auditor would use</summary>
+              <pre className="text-[10px] font-mono text-text-muted mt-2 overflow-x-auto">{publicKey}</pre>
+            </details>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main App ────────────────────────────────────────────────────────────────
 
 const TAB_CONFIG: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -1374,6 +1596,7 @@ const TAB_CONFIG: { id: TabId; label: string; icon: React.ComponentType<{ classN
   { id: 'ai-studio', label: 'AI Studio', icon: Bot },
   { id: 'benchmarks', label: 'Benchmarks', icon: Gauge },
   { id: 'connectors', label: 'Connectors', icon: Network },
+  { id: 'proof', label: 'Proof', icon: Shield },
   { id: 'settings', label: 'Settings', icon: Wrench },
 ];
 
@@ -1425,6 +1648,7 @@ export default function App() {
       case 'ai-studio': return <AIStudioTab demoMode={demoMode} />;
       case 'benchmarks': return <BenchmarksTab demoMode={demoMode} />;
       case 'connectors': return <ConnectorsTab demoMode={demoMode} />;
+      case 'proof': return <ProofTab />;
       case 'settings': return <SettingsTab services={services} demoMode={demoMode} />;
     }
   };

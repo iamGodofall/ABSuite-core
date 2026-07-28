@@ -1,453 +1,177 @@
 # ABSuite API Reference
 
-> REST API endpoints for each ABSuite module.
+> **Generated from source** by `scripts/gen-api-docs.mjs`. Do not edit by hand —
+> run `pnpm docs:api` after changing a route. CI fails if this drifts.
+
+---
+
+## Authentication
+
+Three credential types, used for different purposes:
+
+| Header | Purpose |
+|---|---|
+| `Authorization: Bearer <token>` | A capability token carrying the required scope. |
+| `X-ABSuite-Admin-Key` | Bootstrap credential. Grants full authority — used to mint the first token and manage tenants. |
+| `X-ABSuite-Tenant-Key` | Identifies the billed tenant. Optional; omit for an unmetered self-hosted deployment. |
+
+**Scopes** are `resource:action`, matched segment-wise: `read:*` grants
+`read:users` but never `read:users:delete`. A bare `*` grants everything.
+
+**Enforcement is distributed.** Every service imports `capabilityGuard` from
+`@absuite/capkit`, so a request reaching a service directly is checked by the
+same code a gateway would have used. There is no unguarded door.
+
+---
+
+## Errors
+
+Every error has the same shape:
+
+```json
+{ "error": { "code": "CAPABILITY_INSUFFICIENT", "message": "Token missing required scope: queue:write" } }
+```
+
+| Status | Code | Meaning |
+|---|---|---|
+| 400 | `INVALID_REQUEST` | Malformed body or missing fields |
+| 401 | `TOKEN_MISSING` | No `Authorization` header |
+| 401 | `TOKEN_INVALID` | Signature verification failed |
+| 401 | `TOKEN_EXPIRED` | Past expiry |
+| 401 | `TOKEN_REVOKED` | Revoked at CapKit; applies across every service |
+| 401 | `TENANT_KEY_INVALID` | Tenant key supplied but not recognised |
+| 403 | `CAPABILITY_INSUFFICIENT` | Valid token, wrong scope |
+| 403 | `TENANT_SUSPENDED` | Account suspended — usually a failed payment |
+| 402 | `QUOTA_EXCEEDED` | Monthly plan limit reached |
+| 429 | `RATE_LIMITED` | Burst rate exceeded; see `Retry-After` |
+| 404 | `NOT_FOUND` | No such route or resource |
+| 503 | `REVOCATION_UNAVAILABLE` | Revocation store unreachable — fails closed, never open |
 
 ---
 
 ## CapKit — `:8081`
 
-### Authentication
+Capability tokens, audit, verifiable execution, tenancy and billing.
 
-All CapKit endpoints require a capability token in the Authorization header:
+| Method | Path | Required scope | Counts against |
+|---|---|---|---|
+| GET | `/admin/tenants` | `tenant:manage` | — |
+| POST | `/admin/tenants` | `tenant:manage` | — |
+| GET | `/admin/tenants/:id` | `tenant:manage` | — |
+| POST | `/admin/tenants/:id/plan` | `tenant:manage` | — |
+| POST | `/admin/tenants/:id/rotate-key` | `tenant:manage` | — |
+| POST | `/admin/tenants/:id/status` | `tenant:manage` | — |
+| POST | `/ai/policy/generate` | _public_ | — |
+| GET | `/ai/providers` | _public_ | — |
+| GET | `/audit` | `audit:read` | — |
+| GET | `/audit/verify` | `audit:read` | — |
+| POST | `/auth/token` | `auth:token:create` | `agents` |
+| POST | `/auth/token/revoke` | `auth:token:revoke` | — |
+| POST | `/auth/token/validate` | `auth:token:validate` | `validations` |
+| POST | `/billing/webhook` | _public_ | — |
+| GET | `/executions` | `execution:read` | — |
+| POST | `/executions` | `execution:record` | — |
+| GET | `/executions-verify-chain` | `execution:read` | — |
+| GET | `/executions/:id` | `execution:read` | — |
+| GET | `/executions/:id/replay` | `execution:read` | — |
+| POST | `/executions/:id/replay` | `execution:read` | — |
+| GET | `/executions/public-key` | _public_ | — |
+| POST | `/executions/verify` | _public_ | — |
+| GET | `/health` | _public_ | — |
+| POST | `/issue` | `auth:token:create` | — |
+| GET | `/metrics` | _public_ | — |
+| GET | `/plans` | _public_ | — |
+| GET | `/ready` | _public_ | — |
+| GET | `/signup` | _public_ | — |
+| POST | `/signup` | _public_ | — |
+| GET | `/usage` | _public_ | — |
 
-```
-Authorization: Bearer <capability-token>
-```
+### Notes
 
-Capabilities required for each endpoint are listed below.
+**`POST /billing/webhook`** — Stripe webhook. Verified against the raw body before anything is trusted. Without a configured secret the endpoint refuses outright rather than accepting unsigned plan changes.
 
----
+**`POST /executions/:id/replay`** — Compare a re-run of an execution against its recorded hashes.
 
-### `POST /auth/token`
+**`GET /executions/public-key`** — The public half of the trace signing key. Deliberately unauthenticated: verification is meant to be possible by an auditor or customer who holds no ABSuite credentials at all.
 
-Create a new capability token.
+**`POST /executions/verify`** — Compare a re-run of an execution against its recorded hashes. */ app.post('/executions/:id/replay', authorise('execution:read'), (req, res) => { const trace = traces.get(String(req.params.id)); if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution'); const comparison = compareReplay(trace, { input: req.body?.input, output: req.body?.output }); return res.status(200).json({ id: trace.id, ...comparison }); }); /** Verify a single trace, or the whole chain. Unauthenticated by design: a customer or regulator must be able to check a trace they were handed without holding an ABSuite credential.
 
-**Required capabilities:** `auth:token:create`
+**`POST /issue`** — The dashboard issues tokens with an {actor, action, resource, expires} shape. Map it onto the capability model rather than making the dashboard speak two dialects.
 
-**Request:**
-```json
-{
-  "sub": "agent-001",
-  "scope": ["read:users", "write:tasks"],
-  "expiresIn": "8h",
-  "aud": "absuite://production"
-}
-```
+**`GET /ready`** — Readiness differs from liveness: it fails if storage is unusable.
 
-**Response `200`:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9...",
-  "kid": "key-2026-03-a",
-  "jti": "uuid-of-token",
-  "exp": 1743369600,
-  "iat": 1743345600
-}
-```
-
----
-
-### `POST /auth/token/validate`
-
-Validate a token (used by other services to check incoming requests).
-
-**Required capabilities:** `auth:token:validate`
-
-**Request:**
-```json
-{
-  "token": "<capability-token>"
-}
-```
-
-**Response `200`:**
-```json
-{
-  "valid": true,
-  "sub": "agent-001",
-  "scope": ["read:users", "write:tasks"],
-  "exp": 1743369600
-}
-```
-
-**Response `400` (invalid token):**
-```json
-{
-  "valid": false,
-  "error": "TOKEN_EXPIRED"
-}
-```
-
----
-
-### `GET /audit`
-
-Query audit log entries.
-
-**Required capabilities:** `audit:read`
-
-**Query parameters:**
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `limit` | int | 50 | Max results (1-500) |
-| `offset` | int | 0 | Pagination offset |
-| `subject` | string | — | Filter by subject |
-| `action` | string | — | Filter by action |
-| `result` | string | — | Filter by result (allow/deny) |
-| `from` | ISO date | — | Start date |
-| `to` | ISO date | — | End date |
-
-**Response `200`:**
-```json
-{
-  "entries": [
-    {
-      "id": "uuid",
-      "timestamp": "2026-03-30T12:00:00Z",
-      "subject": "agent-001",
-      "action": "POST /tasks",
-      "resource": "/tasks",
-      "result": "allow",
-      "durationMs": 12
-    }
-  ],
-  "total": 142,
-  "limit": 50,
-  "offset": 0
-}
-```
-
----
-
-### `GET /health`
-
-Health check — no authentication required.
-
-**Response `200`:**
-```json
-{
-  "status": "healthy",
-  "version": "1.0.0",
-  "uptime": 3600
-}
-```
+**`GET /usage`** — A tenant's own usage and quota position, for a billing page.
 
 ---
 
 ## Edge-Run — `:8082`
 
-### `POST /schedule`
+Cron scheduling, task queue, retries and self-healing execution.
 
-Schedule a recurring task.
-
-**Required capabilities:** `schedule:create`
-
-**Request:**
-```json
-{
-  "id": "data-sync",
-  "cron": "*/15 * * * *",
-  "task": {
-    "type": "http",
-    "url": "https://api.example.com/sync",
-    "method": "POST"
-  },
-  "retry": {
-    "maxAttempts": 3,
-    "backoff": "exponential",
-    "baseDelay": 1000
-  },
-  "timeout": 30000
-}
-```
-
-**Response `201`:**
-```json
-{
-  "id": "data-sync",
-  "nextRun": "2026-03-30T12:15:00Z",
-  "status": "scheduled"
-}
-```
-
----
-
-### `GET /schedule`
-
-List all scheduled tasks.
-
-**Required capabilities:** `schedule:read`
-
-**Response `200`:**
-```json
-{
-  "tasks": [
-    {
-      "id": "data-sync",
-      "cron": "*/15 * * * *",
-      "status": "active",
-      "nextRun": "2026-03-30T12:15:00Z",
-      "lastRun": "2026-03-30T12:00:00Z",
-      "runCount": 4,
-      "failureCount": 0
-    }
-  ]
-}
-```
-
----
-
-### `POST /queue`
-
-Add a task to the queue.
-
-**Required capabilities:** `queue:write`
-
-**Request:**
-```json
-{
-  "id": "email-welcome",
-  "priority": "high",
-  "delay": 0,
-  "task": {
-    "type": "script",
-    "script": "./scripts/send-welcome.js"
-  }
-}
-```
-
----
-
-### `GET /queue/:id/status`
-
-Get status of a queued task.
-
-**Required capabilities:** `queue:read`
-
-**Response `200`:**
-```json
-{
-  "id": "email-welcome",
-  "status": "completed",
-  "result": { "emailed": 1 },
-  "queuedAt": "2026-03-30T12:00:00Z",
-  "startedAt": "2026-03-30T12:00:05Z",
-  "completedAt": "2026-03-30T12:00:12Z"
-}
-```
-
----
-
-### `GET /runtime/logs`
-
-Stream live logs from all running tasks (Server-Sent Events).
-
-**Required capabilities:** `runtime:read`
-
-**Response:** `text/event-stream`
-
-```
-data: {"task":"data-sync","timestamp":"...","level":"info","message":"Task started"}
-
-data: {"task":"data-sync","timestamp":"...","level":"info","message":"Sync complete"}
-```
-
----
-
-### `GET /health`
-
-Health check — no authentication required.
-
-**Response `200`:**
-```json
-{
-  "status": "healthy",
-  "activeTasks": 3,
-  "queuedTasks": 1,
-  "failedTasks": 0,
-  "uptime": 7200
-}
-```
+| Method | Path | Required scope | Counts against |
+|---|---|---|---|
+| GET | `/health` | _public_ | — |
+| GET | `/metrics` | _public_ | — |
+| GET | `/queue` | `queue:read` | — |
+| POST | `/queue` | `queue:write` | — |
+| GET | `/queue/:id/status` | `queue:read` | — |
+| GET | `/ready` | _public_ | — |
+| GET | `/runtime/health` | `runtime:read` | — |
+| GET | `/runtime/logs` | `runtime:read` | — |
+| GET | `/schedule` | `schedule:read` | — |
+| POST | `/schedule` | `schedule:create` | — |
+| DELETE | `/schedule/:id` | `schedule:create` | — |
+| POST | `/schedule/:id/pause` | `schedule:create` | — |
+| POST | `/schedule/:id/resume` | `schedule:create` | — |
 
 ---
 
 ## QuickBench — `:8083`
 
-### `POST /run`
+LLM and HTTP benchmarking with statistical regression detection.
 
-Run a benchmark suite.
-
-**Required capabilities:** `bench:run`
-
-**Request:**
-```json
-{
-  "name": "llama3-vs-mistral",
-  "provider": "ollama",
-  "model": "llama3",
-  "metrics": ["latency", "throughput", "kv_cache"],
-  "warmupRuns": 3,
-  "testRuns": 10,
-  "concurrency": 1
-}
-```
-
-**Response `202`:**
-```json
-{
-  "jobId": "bench-2026-03-30-001",
-  "status": "queued",
-  "estimatedDuration": "60s"
-}
-```
+| Method | Path | Required scope | Counts against |
+|---|---|---|---|
+| GET | `/compare` | `bench:read` | — |
+| GET | `/health` | _public_ | — |
+| GET | `/history` | `bench:read` | — |
+| GET | `/metrics` | _public_ | — |
+| GET | `/providers` | _public_ | — |
+| GET | `/ready` | _public_ | — |
+| POST | `/run` | `bench:run` | — |
+| GET | `/run/:jobId` | `bench:read` | — |
+| GET | `/run/:jobId/report` | `bench:read` | — |
 
 ---
 
-### `GET /run/:jobId`
+## Connector-Starter — `:8084`
 
-Get benchmark job status.
+Connector registry, credential verification and scaffolding.
 
-**Required capabilities:** `bench:read`
+| Method | Path | Required scope | Counts against |
+|---|---|---|---|
+| GET | `/connectors` | _public_ | — |
+| GET | `/connectors/:id` | _public_ | — |
+| POST | `/connectors/:id/actions/:action` | `connector:execute` | — |
+| POST | `/connectors/:id/verify` | `connector:read` | — |
+| POST | `/generate` | _public_ | — |
+| GET | `/health` | _public_ | — |
+| GET | `/metrics` | _public_ | — |
+| GET | `/ready` | _public_ | — |
 
-**Response `200`:**
-```json
-{
-  "jobId": "bench-2026-03-30-001",
-  "status": "running",
-  "progress": 0.4,
-  "currentMetric": "latency"
-}
-```
+### Notes
 
----
-
-### `GET /run/:jobId/report`
-
-Get completed benchmark report.
-
-**Required capabilities:** `bench:read`
-
-**Response `200`:**
-```json
-{
-  "jobId": "bench-2026-03-30-001",
-  "name": "llama3-vs-mistral",
-  "completedAt": "2026-03-30T12:05:00Z",
-  "results": {
-    "latency": {
-      "p50": 120,
-      "p95": 240,
-      "p99": 380,
-      "unit": "ms"
-    },
-    "throughput": {
-      "value": 47.2,
-      "unit": "tokens/sec"
-    },
-    "kv_cache_hit_rate": {
-      "value": 0.823,
-      "unit": "ratio"
-    }
-  }
-}
-```
+**`POST /connectors/:id/verify`** — Read-only credential check — never performs a write.
 
 ---
 
-### `GET /history`
+## MCP server
 
-List historical benchmark results.
-
-**Required capabilities:** `bench:read`
-
-**Query parameters:**
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `limit` | int | 20 | Max results |
-| `model` | string | — | Filter by model |
-| `provider` | string | — | Filter by provider |
-
-**Response `200`:**
-```json
-{
-  "benchmarks": [
-    {
-      "jobId": "bench-2026-03-30-001",
-      "name": "llama3-vs-mistral",
-      "model": "llama3",
-      "provider": "ollama",
-      "completedAt": "2026-03-30T12:05:00Z",
-      "summary": {
-        "latency_p50_ms": 120,
-        "throughput_tokens_per_sec": 47.2
-      }
-    }
-  ]
-}
-```
+`@absuite/mcp` speaks Model Context Protocol over stdio rather than HTTP.
+Tool discovery is filtered by capability — an agent never sees a tool its
+token cannot call — and every completed call returns the signed trace that
+attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-### `GET /health`
-
-Health check — no authentication required.
-
-**Response `200`:**
-```json
-{
-  "status": "healthy",
-  "uptime": 1800,
-  "availableProviders": ["ollama", "openai"]
-}
-```
-
----
-
-## Capability Reference
-
-### Scope format
-
-`resource:action` or `resource:action:sub-resource`
-
-Examples:
-- `read:users` — Read users
-- `write:tasks:execute` — Write + execute tasks
-- `*:*` — Full access (use sparingly)
-
-### Default service capabilities
-
-| Service | Capabilities |
-|---------|-------------|
-| Dashboard | `*` (all) |
-| Edge-Run scheduler | `schedule:read`, `schedule:create`, `queue:read`, `queue:write` |
-| QuickBench runner | `bench:run`, `bench:read` |
-| External API clients | Minimal scoped tokens issued by dashboard |
-
----
-
-## Error Responses
-
-All endpoints return errors in this format:
-
-```json
-{
-  "error": {
-    "code": "CAPABILITY_INSUFFICIENT",
-    "message": "Token missing required scope: schedule:create",
-    "requestId": "uuid"
-  }
-}
-```
-
-### Error codes
-
-| HTTP Status | Code | Meaning |
-|-------------|------|---------|
-| 400 | `INVALID_REQUEST` | Malformed JSON or missing fields |
-| 401 | `TOKEN_MISSING` | No Authorization header |
-| 401 | `TOKEN_INVALID` | Signature verification failed |
-| 401 | `TOKEN_EXPIRED` | Token past expiration |
-| 403 | `CAPABILITY_INSUFFICIENT` | Token lacks required scope |
-| 404 | `NOT_FOUND` | Resource doesn't exist |
-| 429 | `RATE_LIMITED` | Too many requests |
-| 500 | `INTERNAL_ERROR` | Unexpected server error |
+_60 HTTP endpoints across 4 services. Generated from source._

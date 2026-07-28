@@ -33,6 +33,11 @@ jobs:
       - name: ESLint
         run: pnpm lint || true
 
+      # A stale API reference is the fastest way to lose a developer's trust,
+      # so drift is a build failure rather than something noticed later.
+      - name: API docs are in sync with the code
+        run: pnpm docs:check
+
   test:
     name: Test
     runs-on: ubuntu-latest

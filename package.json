@@ -21,7 +21,9 @@
     "publish:dry": "pnpm -r --filter \"@absuite/*\" exec npm pack --dry-run",
     "backup": "node scripts/backup.mjs create",
     "backup:verify": "node scripts/backup.mjs verify",
-    "backup:restore": "node scripts/backup.mjs restore"
+    "backup:restore": "node scripts/backup.mjs restore",
+    "docs:api": "node scripts/gen-api-docs.mjs",
+    "docs:check": "node scripts/gen-api-docs.mjs --check"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"
