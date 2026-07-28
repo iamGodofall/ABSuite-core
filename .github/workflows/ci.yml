@@ -111,10 +111,22 @@ jobs:
           for service in capkit edge-run quickbench connector-starter trust; do
             echo "Waiting for $service..."
             for attempt in $(seq 1 30); do
-              if docker compose ps "$service" | grep -q "healthy"; then
-                echo "  $service is healthy"
-                break
-              fi
+              # Match "(healthy)" with the bracket, not the bare word:
+              # "unhealthy" contains "healthy", so a substring match would
+              # report a failed service as passing — in the one step whose
+              # entire job is to catch that.
+              state=$(docker compose ps "$service" || true)
+              case "$state" in
+                *"(unhealthy)"*)
+                  echo "::error::$service is unhealthy"
+                  docker compose logs "$service"
+                  exit 1
+                  ;;
+                *"(healthy)"*)
+                  echo "  $service is healthy"
+                  break
+                  ;;
+              esac
               if [ "$attempt" -eq 30 ]; then
                 echo "::error::$service never became healthy"
                 docker compose logs "$service"
