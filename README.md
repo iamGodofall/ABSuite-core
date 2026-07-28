@@ -26,7 +26,7 @@ Think of it as the infrastructure layer that means you never have to stitch toge
 | **Dashboard** | 3001 | Control plane — live service status, AI studio, token issuance, latency benchmarks |
 | **MCP** | stdio | Model Context Protocol server — puts ABSuite inside the agent tool-calling path |
 
-All five modules are implemented, tested and runnable. **166 tests** cover the
+All modules are implemented, tested and runnable. **246 tests** cover the
 security-critical and correctness-critical paths.
 
 ### Production & commercial layer
@@ -467,7 +467,7 @@ DASHBOARD_PORT=3001
 ## 🧪 Running Tests
 
 ```bash
-# All packages (166 tests)
+# All packages (246 tests)
 pnpm test
 
 # A single module

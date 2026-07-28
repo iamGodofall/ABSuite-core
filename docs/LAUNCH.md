@@ -59,7 +59,7 @@ customer asks (months).
 | Observability | `/metrics` (Prometheus), `/health`, `/ready` on every service |
 | Graceful shutdown | SIGTERM drains in-flight requests and flushes state |
 | Container security | Non-root user, pinned Node 22 base |
-| Test coverage | 166 tests over the security- and correctness-critical paths |
+| Test coverage | 246 tests over the security- and correctness-critical paths |
 
 ### What is not, and must be decided before selling an SLA
 
@@ -148,7 +148,10 @@ pnpm --filter @absuite/capkit publish --access public
 pnpm --filter @absuite/edge-run publish --access public
 pnpm --filter @absuite/quickbench publish --access public
 pnpm --filter @absuite/connector-starter publish --access public
+pnpm --filter @absuite/mcp publish --access public
 ```
+
+Or in one command: `pnpm publish:packages`.
 
 Publish CapKit first — the others depend on it, and `workspace:*` is rewritten
 to the published version at pack time.
