@@ -71,6 +71,28 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/connector-starter:
+    dependencies:
+      '@absuite/capkit':
+        specifier: workspace:*
+        version: link:../capkit
+      express:
+        specifier: ^4.18.0
+        version: 4.22.1
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.37
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/dashboard-ui:
     dependencies:
       clsx:
@@ -167,6 +189,50 @@ importers:
       vitest:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@20.19.37)
+
+  packages/edge-run:
+    dependencies:
+      '@absuite/capkit':
+        specifier: workspace:*
+        version: link:../capkit
+      express:
+        specifier: ^4.18.0
+        version: 4.22.1
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.37
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/quickbench:
+    dependencies:
+      '@absuite/capkit':
+        specifier: workspace:*
+        version: link:../capkit
+      express:
+        specifier: ^4.18.0
+        version: 4.22.1
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.37
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
 
 packages:
 

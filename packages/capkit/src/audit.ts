@@ -8,7 +8,7 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 export type AuditResult = 'allow' | 'deny';
 
@@ -21,6 +21,34 @@ export interface AuditEntry {
   result: AuditResult;
   durationMs?: number;
   reason?: string;
+  /** Hash of the preceding entry, linking the log into a chain. */
+  prevHash?: string;
+  /** SHA-256 over this entry's content plus prevHash. */
+  hash?: string;
+}
+
+const GENESIS_HASH = '0'.repeat(64);
+
+/**
+ * Hash an entry together with its predecessor.
+ *
+ * Any edit to a historical entry changes its hash, which breaks every
+ * subsequent link — so tampering is detectable without trusting the storage
+ * layer. Fields are serialised in a fixed order so the hash is reproducible.
+ */
+export function hashEntry(entry: Omit<AuditEntry, 'hash'>): string {
+  const canonical = JSON.stringify([
+    entry.id,
+    entry.timestamp,
+    entry.subject,
+    entry.action,
+    entry.resource,
+    entry.result,
+    entry.durationMs ?? null,
+    entry.reason ?? null,
+    entry.prevHash ?? GENESIS_HASH,
+  ]);
+  return createHash('sha256').update(canonical).digest('hex');
 }
 
 export interface AuditQuery {
@@ -46,7 +74,8 @@ export class AuditLog {
   }
 
   record(entry: Omit<AuditEntry, 'id' | 'timestamp'> & { id?: string; timestamp?: string }): AuditEntry {
-    const complete: AuditEntry = {
+    const previous = this.entries[this.entries.length - 1];
+    const unhashed: Omit<AuditEntry, 'hash'> = {
       id: entry.id ?? randomUUID(),
       timestamp: entry.timestamp ?? new Date().toISOString(),
       subject: entry.subject,
@@ -55,7 +84,10 @@ export class AuditLog {
       result: entry.result,
       ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
       ...(entry.reason ? { reason: entry.reason } : {}),
+      prevHash: previous?.hash ?? GENESIS_HASH,
     };
+
+    const complete: AuditEntry = { ...unhashed, hash: hashEntry(unhashed) };
 
     this.entries.push(complete);
     if (this.entries.length > MAX_IN_MEMORY_ENTRIES) {
@@ -113,6 +145,42 @@ export class AuditLog {
 
   get size(): number {
     return this.entries.length;
+  }
+
+  /**
+   * Walk the chain and report the first entry that does not verify.
+   *
+   * `brokenAt` is the index of the entry whose content or link no longer
+   * matches — that is the evidence an auditor needs, so it is reported rather
+   * than just a boolean.
+   */
+  verifyChain(): { valid: boolean; checked: number; brokenAt?: number; reason?: string } {
+    let expectedPrev = GENESIS_HASH;
+
+    for (let index = 0; index < this.entries.length; index++) {
+      const entry = this.entries[index]!;
+
+      if (!entry.hash) {
+        return { valid: false, checked: index, brokenAt: index, reason: 'Entry is missing its hash' };
+      }
+      if ((entry.prevHash ?? GENESIS_HASH) !== expectedPrev) {
+        return { valid: false, checked: index, brokenAt: index, reason: 'Entry does not link to its predecessor' };
+      }
+
+      const { hash, ...unhashed } = entry;
+      if (hashEntry(unhashed) !== hash) {
+        return { valid: false, checked: index, brokenAt: index, reason: 'Entry content does not match its hash' };
+      }
+
+      expectedPrev = entry.hash;
+    }
+
+    return { valid: true, checked: this.entries.length };
+  }
+
+  /** Latest chain hash — publish or countersign this to anchor the log. */
+  get headHash(): string {
+    return this.entries[this.entries.length - 1]?.hash ?? GENESIS_HASH;
   }
 
   private ensureDirectory(filePath: string): void {

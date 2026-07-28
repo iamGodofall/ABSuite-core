@@ -1,6 +1,10 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CapabilityToken, RevocationList, hasCapability, scopeSatisfies } from './capability';
 import { signJwt, verifyJwt, parseDuration, base64UrlEncode } from './jwt';
 import { AuditLog } from './audit';
+import { MemoryRevocationStore, FileRevocationStore, revocationStoreFromEnv } from './revocation-store';
 import { generatePolicy } from './ai-policy-generator';
 import { describeProviders } from './llm-provider';
 
@@ -171,6 +175,101 @@ describe('audit log', () => {
 
     expect(log.query({ limit: 100000 }).limit).toBe(500);
     expect(log.query({ limit: -5 }).limit).toBe(50);
+  });
+});
+
+describe('tamper-evident audit chain', () => {
+  test('links entries and verifies clean', () => {
+    const log = new AuditLog();
+    log.record({ subject: 'a', action: 'x', resource: 'r', result: 'allow' });
+    log.record({ subject: 'b', action: 'y', resource: 'r', result: 'deny' });
+    log.record({ subject: 'c', action: 'z', resource: 'r', result: 'allow' });
+
+    const verified = log.verifyChain();
+    expect(verified.valid).toBe(true);
+    expect(verified.checked).toBe(3);
+    expect(log.headHash).toHaveLength(64);
+  });
+
+  test('detects an edited historical entry', () => {
+    const log = new AuditLog();
+    log.record({ subject: 'a', action: 'x', resource: 'r', result: 'deny' });
+    log.record({ subject: 'b', action: 'y', resource: 'r', result: 'allow' });
+
+    // Someone rewrites a denial into an approval after the fact.
+    const entries = log.query().entries;
+    const tampered = entries.find(entry => entry.subject === 'a')!;
+    tampered.result = 'allow';
+
+    const verified = log.verifyChain();
+    expect(verified.valid).toBe(false);
+    expect(verified.brokenAt).toBe(0);
+    expect(verified.reason).toMatch(/does not match its hash/i);
+  });
+
+  test('detects a deleted entry breaking the links', () => {
+    const log = new AuditLog();
+    log.record({ subject: 'a', action: 'x', resource: 'r', result: 'allow' });
+    log.record({ subject: 'b', action: 'y', resource: 'r', result: 'allow' });
+    log.record({ subject: 'c', action: 'z', resource: 'r', result: 'allow' });
+
+    // Splice out the middle entry, as an attacker covering their tracks would.
+    (log as unknown as { entries: unknown[] }).entries.splice(1, 1);
+
+    const verified = log.verifyChain();
+    expect(verified.valid).toBe(false);
+    expect(verified.reason).toMatch(/predecessor/i);
+  });
+
+  test('an empty log is trivially valid', () => {
+    expect(new AuditLog().verifyChain()).toEqual({ valid: true, checked: 0 });
+  });
+});
+
+describe('revocation stores', () => {
+  test('memory store revokes and prunes', async () => {
+    const store = new MemoryRevocationStore();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+
+    expect(await store.isRevoked('a')).toBe(false);
+    await store.revoke('a', future);
+    expect(await store.isRevoked('a')).toBe(true);
+
+    await store.revoke('stale', Math.floor(Date.now() / 1000) - 10);
+    expect(await store.isRevoked('stale')).toBe(false);
+  });
+
+  test('file store makes a revocation visible to a second instance', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'absuite-revoke-'));
+    const path = join(dir, 'revocations.jsonl');
+    const future = Math.floor(Date.now() / 1000) + 3600;
+
+    const writer = new FileRevocationStore(path);
+    await writer.revoke('shared-jti', future);
+
+    // A separate replica reading the same file must see the revocation.
+    const reader = new FileRevocationStore(path);
+    expect(await reader.isRevoked('shared-jti')).toBe(true);
+    expect(await reader.isRevoked('other-jti')).toBe(false);
+  });
+
+  test('file store picks up a revocation written after it started', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'absuite-revoke-'));
+    const path = join(dir, 'revocations.jsonl');
+
+    const reader = new FileRevocationStore(path);
+    expect(await reader.isRevoked('later')).toBe(false);
+
+    const writer = new FileRevocationStore(path);
+    await writer.revoke('later', Math.floor(Date.now() / 1000) + 3600);
+
+    expect(await reader.isRevoked('later')).toBe(true);
+  });
+
+  test('env selects the file store only when configured', () => {
+    expect(revocationStoreFromEnv({})).toBeInstanceOf(MemoryRevocationStore);
+    const dir = mkdtempSync(join(tmpdir(), 'absuite-revoke-'));
+    expect(revocationStoreFromEnv({ CAPKIT_REVOCATION_FILE: join(dir, 'r.jsonl') })).toBeInstanceOf(FileRevocationStore);
   });
 });
 

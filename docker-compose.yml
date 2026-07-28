@@ -35,6 +35,7 @@ services:
       - CAPKIT_JWT_SECRET=${CAPKIT_JWT_SECRET}
       - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
       - CAPKIT_AUDIT_LOG=${CAPKIT_AUDIT_LOG:-/data/capkit-audit.jsonl}
+      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ABSUITE_ALLOWED_ORIGINS=${ABSUITE_ALLOWED_ORIGINS:-http://localhost:3001}
@@ -59,12 +60,7 @@ services:
     networks:
       - absuite-net
 
-  # edge-run, quickbench and connector-starter are not implemented yet — their
-  # packages contain no source. They sit behind the "planned" profile so a
-  # default `docker compose up` starts only what actually builds and runs.
-  # Enable with: docker compose --profile planned up -d
   edge-run:
-    profiles: ["planned"]
     build:
       context: .
       dockerfile: ./packages/edge-run/Dockerfile
@@ -74,9 +70,17 @@ services:
     environment:
       - NODE_ENV=production
       - ABSUITE_DB_PATH=/data/absuite.db
-      - ABSUITE_LOG_LEVEL=info
-      - EDGERUN_MAX_CONCURRENT=10
-      - EDGERUN_QUEUE_LIMIT=100
+      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
+      - EDGERUN_PORT=8082
+      - EDGERUN_MAX_CONCURRENT=${EDGERUN_MAX_CONCURRENT:-10}
+      - EDGERUN_QUEUE_LIMIT=${EDGERUN_QUEUE_LIMIT:-100}
+      # Script execution stays off unless an operator opts in explicitly.
+      - EDGERUN_SCRIPT_ROOT=${EDGERUN_SCRIPT_ROOT:-}
+      - EDGERUN_ALLOWED_HOSTS=${EDGERUN_ALLOWED_HOSTS:-}
+      # Shared with CapKit so this service can validate capability tokens.
+      - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
+      - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
+      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
     volumes:
       - absuite-data:/data
     depends_on:
@@ -99,7 +103,6 @@ services:
       - absuite-net
 
   quickbench:
-    profiles: ["planned"]
     build:
       context: .
       dockerfile: ./packages/quickbench/Dockerfile
@@ -112,6 +115,13 @@ services:
       - QUICKBENCH_PORT=8083
       - QUICKBENCH_OLLAMA_URL=${QUICKBENCH_OLLAMA_URL:-http://host.docker.internal:11434}
       - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
+      - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
+      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
+    volumes:
+      - absuite-data:/data
     depends_on:
       absuite-db:
         condition: service_healthy
@@ -132,7 +142,6 @@ services:
       - absuite-net
 
   connector-starter:
-    profiles: ["planned"]
     build:
       context: .
       dockerfile: ./packages/connector-starter/Dockerfile
@@ -141,7 +150,20 @@ services:
       - "127.0.0.1:8084:8084"
     environment:
       - NODE_ENV=production
-      - ABSUITE_LOG_LEVEL=info
+      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
+      - CONNECTOR_STARTER_PORT=8084
+      - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
+      - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
+      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
+      # Connector credentials — all optional; each connector reports its own state.
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - NOTION_TOKEN=${NOTION_TOKEN:-}
+      - LINEAR_API_KEY=${LINEAR_API_KEY:-}
+    volumes:
+      - absuite-data:/data
     depends_on:
       absuite-db:
         condition: service_healthy

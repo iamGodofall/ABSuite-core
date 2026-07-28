@@ -7,7 +7,9 @@
  */
 import express from 'express';
 import { randomBytes } from 'node:crypto';
-import { CapabilityToken, RevocationList, hasCapability } from './capability';
+import { CapabilityToken } from './capability';
+import { capabilityGuard } from './middleware';
+import { revocationStoreFromEnv } from './revocation-store';
 import { AuditLog } from './audit';
 import { generatePolicy } from './ai-policy-generator';
 import { describeProviders } from './llm-provider';
@@ -50,7 +52,10 @@ const AUDIENCE = process.env.CAPKIT_AUDIENCE || '';
 const KEY_ID = process.env.CAPKIT_KEY_ID || 'capkit-default';
 
 const audit = new AuditLog(process.env.CAPKIT_AUDIT_LOG || undefined);
-const revocations = new RevocationList();
+
+// Backed by CAPKIT_REVOCATION_FILE when set, so a revocation issued here is
+// visible to Edge-Run, QuickBench and Connector-Starter too.
+const revocations = revocationStoreFromEnv();
 
 // Annotated explicitly so the emitted declaration file does not need to name
 // a transitive @types/express-serve-static-core path.
@@ -89,42 +94,27 @@ function fail(res: express.Response, status: number, code: string, message: stri
 /**
  * Authorise a request against a required scope.
  *
- * The admin key is a bootstrap credential: it grants full authority so an
- * operator can mint the very first capability token. Everything else must
- * present a capability token that already carries the required scope.
+ * Uses the same guard the other ABSuite services import, so CapKit enforces
+ * exactly the rules it hands out. The admin key is a bootstrap credential: it
+ * grants full authority so an operator can mint the very first token.
  */
-function authorise(required: string) {
-  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const adminHeader = (req.header('x-absuite-admin-key') || '').trim();
-    if (ADMIN_KEY && adminHeader && adminHeader === ADMIN_KEY) {
-      (req as express.Request & { actor?: string }).actor = 'admin-key';
-      return next();
+const authorise = capabilityGuard({
+  secret: SECRET,
+  adminKey: ADMIN_KEY,
+  revocations,
+  ...(AUDIENCE ? { audience: AUDIENCE } : {}),
+  onDecision: ({ allowed, subject, reason, req }) => {
+    if (!allowed) {
+      audit.record({
+        subject,
+        action: `${req.method} ${req.path}`,
+        resource: req.path,
+        result: 'deny',
+        ...(reason ? { reason } : {}),
+      });
     }
-
-    const authHeader = req.header('authorization') || '';
-    const token = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '';
-
-    if (!token) {
-      audit.record({ subject: 'anonymous', action: `${req.method} ${req.path}`, resource: req.path, result: 'deny', reason: 'TOKEN_MISSING' });
-      return fail(res, 401, 'TOKEN_MISSING', 'No Authorization header');
-    }
-
-    const result = CapabilityToken.validate(token, SECRET, {
-      requiredScope: required,
-      isRevoked: jti => revocations.isRevoked(jti),
-      ...(AUDIENCE ? { audience: AUDIENCE } : {}),
-    });
-
-    if (!result.valid) {
-      const status = result.error === 'CAPABILITY_INSUFFICIENT' ? 403 : 401;
-      audit.record({ subject: 'unknown', action: `${req.method} ${req.path}`, resource: req.path, result: 'deny', reason: result.error });
-      return fail(res, status, result.error, result.message);
-    }
-
-    (req as express.Request & { actor?: string }).actor = result.claims.sub;
-    return next();
-  };
-}
+  },
+});
 
 // ---- Health ----
 
@@ -175,10 +165,13 @@ app.post('/auth/token', authorise('auth:token:create'), (req, res) => {
   }
 });
 
-app.post('/auth/token/validate', authorise('auth:token:validate'), (req, res) => {
+app.post('/auth/token/validate', authorise('auth:token:validate'), async (req, res) => {
   const token = String(req.body?.token ?? '');
+  const peek = CapabilityToken.validate(token, SECRET, AUDIENCE ? { audience: AUDIENCE } : {});
+  const revoked = peek.valid ? await revocations.isRevoked(peek.claims.jti) : false;
+
   const result = CapabilityToken.validate(token, SECRET, {
-    isRevoked: jti => revocations.isRevoked(jti),
+    ...(revoked ? { isRevoked: () => true } : {}),
     ...(AUDIENCE ? { audience: AUDIENCE } : {}),
   });
 
@@ -194,7 +187,7 @@ app.post('/auth/token/validate', authorise('auth:token:validate'), (req, res) =>
   });
 });
 
-app.post('/auth/token/revoke', authorise('auth:token:revoke'), (req, res) => {
+app.post('/auth/token/revoke', authorise('auth:token:revoke'), async (req, res) => {
   const token = String(req.body?.token ?? '');
   const jti = String(req.body?.jti ?? '');
 
@@ -203,7 +196,7 @@ app.post('/auth/token/revoke', authorise('auth:token:revoke'), (req, res) => {
     if (!result.valid) {
       return fail(res, 400, 'INVALID_REQUEST', 'Token could not be parsed for revocation');
     }
-    revocations.revoke(result.claims.jti, result.claims.exp);
+    await revocations.revoke(result.claims.jti, result.claims.exp);
     audit.record({ subject: result.claims.sub, action: 'POST /auth/token/revoke', resource: `token:${result.claims.jti}`, result: 'allow' });
     return res.status(200).json({ revoked: true, jti: result.claims.jti });
   }
@@ -211,7 +204,7 @@ app.post('/auth/token/revoke', authorise('auth:token:revoke'), (req, res) => {
   if (jti) {
     // Without the token we cannot read its expiry, so hold the entry for the
     // maximum plausible token lifetime rather than dropping it early.
-    revocations.revoke(jti, Math.floor(Date.now() / 1000) + 86400 * 30);
+    await revocations.revoke(jti, Math.floor(Date.now() / 1000) + 86400 * 30);
     audit.record({ subject: 'unknown', action: 'POST /auth/token/revoke', resource: `token:${jti}`, result: 'allow' });
     return res.status(200).json({ revoked: true, jti });
   }

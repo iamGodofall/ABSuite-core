@@ -1,196 +1,186 @@
 # ABSuite Monetization Strategy
 
-> Written 2026-07-28, against a verified audit of what the codebase actually
-> does. Every claim about current capability was tested, not read off the README.
+> Updated 2026-07-28, after building out the full suite. Every capability claim
+> below was verified by running the code, not read off a README.
 
 ---
 
-## 1. The honest starting position
+## 1. Where things actually stand
 
-Before deciding what to sell, here is what was actually verified by running it:
+### Verified working
 
-| Claim in README | Reality |
+All five modules are implemented, tested (119 tests) and were run together
+end-to-end:
+
+| Module | Verified behaviour |
 |---|---|
-| "Five core modules" | **Two** exist. CapKit and Dashboard. |
-| Edge-Run, QuickBench, Connector-Starter | Empty directories. Zero source files. |
-| `pnpm start` starts everything | Compose referenced four Dockerfiles that did not exist. |
-| Dashboard shows live service status | Status was **hardcoded off** — `const dockerConnected = false` short-circuited every check. |
-| Dashboard AI Studio / benchmarks / tokens | All proxied to services that did not exist → 502/503 on every call. |
+| **CapKit** | Issues signed capability tokens; rejects `alg: none`, tampered payloads, expired tokens, audience mismatch and insufficient scope; tamper-evident audit chain; shared revocation store |
+| **Edge-Run** | Cron scheduling (including leap-year and OR-semantics cases), priority queue, retries with jittered backoff, per-target circuit breaker, SSE log stream |
+| **QuickBench** | Real latency percentiles against a live service (p50 3.97ms, p95 9.64ms, 217 req/s measured), Welch's t-test regression verdicts, Markdown/CSV reports |
+| **Connector-Starter** | 6 connectors with honest configuration reporting, read-only verification, deterministic manifest + TypeScript generation |
+| **Dashboard** | Live service status, token issuance through CapKit, live latency benchmarks |
 
-**This matters commercially more than technically.** Selling a "five-module
-platform" that is two modules is the fastest possible route to chargebacks, a
-public refund thread, and a dead brand. The single most valuable thing done in
-this pass was making the repo's claims match the repo's behaviour.
+### The proof that it is a suite
 
-### What changed in this pass
+One capability token was issued by CapKit and accepted by Edge-Run and
+QuickBench. Revoking it at CapKit caused **both** other services to return
+`401 TOKEN_REVOKED` on the next request.
 
-- **CapKit is now real** — capability tokens, HS256 JWT on `node:crypto`, scope
-  matching, revocation, append-only audit log, rule-based policy generation.
-  27 tests covering the security-critical paths.
-- **Dashboard status bug fixed** — it now genuinely detects running services,
-  with an HTTP health-check fallback when Docker is unavailable.
-- **Compose actually starts** — unimplemented services moved behind a `planned`
-  profile, so `docker compose up` brings up a working stack.
-- **README tells the truth** — implementation status is stated per module.
+That single behaviour is the commercial centre of gravity. It is what a
+competitor cannot trivially replicate by publishing another JWT library, and it
+is what justifies the suite existing rather than four separate tools.
 
-Verified working end-to-end: dashboard → CapKit → signed capability token,
-with 401 for missing auth, 403 for insufficient scope, and every allow/deny
-recorded in the audit trail.
+### Honest gaps
 
----
+These matter more than the feature list, so they are stated first:
 
-## 2. What is actually sellable today
-
-Be ruthless here. One thing is sellable, and it is not "an agent platform".
-
-### The asset: agent authorization
-
-**CapKit solves a problem people have right now.** Teams deploying AI agents
-have to answer: *what is this agent allowed to do, for how long, and can I
-prove what it did?* The current answer in most codebases is a long-lived API
-key in an environment variable with full account access.
-
-CapKit replaces that with scoped, expiring, revocable, auditable grants. That
-is a real problem, with a real buyer (the engineer shipping agents to prod),
-and a real compliance angle (the audit log).
-
-### Why this and not the dashboard
-
-The dashboard is well-built and looks credible, but a dashboard that monitors
-one service is not worth money. Its value is as a **sales surface** for CapKit
-— it makes the token flow visible and demoable in a way a library never can.
-
-### Deliberately not selling
-
-Do not sell Edge-Run, QuickBench or Connector-Starter, or take pre-orders
-against them. Each is a substantial build (a distributed scheduler and an
-LLM benchmark harness are not weekend projects), and each competes with mature
-free tooling — Temporal, BullMQ, Sidekiq for scheduling. Fighting on that
-ground with zero code is not a plan.
+- **No billing, metering or multi-tenancy.** There is no way to charge anyone
+  today. This is the single largest gap between the code and revenue.
+- **State is in memory.** Edge-Run schedules and QuickBench history do not
+  survive a restart. Fine for a single node; disqualifying for a paid SLA.
+- **Revocation is file-based.** Correct for replicas on a shared volume; needs
+  Redis or Postgres for a real hosted deployment.
+- **No hosted infrastructure.** No accounts, no deploy pipeline, no support process.
 
 ---
 
-## 3. Fastest path to first revenue
+## 2. A necessary word on timelines
 
-Ordered by time-to-cash, not by ambition.
+You have said money is urgent. I would be doing you a disservice if I implied
+this repository converts to cash quickly, so plainly:
 
-### Tier 1 — Days: open-source distribution, paid support (Week 1–2)
+**Infrastructure software is one of the slowest-converting things to sell.**
+Buyers are engineers, evaluation cycles run weeks, and the first paying customer
+typically comes months after the first release — not days. The work now exists
+and is genuinely good, but the gating factor is no longer code. It is
+distribution, billing, and conversations with users.
 
-Publish `@absuite/capkit` to npm under MIT. Revenue is zero directly; this is
-the top of the funnel and it is the only way to earn the credibility that the
-paid tiers require. The package is genuinely useful standalone, has no runtime
-dependencies beyond Express for the server, and installs in one command.
+Two implications worth acting on:
 
-**Action:** `npm publish`, write one strong launch post on the specific problem
-("stop giving your agents your root API key"), post to Hacker News, r/LocalLLaMA,
-and the agent-framework Discords.
+1. **Do not let this be the only iron in the fire** while it matures. The
+   sections below are ordered to get to revenue as fast as this category
+   realistically allows, which is still not fast.
+2. **The fastest money adjacent to this work is services, not licences.** The
+   skills demonstrated here — agent authorization, scheduling, benchmarking —
+   are billable as contract work *now*, at rates that do not require anyone to
+   buy a product. See §5.
 
-**Realistic outcome:** hundreds of installs, a handful of GitHub issues, and
-three or four conversations with teams who have the problem. Those conversations
-are the actual product of this phase.
+---
 
-### Tier 2 — Weeks: CapKit Cloud (Week 3–8)
+## 3. What to sell
 
-The self-hosted version has a limitation documented in the README: **the
-revocation list is process-local.** Multi-replica deployments cannot revoke
-reliably without a shared store. That is not a flaw to hide — it is the natural
-product boundary.
+### Primary: agent authorization (CapKit)
 
-**Hosted CapKit** sells: a shared revocation store, key rotation, a persistent
-queryable audit log, and a team UI. Priced per-agent or per-token-validation.
+Teams deploying AI agents must answer: *what is this agent allowed to do, for
+how long, and can I prove what it did?* The common answer today is a long-lived
+API key in an environment variable with full account access.
+
+CapKit replaces that with scoped, expiring, revocable, auditable grants. It has
+a real buyer (the engineer shipping agents to production) and a compliance
+angle (the hash-chained audit log).
+
+### The natural paywall, already built
+
+The free tier is genuinely production-usable on one node. The paid trigger is a
+boundary customers hit by growing, not one manufactured by crippling the free
+tier:
+
+| Limitation | Free | Paid |
+|---|---|---|
+| Revocation | File-based, one volume | Hosted, multi-region |
+| Audit retention | Local JSONL | Queryable, retained, exportable |
+| Schedules/queue | In memory, lost on restart | Durable |
+| Key rotation | Single key | Multiple keys with `kid` |
+
+### Pricing
 
 | Plan | Price | Includes |
 |---|---|---|
-| Free | $0 | Self-hosted, single replica, local audit log |
-| Team | $49/mo | Hosted, 25 agents, shared revocation, 90-day audit retention, SSO-lite |
-| Business | $299/mo | 250 agents, 1-year audit retention, SAML SSO, audit export, SLA |
-| Enterprise | Custom | Unlimited, on-prem option, compliance support |
+| Free | $0 | Self-hosted, all five modules, MIT |
+| Team | $49/mo | Hosted revocation, 25 agents, 90-day audit retention |
+| Business | $299/mo | 250 agents, 1-year retention, SAML SSO, audit export, SLA |
+| Enterprise | Custom | Unlimited, on-prem, compliance support |
 
-**Why this converts:** the free tier is genuinely production-usable for a single
-instance, so adoption is frictionless. The paid trigger is the moment a customer
-scales past one replica — a moment they hit naturally, not one manufactured by
-crippling the free tier.
+### Positioning
 
-### Tier 3 — Months: compliance as the wedge (Month 3+)
+Not "a platform" — that competes with funded companies on breadth. Lead with the
+primitive and let the suite be the depth behind it:
 
-The audit log is the highest-margin asset in the codebase. Every regulated
-buyer deploying AI agents needs to prove which agent did what, under what
-authority. Package the audit trail as a compliance product — tamper-evident
-hash chaining, export to SIEM, retention policies, evidence bundles for
-auditors.
-
-This is where enterprise contracts live, and it is a far shorter build than
-Edge-Run or QuickBench because the data is already being captured.
+> **ABSuite — scoped, expiring, auditable credentials for AI agents.
+> Stop handing your agents your root API key.**
 
 ---
 
-## 4. Positioning
+## 4. Build order from here
 
-**Do not position as a platform.** "Vertical AI Agent PaaS" competes with
-funded companies on breadth, which is the one axis a two-module project cannot
-win.
+Ranked by revenue impact per unit of effort. Note that items 1–2 are not
+features; they are the difference between software and a business.
 
-**Position as a primitive:**
-
-> *ABSuite CapKit — scoped, expiring, auditable credentials for AI agents.
-> Stop handing your agents your root API key.*
-
-Narrow, credible, and true. It also leaves room to grow into the platform story
-later, once the other modules exist.
-
-### Who to sell to
-
-1. **Teams running agents in production** — the acute pain, the fastest close.
-2. **AI agent framework authors** — integration partnerships; being the default
-   auth layer for one popular framework is worth more than a hundred direct sales.
-3. **Regulated industries** — slowest cycle, largest contracts, needs Tier 3.
+1. **Usage metering** — count token validations per tenant. *You cannot bill
+   without this.* Smallest change with the largest revenue consequence.
+2. **Accounts and Stripe** — tenant model, API keys per tenant, subscription
+   webhooks.
+3. **Redis revocation store** — the `RevocationStore` interface already exists;
+   this is one implementation class, and it is the Team-tier feature.
+4. **Durable Edge-Run state** — Postgres-backed schedules and queue. Required
+   before any SLA promise.
+5. **Framework middleware packages** — publish `capabilityGuard` adapters for
+   Fastify and Hono. Removes adoption friction entirely.
+6. **Audit export to SIEM** — Splunk/Datadog sinks. The enterprise wedge.
 
 ---
 
-## 5. What to build next, in order
+## 5. Faster revenue paths, ranked by speed
 
-Ranked by revenue impact per unit of effort:
+Ordered by realistic time-to-first-payment:
 
-1. **Shared revocation store (Redis/Postgres)** — small change, and it is
-   *the* paywall for Tier 2. Highest leverage item in the repo.
-2. **Tamper-evident audit log** — hash-chain each entry. Small change, unlocks
-   the compliance story.
-3. **Framework middleware** — drop-in Express/Fastify/Hono middleware that
-   validates a capability on a route. Removes adoption friction entirely.
-4. **Key rotation with `kid`** — the `kid` claim is already issued but only one
-   key is supported. Enterprise requirement.
-5. **Edge-Run** — only after CapKit has paying customers, and only if they ask
-   for it.
+### Days to weeks — consulting on the strength of this work
 
-Note that items 1–4 are all CapKit. **Depth on the one thing that works beats
-breadth across four things that do not.**
+This repository is now a credible portfolio piece: a working authorization
+layer, a correct cron implementation, a statistically literate benchmark
+harness. That evidences senior infrastructure capability, and it is billable
+immediately as contract work. Agent-infrastructure consulting is in demand and
+prices well. **This is the only path here that can pay inside a month.**
 
----
+### Weeks — sponsorship and open-source support
 
-## 6. Risks, stated plainly
+Publish to npm under MIT, add GitHub Sponsors, offer paid installation and
+support. Small amounts, but real, and it builds the audience the product tier
+needs.
 
-- **Commodity risk.** Capability tokens are not novel; a competitor can build
-  this. The moat is the audit trail, the integrations, and being first to be
-  the default in an agent framework — not the crypto.
-- **Market timing.** Agent authorization is early. Some buyers will not yet feel
-  the pain. This argues for open-source-first: be present when the pain arrives.
-- **Single-maintainer risk.** Enterprise buyers will ask about bus factor.
-  Open-source licensing and clear docs partially answer it.
-- **Credibility debt.** The repo previously claimed five working modules. If
-  that version reached anyone, correct it directly. Overclaiming to technical
-  buyers is not recoverable through marketing.
+### Months — the hosted product
+
+Everything in §3 and §4. Real, larger, and genuinely slower. Build it, but do
+not budget against it.
 
 ---
 
-## 7. The 30-day plan
+## 6. The 30-day plan
 
 | Week | Focus | Deliverable |
 |---|---|---|
-| 1 | Ship the primitive | `@absuite/capkit` on npm; README honest; launch post live |
-| 2 | Listen | 5+ conversations with teams running agents; log every objection |
-| 3 | Build the paywall | Shared revocation store; hash-chained audit log |
-| 4 | Charge | Hosted beta with Stripe; onboard the 3 warmest conversations at Team tier |
+| 1 | Ship | Publish all five packages to npm; launch post on the specific problem |
+| 1 | Earn | Start contract outreach using this repo as the portfolio piece |
+| 2 | Listen | 5+ conversations with teams running agents; log every objection verbatim |
+| 3 | Meter | Usage metering + Redis revocation store |
+| 4 | Charge | Stripe + hosted beta; onboard the warmest conversations |
 
-**Success at day 30 is not a large number.** It is three paying customers and a
-clear, evidenced reason why they paid. That signal is what makes the rest of
-the roadmap worth building.
+**Success at day 30 is not a large number.** It is one contract signed, plus
+three serious product conversations. If the contract lands and the product does
+not, that is still a win — and it buys the runway for the product to mature.
+
+---
+
+## 7. Risks, stated plainly
+
+- **Commodity risk.** Capability tokens are not novel. The moat is the audit
+  chain, cross-service revocation, and being the default in an agent framework —
+  not the crypto.
+- **Market timing.** Agent authorization is early. Some buyers do not yet feel
+  the pain. Open-source-first is the correct hedge: be present when it arrives.
+- **Single-maintainer risk.** Enterprise buyers will ask about bus factor. MIT
+  licensing and clear docs partially answer it.
+- **Financial-pressure risk.** The most expensive mistake available here is
+  spending months on the hosted product with no income while waiting for it.
+  The consulting path in §5 exists specifically to de-risk that, and it should
+  run in parallel from week one — not after the product fails to convert.

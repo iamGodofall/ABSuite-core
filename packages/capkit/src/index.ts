@@ -25,7 +25,20 @@ export {
   type VerifyResult,
 } from './jwt';
 
-export { AuditLog, type AuditEntry, type AuditQuery, type AuditResult } from './audit';
+export { AuditLog, hashEntry, type AuditEntry, type AuditQuery, type AuditResult } from './audit';
+
+export {
+  capabilityGuard,
+  type CapabilityGuardOptions,
+  type CapabilityRequest,
+} from './middleware';
+
+export {
+  MemoryRevocationStore,
+  FileRevocationStore,
+  revocationStoreFromEnv,
+  type RevocationStore,
+} from './revocation-store';
 
 export { generatePolicy, type GeneratedPolicy, type SensitivityLevel, type FilterLevel } from './ai-policy-generator';
 

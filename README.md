@@ -17,20 +17,43 @@ Think of it as the infrastructure layer that means you never have to stitch toge
 
 ### The Five Core Modules
 
-| Module | What It Does | Status |
-|--------|-------------|--------|
-| **CapKit** | Security layer — capability tokens, JWT validation, audit log, access-policy generation | ✅ **Implemented** |
-| **Dashboard** | Unified control plane — live service status, AI studio, token issuance, latency benchmarks | ✅ **Implemented** |
-| **Edge-Run** | Execution layer — cron jobs, queues, event streams, process spawning, self-healing recovery | 🚧 **Planned — not built** |
-| **QuickBench** | Performance validation — LLM inference benchmarking, KV cache analysis, A/B testing | 🚧 **Planned — not built** |
-| **Connector-Starter** | Integration scaffold — connectors for GitHub, Slack, Jira and others | 🚧 **Planned — not built** |
+| Module | Port | What It Does |
+|--------|------|-------------|
+| **CapKit** | 8081 | Security — capability tokens, JWT validation, tamper-evident audit log, shared revocation, policy generation |
+| **Edge-Run** | 8082 | Execution — cron scheduling, priority queue, retries with jitter, circuit-breaker self-healing, live log stream |
+| **QuickBench** | 8083 | Performance — LLM and HTTP benchmarking, nearest-rank percentiles, statistical regression detection |
+| **Connector-Starter** | 8084 | Integrations — connector registry, read-only credential verification, deterministic scaffolding |
+| **Dashboard** | 3001 | Control plane — live service status, AI studio, token issuance, latency benchmarks |
 
-> **Implementation status.** CapKit and the Dashboard are real, tested and runnable
-> today. Edge-Run, QuickBench and Connector-Starter are specified in
-> [`docs/API.md`](./docs/API.md) but contain no source yet — their packages are
-> empty. They are held behind the `planned` Docker Compose profile so a default
-> `docker compose up` starts only what genuinely works. Anything below that
-> refers to those three modules describes intended, not shipped, behaviour.
+All five modules are implemented, tested and runnable. **119 tests** cover the
+security-critical and correctness-critical paths.
+
+### What makes it a suite, not five services
+
+CapKit is the shared authorisation layer. Edge-Run, QuickBench and
+Connector-Starter all import `capabilityGuard` from `@absuite/capkit` and enforce
+the same capability model, so **one token works across every service, and
+revoking it at CapKit locks it out of all of them**:
+
+```bash
+# One token, scoped for the whole suite
+TOKEN=$(curl -sX POST localhost:8081/auth/token \
+  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" -H 'Content-Type: application/json' \
+  -d '{"sub":"agent","scope":["queue:read","bench:read"],"expiresIn":"1h"}' | jq -r .token)
+
+curl -H "Authorization: Bearer $TOKEN" localhost:8082/queue    # Edge-Run   -> 200
+curl -H "Authorization: Bearer $TOKEN" localhost:8083/history  # QuickBench -> 200
+
+curl -sX POST localhost:8081/auth/token/revoke \
+  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" -H 'Content-Type: application/json' \
+  -d "{\"token\":\"$TOKEN\"}"
+
+curl -H "Authorization: Bearer $TOKEN" localhost:8082/queue    # -> 401 TOKEN_REVOKED
+curl -H "Authorization: Bearer $TOKEN" localhost:8083/history  # -> 401 TOKEN_REVOKED
+```
+
+Set `CAPKIT_REVOCATION_FILE` to a path every service can read, and revocation
+propagates across processes and replicas.
 
 ---
 
@@ -95,9 +118,9 @@ pnpm cli start capkit
 pnpm cli stop
 ```
 
-> The CLI's `bench` and `token` subcommands shell into the QuickBench and CapKit
-> containers. `bench` depends on QuickBench, which is not implemented yet. Issue
-> tokens through the dashboard or CapKit's HTTP API instead (see below).
+> The CLI's `bench` and `token` subcommands shell into running containers. When
+> running outside Docker, use the QuickBench and CapKit HTTP APIs directly
+> (see below).
 
 ---
 
@@ -129,9 +152,25 @@ ABSuite-core/
 │   ├── cli/                 # ✅ Command-line interface
 │   │   └── src/index.ts
 │   │
-│   ├── edge-run/            # 🚧 Empty — planned
-│   ├── quickbench/          # 🚧 Empty — planned
-│   └── connector-starter/   # 🚧 Empty — planned
+│   ├── edge-run/            # ✅ Scheduling, queue, retries, self-healing (:8082)
+│   │   └── src/
+│   │       ├── cron.ts      # Cron parsing & next-run calculation
+│   │       ├── queue.ts     # Priority queue, retries with jitter
+│   │       ├── runtime.ts   # HTTP & script executors (scripts opt-in)
+│   │       ├── scheduler.ts # Cron -> queue handoff
+│   │       └── self-healing.ts # Circuit breaker per target
+│   │
+│   ├── quickbench/          # ✅ LLM & service benchmarking (:8083)
+│   │   └── src/
+│   │       ├── stats.ts     # Percentiles, Welch's t-test
+│   │       ├── providers.ts # Ollama, OpenAI, Anthropic, HTTP
+│   │       ├── runner.ts    # Job orchestration & comparison
+│   │       └── report.ts    # Markdown & CSV reports
+│   │
+│   └── connector-starter/   # ✅ Connectors & scaffolding (:8084)
+│       └── src/
+│           ├── connectors.ts # Registry, verification, actions
+│           └── scaffold.ts   # Manifest + TypeScript generation
 │
 ├── src/                     # Shared orchestrator helpers
 ├── docker-compose.yml       # Implemented services by default
@@ -207,47 +246,82 @@ third-party JWT dependency on the security-critical path.
 
 ### Edge-Run — Agents That Run Reliably
 
-> 🚧 **Not implemented.** The example below is the intended API.
-
 ```typescript
-import { AgentScheduler } from '@absuite/edge-run'
+import { TaskQueue, TaskRuntime, AgentScheduler, nextRun } from '@absuite/edge-run'
 
-const scheduler = new AgentScheduler()
+const runtime = new TaskRuntime({ allowedHosts: ['api.example.com'] })
+const queue = new TaskQueue({ runtime, concurrency: 10 })
+const scheduler = new AgentScheduler(queue)
 
-// Schedule a recurring agent task
+// Recurring task, retried with exponential backoff and jitter
 scheduler.schedule({
   id: 'data-sync',
   cron: '*/15 * * * *',
-  task: async (ctx) => {
-    const data = await fetchLatestData()
-    await processAndStore(data)
-    ctx.log(`Synced ${data.length} records`)
-  },
-  retry: { maxAttempts: 3, backoff: 'exponential' }
+  task: { type: 'http', url: 'https://api.example.com/sync', method: 'POST' },
+  retry: { maxAttempts: 3, backoff: 'exponential' },
 })
 
 // One-off delayed task
-scheduler.delay('welcome-email', 30_000, async () => {
-  await sendWelcomeEmail()
-})
+queue.enqueue(
+  { type: 'http', url: 'https://api.example.com/welcome', method: 'POST' },
+  { id: 'welcome-email', delay: 30_000, priority: 'high' },
+)
+
+queue.start()      // drain the queue
+scheduler.start()  // fire schedules as they come due
+
+nextRun('0 0 29 2 *')  // -> the next 29 February, computed without brute force
 ```
+
+The circuit breaker groups failures by target host, so one failing dependency
+never takes the whole queue down with it.
 
 ### QuickBench — Know Before You Deploy
 
-> 🚧 **Not implemented.** The example below is the intended API.
-
 ```typescript
-import { QuickBench } from '@absuite/quickbench'
+import { BenchmarkRunner, summarise, compareRuns } from '@absuite/quickbench'
 
-const bench = new QuickBench({
-  providers: ['ollama'],
-  models: ['llama3', 'mistral'],
-  metrics: ['latency', 'throughput', 'kv_cache_hit_rate']
+const runner = new BenchmarkRunner()
+
+const job = runner.submit({
+  name: 'llama3 latency',
+  provider: 'ollama',
+  model: 'llama3',
+  warmupRuns: 3,   // discarded: measures cold cache, not steady state
+  testRuns: 20,
+  concurrency: 4,
 })
 
-const report = await bench.runSuite('model-comparison')
-console.table(report.results)
+// Later, once both runs have completed:
+runner.compare(baselineJobId, job.jobId)
+// -> { deltaPercent: 42.3, significant: true, verdict: 'regression' }
 ```
+
+`summarise()` reports min/mean/stddev and p50/p90/p95/p99 using nearest-rank,
+so every figure is a latency that was actually observed.
+
+### Connector-Starter — Integrations You Can Trust
+
+```typescript
+import { describeConnectors, verifyConnector, generate } from '@absuite/connector-starter'
+
+// What is available, and what is actually configured?
+describeConnectors()
+// -> [{ id: 'github', configured: true, missing: [], actions: [...] }, ...]
+
+// Verify credentials without any side effect — never posts or creates anything
+await verifyConnector('github')
+
+// Turn a description into a manifest and compilable TypeScript
+const { manifest, typescript, spec } = generate(
+  'Read GitHub issues and post them to Slack every 15 minutes'
+)
+spec.schedule  // '*/15 * * * *' — ready to hand to Edge-Run
+```
+
+Generation is deterministic and rule-based: no API key required, and the same
+description always produces identical output — which matters when the result is
+committed to a repository.
 
 ---
 
@@ -309,14 +383,29 @@ CAPKIT_ADMIN_KEY=your-admin-key      # Bootstrap key for issuing the first token
 CAPKIT_AUDIENCE=absuite://production # Optional; enforced at validation
 CAPKIT_AUDIT_LOG=/data/capkit-audit.jsonl
 
+# Shared revocation store — set to a path every service can read so a
+# revocation at CapKit locks the token out of the whole suite.
+CAPKIT_REVOCATION_FILE=/data/capkit-revocations.jsonl
+
 # Edge-Run
 EDGERUN_PORT=8082
 EDGERUN_MAX_CONCURRENT=10
 EDGERUN_QUEUE_LIMIT=100
+EDGERUN_SCRIPT_ROOT=              # unset = script tasks disabled (default)
+EDGERUN_ALLOWED_HOSTS=            # unset = any host allowed
+EDGERUN_FAILURE_THRESHOLD=5       # failures before the breaker opens
+EDGERUN_COOLDOWN_MS=30000
 
 # QuickBench
 QUICKBENCH_PORT=8083
 QUICKBENCH_OLLAMA_URL=http://localhost:11434
+
+# Connector-Starter (all optional — each connector reports its own state)
+CONNECTOR_STARTER_PORT=8084
+GITHUB_TOKEN=
+SLACK_BOT_TOKEN=
+NOTION_TOKEN=
+LINEAR_API_KEY=
 
 # Dashboard
 DASHBOARD_PORT=3001
@@ -327,16 +416,24 @@ DASHBOARD_PORT=3001
 ## 🧪 Running Tests
 
 ```bash
-# All packages (31 tests)
+# All packages (119 tests)
 pnpm test
 
-# CapKit only (27 tests — JWT, scopes, revocation, audit, policy)
+# A single module
 pnpm --filter @absuite/capkit test
+pnpm --filter @absuite/edge-run test
+pnpm --filter @absuite/quickbench test
+pnpm --filter @absuite/connector-starter test
 ```
 
-CapKit's suite covers the security-critical paths directly: signature
-tampering, the `alg: none` downgrade, expiry, audience mismatch, scope
-escalation and revocation.
+The suites target the paths where being wrong actually costs something:
+
+| Module | Covered |
+|---|---|
+| CapKit | Signature tampering, `alg: none` downgrade, expiry, audience mismatch, scope escalation, revocation, audit-chain tampering and deletion |
+| Edge-Run | Cron ranges/steps/aliases, leap-year schedules, day-of-month OR day-of-week, backoff jitter and caps, breaker transitions, script path escapes, host allowlist |
+| QuickBench | Nearest-rank percentiles, zero-variance comparison, noise rejection, run-count clamping |
+| Connector-Starter | `anyOf` credential groups, input validation, non-https rejection, deterministic generation, brace balance in generated code |
 
 ---
 
