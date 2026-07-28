@@ -3,16 +3,27 @@
  * execution and scaffold generation.
  */
 import express from 'express';
-import { capabilityGuard, revocationStoreFromEnv } from '@absuite/capkit';
+import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuite/capkit';
 import { describeConnectors, getConnector, verifyConnector, runAction } from './connectors';
 import { generate } from './scaffold';
 
 const PORT = Number(process.env.CONNECTOR_STARTER_PORT || process.env.PORT || 8084);
 const STARTED_AT = Date.now();
+const metrics = createServiceMetrics('connector-starter');
 
 const app: express.Express = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '256kb' }));
+
+app.use((req, res, next) => {
+  const startedAt = performance.now();
+  res.on('finish', () => {
+    const route = req.path.split('/').slice(0, 3).join('/') || '/';
+    metrics.increment('absuite_requests_total', { service: 'connector-starter', route, status: res.statusCode });
+    metrics.observe('absuite_request_duration_ms', performance.now() - startedAt, { service: 'connector-starter', route });
+  });
+  return next();
+});
 
 const requireCapability = capabilityGuard({ revocations: revocationStoreFromEnv() });
 
@@ -29,6 +40,16 @@ app.get('/health', (_req, res) => {
     connectors: connectors.length,
     configured: connectors.filter(connector => connector.configured).map(connector => connector.id),
   });
+});
+
+app.get('/ready', (_req, res) => {
+  res.status(200).json({ ready: true });
+});
+
+app.get('/metrics', (_req, res) => {
+  metrics.set('absuite_uptime_seconds', Math.floor((Date.now() - STARTED_AT) / 1000), { service: 'connector-starter' });
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.status(200).send(metrics.render());
 });
 
 app.get('/connectors', (_req, res) => {

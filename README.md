@@ -25,8 +25,26 @@ Think of it as the infrastructure layer that means you never have to stitch toge
 | **Connector-Starter** | 8084 | Integrations — connector registry, read-only credential verification, deterministic scaffolding |
 | **Dashboard** | 3001 | Control plane — live service status, AI studio, token issuance, latency benchmarks |
 
-All five modules are implemented, tested and runnable. **119 tests** cover the
+All five modules are implemented, tested and runnable. **166 tests** cover the
 security-critical and correctness-critical paths.
+
+### Production & commercial layer
+
+Everything needed to run this as a paid service, not just as code:
+
+| Capability | Detail |
+|---|---|
+| **Multi-tenancy** | Tenants with SHA-256 hashed API keys, one-time issuance, rotation |
+| **Usage metering** | Per tenant, per metric, per month — the basis of an invoice |
+| **Quota enforcement** | `402` when a plan limit is hit, `403` when an account is suspended |
+| **Billing** | Stripe webhook with signature verification and replay protection |
+| **Durable state** | SQLite via Node's built-in driver; schedules and queued work survive restart |
+| **Tamper-evident audit** | Hash-chained entries; `/audit/verify` names the first broken entry |
+| **Observability** | `/metrics` (Prometheus), `/health` and `/ready` on every service |
+| **Graceful shutdown** | SIGTERM drains in-flight requests and flushes state |
+
+See [`docs/LAUNCH.md`](./docs/LAUNCH.md) for the pre-launch checklist and
+[`docs/openapi.yaml`](./docs/openapi.yaml) for the full API spec.
 
 ### What makes it a suite, not five services
 
@@ -416,7 +434,7 @@ DASHBOARD_PORT=3001
 ## 🧪 Running Tests
 
 ```bash
-# All packages (119 tests)
+# All packages (166 tests)
 pnpm test
 
 # A single module
@@ -434,6 +452,8 @@ The suites target the paths where being wrong actually costs something:
 | Edge-Run | Cron ranges/steps/aliases, leap-year schedules, day-of-month OR day-of-week, backoff jitter and caps, breaker transitions, script path escapes, host allowlist |
 | QuickBench | Nearest-rank percentiles, zero-variance comparison, noise rejection, run-count clamping |
 | Connector-Starter | `anyOf` credential groups, input validation, non-https rejection, deterministic generation, brace balance in generated code |
+| Commercial | API keys stored only as hashes, quota boundaries, suspension, plan monotonicity, Stripe signature tampering and replay, metering period isolation |
+| Persistence | Schedule and task round-trip, interrupted tasks resumed, finished work not resurrected, corrupt rows skipped rather than fatal |
 
 ---
 

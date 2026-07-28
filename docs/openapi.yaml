@@ -1,0 +1,651 @@
+openapi: 3.1.0
+info:
+  title: ABSuite API
+  version: 1.0.0
+  description: |
+    Scoped, expiring, auditable credentials and execution infrastructure for AI agents.
+
+    ## Authentication
+
+    Three credential types, used for different purposes:
+
+    | Header | Purpose |
+    |---|---|
+    | `Authorization: Bearer <capability-token>` | Normal service calls. Must carry the scope the endpoint requires. |
+    | `X-ABSuite-Admin-Key` | Bootstrap credential. Grants full authority; used to mint the first token and manage tenants. |
+    | `X-ABSuite-Tenant-Key` | Identifies the billed tenant. Optional — omit for an unmetered self-hosted deployment. |
+
+    ## Scopes
+
+    Scopes are `resource:action`, matched segment-wise. `read:*` grants
+    `read:users` but never `read:users:delete`. A bare `*` grants everything.
+
+    ## Quotas
+
+    When a tenant key is supplied, plan limits are enforced. Exceeding a limit
+    returns `402`; a suspended account returns `403`.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8081
+    description: CapKit
+  - url: http://localhost:8082
+    description: Edge-Run
+  - url: http://localhost:8083
+    description: QuickBench
+  - url: http://localhost:8084
+    description: Connector-Starter
+
+tags:
+  - name: Auth
+    description: Capability token lifecycle
+  - name: Audit
+    description: Tamper-evident audit trail
+  - name: Billing
+    description: Plans, tenants, usage and quotas
+  - name: Scheduling
+    description: Cron schedules and task queue
+  - name: Benchmarking
+    description: LLM and service performance
+  - name: Connectors
+    description: Integrations and scaffolding
+  - name: Operations
+    description: Health, readiness and metrics
+
+components:
+  securitySchemes:
+    capabilityToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A CapKit capability token carrying the required scope.
+    adminKey:
+      type: apiKey
+      in: header
+      name: X-ABSuite-Admin-Key
+    tenantKey:
+      type: apiKey
+      in: header
+      name: X-ABSuite-Tenant-Key
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_REQUEST
+                - TOKEN_MISSING
+                - TOKEN_INVALID
+                - TOKEN_EXPIRED
+                - TOKEN_REVOKED
+                - TOKEN_AUDIENCE_MISMATCH
+                - CAPABILITY_INSUFFICIENT
+                - TENANT_KEY_INVALID
+                - TENANT_SUSPENDED
+                - QUOTA_EXCEEDED
+                - REVOCATION_UNAVAILABLE
+                - NOT_FOUND
+                - RATE_LIMITED
+                - INTERNAL_ERROR
+            message:
+              type: string
+
+    TokenRequest:
+      type: object
+      required: [sub, scope]
+      properties:
+        sub:
+          type: string
+          description: Subject the token is issued to.
+          example: agent-001
+        scope:
+          type: array
+          items: { type: string }
+          example: ["read:users", "write:tasks"]
+        expiresIn:
+          type: string
+          description: Duration such as 30s, 15m, 8h, 7d.
+          default: 24h
+        aud:
+          type: string
+          example: absuite://production
+
+    TokenResponse:
+      type: object
+      properties:
+        token: { type: string }
+        kid: { type: string }
+        jti: { type: string, format: uuid }
+        iat: { type: integer }
+        exp: { type: integer }
+
+    Plan:
+      type: object
+      properties:
+        id: { type: string, enum: [free, team, business, enterprise] }
+        label: { type: string }
+        priceCents: { type: integer }
+        limits:
+          type: object
+          properties:
+            agents: { type: integer, description: "-1 means unlimited" }
+            validations: { type: integer }
+            auditRetentionDays: { type: integer }
+            schedules: { type: integer }
+            benchmarkRuns: { type: integer }
+        features:
+          type: array
+          items: { type: string }
+
+    Tenant:
+      type: object
+      properties:
+        id: { type: string, example: ten_a1b2c3 }
+        name: { type: string }
+        plan: { type: string }
+        status: { type: string, enum: [active, suspended] }
+        externalRef: { type: string, description: Billing provider customer id }
+        createdAt: { type: string, format: date-time }
+
+    CreatedTenant:
+      allOf:
+        - $ref: '#/components/schemas/Tenant'
+        - type: object
+          properties:
+            apiKey:
+              type: string
+              description: Shown exactly once. Store it now; it is unrecoverable.
+
+    TaskDefinition:
+      oneOf:
+        - type: object
+          required: [type, url]
+          properties:
+            type: { type: string, enum: [http] }
+            url: { type: string, format: uri }
+            method: { type: string, default: GET }
+            headers: { type: object, additionalProperties: { type: string } }
+            body: {}
+        - type: object
+          required: [type, script]
+          description: Only available when EDGERUN_SCRIPT_ROOT is configured.
+          properties:
+            type: { type: string, enum: [script] }
+            script: { type: string }
+            args:
+              type: array
+              items: { type: string }
+
+paths:
+  /health:
+    get:
+      tags: [Operations]
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  service: { type: string }
+                  uptime: { type: integer }
+
+  /ready:
+    get:
+      tags: [Operations]
+      summary: Readiness check
+      description: Fails when a dependency such as storage is unusable.
+      security: []
+      responses:
+        '200': { description: Ready to serve traffic }
+        '503': { description: Not ready }
+
+  /metrics:
+    get:
+      tags: [Operations]
+      summary: Prometheus metrics
+      security: []
+      responses:
+        '200':
+          description: Metrics in Prometheus text exposition format
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /auth/token:
+    post:
+      tags: [Auth]
+      summary: Issue a capability token
+      description: Requires scope `auth:token:create`. Counts against the `agents` quota.
+      security:
+        - capabilityToken: []
+        - adminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenRequest' }
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { description: Missing or invalid credential, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '402': { description: Plan quota exceeded, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: Insufficient scope or suspended tenant, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /auth/token/validate:
+    post:
+      tags: [Auth]
+      summary: Validate a capability token
+      description: Requires scope `auth:token:validate`. Counts against the `validations` quota.
+      security:
+        - capabilityToken: []
+        - adminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  sub: { type: string }
+                  scope: { type: array, items: { type: string } }
+                  exp: { type: integer }
+        '400':
+          description: Token is invalid, expired or revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean, enum: [false] }
+                  error: { type: string }
+
+  /auth/token/revoke:
+    post:
+      tags: [Auth]
+      summary: Revoke a token
+      description: |
+        Requires scope `auth:token:revoke`. When a shared store is configured
+        the revocation applies across every ABSuite service immediately.
+      security:
+        - capabilityToken: []
+        - adminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                jti: { type: string }
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked: { type: boolean }
+                  jti: { type: string }
+
+  /audit:
+    get:
+      tags: [Audit]
+      summary: Query the audit trail
+      description: Requires scope `audit:read`.
+      security:
+        - capabilityToken: []
+        - adminKey: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 500 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+        - { name: subject, in: query, schema: { type: string } }
+        - { name: result, in: query, schema: { type: string, enum: [allow, deny] } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Matching entries, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        timestamp: { type: string, format: date-time }
+                        subject: { type: string }
+                        action: { type: string }
+                        resource: { type: string }
+                        result: { type: string, enum: [allow, deny] }
+                        reason: { type: string }
+                        prevHash: { type: string }
+                        hash: { type: string }
+                  total: { type: integer }
+
+  /audit/verify:
+    get:
+      tags: [Audit]
+      summary: Verify the audit hash chain
+      description: |
+        Walks the chain and reports the index of the first entry whose content
+        or link fails. This is the evidence an auditor asks for.
+      security:
+        - capabilityToken: []
+        - adminKey: []
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  checked: { type: integer }
+                  brokenAt: { type: integer }
+                  reason: { type: string }
+                  headHash: { type: string }
+
+  /plans:
+    get:
+      tags: [Billing]
+      summary: List available plans
+      security: []
+      responses:
+        '200':
+          description: Plan catalogue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items: { $ref: '#/components/schemas/Plan' }
+
+  /usage:
+    get:
+      tags: [Billing]
+      summary: Usage and quota position for the calling tenant
+      security:
+        - tenantKey: []
+      parameters:
+        - { name: period, in: query, schema: { type: string, example: '2026-07' } }
+      responses:
+        '200':
+          description: Usage report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant: { $ref: '#/components/schemas/Tenant' }
+                  period: { type: string }
+                  plan: { $ref: '#/components/schemas/Plan' }
+                  usage: { type: object, additionalProperties: { type: integer } }
+                  quotas: { type: array, items: { type: object } }
+                  approachingLimit:
+                    type: array
+                    description: Metrics at 80% or with one unit remaining — the upgrade prompt.
+                    items: { type: object }
+        '401': { description: Tenant key required }
+
+  /admin/tenants:
+    post:
+      tags: [Billing]
+      summary: Create a tenant
+      description: Requires scope `tenant:manage`. The API key is returned once only.
+      security:
+        - capabilityToken: []
+        - adminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                plan: { type: string, default: free }
+                externalRef: { type: string }
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedTenant' }
+    get:
+      tags: [Billing]
+      summary: List tenants with their usage
+      security:
+        - capabilityToken: []
+        - adminKey: []
+      responses:
+        '200': { description: Tenants and usage reports }
+
+  /billing/webhook:
+    post:
+      tags: [Billing]
+      summary: Stripe webhook
+      description: |
+        Verified against the raw request body using `STRIPE_WEBHOOK_SECRET`.
+        Without a configured secret every call is rejected.
+      security: []
+      parameters:
+        - { name: stripe-signature, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Received }
+        '400': { description: Signature verification failed }
+
+  /schedule:
+    post:
+      tags: [Scheduling]
+      summary: Create a cron schedule
+      description: Requires scope `schedule:create`. Edge-Run, port 8082.
+      security:
+        - capabilityToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, cron, task]
+              properties:
+                id: { type: string }
+                cron: { type: string, example: '*/15 * * * *' }
+                task: { $ref: '#/components/schemas/TaskDefinition' }
+                retry:
+                  type: object
+                  properties:
+                    maxAttempts: { type: integer, default: 3 }
+                    backoff: { type: string, enum: [fixed, exponential] }
+                    baseDelay: { type: integer }
+                timeout: { type: integer }
+      responses:
+        '201':
+          description: Scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  nextRun: { type: string, format: date-time }
+                  durable: { type: boolean }
+    get:
+      tags: [Scheduling]
+      summary: List schedules
+      description: Requires scope `schedule:read`.
+      security:
+        - capabilityToken: []
+      responses:
+        '200': { description: Registered schedules }
+
+  /queue:
+    post:
+      tags: [Scheduling]
+      summary: Enqueue a task
+      description: Requires scope `queue:write`. Edge-Run, port 8082.
+      security:
+        - capabilityToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task]
+              properties:
+                id: { type: string }
+                priority: { type: string, enum: [high, normal, low], default: normal }
+                delay: { type: integer, description: Milliseconds before it becomes runnable }
+                task: { $ref: '#/components/schemas/TaskDefinition' }
+      responses:
+        '201': { description: Queued }
+        '429': { description: Queue limit reached }
+
+  /run:
+    post:
+      tags: [Benchmarking]
+      summary: Start a benchmark
+      description: Requires scope `bench:run`. QuickBench, port 8083.
+      security:
+        - capabilityToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider: { type: string, enum: [ollama, openai, anthropic, http] }
+                model: { type: string }
+                url: { type: string, description: Required for the http provider }
+                name: { type: string }
+                testRuns: { type: integer, default: 10, maximum: 500 }
+                warmupRuns: { type: integer, default: 2 }
+                concurrency: { type: integer, default: 1, maximum: 32 }
+      responses:
+        '202':
+          description: Accepted; poll the job for results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: string }
+                  status: { type: string }
+                  estimatedDuration: { type: string }
+
+  /compare:
+    get:
+      tags: [Benchmarking]
+      summary: Compare two benchmark runs
+      description: |
+        Requires scope `bench:read`. Uses Welch's t-test, which does not assume
+        equal variance. Suitable for gating a deploy.
+      security:
+        - capabilityToken: []
+      parameters:
+        - { name: baseline, in: query, required: true, schema: { type: string } }
+        - { name: candidate, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Comparison verdict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deltaMeanMs: { type: number }
+                  deltaPercent: { type: number }
+                  significant: { type: boolean }
+                  verdict: { type: string, enum: [regression, improvement, 'no significant change'] }
+
+  /connectors:
+    get:
+      tags: [Connectors]
+      summary: List connectors and their configuration state
+      description: Connector-Starter, port 8084.
+      security: []
+      responses:
+        '200': { description: Connector registry }
+
+  /connectors/{id}/verify:
+    post:
+      tags: [Connectors]
+      summary: Verify connector credentials
+      description: |
+        Requires scope `connector:read`. Read-only: verification never posts a
+        message or creates a record as a side effect.
+      security:
+        - capabilityToken: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Credentials are valid }
+        '503': { description: Not configured or rejected by the provider }
+
+  /generate:
+    post:
+      tags: [Connectors]
+      summary: Generate a connector from a description
+      description: |
+        Deterministic and rule-based — no API key, and the same description
+        always produces identical output.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string, example: Read GitHub issues and post them to Slack every 15 minutes }
+      responses:
+        '200':
+          description: Generated connector
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  manifest: { type: string, description: YAML manifest }
+                  typescript: { type: string, description: Compilable connector source }
+                  spec: { type: object }

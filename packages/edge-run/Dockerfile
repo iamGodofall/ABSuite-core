@@ -1,4 +1,4 @@
-FROM node:20-alpine3.21 AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN pnpm install --filter @absuite/edge-run... --no-frozen-lockfile
 RUN pnpm --filter @absuite/capkit build
 RUN pnpm --filter @absuite/edge-run build
 
-FROM node:20-alpine3.21
+FROM node:22-alpine
 
 WORKDIR /app
 ENV NODE_ENV=production

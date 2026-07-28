@@ -50,8 +50,8 @@ importers:
         specifier: ^4.17.21
         version: 4.17.25
       '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.37
+        specifier: ^22.0.0
+        version: 22.19.15
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -84,8 +84,8 @@ importers:
         specifier: ^4.17.21
         version: 4.17.25
       '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.37
+        specifier: ^22.0.0
+        version: 22.19.15
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -203,8 +203,8 @@ importers:
         specifier: ^4.17.21
         version: 4.17.25
       '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.37
+        specifier: ^22.0.0
+        version: 22.19.15
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -225,8 +225,8 @@ importers:
         specifier: ^4.17.21
         version: 4.17.25
       '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.37
+        specifier: ^22.0.0
+        version: 22.19.15
       tsx:
         specifier: ^4.21.0
         version: 4.21.0

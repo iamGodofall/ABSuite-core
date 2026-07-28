@@ -30,17 +30,30 @@ That single behaviour is the commercial centre of gravity. It is what a
 competitor cannot trivially replicate by publishing another JWT library, and it
 is what justifies the suite existing rather than four separate tools.
 
-### Honest gaps
+### Now built: the commercial layer
 
-These matter more than the feature list, so they are stated first:
+The gaps listed in the previous revision of this document have been closed:
 
-- **No billing, metering or multi-tenancy.** There is no way to charge anyone
-  today. This is the single largest gap between the code and revenue.
-- **State is in memory.** Edge-Run schedules and QuickBench history do not
-  survive a restart. Fine for a single node; disqualifying for a paid SLA.
-- **Revocation is file-based.** Correct for replicas on a shared volume; needs
-  Redis or Postgres for a real hosted deployment.
-- **No hosted infrastructure.** No accounts, no deploy pipeline, no support process.
+- **Multi-tenancy** — tenants with hashed API keys, rotation, suspension.
+- **Usage metering** — per tenant, per metric, per month. Invoices can be built.
+- **Quota enforcement** — verified live: a free-plan tenant is cut off with
+  `402` after 3 agents; a suspended tenant gets `403`.
+- **Billing** — Stripe webhooks with signature verification and replay
+  protection. A failed payment suspends; a cancellation downgrades to free
+  rather than deleting the tenant's data.
+- **Durable state** — SQLite via Node's built-in driver. Verified: schedules
+  survive a `SIGTERM` and restart (`Restored 2 schedule(s)`).
+- **Observability** — Prometheus `/metrics`, `/health`, `/ready`.
+
+### Remaining gaps
+
+- **Single-node SQLite.** Durable and correct for one node; horizontal scaling
+  needs Postgres. The `Storage` and `RevocationStore` interfaces make this a
+  swap rather than a rewrite.
+- **No backup automation.** One file to snapshot, but nothing does it yet.
+- **No per-tenant rate limiting.** Monthly quotas exist; burst rate does not.
+- **No hosted infrastructure.** No accounts UI, deploy pipeline or support rota.
+- **No signing-key rotation.** `kid` is issued but only one key is active.
 
 ---
 
@@ -113,20 +126,25 @@ primitive and let the suite be the depth behind it:
 
 ## 4. Build order from here
 
-Ranked by revenue impact per unit of effort. Note that items 1–2 are not
-features; they are the difference between software and a business.
+Metering, tenancy, billing and durability are done. What remains, ranked by
+revenue impact per unit of effort:
 
-1. **Usage metering** — count token validations per tenant. *You cannot bill
-   without this.* Smallest change with the largest revenue consequence.
-2. **Accounts and Stripe** — tenant model, API keys per tenant, subscription
-   webhooks.
-3. **Redis revocation store** — the `RevocationStore` interface already exists;
-   this is one implementation class, and it is the Team-tier feature.
-4. **Durable Edge-Run state** — Postgres-backed schedules and queue. Required
-   before any SLA promise.
-5. **Framework middleware packages** — publish `capabilityGuard` adapters for
-   Fastify and Hono. Removes adoption friction entirely.
-6. **Audit export to SIEM** — Splunk/Datadog sinks. The enterprise wedge.
+1. **Publish to npm and Docker Hub** — not a feature, but nothing sells while
+   nobody can install it. Hours of work, and it gates everything else.
+2. **A signup page** — a form that calls `POST /admin/tenants` and shows the API
+   key once. Without it, every customer must be onboarded by hand.
+3. **Per-tenant rate limiting** — quotas cap the month; nothing caps the minute.
+   One tenant can still saturate a node.
+4. **Backup automation** — snapshot the SQLite volume on a schedule and *test a
+   restore*. Required before promising anyone an SLA.
+5. **Postgres storage adapter** — implement the existing `Storage` interface.
+   Only needed when a customer's scale actually demands it.
+6. **Framework middleware packages** — `capabilityGuard` adapters for Fastify
+   and Hono. Removes adoption friction entirely.
+7. **Audit export to SIEM** — Splunk/Datadog sinks. The enterprise wedge.
+
+Note the shape of this list: the top two items are **distribution**, not
+engineering. That is the honest state of the project now.
 
 ---
 

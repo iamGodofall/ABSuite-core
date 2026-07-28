@@ -5,19 +5,21 @@
  * issued and revoked centrally rather than per-service.
  */
 import express from 'express';
-import { capabilityGuard } from '@absuite/capkit';
-import { revocationStoreFromEnv } from '@absuite/capkit';
+import { capabilityGuard, revocationStoreFromEnv, getStorage, createServiceMetrics } from '@absuite/capkit';
 import { TaskRuntime } from './runtime';
 import { TaskQueue, type QueuedTask } from './queue';
 import { AgentScheduler } from './scheduler';
 import { SelfHealing, targetOf } from './self-healing';
 import { isValidCron } from './cron';
+import { persistenceFromEnv } from './persistence';
 
 const PORT = Number(process.env.EDGERUN_PORT || process.env.PORT || 8082);
 const STARTED_AT = Date.now();
 
 const runtime = new TaskRuntime();
 const healing = new SelfHealing();
+const persistence = persistenceFromEnv(getStorage);
+const metrics = createServiceMetrics('edge-run');
 
 /** Ring buffer of recent events, streamed to SSE subscribers. */
 const recentLogs: Array<{ task: string; timestamp: string; level: string; message: string }> = [];
@@ -46,6 +48,10 @@ const queue = new TaskQueue({
       scheduler.recordOutcome(task.scheduleId, type === 'completed');
     }
 
+    // Write through on every transition so a crash mid-run is recoverable.
+    persistence.saveTask(task);
+    metrics.increment('absuite_tasks_total', { event: type });
+
     const level = type === 'dead' ? 'error' : type === 'retrying' ? 'warn' : 'info';
     emit(level, task.id, message ? `${type}: ${message}` : type);
   },
@@ -56,6 +62,18 @@ const scheduler = new AgentScheduler(queue);
 const app: express.Express = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '256kb' }));
+
+metrics.counter('absuite_tasks_total', 'Task lifecycle events by type');
+
+app.use((req, res, next) => {
+  const startedAt = performance.now();
+  res.on('finish', () => {
+    const route = req.path.split('/').slice(0, 3).join('/') || '/';
+    metrics.increment('absuite_requests_total', { service: 'edge-run', route, status: res.statusCode });
+    metrics.observe('absuite_request_duration_ms', performance.now() - startedAt, { service: 'edge-run', route });
+  });
+  return next();
+});
 
 const requireCapability = capabilityGuard({
   revocations: revocationStoreFromEnv(),
@@ -96,8 +114,25 @@ app.get('/health', (_req, res) => {
     failedTasks: stats.dead,
     schedules: scheduler.list().length,
     scriptsEnabled: runtime.scriptsEnabled,
+    durable: persistence.enabled,
     uptime: Math.floor((Date.now() - STARTED_AT) / 1000),
   });
+});
+
+app.get('/ready', (_req, res) => {
+  res.status(200).json({ ready: true, durable: persistence.enabled });
+});
+
+app.get('/metrics', (_req, res) => {
+  const stats = queue.stats;
+  metrics.set('absuite_uptime_seconds', Math.floor((Date.now() - STARTED_AT) / 1000), { service: 'edge-run' });
+  metrics.gauge('absuite_queue_depth', 'Tasks currently queued');
+  metrics.set('absuite_queue_depth', stats.queued, { service: 'edge-run' });
+  metrics.gauge('absuite_queue_running', 'Tasks currently running');
+  metrics.set('absuite_queue_running', stats.running, { service: 'edge-run' });
+
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.status(200).send(metrics.render());
 });
 
 // ---- Schedules ----
@@ -110,7 +145,8 @@ app.post('/schedule', requireCapability('schedule:create'), (req, res) => {
 
   try {
     const created = scheduler.schedule({ id: String(id), cron: String(cron), task, retry, timeout });
-    return res.status(201).json({ id: created.id, nextRun: created.nextRun, status: 'scheduled' });
+    persistence.saveSchedule(created);
+    return res.status(201).json({ id: created.id, nextRun: created.nextRun, status: 'scheduled', durable: persistence.enabled });
   } catch (error) {
     return fail(res, 400, 'INVALID_REQUEST', (error as Error).message);
   }
@@ -133,18 +169,21 @@ app.get('/schedule', requireCapability('schedule:read'), (_req, res) => {
 app.post('/schedule/:id/pause', requireCapability('schedule:create'), (req, res) => {
   const schedule = scheduler.pause(String(req.params.id));
   if (!schedule) return fail(res, 404, 'NOT_FOUND', 'No such schedule');
+  persistence.saveSchedule(schedule);
   return res.status(200).json({ id: schedule.id, status: schedule.status });
 });
 
 app.post('/schedule/:id/resume', requireCapability('schedule:create'), (req, res) => {
   const schedule = scheduler.resume(String(req.params.id));
   if (!schedule) return fail(res, 404, 'NOT_FOUND', 'No such schedule');
+  persistence.saveSchedule(schedule);
   return res.status(200).json({ id: schedule.id, status: schedule.status, nextRun: schedule.nextRun });
 });
 
 app.delete('/schedule/:id', requireCapability('schedule:create'), (req, res) => {
   const removed = scheduler.remove(String(req.params.id));
   if (!removed) return fail(res, 404, 'NOT_FOUND', 'No such schedule');
+  persistence.deleteSchedule(String(req.params.id));
   return res.status(200).json({ id: req.params.id, removed: true });
 });
 
@@ -206,15 +245,81 @@ app.use((req, res) => fail(res, 404, 'NOT_FOUND', `No route for ${req.method} ${
 
 export { app, queue, scheduler, healing, runtime };
 
+/**
+ * Restore schedules and pending work recorded before the last shutdown.
+ *
+ * Runs before the queue starts so nothing is executed twice and nothing that
+ * was pending is lost.
+ */
+export function hydrate(): { schedules: number; tasks: number } {
+  if (!persistence.enabled) return { schedules: 0, tasks: 0 };
+
+  let schedules = 0;
+  for (const record of persistence.loadSchedules()) {
+    try {
+      const restored = scheduler.schedule(record.definition);
+      if (record.status === 'paused') scheduler.pause(restored.id);
+      schedules += 1;
+    } catch (error) {
+      console.error(`[edge-run] Could not restore schedule ${record.definition.id}:`, (error as Error).message);
+    }
+  }
+
+  let tasks = 0;
+  for (const record of persistence.loadPendingTasks()) {
+    try {
+      const restored = queue.enqueue(record.task, {
+        id: record.id,
+        priority: record.priority,
+        retry: record.retry,
+        ...(record.timeoutMs !== undefined ? { timeoutMs: record.timeoutMs } : {}),
+        ...(record.scheduleId ? { scheduleId: record.scheduleId } : {}),
+      });
+      // Preserve the attempt count so retry limits still mean something.
+      restored.attempts = record.attempts;
+      restored.availableAt = record.availableAt;
+      tasks += 1;
+    } catch {
+      // Duplicate id means it is already tracked; nothing to restore.
+    }
+  }
+
+  return { schedules, tasks };
+}
+
 if (require.main === module) {
+  const restored = hydrate();
+  if (persistence.enabled) {
+    console.log(`[edge-run] Restored ${restored.schedules} schedule(s) and ${restored.tasks} pending task(s)`);
+  }
+
   queue.start();
   scheduler.start();
-  setInterval(() => queue.prune(), 300_000).unref?.();
 
-  app.listen(PORT, () => {
-    console.log(`[edge-run] listening on :${PORT}`);
+  const pruneTimer = setInterval(() => {
+    queue.prune();
+    persistence.pruneTasks();
+  }, 300_000);
+  pruneTimer.unref?.();
+
+  const server = app.listen(PORT, () => {
+    console.log(`[edge-run] listening on :${PORT} (durable: ${persistence.enabled})`);
     if (!runtime.scriptsEnabled) {
       console.log('[edge-run] Script tasks are disabled. Set EDGERUN_SCRIPT_ROOT to enable them.');
     }
   });
+
+  const shutdown = (signal: string) => {
+    console.log(`[edge-run] ${signal} received, shutting down`);
+    clearInterval(pruneTimer);
+    queue.stop();
+    scheduler.stop();
+    // Flush current task state so a restart resumes accurately.
+    for (const task of queue.list()) persistence.saveTask(task);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }

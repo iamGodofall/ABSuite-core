@@ -35,7 +35,8 @@ services:
       - CAPKIT_JWT_SECRET=${CAPKIT_JWT_SECRET}
       - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
       - CAPKIT_AUDIT_LOG=${CAPKIT_AUDIT_LOG:-/data/capkit-audit.jsonl}
-      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
+      # Billing is optional; without this the webhook rejects every call.
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ABSUITE_ALLOWED_ORIGINS=${ABSUITE_ALLOWED_ORIGINS:-http://localhost:3001}
@@ -80,7 +81,6 @@ services:
       # Shared with CapKit so this service can validate capability tokens.
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
       - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
-      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
     volumes:
       - absuite-data:/data
     depends_on:
@@ -119,7 +119,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
       - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
-      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
+      - ABSUITE_DB_PATH=/data/absuite.db
     volumes:
       - absuite-data:/data
     depends_on:
@@ -154,7 +154,7 @@ services:
       - CONNECTOR_STARTER_PORT=8084
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
       - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
-      - CAPKIT_REVOCATION_FILE=${CAPKIT_REVOCATION_FILE:-/data/capkit-revocations.jsonl}
+      - ABSUITE_DB_PATH=/data/absuite.db
       # Connector credentials — all optional; each connector reports its own state.
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}

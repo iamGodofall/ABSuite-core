@@ -10,6 +10,7 @@
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { getStorage, type Storage } from './storage';
 
 export interface RevocationStore {
   revoke(jti: string, expiresAtEpochSec: number): Promise<void>;
@@ -128,8 +129,55 @@ export class FileRevocationStore implements RevocationStore {
   }
 }
 
-/** Pick a store from the environment: CAPKIT_REVOCATION_FILE, else in-memory. */
+/**
+ * SQLite-backed store — the production choice.
+ *
+ * Every service opening the same database file sees revocations immediately,
+ * with real transactional durability rather than an append-only file that has
+ * to be re-read.
+ */
+export class SqliteRevocationStore implements RevocationStore {
+  constructor(private readonly storage: Pick<Storage, 'run' | 'get'>) {}
+
+  async revoke(jti: string, expiresAtEpochSec: number): Promise<void> {
+    if (!jti) return;
+    this.storage.run(
+      `INSERT INTO revocations (jti, expires_at) VALUES (?, ?)
+       ON CONFLICT (jti) DO UPDATE SET expires_at = excluded.expires_at`,
+      jti, expiresAtEpochSec
+    );
+  }
+
+  async isRevoked(jti: string): Promise<boolean> {
+    if (!jti) return false;
+    const row = this.storage.get<{ expires_at: number }>('SELECT expires_at FROM revocations WHERE jti = ?', jti);
+    if (!row) return false;
+
+    // An expired token is already rejected on its own merits.
+    return Number(row.expires_at) === 0 || Number(row.expires_at) >= Math.floor(Date.now() / 1000);
+  }
+
+  async prune(): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    const before = this.storage.get<{ n: number }>('SELECT COUNT(*) AS n FROM revocations');
+    this.storage.run('DELETE FROM revocations WHERE expires_at > 0 AND expires_at < ?', now);
+    const after = this.storage.get<{ n: number }>('SELECT COUNT(*) AS n FROM revocations');
+    return Number(before?.n ?? 0) - Number(after?.n ?? 0);
+  }
+}
+
+/**
+ * Pick a store from the environment.
+ *
+ * Preference order is SQLite, then a shared file, then in-memory — strongest
+ * durability guarantee that the configuration actually supports.
+ */
 export function revocationStoreFromEnv(env: NodeJS.ProcessEnv = process.env): RevocationStore {
+  const dbPath = (env.ABSUITE_DB_PATH || env.CAPKIT_DB_PATH || '').trim();
+  if (dbPath) {
+    return new SqliteRevocationStore(getStorage(env));
+  }
+
   const file = (env.CAPKIT_REVOCATION_FILE || '').trim();
   return file ? new FileRevocationStore(file) : new MemoryRevocationStore();
 }

@@ -36,9 +36,38 @@ export {
 export {
   MemoryRevocationStore,
   FileRevocationStore,
+  SqliteRevocationStore,
   revocationStoreFromEnv,
   type RevocationStore,
 } from './revocation-store';
+
+export { Storage, getStorage, resetStorage } from './storage';
+
+export {
+  TenantStore,
+  MeterStore,
+  TenantService,
+  hashApiKey,
+  currentPeriod,
+  type Tenant,
+  type CreatedTenant,
+  type TenantStatus,
+} from './tenancy';
+
+export {
+  PLANS,
+  getPlan,
+  isPlanId,
+  checkQuota,
+  verifyStripeSignature,
+  planFromStripeEvent,
+  type Plan,
+  type PlanId,
+  type QuotaMetric,
+  type QuotaVerdict,
+} from './billing';
+
+export { MetricsRegistry, createServiceMetrics, type LabelSet } from './metrics';
 
 export { generatePolicy, type GeneratedPolicy, type SensitivityLevel, type FilterLevel } from './ai-policy-generator';
 

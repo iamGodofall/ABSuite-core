@@ -2,7 +2,7 @@
  * QuickBench HTTP server — benchmark submission, status, reports and history.
  */
 import express from 'express';
-import { capabilityGuard, revocationStoreFromEnv } from '@absuite/capkit';
+import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuite/capkit';
 import { BenchmarkRunner } from './runner';
 import { availableProviders } from './providers';
 import { toMarkdown, toCsv } from './report';
@@ -11,10 +11,21 @@ const PORT = Number(process.env.QUICKBENCH_PORT || process.env.PORT || 8083);
 const STARTED_AT = Date.now();
 
 const runner = new BenchmarkRunner();
+const metrics = createServiceMetrics('quickbench');
 
 const app: express.Express = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '256kb' }));
+
+app.use((req, res, next) => {
+  const startedAt = performance.now();
+  res.on('finish', () => {
+    const route = req.path.split('/').slice(0, 3).join('/') || '/';
+    metrics.increment('absuite_requests_total', { service: 'quickbench', route, status: res.statusCode });
+    metrics.observe('absuite_request_duration_ms', performance.now() - startedAt, { service: 'quickbench', route });
+  });
+  return next();
+});
 
 const requireCapability = capabilityGuard({ revocations: revocationStoreFromEnv() });
 
@@ -29,6 +40,16 @@ app.get('/health', (_req, res) => {
     uptime: Math.floor((Date.now() - STARTED_AT) / 1000),
     availableProviders: availableProviders().filter(provider => provider.configured).map(provider => provider.name),
   });
+});
+
+app.get('/ready', (_req, res) => {
+  res.status(200).json({ ready: true });
+});
+
+app.get('/metrics', (_req, res) => {
+  metrics.set('absuite_uptime_seconds', Math.floor((Date.now() - STARTED_AT) / 1000), { service: 'quickbench' });
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.status(200).send(metrics.render());
 });
 
 app.get('/providers', (_req, res) => {
