@@ -7,7 +7,56 @@
  * only ever holds the narrow authority it was issued.
  */
 import { randomUUID } from 'node:crypto';
-import { signJwt, verifyJwt, parseDuration, type JwtErrorCode } from './jwt';
+import { signJwt, verifyJwt, parseDuration, base64UrlDecode, type JwtErrorCode } from './jwt';
+import { KeyRing } from './keyring';
+
+/** A single secret, or a ring that also accepts recently retired keys. */
+export type VerificationKey = string | KeyRing;
+
+/**
+ * Read the `kid` header without verifying anything.
+ *
+ * Used only to pick which key to verify *with* — the signature check that
+ * follows is what actually establishes trust, so an attacker controlling this
+ * value gains nothing beyond choosing which key rejects them.
+ */
+function peekKid(token: string): string | undefined {
+  try {
+    const header = JSON.parse(base64UrlDecode(token.split('.')[0] ?? '').toString('utf8'));
+    return typeof header.kid === 'string' ? header.kid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Verify against a single secret or every candidate in a ring.
+ *
+ * With a ring we try the key named by `kid` first, then fall back to the rest,
+ * so tokens issued before a rotation keep working until they expire.
+ */
+function verifyWithKey(
+  token: string,
+  key: VerificationKey,
+  options: { audience?: string }
+): ReturnType<typeof verifyJwt> {
+  if (typeof key === 'string') {
+    return verifyJwt(token, key, options);
+  }
+
+  const named = key.find(peekKid(token));
+  const secrets = named ? [named.secret, ...key.candidates().filter(s => s !== named.secret)] : key.candidates();
+
+  let lastResult = verifyJwt(token, secrets[0]!, options);
+  for (const secret of secrets.slice(1)) {
+    if (lastResult.valid) return lastResult;
+    // Only a signature mismatch is worth retrying; an expired token is expired
+    // whichever key signed it.
+    if (!lastResult.valid && lastResult.error !== 'TOKEN_INVALID') return lastResult;
+    lastResult = verifyJwt(token, secret, options);
+  }
+  return lastResult;
+}
 
 /**
  * Declared as a type alias rather than an interface so it stays structurally
@@ -116,10 +165,10 @@ export const CapabilityToken = {
 
   validate(
     token: string,
-    secret: string,
+    key: VerificationKey,
     options: { audience?: string; requiredScope?: string; isRevoked?: (jti: string) => boolean } = {}
   ): CapabilityValidation {
-    const result = verifyJwt(token, secret, options.audience ? { audience: options.audience } : {});
+    const result = verifyWithKey(token, key, options.audience ? { audience: options.audience } : {});
     if (!result.valid) {
       return { valid: false, error: result.error, message: result.message };
     }

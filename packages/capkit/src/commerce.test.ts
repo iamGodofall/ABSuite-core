@@ -1,4 +1,7 @@
 import { createHmac } from 'node:crypto';
+import { readFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Storage } from './storage';
 import { TenantService, TenantStore, MeterStore, hashApiKey, currentPeriod } from './tenancy';
 import { PLANS, getPlan, checkQuota, verifyStripeSignature, planFromStripeEvent } from './billing';
@@ -341,5 +344,34 @@ describe('metrics', () => {
 
   test('service registry reports up', () => {
     expect(createServiceMetrics('capkit').render()).toContain('absuite_up{service="capkit"} 1');
+  });
+});
+
+describe('concurrent write safety', () => {
+  test('transactions take the write lock up front', () => {
+    // Regression guard. A bare BEGIN starts a deferred transaction, and SQLite
+    // cannot apply busy_timeout when that upgrades to a write — so concurrent
+    // writers fail instantly with SQLITE_BUSY. In practice this silently
+    // dropped ~60% of execution traces under load. BEGIN IMMEDIATE is required.
+    const source = readFileSync(join(__dirname, 'storage.ts'), 'utf8');
+
+    expect(source).toContain("BEGIN IMMEDIATE");
+    expect(source).not.toMatch(/exec\('BEGIN'\)/);
+    expect(source).toContain('busy_timeout');
+  });
+
+  test('interleaved transactions from two handles both commit', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'absuite-concurrent-'));
+    const path = join(dir, 'concurrent.db');
+
+    const a = new Storage(path);
+    const b = new Storage(path);
+
+    a.transaction(() => a.run("INSERT INTO usage (tenant_id, metric, period, count) VALUES ('t1','m','2026-07',1)"));
+    b.transaction(() => b.run("INSERT INTO usage (tenant_id, metric, period, count) VALUES ('t2','m','2026-07',1)"));
+
+    expect(a.get<{ n: number }>('SELECT COUNT(*) AS n FROM usage')?.n).toBe(2);
+    a.close();
+    b.close();
   });
 });

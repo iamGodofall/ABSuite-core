@@ -6,7 +6,8 @@
  * capability model, issued and revoked centrally by CapKit.
  */
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import { CapabilityToken, type CapabilityClaims } from './capability';
+import { CapabilityToken, type CapabilityClaims, type VerificationKey } from './capability';
+import { KeyRing } from './keyring';
 import type { RevocationStore } from './revocation-store';
 
 export interface CapabilityRequest extends Request {
@@ -33,12 +34,22 @@ export interface CapabilityGuardOptions {
   }) => void;
 }
 
-function resolveSecret(explicit?: string): string {
-  const secret = (explicit || process.env.CAPKIT_HMAC_SECRET || process.env.CAPKIT_JWT_SECRET || '').trim();
-  if (!secret) {
+/**
+ * Resolve the verification key.
+ *
+ * An explicit secret wins for callers that manage their own keys; otherwise we
+ * build a ring from the environment so tokens signed by a recently retired key
+ * still verify through a rotation.
+ */
+function resolveKey(explicit?: string): VerificationKey {
+  const secret = (explicit || '').trim();
+  if (secret) return secret;
+
+  try {
+    return KeyRing.fromEnv();
+  } catch {
     throw new Error('A CapKit signing secret is required (set CAPKIT_HMAC_SECRET)');
   }
-  return secret;
 }
 
 /**
@@ -72,9 +83,9 @@ export function capabilityGuard(options: CapabilityGuardOptions = {}) {
         return;
       }
 
-      let secret: string;
+      let secret: VerificationKey;
       try {
-        secret = resolveSecret(options.secret);
+        secret = resolveKey(options.secret);
       } catch (error) {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (error as Error).message } });
         return;

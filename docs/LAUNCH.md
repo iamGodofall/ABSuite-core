@@ -28,7 +28,8 @@ backend customers has nobody to serve.
 
 | Channel | What goes there | Effort | Why it matters |
 |---|---|---|---|
-| **npm** | `@absuite/capkit`, `edge-run`, `quickbench`, `connector-starter` | Low | Primary discovery for developers. `npm install` is the whole funnel. |
+| **npm** | `@absuite/capkit`, `edge-run`, `quickbench`, `connector-starter`, `mcp` | Low | Primary discovery for developers. `npm install` is the whole funnel. |
+| **MCP directories** | `@absuite/mcp` listed in MCP server registries | Low | Where agent builders look for tools. Highest-intent audience there is. |
 | **GitHub** | Source, releases, docs | Low | Where technical buyers evaluate before they ever contact you. |
 | **Docker Hub / GHCR** | Per-service images | Low | Lets someone run the suite in one command. |
 | **GitHub Marketplace** | An Action wrapping QuickBench regression checks | Medium | Puts the product inside a workflow developers already run. |
@@ -69,9 +70,9 @@ customer asks (months).
   schedule. Untested backups are not backups.
 - **No rate limiting per tenant.** Quotas cap monthly usage but not burst rate.
   A single tenant can still saturate a node.
-- **No secret rotation procedure.** `kid` is issued on every token but only one
-  signing key is active, so rotating `CAPKIT_HMAC_SECRET` invalidates all
-  existing tokens.
+- ~~No secret rotation procedure.~~ **Resolved.** `KeyRing` keeps recently
+  retired keys verifying, so rotation no longer invalidates tokens in flight.
+  Set `CAPKIT_PREVIOUS_SECRETS` to the outgoing secret when you rotate.
 - **Experimental SQLite API.** `node:sqlite` is stable enough in Node 22 but
   still flagged experimental upstream; pin the Node minor version in production.
 

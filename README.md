@@ -24,6 +24,7 @@ Think of it as the infrastructure layer that means you never have to stitch toge
 | **QuickBench** | 8083 | Performance — LLM and HTTP benchmarking, nearest-rank percentiles, statistical regression detection |
 | **Connector-Starter** | 8084 | Integrations — connector registry, read-only credential verification, deterministic scaffolding |
 | **Dashboard** | 3001 | Control plane — live service status, AI studio, token issuance, latency benchmarks |
+| **MCP** | stdio | Model Context Protocol server — puts ABSuite inside the agent tool-calling path |
 
 All five modules are implemented, tested and runnable. **166 tests** cover the
 security-critical and correctness-critical paths.
@@ -44,6 +45,8 @@ Everything needed to run this as a paid service, not just as code:
 | **Graceful shutdown** | SIGTERM drains in-flight requests and flushes state |
 | **Verifiable execution** | Ed25519-signed, hash-chained traces of every real action |
 | **Self-serve signup** | `/signup` creates a tenant and shows its key once |
+| **Key rotation** | Retired keys keep verifying, so rotating never logs agents out |
+| **MCP server** | Agents get capability-checked, attested tool calls with no integration work |
 
 See [`docs/LAUNCH.md`](./docs/LAUNCH.md) for the pre-launch checklist and
 [`docs/openapi.yaml`](./docs/openapi.yaml) for the full API spec.

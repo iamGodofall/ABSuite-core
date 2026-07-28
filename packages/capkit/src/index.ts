@@ -11,7 +11,10 @@ export {
   type CapabilityValidation,
   type CreateCapabilityOptions,
   type CreatedCapability,
+  type VerificationKey,
 } from './capability';
+
+export { KeyRing, type SigningKeyEntry, type KeyStatus } from './keyring';
 
 export {
   signJwt,

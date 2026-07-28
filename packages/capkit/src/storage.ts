@@ -165,9 +165,21 @@ export class Storage {
     return this.db.prepare(sql).all(...(params as never[])) as T[];
   }
 
-  /** Run a unit of work atomically; rolls back if the callback throws. */
+  /**
+   * Run a unit of work atomically; rolls back if the callback throws.
+   *
+   * `BEGIN IMMEDIATE`, not a bare `BEGIN`. A deferred transaction takes only a
+   * read lock and upgrades when it first writes — and SQLite cannot apply
+   * `busy_timeout` to that upgrade, because retrying would mean re-reading data
+   * the transaction has already seen. So it fails instantly with SQLITE_BUSY
+   * whenever another process holds the write lock. Taking the write lock up
+   * front makes the wait legal, and the busy timeout applies.
+   *
+   * This matters because execution traces are written this way: under
+   * concurrency the deferred form silently dropped roughly 60% of them.
+   */
   transaction<T>(work: () => T): T {
-    this.db.exec('BEGIN');
+    this.db.exec('BEGIN IMMEDIATE');
     try {
       const result = work();
       this.db.exec('COMMIT');

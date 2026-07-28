@@ -212,6 +212,22 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/mcp:
+    dependencies:
+      '@absuite/capkit':
+        specifier: workspace:*
+        version: link:../capkit
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.15
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/quickbench:
     dependencies:
       '@absuite/capkit':
