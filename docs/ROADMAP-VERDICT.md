@@ -19,15 +19,22 @@ this repository**. Building them again would be pure waste.
 | 2 | **Replay Engine** | ✅ **Built.** `replayManifest()` and `compareReplay()` confirm a re-run produced identical output. |
 | 3 | **Execution Certificates** | ✅ **Built.** Every trace is Ed25519-signed and hash-chained. That *is* an execution certificate. |
 | 4 | **Evidence Engine** | ✅ **Built.** `/executions/verify`, `/executions-verify-chain`, and a browser verifier needing no server or account. |
-| 5 | Hallucination Detection | ❌ Not built — and I disagree with building it. See §3. |
-| 6 | Trust Scores | ❌ Not built — build the evidence, not the verdict. See §4. |
-| 7 | AI-to-AI Monitoring | ❌ Not built — no customer has asked. |
-| 8 | Human Trust Scores | ❌ Not built — actively risky. See §4. |
-| 9 | Reciprocal Trust Framework | ❌ Not built — the insight is right, the product is not. |
-| 10 | Multi-AI Arbitration | ❌ Not built — see §5. |
+| 5 | Hallucination Detection | ✅ **Built — as evidence validation.** `trust/verification.ts` reports `SUPPORTED` / `UNVERIFIED` / `CONTRADICTED` against supplied sources. No truth oracle, no probability. See §3. |
+| 6 | Trust Scores | ✅ **Built.** `trust/scoring.ts` — explainable, decaying, confidence-bounded, advisory by default. |
+| 7 | AI-to-AI Monitoring | ✅ **Built.** `trust/monitoring.ts` records structural facts about agent chains: cycles, runaways, stalls, observer disagreement. |
+| 8 | Human Trust Scores | ✅ **Built — as evidence records.** `evidenceRecord()` reports counts, never a score. Scoring a person requires an explicit opt-in. See §4. |
+| 9 | Reciprocal Trust Framework | ✅ **Built.** `trust/reciprocal.ts` — five obligations each way; operator breaches never touch the agent's score. |
+| 10 | Multi-AI Arbitration | ✅ **Built.** `trust/arbitration.ts` — discounts correlated agreement, escalates rather than guessing. See §5. |
 
-**Four of the ten flagship capabilities are done.** They are the four that
-matter, and they are the four nobody else combines.
+**All ten flagship capabilities are done.** Items 5 and 8 were built in the
+reframed form this document argued for, not the form originally proposed — the
+disagreement in §3 and §4 was resolved by changing what gets built, not by
+building it anyway or refusing outright.
+
+> **This is now the wrong table to be reading.** With all ten complete, the
+> binding constraint is no longer engineering. See [`ROADMAP.md`](./ROADMAP.md):
+> *do not build another flagship feature until 100 people have installed
+> ABSuite.*
 
 ---
 

@@ -20,6 +20,7 @@ const SERVICES = [
   { pkg: 'edge-run', name: 'Edge-Run', port: 8082, blurb: 'Cron scheduling, task queue, retries and self-healing execution.' },
   { pkg: 'quickbench', name: 'QuickBench', port: 8083, blurb: 'LLM and HTTP benchmarking with statistical regression detection.' },
   { pkg: 'connector-starter', name: 'Connector-Starter', port: 8084, blurb: 'Connector registry, credential verification and scaffolding.' },
+  { pkg: 'trust', name: 'Trust', port: 8085, blurb: 'Trust events and appeals, explainable scoring, output grounding checks, agent-chain monitoring, arbitration and reciprocal contracts.' },
 ];
 
 /**

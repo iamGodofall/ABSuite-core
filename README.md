@@ -1,6 +1,17 @@
-# ABSuite — Agent Builder Suite
+# ABSuite
 
-> The complete infrastructure platform for building, deploying, and scaling production AI agents.
+> **Intelligence is becoming abundant. Trust is becoming scarce.**
+>
+> ABSuite is the trust infrastructure for intelligent systems.
+
+- **Cryptographically verifiable execution** — every action Ed25519-signed
+- **Replayable decisions** — re-run it, prove the output matches
+- **Tamper detection** — hash-chained logs that name the broken record
+- **Evidence validation** — claims, their sources, and a status
+- **Multi-AI arbitration** — disputes resolved without counting correlated votes
+- **Continuous governance** — trust earned, decayed, and contestable
+
+**Because confidence is not evidence.**
 
 ![ABSuite](https://img.shields.io/badge/ABSuite-v1.0.0-7C3AED?style=for-the-badge&labelColor=1E1B4B)
 [![MIT License](https://img.shields.io/badge/license-MIT-7C3AED?style=for-the-badge)](LICENSE)
@@ -9,100 +20,116 @@
 
 ---
 
-## 🎯 What Is ABSuite?
+## Why this exists
 
-ABSuite is a **vertical AI Agent PaaS** — everything you need to build, run, monitor, and scale AI agents in production, packaged as a single coherent platform.
+Every AI governance product in the market does one or two of these. ABSuite is
+the only one that does all four in a single system — which matters because they
+are only useful together. Attestation without enforcement records violations it
+could have prevented. Enforcement without replay cannot show what actually
+happened. Replay without certificates proves it to you and nobody else.
 
-Think of it as the infrastructure layer that means you never have to stitch together separate solutions for security, scheduling, benchmarking, and observability. It's purpose-built for teams building AI-powered products who need enterprise-grade reliability without the enterprise-grade complexity.
+| | Attestation | Enforcement | Replay | Certificates |
+|---|---|---|---|---|
+| Arcade.dev | Yes | Yes | No | No |
+| AgentLens | Yes | No | Partial | No |
+| Attestix | Yes | No | No | Partial |
+| Traceloop / OpenLLMetry | Partial | No | No | No |
+| **ABSuite** | **Yes** | **Yes** | **Yes** | **Yes** |
 
-### The Five Core Modules
+> Compiled from public documentation as of July 2026. Categories move fast — if
+> something here is out of date or wrong, open an issue and it gets corrected.
 
-| Module | Port | What It Does |
-|--------|------|-------------|
-| **CapKit** | 8081 | Security — capability tokens, JWT validation, tamper-evident audit log, shared revocation, policy generation |
-| **Edge-Run** | 8082 | Execution — cron scheduling, priority queue, retries with jitter, circuit-breaker self-healing, live log stream |
-| **QuickBench** | 8083 | Performance — LLM and HTTP benchmarking, nearest-rank percentiles, statistical regression detection |
-| **Connector-Starter** | 8084 | Integrations — connector registry, read-only credential verification, deterministic scaffolding |
-| **Dashboard** | 3001 | Control plane — live service status, AI studio, token issuance, latency benchmarks |
-| **MCP** | stdio | Model Context Protocol server — puts ABSuite inside the agent tool-calling path |
+**ABSuite combines enforcement, replay, attestation and cryptographic evidence
+in a single platform.**
 
-All modules are implemented, tested and runnable. **246 tests** cover the
-security-critical and correctness-critical paths.
+---
 
-### Production & commercial layer
+## Capability matrix
 
-Everything needed to run this as a paid service, not just as code:
-
-| Capability | Detail |
+| Capability | Status |
 |---|---|
-| **Multi-tenancy** | Tenants with SHA-256 hashed API keys, one-time issuance, rotation |
-| **Usage metering** | Per tenant, per metric, per month — the basis of an invoice |
-| **Quota enforcement** | `402` when a plan limit is hit, `403` when an account is suspended |
-| **Billing** | Stripe webhook with signature verification and replay protection |
-| **Durable state** | SQLite via Node's built-in driver; schedules and queued work survive restart |
-| **Tamper-evident audit** | Hash-chained entries; `/audit/verify` names the first broken entry |
-| **Observability** | `/metrics` (Prometheus), `/health` and `/ready` on every service |
-| **Graceful shutdown** | SIGTERM drains in-flight requests and flushes state |
-| **Verifiable execution** | Ed25519-signed, hash-chained traces of every real action |
-| **Self-serve signup** | `/signup` creates a tenant and shows its key once |
-| **Key rotation** | Retired keys keep verifying, so rotating never logs agents out |
-| **MCP server** | Agents get capability-checked, attested tool calls with no integration work |
+| Cryptographic attestation | Yes |
+| Replay | Yes |
+| Execution certificates | Yes |
+| Evidence validation | Yes |
+| AI arbitration | Yes |
+| Reciprocal trust | Yes |
+| Human approval | Yes |
+| Tamper detection | Yes |
+| Audit trails | Yes |
+| Trust analytics | Yes |
 
-See [`docs/LAUNCH.md`](./docs/LAUNCH.md) for the pre-launch checklist and
-[`docs/openapi.yaml`](./docs/openapi.yaml) for the full API spec.
-
-### What makes it a suite, not five services
-
-CapKit is the shared authorisation layer. Edge-Run, QuickBench and
-Connector-Starter all import `capabilityGuard` from `@absuite/capkit` and enforce
-the same capability model, so **one token works across every service, and
-revoking it at CapKit locks it out of all of them**:
-
-```bash
-# One token, scoped for the whole suite
-TOKEN=$(curl -sX POST localhost:8081/auth/token \
-  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" -H 'Content-Type: application/json' \
-  -d '{"sub":"agent","scope":["queue:read","bench:read"],"expiresIn":"1h"}' | jq -r .token)
-
-curl -H "Authorization: Bearer $TOKEN" localhost:8082/queue    # Edge-Run   -> 200
-curl -H "Authorization: Bearer $TOKEN" localhost:8083/history  # QuickBench -> 200
-
-curl -sX POST localhost:8081/auth/token/revoke \
-  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" -H 'Content-Type: application/json' \
-  -d "{\"token\":\"$TOKEN\"}"
-
-curl -H "Authorization: Bearer $TOKEN" localhost:8082/queue    # -> 401 TOKEN_REVOKED
-curl -H "Authorization: Bearer $TOKEN" localhost:8083/history  # -> 401 TOKEN_REVOKED
+```text
+391 tests                    93 API endpoints
+7 npm packages               6 HTTP services + MCP server
+Documentation drift detection in CI
+npm distribution via GitHub Actions with provenance
 ```
 
-Set `ABSUITE_DB_PATH` to a database every service can read, and revocation
-propagates across processes and replicas.
+Numbers are generated, not claimed: run `pnpm test` and `pnpm docs:check`.
+
+---
+
+## The six modules
+
+| Module | Port | What it does |
+|--------|------|-------------|
+| **CapKit** | 8081 | Capability tokens, tamper-evident audit, signed execution traces, tenancy, billing |
+| **Edge-Run** | 8082 | Cron scheduling, priority queue, retries with jitter, circuit-breaker self-healing |
+| **QuickBench** | 8083 | LLM and HTTP benchmarking, nearest-rank percentiles, statistical regression detection |
+| **Connector-Starter** | 8084 | Connector registry, read-only credential verification, deterministic scaffolding |
+| **Trust** | 8085 | Evidence validation, trust analytics, chain monitoring, arbitration, reciprocal contracts |
+| **Dashboard** | 3001 | Control plane — live status, token issuance, proof verification |
+| **MCP** | stdio | Model Context Protocol server — puts ABSuite inside the tool-calling path |
+
+Read [`PRINCIPLES.md`](./PRINCIPLES.md) for the six engineering rules these are
+built on. The short version: evidence over opinion, verification over
+confidence, facts over scores, and confidence never determines truth.
+
+### Evidence validation, not hallucination detection
+
+Deciding whether an arbitrary statement is true is open-domain fact-checking.
+Nobody can do it, and a product claiming to is a classifier with a confident
+voice. ABSuite answers the question that *does* have an answer:
+
+```text
+Claim:     "The CEO approved this."
+Evidence:  none
+Status:    UNVERIFIED
+```
+
+No score. No probability. No judgement about truth. `UNVERIFIED` means the
+evidence is absent — **not** that the claim is false. That distinction is what
+keeps the answer defensible in a room where it matters.
+
+### Evidence records, not human trust scores
+
+ABSuite will not tell you that John has a trust score of 42. It will tell you:
+
+```text
+User:                person:j.smith
+Actions recorded:    1,042
+Policy violations:   2
+Manual overrides:    1
+Audit findings:      0
+```
+
+Facts, never conclusions. Every line is contestable against the underlying
+events. This is infrastructure, not a social credit system — and scoring a human
+at all requires setting `ABSUITE_TRUST_SCORE_HUMANS=true` deliberately.
+
+### What makes it a suite, not six services
+
+CapKit is the shared authorisation layer. Every other service imports
+`capabilityGuard` from `@absuite/capkit` and enforces the same capability model,
+so **one token works everywhere, and revoking it at CapKit locks it out of all
+of them**. Enforcement lives in a library distributed to every service rather
+than in a gateway, because a gateway leaves each service unguarded to anything
+that reaches it directly.
 
 ### Provable, not just traceable
 
-Every real action produces a hash-chained trace signed with **Ed25519** — so an
-auditor can verify your records holding *only a public key*, without also being
-able to forge them. Payloads are hashed, never stored, so a trace proves what
-happened without ABSuite retaining your customers' data.
-
-```bash
-# An auditor needs no ABSuite credentials at all
-curl localhost:8081/executions/public-key
-
-curl -X POST localhost:8081/executions/verify \
-  -H 'Content-Type: application/json' -d "{\"trace\": $TRACE}"
-# -> {"valid":true,"contentIntact":true,"signatureValid":true}
-```
-
-Tampering is caught at both levels. Edit a field and the content hash fails.
-Recompute the hash to match your edit and the **signature** fails, because you
-were never able to sign it:
-
-```json
-{"valid":false,"reason":"Signature does not verify against the supplied key",
- "contentIntact":true,"signatureValid":false}
-```
-
+Every real action produces an Ed25519-signed, hash-chained execution trace.
 `GET /executions-verify-chain` walks the whole log and names the sequence number
 of the first record that breaks.
 

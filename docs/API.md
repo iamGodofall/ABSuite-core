@@ -165,6 +165,75 @@ Connector registry, credential verification and scaffolding.
 
 ---
 
+## Trust — `:8085`
+
+Trust events and appeals, explainable scoring, output grounding checks, agent-chain monitoring, arbitration and reciprocal contracts.
+
+| Method | Path | Required scope | Counts against |
+|---|---|---|---|
+| GET | `/anomalies` | `trust:read` | — |
+| POST | `/appeals/:appealId/decide` | `trust:manage` | — |
+| POST | `/arbitrate` | `trust:arbitrate` | — |
+| POST | `/breaches/:breachId/remediate` | `trust:write` | — |
+| GET | `/chains` | `trust:read` | — |
+| GET | `/chains/:chainId` | `trust:read` | — |
+| GET | `/contracts` | `trust:read` | — |
+| POST | `/contracts` | `trust:manage` | — |
+| GET | `/contracts/:contractId` | `trust:read` | — |
+| POST | `/contracts/:contractId/breach` | `trust:write` | — |
+| GET | `/contracts/:contractId/health` | `trust:read` | — |
+| POST | `/contracts/:contractId/reinstate` | `trust:manage` | — |
+| POST | `/contracts/:contractId/suspend` | `trust:manage` | — |
+| GET | `/disputes` | `trust:read` | — |
+| POST | `/disputes` | `trust:arbitrate` | — |
+| GET | `/disputes/:disputeId` | `trust:read` | — |
+| POST | `/disputes/:disputeId/arbitrate` | `trust:arbitrate` | — |
+| POST | `/disputes/:disputeId/decide` | `trust:manage` | — |
+| GET | `/disputes/pending` | `trust:read` | — |
+| POST | `/events` | `trust:write` | — |
+| POST | `/events/:eventId/appeal` | `trust:appeal` | — |
+| GET | `/events/:eventId/appeals` | `trust:read` | — |
+| GET | `/events/:subjectId` | `trust:read` | — |
+| GET | `/evidence/:subjectId` | `trust:read` | — |
+| GET | `/health` | _public_ | — |
+| POST | `/interactions` | `trust:write` | — |
+| POST | `/interactions/:interactionId/observe` | `trust:write` | — |
+| GET | `/metrics` | _public_ | — |
+| GET | `/obligations` | _public_ | — |
+| GET | `/ready` | _public_ | — |
+| GET | `/score/:subjectId` | `trust:read` | — |
+| POST | `/score/:subjectId/check` | `trust:read` | — |
+| GET | `/scores` | `trust:read` | — |
+| POST | `/verify` | `trust:verify` | — |
+
+### Notes
+
+**`GET /anomalies`** — Every structural anomaly across recent chains — cycles, runaways, stalls, disagreement.
+
+**`POST /arbitrate`** — Arbitrate. Agreement between participants of the same model family is discounted, and an irreversible dispute always escalates to a human. / app.post('/disputes/:disputeId/arbitrate', requireCapability('trust:arbitrate'), (req, res) => { try { return res.status(200).json(disputes.resolve(String(req.params.disputeId), { scorer })); } catch (error) { return fail(res, 404, 'NOT_FOUND', (error as Error).message); } }); /** Arbitrate without storing anything — for callers evaluating the thresholds.
+
+**`POST /contracts/:contractId/breach`** — Record a breach by either party. An operator breach is never charged to the agent's score — attributing a failure to the component that cannot fix it is the exact defect this framework exists to remove.
+
+**`GET /contracts/:contractId/health`** — Whose fault the failures actually are. Usually the most useful call here.
+
+**`POST /disputes/:disputeId/arbitrate`** — Arbitrate. Agreement between participants of the same model family is discounted, and an irreversible dispute always escalates to a human.
+
+**`GET /disputes/pending`** — Disputes waiting on a human decision.
+
+**`POST /events`** — Record a trust event. Every event should point at an artefact that proves it.
+
+**`POST /events/:eventId/appeal`** — Appeal an event. Contestability is not a feature flag — a score nobody can challenge is a blacklist.
+
+**`GET /evidence/:subjectId`** — What was recorded about a subject, as facts — no score, no ranking, no conclusion. Available for every subject type including humans, because counting what happened is not the same act as rating someone.
+
+**`POST /interactions/:interactionId/observe`** — Attach an observer's opinion. Stored as an opinion, never promoted to truth.
+
+**`POST /score/:subjectId/check`** — Ask whether a subject clears a threshold. Returns `allowed: true` whenever gating is disabled — advisory scores must never deny anyone access.
+
+**`POST /verify`** — Check an output against the sources it was meant to be grounded in. Returns risk signals, not a truth verdict — see the disclaimer in the body.
+
+---
+
 ## MCP server
 
 `@absuite/mcp` speaks Model Context Protocol over stdio rather than HTTP.
@@ -174,4 +243,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_60 HTTP endpoints across 4 services. Generated from source._
+_94 HTTP endpoints across 5 services. Generated from source._

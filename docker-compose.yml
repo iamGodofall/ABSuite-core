@@ -194,6 +194,44 @@ services:
     networks:
       - absuite-net
 
+  trust:
+    build:
+      context: .
+      dockerfile: ./packages/trust/Dockerfile
+    container_name: absuite-trust
+    ports:
+      - "127.0.0.1:8085:8085"
+    environment:
+      - NODE_ENV=production
+      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
+      - TRUST_PORT=8085
+      - ABSUITE_DB_PATH=/data/absuite.db
+      - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
+      - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
+      # Scoring people is an employee-monitoring capability with legal
+      # obligations attached. It stays off unless a deployment opts in.
+      - ABSUITE_TRUST_SCORE_HUMANS=${ABSUITE_TRUST_SCORE_HUMANS:-false}
+    volumes:
+      - absuite-data:/data
+    depends_on:
+      absuite-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:8085/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - absuite-net
+
   # ---- Dashboard ----
 
   dashboard:
