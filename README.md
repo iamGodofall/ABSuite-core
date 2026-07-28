@@ -17,13 +17,20 @@ Think of it as the infrastructure layer that means you never have to stitch toge
 
 ### The Five Core Modules
 
-| Module | What It Does |
-|--------|-------------|
-| **CapKit** | Security layer — JWT validation, capability tokens, AI content filtering, audit logs, rate limiting |
-| **Edge-Run** | Execution layer — cron jobs, queues, event streams, process spawning, self-healing recovery |
-| **QuickBench** | Performance validation — LLM inference benchmarking, KV cache analysis, A/B testing, throughput profiling |
-| **Connector-Starter** | Integration scaffold — build connectors for GitHub, Slack, Jira, and any other platform your agents need |
-| **Dashboard** | Unified control plane — real-time monitoring, AI studio, system overview across all modules |
+| Module | What It Does | Status |
+|--------|-------------|--------|
+| **CapKit** | Security layer — capability tokens, JWT validation, audit log, access-policy generation | ✅ **Implemented** |
+| **Dashboard** | Unified control plane — live service status, AI studio, token issuance, latency benchmarks | ✅ **Implemented** |
+| **Edge-Run** | Execution layer — cron jobs, queues, event streams, process spawning, self-healing recovery | 🚧 **Planned — not built** |
+| **QuickBench** | Performance validation — LLM inference benchmarking, KV cache analysis, A/B testing | 🚧 **Planned — not built** |
+| **Connector-Starter** | Integration scaffold — connectors for GitHub, Slack, Jira and others | 🚧 **Planned — not built** |
+
+> **Implementation status.** CapKit and the Dashboard are real, tested and runnable
+> today. Edge-Run, QuickBench and Connector-Starter are specified in
+> [`docs/API.md`](./docs/API.md) but contain no source yet — their packages are
+> empty. They are held behind the `planned` Docker Compose profile so a default
+> `docker compose up` starts only what genuinely works. Anything below that
+> refers to those three modules describes intended, not shipped, behaviour.
 
 ---
 
@@ -45,14 +52,35 @@ cd ABSuite-core
 # Install everything
 pnpm install
 
-# Start all services
+# Set the secrets CapKit needs (see .env.example)
+cp .env.example .env
+# Then edit .env — at minimum set CAPKIT_HMAC_SECRET and ABSUITE_ADMIN_API_KEY:
+#   openssl rand -hex 32
+
+# Start the implemented services (absuite-db, capkit, dashboard)
 pnpm start
 
 # Open the dashboard
 open http://localhost:3001
 ```
 
-That's it. Every service starts, the dashboard comes up, and you're ready to build.
+This starts the database, CapKit and the Dashboard. The dashboard reports live
+service status, issues real capability tokens through CapKit, and runs latency
+benchmarks against any running service.
+
+### Running without Docker
+
+```bash
+# Terminal 1 — CapKit
+CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) CAPKIT_ADMIN_KEY=dev-admin-key \
+  pnpm --filter @absuite/capkit dev
+
+# Terminal 2 — Dashboard
+ABSUITE_ADMIN_API_KEY=dev-admin-key pnpm --filter dashboard-ui start
+```
+
+The dashboard falls back to direct HTTP health checks when Docker is not
+available, so service status stays accurate either way.
 
 ### Using the CLI
 
@@ -65,13 +93,11 @@ pnpm cli start capkit
 
 # Stop everything
 pnpm cli stop
-
-# Run a benchmark
-pnpm cli benchmark --model ollama/llama3
-
-# Generate a capability token
-pnpm cli token create --capabilities "read,write,execute" --expires 24h
 ```
+
+> The CLI's `bench` and `token` subcommands shell into the QuickBench and CapKit
+> containers. `bench` depends on QuickBench, which is not implemented yet. Issue
+> tokens through the dashboard or CapKit's HTTP API instead (see below).
 
 ---
 
@@ -80,46 +106,35 @@ pnpm cli token create --capabilities "read,write,execute" --expires 24h
 ```
 ABSuite-core/
 ├── packages/
-│   ├── capkit/              # Security & capability validation
+│   ├── capkit/              # ✅ Security & capability validation
+│   │   ├── Dockerfile
 │   │   └── src/
 │   │       ├── index.ts     # Public API exports
-│   │       ├── server.ts    # HTTP API server
-│   │       ├── jwt.ts       # JWT creation & validation
-│   │       ├── capability.ts # Capability token system
-│   │       ├── ai-policy-generator.ts # AI content policy
-│   │       └── llm-provider.ts  # Multi-LLM provider abstraction
+│   │       ├── server.ts    # HTTP API server (:8081)
+│   │       ├── jwt.ts       # HS256 sign/verify on node:crypto
+│   │       ├── capability.ts # Capability tokens, scopes, revocation
+│   │       ├── audit.ts     # Append-only audit log (memory + JSONL)
+│   │       ├── ai-policy-generator.ts # Rule-based access policies
+│   │       ├── llm-provider.ts  # Provider configuration inspection
+│   │       └── capkit.test.ts   # 27 tests
 │   │
-│   ├── edge-run/            # Agent execution & scheduling
-│   │   └── src/
-│   │       ├── index.ts     # Public API exports
-│   │       ├── server.ts    # HTTP API server
-│   │       ├── scheduler.ts # Cron & queue scheduler
-│   │       ├── runtime.ts   # Process spawning & management
-│   │       └── self-healing.ts # Automatic recovery
-│   │
-│   ├── quickbench/          # Performance benchmarking
-│   │   └── src/
-│   │       ├── index.ts     # Public API exports
-│   │       ├── server.ts    # HTTP API server
-│   │       ├── runner.ts    # Benchmark orchestration
-│   │       ├── benchmark-runner.ts # Per-test runners
-│   │       └── report.ts    # Report generation
-│   │
-│   ├── connector-starter/   # AI agent connector scaffold
-│   │   └── src/
-│   │       ├── index.ts     # Public API exports
-│   │       └── server.ts    # HTTP API server
-│   │
-│   ├── dashboard-ui/        # Web dashboard (React + Vite)
+│   ├── dashboard-ui/        # ✅ Web dashboard (React + Vite)
+│   │   ├── Dockerfile
+│   │   ├── server.ts        # Orchestrator + API proxy (:3001)
 │   │   └── src/
 │   │       ├── App.tsx      # Main application
 │   │       ├── components/  # UI components
 │   │       └── hooks/       # React hooks for service integration
 │   │
-│   └── apps/                # SaaS / multi-tenant layer
-│       └── frontend/        # Customer-facing web app
+│   ├── cli/                 # ✅ Command-line interface
+│   │   └── src/index.ts
+│   │
+│   ├── edge-run/            # 🚧 Empty — planned
+│   ├── quickbench/          # 🚧 Empty — planned
+│   └── connector-starter/   # 🚧 Empty — planned
 │
-├── docker-compose.yml       # All services in Docker
+├── src/                     # Shared orchestrator helpers
+├── docker-compose.yml       # Implemented services by default
 ├── package.json             # Workspace root (pnpm)
 └── tsconfig.json            # Shared TypeScript config
 ```
@@ -162,25 +177,37 @@ ABSuite-core/
 ### CapKit — Security Without Compromise
 
 ```typescript
-import { CapabilityToken, createHMAC } from '@absuite/capkit'
+import { CapabilityToken, hasCapability } from '@absuite/capkit'
 
 // Create a capability token with scoped permissions
-const token = CapabilityToken.create({
-  kid: 'service-key-1',
+const created = CapabilityToken.create({
   sub: 'agent-001',
   scope: ['read:users', 'write:tasks', 'execute:scripts'],
   expiresIn: '8h',
- aud: 'absuite://production'
+  aud: 'absuite://production',
+  kid: 'service-key-1',
 }, hmacKey)
 
-// Validate incoming requests
-const result = CapabilityToken.validate(token, hmacKey)
+// Validate an incoming request, requiring a specific scope
+const result = CapabilityToken.validate(created.token, hmacKey, {
+  requiredScope: 'write:tasks',
+})
+
 if (!result.valid) {
-  throw new SecurityError('Capability token invalid', result.error)
+  // 'TOKEN_EXPIRED' | 'TOKEN_INVALID' | 'CAPABILITY_INSUFFICIENT' | ...
+  throw new Error(`Capability rejected: ${result.error}`)
 }
+
+console.log(result.claims.sub) // 'agent-001'
 ```
 
+Scopes match segment-wise, so `read:*` grants `read:users` but never
+`read:users:delete`. Tokens are HS256 JWTs signed with `node:crypto` — no
+third-party JWT dependency on the security-critical path.
+
 ### Edge-Run — Agents That Run Reliably
+
+> 🚧 **Not implemented.** The example below is the intended API.
 
 ```typescript
 import { AgentScheduler } from '@absuite/edge-run'
@@ -206,6 +233,8 @@ scheduler.delay('welcome-email', 30_000, async () => {
 ```
 
 ### QuickBench — Know Before You Deploy
+
+> 🚧 **Not implemented.** The example below is the intended API.
 
 ```typescript
 import { QuickBench } from '@absuite/quickbench'
@@ -274,8 +303,11 @@ ABSUITE_LOG_LEVEL=info           # debug | info | warn | error
 
 # CapKit
 CAPKIT_PORT=8081
-CAPKIT_HMAC_SECRET=your-secret-key
-CAPKIT_JWT_SECRET=your-jwt-secret
+CAPKIT_HMAC_SECRET=your-secret-key   # REQUIRED in production (min 32 chars)
+CAPKIT_JWT_SECRET=your-jwt-secret    # Fallback if HMAC secret is unset
+CAPKIT_ADMIN_KEY=your-admin-key      # Bootstrap key for issuing the first token
+CAPKIT_AUDIENCE=absuite://production # Optional; enforced at validation
+CAPKIT_AUDIT_LOG=/data/capkit-audit.jsonl
 
 # Edge-Run
 EDGERUN_PORT=8082
@@ -295,14 +327,60 @@ DASHBOARD_PORT=3001
 ## 🧪 Running Tests
 
 ```bash
-# All packages
+# All packages (31 tests)
 pnpm test
 
-# Individual package
-pnpm --filter capkit test
-pnpm --filter edge-run test
-pnpm --filter quickbench test
+# CapKit only (27 tests — JWT, scopes, revocation, audit, policy)
+pnpm --filter @absuite/capkit test
 ```
+
+CapKit's suite covers the security-critical paths directly: signature
+tampering, the `alg: none` downgrade, expiry, audience mismatch, scope
+escalation and revocation.
+
+---
+
+## 🔐 CapKit HTTP API
+
+CapKit runs on `:8081`. Every endpoint except `/health` requires either a
+capability token carrying the right scope, or the bootstrap admin key.
+
+```bash
+# Health — no auth
+curl localhost:8081/health
+
+# Issue a token (bootstrap with the admin key)
+curl -X POST localhost:8081/auth/token \
+  -H 'Content-Type: application/json' \
+  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" \
+  -d '{"sub":"agent-1","scope":["read:users","audit:read"],"expiresIn":"8h"}'
+
+# Validate a token
+curl -X POST localhost:8081/auth/token/validate \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"token\":\"$TOKEN\"}"
+
+# Revoke a token
+curl -X POST localhost:8081/auth/token/revoke \
+  -H 'Content-Type: application/json' \
+  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" \
+  -d "{\"token\":\"$TOKEN\"}"
+
+# Read the audit trail
+curl -H "Authorization: Bearer $TOKEN" 'localhost:8081/audit?limit=20'
+
+# Generate a least-privilege access policy from a description
+curl -X POST localhost:8081/ai/policy/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"read and delete customer credentials"}'
+```
+
+Every allow and deny is written to the audit log with subject, action,
+resource and reason.
+
+**Known limitation:** the revocation list is process-local, so a multi-replica
+CapKit deployment needs a shared store before revocation is reliable.
 
 ---
 

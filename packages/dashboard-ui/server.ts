@@ -18,6 +18,11 @@ const allowedOrigins = (process.env.ABSUITE_ALLOWED_ORIGINS || '')
   .filter(Boolean);
 const adminApiKey = (process.env.ABSUITE_ADMIN_API_KEY || '').trim();
 
+// Credential the dashboard presents to CapKit when acting on an operator's
+// behalf. Separate from the key operators present to the dashboard, so the two
+// can be rotated independently, but defaults to it for single-key deployments.
+const capkitAdminKey = (process.env.CAPKIT_ADMIN_KEY || process.env.ABSUITE_ADMIN_API_KEY || '').trim();
+
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
@@ -244,8 +249,8 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'healthy', service: 'dashboard', timestamp: new Date().toISOString() });
 });
 
-app.get('/status', (req, res) => {
-  Object.assign(status, suiteStatus(status));
+app.get('/status', async (req, res) => {
+  Object.assign(status, await suiteStatusWithHealthFallback(status));
   res.json(status);
 });
 
@@ -334,7 +339,10 @@ app.get('/capkit/token/generate', requireAdminAccess, async (req, res) => {
 
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/issue`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+      },
       body: JSON.stringify({
         actor: name,
         action: permissions,
@@ -572,12 +580,10 @@ function suiteStatus(previousStatus: Partial<Record<ServiceName, ServiceState>> 
       : 'unknown';
   });
 
-try {
-    const dockerConnected = false; // Docker daemon not running
-    if (!dockerConnected) {
-      console.log('Docker daemon unavailable - using direct health checks');
-      return { capkit: 'unknown', 'edge-run': 'unknown', quickbench: 'unknown', 'connector-starter': 'unknown', dashboard: 'up', 'absuite-db': 'unknown' };
-    }
+  // We are serving this request, so the dashboard is by definition up.
+  nextStatus.dashboard = 'up';
+
+  try {
     const raw = runComposeCommand('ps --format json');
 
     const containers = parseComposePsOutput(raw);
@@ -606,8 +612,45 @@ try {
       nextStatus[service] = isHealthy ? 'up' : 'down';
     });
   } catch (e) {
-    console.error('Status check failed:', e);
+    // Docker or compose is unavailable. Leave the other services 'unknown' so
+    // the HTTP fallback below can decide, rather than reporting them 'down'
+    // on the strength of a missing Docker daemon.
+    console.error('Status check via docker compose failed:', (e as Error).message);
   }
+
+  nextStatus.dashboard = 'up';
+  return nextStatus;
+}
+
+/**
+ * Resolve any service Docker could not tell us about by asking the service
+ * itself over HTTP. This is what makes the dashboard useful when the modules
+ * run outside Docker (local dev, or a partial deployment).
+ */
+async function suiteStatusWithHealthFallback(
+  previousStatus: Partial<Record<ServiceName, ServiceState>> = {}
+): Promise<Record<ServiceName, ServiceState>> {
+  const nextStatus = suiteStatus(previousStatus);
+
+  const unresolved = SERVICES.filter(
+    service => nextStatus[service] === 'unknown' && service !== 'absuite-db' && service !== 'dashboard'
+  );
+
+  await Promise.all(
+    unresolved.map(async service => {
+      const baseUrl = SERVICE_BASE_URLS[service as Exclude<ServiceName, 'absuite-db'>];
+      if (!baseUrl) return;
+
+      try {
+        const response = await fetch(`${baseUrl}/health`, {
+          signal: AbortSignal.timeout(2000),
+        });
+        nextStatus[service] = response.ok ? 'up' : 'down';
+      } catch {
+        nextStatus[service] = 'down';
+      }
+    })
+  );
 
   return nextStatus;
 }
@@ -615,7 +658,10 @@ try {
 let status: Record<ServiceName, ServiceState> = suiteStatus();
 
 io.on('connection', (socket: Socket) => {
-  Object.assign(status, suiteStatus(status));
+  void suiteStatusWithHealthFallback(status).then(next => {
+    Object.assign(status, next);
+    socket.emit('status', status);
+  });
   socket.emit('status', status);
 
   socket.on('start', (service: string) => {
@@ -646,15 +692,18 @@ io.on('connection', (socket: Socket) => {
   });
 
   socket.on('refresh', () => {
-    Object.assign(status, suiteStatus());
-    io.emit('status', status);
+    void suiteStatusWithHealthFallback().then(next => {
+      Object.assign(status, next);
+      io.emit('status', status);
+    });
   });
 });
 
 setInterval(() => {
-  const newStatus = suiteStatus(status);
-  Object.assign(status, newStatus);
-  io.emit('status', status);
+  void suiteStatusWithHealthFallback(status).then(next => {
+    Object.assign(status, next);
+    io.emit('status', status);
+  });
 }, 30000);
 
 app.get('*', (req, res, next) => {

@@ -30,8 +30,13 @@ services:
       - NODE_ENV=production
       - ABSUITE_DB_PATH=/data/absuite.db
       - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
+      - CAPKIT_PORT=8081
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
       - CAPKIT_JWT_SECRET=${CAPKIT_JWT_SECRET}
+      - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
+      - CAPKIT_AUDIT_LOG=${CAPKIT_AUDIT_LOG:-/data/capkit-audit.jsonl}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ABSUITE_ALLOWED_ORIGINS=${ABSUITE_ALLOWED_ORIGINS:-http://localhost:3001}
     volumes:
       - absuite-data:/data
@@ -54,7 +59,12 @@ services:
     networks:
       - absuite-net
 
+  # edge-run, quickbench and connector-starter are not implemented yet — their
+  # packages contain no source. They sit behind the "planned" profile so a
+  # default `docker compose up` starts only what actually builds and runs.
+  # Enable with: docker compose --profile planned up -d
   edge-run:
+    profiles: ["planned"]
     build:
       context: .
       dockerfile: ./packages/edge-run/Dockerfile
@@ -89,6 +99,7 @@ services:
       - absuite-net
 
   quickbench:
+    profiles: ["planned"]
     build:
       context: .
       dockerfile: ./packages/quickbench/Dockerfile
@@ -121,6 +132,7 @@ services:
       - absuite-net
 
   connector-starter:
+    profiles: ["planned"]
     build:
       context: .
       dockerfile: ./packages/connector-starter/Dockerfile
@@ -163,6 +175,7 @@ services:
       - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
       - ABSUITE_ALLOWED_ORIGINS=${ABSUITE_ALLOWED_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
       - ABSUITE_ADMIN_API_KEY=${ABSUITE_ADMIN_API_KEY:-}
+      - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker-compose.yml:/app/docker-compose.yml:ro
