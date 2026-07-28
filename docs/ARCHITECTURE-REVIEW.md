@@ -82,47 +82,69 @@ Checked directly against source:
 | Capability model | **Present** | `capkit/capability.ts` |
 | Audit logging | **Present** | `capkit/audit.ts` (hash-chained) |
 | Execution engine | **Present** | `edge-run/runtime.ts`, `queue.ts` |
-| **Verification layer** | **Missing** | — nothing validates an output before acceptance |
-| **Replayable trace** | **Missing** | audit records *decisions*, not re-runnable executions |
-| **Signed results** | **Missing** | results are returned unsigned |
+| **Verification layer** | **Present** | `capkit/trace.ts` — `verifyTrace`, `verifyChain` |
+| **Replayable trace** | **Present** | `capkit/trace.ts` — `replayManifest`, `compareReplay` |
+| **Signed results** | **Present** | Ed25519 signatures over every execution trace |
 | **Deterministic execution mode** | **Missing** | (only deterministic *policy/scaffold generation* exists) |
 | **Protocol package** | **Missing** | contracts live inside CapKit, not a standalone package |
 | **Unified runtime / control plane** | **Missing** | four services, four ports, no single enforced pipeline |
 
-### The one gap that matters
+### The gap that mattered — now closed
 
 The vision's central claim is:
 
 > Every action is permitted, traceable, and **provable**.
 
-Two of three are real today. **Provable is not.** A caller receives a result with
-no cryptographic evidence of what was authorised, what ran, or what came back.
+All three are now real. Every execution produces a hash-chained trace signed
+with Ed25519, verifiable by a third party holding only a public key. Verified
+live: a tampered field fails on the content hash; a tamper that also recomputes
+the hash fails on the signature.
 
-Everything else on the missing list is optional. This one is the differentiator —
-and it is the thing no competitor ships.
+The remaining "missing" items — deterministic execution mode, a standalone
+protocol package, a unified control plane — are architecture aesthetics. None
+changes what a customer can do or prove. Do not build them speculatively.
 
 ---
 
-## 5. What "verifiable execution" would concretely mean
+## 5. Verifiable execution — as built
 
-Not a rewrite. A focused addition, mostly in CapKit, reusing what exists:
+Implemented in `capkit/trace.ts`, with one deliberate upgrade on the original
+sketch.
 
-1. **Execution trace** — a record per execution: capability presented, inputs
-   hashed, module invoked, outputs hashed, timing, outcome.
-2. **Hash-chain the trace** — the audit log already does exactly this
-   (`hashEntry`, `verifyChain`). Same technique, applied per execution.
-3. **Sign the result** — HMAC over the trace head with the CapKit key. The
-   signing primitives already exist in `jwt.ts`.
-4. **A verify endpoint** — hand back a trace and a signature, get a yes/no plus
-   the index of the first broken link.
+The first plan was to sign traces with HMAC using the existing CapKit secret.
+That was rejected: HMAC is symmetric, so anyone who can *verify* a trace can
+also *forge* one. For a compliance artefact that is the wrong property — the
+auditor must be able to check the record without being able to write it.
 
-That yields a sentence no competitor can currently say:
+Signing is therefore **Ed25519**. The private key signs; the public key is served
+unauthenticated at `/executions/public-key`, so a customer or regulator can
+verify holding no ABSuite credentials at all.
+
+What ships:
+
+1. **Execution trace** — subject, capability `jti`, scopes, module, action,
+   input hash, output hash, timing, steps, outcome.
+2. **Hash chain** — each trace links to its predecessor; insertion is
+   transactional so concurrent executions cannot fork the chain.
+3. **Ed25519 signature** over the trace hash.
+4. **Verification** — `POST /executions/verify` for one trace,
+   `GET /executions-verify-chain` for the whole log, which names the sequence
+   number of the first record that breaks.
+5. **Replay** — `replayManifest` and `compareReplay` confirm a re-run produced
+   the same output. Payloads are hashed, never stored, so proof does not require
+   retaining customer data.
+
+Verified live, both tamper classes:
+
+| Attack | Result |
+|---|---|
+| Edit a field | `contentIntact: false` — content hash fails |
+| Edit a field *and* recompute the hash | `signatureValid: false` — never signed by us |
+
+That supports the sentence no competitor can currently say:
 
 > Here is cryptographic proof of what your agent was allowed to do, what it
 > actually did, and that the record has not been altered.
-
-That is the compliance wedge, the enterprise wedge, and the reason a regulated
-buyer picks ABSuite over a JWT library. Estimated scope: days, not months.
 
 ---
 
@@ -157,24 +179,26 @@ requires success first.
 - **Category claim ("trusted execution infrastructure"):** defensible *as a
   narrow claim about agent authorization and audit*. Not defensible as a claim
   to sit above AWS and OpenAI. Make the narrow claim; it is true and it sells.
-- **Distance from the vision:** one feature — verifiable execution. Not a
-  platform rewrite.
-- **Distance from revenue:** unchanged, and it is not architectural. Nothing is
-  published to npm and there is no signup page. Both are days of work and both
-  gate everything downstream.
+- **Distance from the vision:** closed. Permitted, traceable and provable are
+  all real. What remains unbuilt is architecture aesthetics, not capability.
+- **Distance from revenue:** one action, and it is not code. The packages are
+  publish-ready and pack cleanly; running `pnpm publish:packages` needs an npm
+  account and 2FA, which only the owner can supply.
 
 ---
 
 ## 8. Recommended order
 
-1. **Publish to npm.** Nothing sells while nobody can install it.
-2. **Verifiable execution.** Signed, replayable traces. The one thing that makes
-   the vision literally true and no competitor offers.
-3. **Signup page.** A form calling `POST /admin/tenants`.
-4. Everything else in `docs/MONETIZATION.md`.
+1. ~~Verifiable execution~~ — **done.** Ed25519-signed, hash-chained traces.
+2. ~~Signup page~~ — **done.** `GET/POST /signup`, rate-limited, off by default.
+3. ~~npm publish readiness~~ — **done.** Metadata, licences, READMEs and
+   `pnpm publish:packages` in place; all four pack cleanly.
+4. **Run `pnpm publish:packages`.** Requires an npm account and 2FA, so it is
+   the owner's action, not an automatable one.
+5. Everything else in `docs/MONETIZATION.md`.
 
-Note that items 1 and 3 are distribution, not engineering. That remains the
-honest bottleneck.
+Step 4 is the only remaining bottleneck, and it needs credentials rather than
+code.
 
 **Explicitly not now:** distributed execution network, capability marketplace,
 protocol standardisation, cloud-marketplace listings, mobile client. Each needs

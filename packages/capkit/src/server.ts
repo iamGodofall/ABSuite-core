@@ -17,6 +17,8 @@ import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
 import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './billing';
 import { createServiceMetrics } from './metrics';
+import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload } from './trace';
+import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
 
 const PORT = Number(process.env.CAPKIT_PORT || process.env.PORT || 8081);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -66,6 +68,11 @@ const tenancy = new TenantService(storage);
 const metrics = createServiceMetrics('capkit');
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 
+// Ed25519 keypair for signing execution traces. Asymmetric on purpose: an
+// auditor must be able to verify a trace without also being able to forge one.
+const signingKey = new SigningKey(process.env.CAPKIT_TRACE_PRIVATE_KEY, process.env.CAPKIT_TRACE_KEY_ID || 'absuite-trace-key');
+const traces = new TraceStore(storage, signingKey);
+
 // Annotated explicitly so the emitted declaration file does not need to name
 // a transitive @types/express-serve-static-core path.
 const app: express.Express = express();
@@ -103,6 +110,8 @@ app.use((req, res, next) => {
   }
   return next();
 });
+
+metrics.counter('absuite_executions_total', 'Verifiable executions recorded, by outcome');
 
 // Request metrics. Recorded on finish so the duration covers the handler.
 app.use((req, res, next) => {
@@ -393,6 +402,161 @@ app.get('/ready', (_req, res) => {
 
 app.get('/audit/verify', authorise('audit:read'), (_req, res) => {
   res.status(200).json({ ...audit.verifyChain(), headHash: audit.headHash });
+});
+
+// ---- Self-serve signup ----
+
+/**
+ * Signup is opt-in via ABSUITE_SIGNUP_ENABLED.
+ *
+ * A public endpoint that mints credentials should never appear by surprise on
+ * someone's private deployment, so it stays off unless deliberately turned on.
+ */
+const SIGNUP_ENABLED = ['1', 'true', 'yes'].includes((process.env.ABSUITE_SIGNUP_ENABLED || '').toLowerCase());
+const SIGNUP_PLAN = (process.env.ABSUITE_SIGNUP_PLAN || 'free').trim();
+const signupThrottle = new SignupThrottle();
+
+app.get('/signup', (_req, res) => {
+  if (!SIGNUP_ENABLED) return fail(res, 404, 'NOT_FOUND', 'Self-serve signup is not enabled on this deployment');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(200).send(SIGNUP_PAGE);
+});
+
+app.post('/signup', (req, res) => {
+  if (!SIGNUP_ENABLED) return fail(res, 404, 'NOT_FOUND', 'Self-serve signup is not enabled on this deployment');
+
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  if (!signupThrottle.allow(key)) {
+    return fail(res, 429, 'RATE_LIMITED', 'Too many signups from this address. Try again later.');
+  }
+
+  const validated = validateSignup(req.body ?? {});
+  if (!validated.ok) return fail(res, 400, 'INVALID_REQUEST', validated.error);
+
+  // Signup can only ever create the configured plan — never a paid one.
+  const plan = isPlanId(SIGNUP_PLAN) ? SIGNUP_PLAN : 'free';
+
+  try {
+    const created = tenancy.tenants.create(validated.name, plan, `signup:${validated.email}`);
+    audit.record({ subject: validated.email, action: 'POST /signup', resource: `tenant:${created.id}`, result: 'allow' });
+
+    return res.status(201).json({
+      id: created.id,
+      name: created.name,
+      plan: created.plan,
+      // Returned exactly once; only the hash is stored.
+      apiKey: created.apiKey,
+    });
+  } catch (error) {
+    return fail(res, 400, 'INVALID_REQUEST', (error as Error).message);
+  }
+});
+
+// ---- Verifiable execution ----
+
+/**
+ * The public half of the trace signing key.
+ *
+ * Deliberately unauthenticated: verification is meant to be possible by an
+ * auditor or customer who holds no ABSuite credentials at all.
+ */
+app.get('/executions/public-key', (_req, res) => {
+  res.status(200).json({
+    keyId: signingKey.keyId,
+    algorithm: 'Ed25519',
+    publicKey: signingKey.publicKeyPem,
+    ephemeral: signingKey.ephemeral,
+  });
+});
+
+app.post('/executions', authorise('execution:record'), (req, res) => {
+  const { subject, jti, scope, module, action, input, output, outcome, error, startedAt, completedAt, durationMs, steps } = req.body ?? {};
+
+  if (!subject || !module || !action || !outcome) {
+    return fail(res, 400, 'INVALID_REQUEST', 'subject, module, action and outcome are required');
+  }
+  if (!['success', 'failure'].includes(String(outcome))) {
+    return fail(res, 400, 'INVALID_REQUEST', 'outcome must be success or failure');
+  }
+
+  const tenant = (req as TenantRequest).tenant;
+
+  const trace = traces.record({
+    ...(tenant ? { tenantId: tenant.id } : {}),
+    subject: String(subject),
+    ...(jti ? { jti: String(jti) } : {}),
+    scope: Array.isArray(scope) ? scope.map(String) : [],
+    module: String(module),
+    action: String(action),
+    // Payloads are hashed, never stored — proof without retaining customer data.
+    inputHash: typeof req.body?.inputHash === 'string' ? req.body.inputHash : hashPayload(input),
+    ...(output !== undefined || typeof req.body?.outputHash === 'string'
+      ? { outputHash: typeof req.body?.outputHash === 'string' ? req.body.outputHash : hashPayload(output) }
+      : {}),
+    outcome: String(outcome) as 'success' | 'failure',
+    ...(error ? { error: String(error) } : {}),
+    startedAt: String(startedAt || new Date().toISOString()),
+    ...(completedAt ? { completedAt: String(completedAt) } : {}),
+    ...(durationMs !== undefined ? { durationMs: Number(durationMs) } : {}),
+    steps: Array.isArray(steps) ? steps : [],
+  });
+
+  metrics.increment('absuite_executions_total', { outcome: trace.outcome, module: trace.module });
+  return res.status(201).json(trace);
+});
+
+app.get('/executions', authorise('execution:read'), (req, res) => {
+  const tenant = (req as TenantRequest).tenant;
+  res.status(200).json({
+    executions: traces.list({
+      limit: Number(req.query.limit ?? 50),
+      // A tenant key scopes the view to that tenant's own records.
+      ...(tenant ? { tenantId: tenant.id } : {}),
+      ...(req.query.subject ? { subject: String(req.query.subject) } : {}),
+      ...(req.query.outcome ? { outcome: String(req.query.outcome) } : {}),
+    }),
+  });
+});
+
+app.get('/executions/:id', authorise('execution:read'), (req, res) => {
+  const trace = traces.get(String(req.params.id));
+  if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');
+  return res.status(200).json(trace);
+});
+
+app.get('/executions/:id/replay', authorise('execution:read'), (req, res) => {
+  const trace = traces.get(String(req.params.id));
+  if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');
+  return res.status(200).json(replayManifest(trace));
+});
+
+/** Compare a re-run of an execution against its recorded hashes. */
+app.post('/executions/:id/replay', authorise('execution:read'), (req, res) => {
+  const trace = traces.get(String(req.params.id));
+  if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');
+
+  const comparison = compareReplay(trace, { input: req.body?.input, output: req.body?.output });
+  return res.status(200).json({ id: trace.id, ...comparison });
+});
+
+/**
+ * Verify a single trace, or the whole chain.
+ *
+ * Unauthenticated by design: a customer or regulator must be able to check a
+ * trace they were handed without holding an ABSuite credential.
+ */
+app.post('/executions/verify', (req, res) => {
+  const trace = req.body?.trace;
+  if (!trace || typeof trace !== 'object') {
+    return fail(res, 400, 'INVALID_REQUEST', 'A trace object is required');
+  }
+
+  const publicKey = typeof req.body?.publicKey === 'string' ? req.body.publicKey : signingKey.publicKeyPem;
+  return res.status(200).json(verifyTrace(trace, publicKey));
+});
+
+app.get('/executions-verify-chain', authorise('execution:read'), (_req, res) => {
+  res.status(200).json(traces.verifyChain(signingKey.publicKeyPem));
 });
 
 // ---- Billing & tenancy ----

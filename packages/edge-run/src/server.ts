@@ -5,7 +5,15 @@
  * issued and revoked centrally rather than per-service.
  */
 import express from 'express';
-import { capabilityGuard, revocationStoreFromEnv, getStorage, createServiceMetrics } from '@absuite/capkit';
+import {
+  capabilityGuard,
+  revocationStoreFromEnv,
+  getStorage,
+  createServiceMetrics,
+  TraceStore,
+  SigningKey,
+  hashPayload,
+} from '@absuite/capkit';
 import { TaskRuntime } from './runtime';
 import { TaskQueue, type QueuedTask } from './queue';
 import { AgentScheduler } from './scheduler';
@@ -20,6 +28,41 @@ const runtime = new TaskRuntime();
 const healing = new SelfHealing();
 const persistence = persistenceFromEnv(getStorage);
 const metrics = createServiceMetrics('edge-run');
+
+/**
+ * Signed execution traces for real work.
+ *
+ * Only enabled when a shared database is configured — the trace chain must be
+ * durable to mean anything. The signing key is shared with CapKit so one public
+ * key verifies traces from the whole suite.
+ */
+const traces = persistence.enabled
+  ? new TraceStore(
+      getStorage(),
+      new SigningKey(process.env.CAPKIT_TRACE_PRIVATE_KEY, process.env.CAPKIT_TRACE_KEY_ID || 'absuite-trace-key')
+    )
+  : null;
+
+/**
+ * Who authorised each task, remembered until it reaches a terminal state so
+ * the trace attributes the action to a real subject rather than to the service.
+ */
+const taskActors = new Map<string, string>();
+
+/** Human-readable action label for a trace, with no secrets in it. */
+function describeTask(task: { type: string; url?: string; script?: string; method?: string }): string {
+  if (task.type === 'http' && task.url) {
+    try {
+      const parsed = new URL(task.url);
+      // Path only — query strings routinely carry tokens.
+      return `http:${(task.method ?? 'GET').toUpperCase()} ${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return 'http:invalid-url';
+    }
+  }
+  if (task.type === 'script' && task.script) return `script:${task.script}`;
+  return task.type;
+}
 
 /** Ring buffer of recent events, streamed to SSE subscribers. */
 const recentLogs: Array<{ task: string; timestamp: string; level: string; message: string }> = [];
@@ -51,6 +94,36 @@ const queue = new TaskQueue({
     // Write through on every transition so a crash mid-run is recoverable.
     persistence.saveTask(task);
     metrics.increment('absuite_tasks_total', { event: type });
+
+    // A terminal outcome is a real action taken in the world, so it gets a
+    // signed, chained trace. Retries are not terminal and are left to the
+    // task record; only what actually happened is attested.
+    if (traces && (type === 'completed' || type === 'dead')) {
+      try {
+        traces.record({
+          subject: taskActors.get(task.id) ?? 'edge-run',
+          scope: ['queue:write'],
+          module: 'edge-run',
+          action: describeTask(task.task),
+          inputHash: hashPayload(task.task),
+          ...(task.result?.output !== undefined ? { outputHash: hashPayload(task.result.output) } : {}),
+          outcome: type === 'completed' ? 'success' : 'failure',
+          ...(task.lastError ? { error: task.lastError } : {}),
+          startedAt: task.startedAt ?? task.queuedAt,
+          completedAt: task.completedAt ?? new Date().toISOString(),
+          ...(task.result?.durationMs !== undefined ? { durationMs: Math.round(task.result.durationMs) } : {}),
+          steps: [
+            { seq: 1, name: 'queued', at: task.queuedAt },
+            ...(task.startedAt ? [{ seq: 2, name: 'started', at: task.startedAt }] : []),
+            { seq: 3, name: type, at: task.completedAt ?? new Date().toISOString(), detail: `attempt ${task.attempts}` },
+          ],
+        });
+        taskActors.delete(task.id);
+      } catch (error) {
+        // A trace failure must never lose the task result itself.
+        console.error('[edge-run] Could not record execution trace:', (error as Error).message);
+      }
+    }
 
     const level = type === 'dead' ? 'error' : type === 'retrying' ? 'warn' : 'info';
     emit(level, task.id, message ? `${type}: ${message}` : type);
@@ -202,8 +275,16 @@ app.post('/queue', requireCapability('queue:write'), async (req, res) => {
       ...(timeout !== undefined ? { timeoutMs: Number(timeout) } : {}),
     });
 
+    // Remember the caller so the eventual trace names who authorised the work.
+    taskActors.set(queued.id, (req as express.Request & { actor?: string }).actor ?? 'unknown');
+
     void queue.tick();
-    return res.status(201).json({ id: queued.id, status: queued.state, queuedAt: queued.queuedAt });
+    return res.status(201).json({
+      id: queued.id,
+      status: queued.state,
+      queuedAt: queued.queuedAt,
+      traced: traces !== null,
+    });
   } catch (error) {
     return fail(res, 429, 'RATE_LIMITED', (error as Error).message);
   }

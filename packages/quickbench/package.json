@@ -6,7 +6,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -33,5 +35,17 @@
   },
   "engines": {
     "node": ">=22.5.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamGodofall/ABSuite-core.git",
+    "directory": "packages/quickbench"
+  },
+  "homepage": "https://github.com/iamGodofall/ABSuite-core#readme",
+  "bugs": {
+    "url": "https://github.com/iamGodofall/ABSuite-core/issues"
   }
 }

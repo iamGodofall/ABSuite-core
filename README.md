@@ -42,6 +42,8 @@ Everything needed to run this as a paid service, not just as code:
 | **Tamper-evident audit** | Hash-chained entries; `/audit/verify` names the first broken entry |
 | **Observability** | `/metrics` (Prometheus), `/health` and `/ready` on every service |
 | **Graceful shutdown** | SIGTERM drains in-flight requests and flushes state |
+| **Verifiable execution** | Ed25519-signed, hash-chained traces of every real action |
+| **Self-serve signup** | `/signup` creates a tenant and shows its key once |
 
 See [`docs/LAUNCH.md`](./docs/LAUNCH.md) for the pre-launch checklist and
 [`docs/openapi.yaml`](./docs/openapi.yaml) for the full API spec.
@@ -70,8 +72,36 @@ curl -H "Authorization: Bearer $TOKEN" localhost:8082/queue    # -> 401 TOKEN_RE
 curl -H "Authorization: Bearer $TOKEN" localhost:8083/history  # -> 401 TOKEN_REVOKED
 ```
 
-Set `CAPKIT_REVOCATION_FILE` to a path every service can read, and revocation
+Set `ABSUITE_DB_PATH` to a database every service can read, and revocation
 propagates across processes and replicas.
+
+### Provable, not just traceable
+
+Every real action produces a hash-chained trace signed with **Ed25519** — so an
+auditor can verify your records holding *only a public key*, without also being
+able to forge them. Payloads are hashed, never stored, so a trace proves what
+happened without ABSuite retaining your customers' data.
+
+```bash
+# An auditor needs no ABSuite credentials at all
+curl localhost:8081/executions/public-key
+
+curl -X POST localhost:8081/executions/verify \
+  -H 'Content-Type: application/json' -d "{\"trace\": $TRACE}"
+# -> {"valid":true,"contentIntact":true,"signatureValid":true}
+```
+
+Tampering is caught at both levels. Edit a field and the content hash fails.
+Recompute the hash to match your edit and the **signature** fails, because you
+were never able to sign it:
+
+```json
+{"valid":false,"reason":"Signature does not verify against the supplied key",
+ "contentIntact":true,"signatureValid":false}
+```
+
+`GET /executions-verify-chain` walks the whole log and names the sequence number
+of the first record that breaks.
 
 ---
 

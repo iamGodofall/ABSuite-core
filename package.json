@@ -16,7 +16,9 @@
     "lint": "pnpm -r lint",
     "clean": "pnpm -r exec rm -rf dist node_modules",
     "cli": "pnpm --filter @absuite/cli run dev",
-    "cli:build": "pnpm --filter @absuite/cli build"
+    "cli:build": "pnpm --filter @absuite/cli build",
+    "publish:packages": "pnpm -r --filter \"@absuite/*\" build && pnpm -r --filter \"@absuite/*\" publish --access public --no-git-checks",
+    "publish:dry": "pnpm -r --filter \"@absuite/*\" exec npm pack --dry-run"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"

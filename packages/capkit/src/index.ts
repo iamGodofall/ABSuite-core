@@ -69,6 +69,25 @@ export {
 
 export { MetricsRegistry, createServiceMetrics, type LabelSet } from './metrics';
 
+export { SIGNUP_PAGE, SignupThrottle, validateSignup, type SignupLimits } from './signup';
+
+export {
+  TraceStore,
+  SigningKey,
+  hashPayload,
+  hashTrace,
+  canonicalTrace,
+  verifyTrace,
+  verifySignature,
+  replayManifest,
+  compareReplay,
+  GENESIS_HASH,
+  type ExecutionTrace,
+  type ExecutionStep,
+  type ExecutionOutcome,
+  type TraceVerdict,
+} from './trace';
+
 export { generatePolicy, type GeneratedPolicy, type SensitivityLevel, type FilterLevel } from './ai-policy-generator';
 
 export { describeProviders, type ProviderOption } from './llm-provider';

@@ -88,6 +88,33 @@ const MIGRATIONS: string[] = [
    )`,
 
   `CREATE INDEX IF NOT EXISTS idx_queue_state ON queue_tasks (state, available_at)`,
+
+  // Verifiable execution: one signed, chained record per real action taken.
+  `CREATE TABLE IF NOT EXISTS executions (
+     id           TEXT PRIMARY KEY,
+     seq          INTEGER,
+     tenant_id    TEXT,
+     subject      TEXT NOT NULL,
+     jti          TEXT,
+     scope        TEXT NOT NULL,
+     module       TEXT NOT NULL,
+     action       TEXT NOT NULL,
+     input_hash   TEXT NOT NULL,
+     output_hash  TEXT,
+     outcome      TEXT NOT NULL,
+     error        TEXT,
+     started_at   TEXT NOT NULL,
+     completed_at TEXT,
+     duration_ms  INTEGER,
+     steps        TEXT NOT NULL,
+     prev_hash    TEXT NOT NULL,
+     hash         TEXT NOT NULL,
+     signature    TEXT,
+     key_id       TEXT
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_executions_seq ON executions (seq)`,
+  `CREATE INDEX IF NOT EXISTS idx_executions_tenant ON executions (tenant_id, started_at)`,
 ];
 
 export class Storage {
@@ -103,11 +130,23 @@ export class Storage {
     // an in-memory database, so only enable it for a real file.
     if (this.path !== ':memory:') {
       this.db.exec('PRAGMA journal_mode = WAL');
+
+      // Every ABSuite service opens this same file, and Docker Compose starts
+      // them simultaneously. Without a busy timeout SQLite fails immediately
+      // with SQLITE_BUSY when two processes migrate at once, crashing whichever
+      // lost the race. Wait for the lock instead.
+      this.db.exec('PRAGMA busy_timeout = 10000');
     }
     this.db.exec('PRAGMA foreign_keys = ON');
     this.migrate();
   }
 
+  /**
+   * Apply schema statements.
+   *
+   * Every statement is `IF NOT EXISTS`, so concurrent migrators converge on the
+   * same schema; the busy timeout above is what stops them colliding.
+   */
   private migrate(): void {
     for (const statement of MIGRATIONS) {
       this.db.exec(statement);
