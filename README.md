@@ -238,32 +238,79 @@ ABSuite-core/
 
 ## 🏗️ Architecture
 
+ABSuite enforces authority **at every service**, not at a single gateway. Each
+service imports `capabilityGuard` from `@absuite/capkit`, so there is no path
+that reaches execution without a capability check — including a caller who
+bypasses the dashboard entirely and talks to a service directly.
+
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Dashboard (:3001)                 │
-│         React + Vite + Socket.io live updates        │
-└────────────────────┬────────────────────────────────┘
-                     │ HTTP + WebSocket
-┌────────────────────▼────────────────────────────────┐
-│              ABSuite Orchestrator                    │
-│    CLI · Service Manager · Docker Integration       │
-└──────┬──────────────┬──────────────┬────────────────┘
-       │              │              │
-┌──────▼──────┐ ┌─────▼──────┐ ┌────▼───────┐
-│  CapKit     │ │  Edge-Run  │ │  QuickBench │
-│  :8081      │ │  :8082     │ │  :8083      │
-│             │ │            │ │             │
-│ · JWT       │ │ · Scheduler│ │ · Benchmarks│
-│ · Capability│ │ · Runtime  │ │ · Profiling │
-│ · AI Policy │ │ · Healing  │ │ · A/B tests │
-└─────────────┘ └────────────┘ └─────────────┘
-       │              │              │
-       └──────────────▼──────────────┘
-              ┌─────────────┐
-              │  absuite-db │
-              │  (SQLite)   │
-              └─────────────┘
+   CLIENTS                Dashboard (:3001)      MCP client        curl / SDK
+                          React · Socket.io      Claude, agents
+                                 │                    │                │
+                                 └────────────┬───────┴────────────────┘
+                                              │ Bearer <capability token>
+ ═════════════════════════════════════════════▼═══════════════════════════════
+   @absuite/capkit — THE CORE (library + service :8081)
+   Imported by every service below. Depends on nothing in this repo.
+
+     capability.ts   scopes, expiry, audience   │  trace.ts    Ed25519 traces
+     jwt.ts          HS256 on node:crypto       │  audit.ts    hash chain
+     keyring.ts      rotation w/o downtime      │  tenancy.ts  tenants, meters
+     middleware.ts   capabilityGuard()  ◄── enforcement point
+     revocation-store.ts   shared, cross-service
+ ═════════════════════════════════════════════╤═══════════════════════════════
+                                              │ imports capabilityGuard
+        ┌──────────────────┬──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼                  ▼
+ ┌─────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+ │ @absuite/   │   │ @absuite/    │   │ @absuite/    │   │ @absuite/    │
+ │ edge-run    │   │ quickbench   │   │ connector-   │   │ mcp          │
+ │ :8082       │   │ :8083        │   │ starter :8084│   │ stdio        │
+ │             │   │              │   │              │   │              │
+ │ cron        │   │ percentiles  │   │ registry     │   │ MCP tools    │
+ │ queue       │   │ providers    │   │ verification │   │ filtered by  │
+ │ retries     │   │ regression   │   │ scaffolding  │   │ capability   │
+ │ breaker     │   │ reports      │   │              │   │ + attested   │
+ └──────┬──────┘   └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
+        │ guards every mutating route with a required scope     │
+        └──────────────────┴─────────┬────────┴─────────────────┘
+                                     ▼
+                    ┌────────────────────────────────┐
+                    │   absuite-db  (SQLite, WAL)    │
+                    │   Single source of truth       │
+                    │                                │
+                    │  tenants · usage · revocations │
+                    │  executions (signed, chained)  │
+                    │  audit · schedules · queue     │
+                    └────────────────┬───────────────┘
+                                     │ public key only
+                                     ▼
+                    ┌────────────────────────────────┐
+                    │  ANY THIRD PARTY / AUDITOR     │
+                    │  docs/verify.html — in browser │
+                    │  No account. No server. No     │
+                    │  ability to forge.             │
+                    └────────────────────────────────┘
 ```
+
+### Every request follows the same path
+
+```
+request → capability verified (signature, expiry, audience, scope, revocation)
+        → tenant resolved, quota checked        402 if exceeded, 403 if suspended
+        → execution                             real API call, real process
+        → trace recorded                        hash-chained, Ed25519-signed
+        → result returned with its attestation
+```
+
+**Why enforcement lives in a library, not a gateway.** A central orchestrator
+that everything must route through is a single point of failure, a throughput
+bottleneck, and — critically — it leaves a bypass: anything that reaches a
+service directly skips the check. Distributing the *same* guard to every
+service means direct access is checked too. There is no unguarded door.
+
+**The one invariant:** `@absuite/capkit` depends on nothing in this repo;
+everything else depends on it. Never invert that arrow.
 
 ---
 

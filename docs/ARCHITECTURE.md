@@ -6,46 +6,101 @@
 
 ## System Overview
 
-ABSuite is structured as a **modular monorepo** — each package is an independent, composable unit that can run alone or together as a full platform.
+ABSuite is a **modular monorepo**. One package is the core; every other package
+depends on it and on nothing else in the repo.
 
 ```
-                    ┌──────────────────────────────────────┐
-                    │           Developer / CLI             │
-                    │    (absuite CLI or direct HTTP)      │
-                    └──────────────────┬───────────────────┘
-                                       │
-                    ┌──────────────────▼───────────────────┐
-                    │           ABSuite Dashboard            │
-                    │        React + Vite + Socket.io       │
-                    │           Port :3001                  │
-                    └──────────────────┬───────────────────┘
-                                       │ HTTP + WebSocket
-          ┌────────────────────────────┼────────────────────────────┐
-          │                            │                            │
-┌─────────▼─────────┐     ┌────────────▼──────────┐    ┌──────────▼──────────┐
-│     CapKit       │     │      Edge-Run         │    │     QuickBench       │
-│  Security Layer   │     │  Execution Layer      │    │  Benchmarking Layer  │
-│                  │     │                       │    │                      │
-│ · JWT validation │     │ · Cron scheduling     │    │ · Latency profiling  │
-│ · Capability     │     │ · Task queues        │    │ · Throughput testing  │
-│   tokens         │     │ · Process spawning   │    │ · KV cache analysis   │
-│ · AI content     │     │ · Self-healing       │    │ · A/B model comparison│
-│   policy         │     │                       │    │                      │
-│ · Rate limiting  │     │                       │    │                      │
-│ · Audit logging  │     │                       │    │                      │
-│   Port :8081     │     │   Port :8082          │    │    Port :8083         │
-└─────────┬─────────┘     └────────────┬──────────┘    └──────────┬──────────┘
-          │                            │                            │
-          └────────────────────────────┼────────────────────────────┘
-                                       │
-                        ┌──────────────▼─────────────┐
-                        │       absuite-db           │
-                        │   SQLite (shared volume)   │
-                        │  · Audit logs              │
-                        │  · Benchmark results       │
-                        │  · Capability tokens       │
-                        │  · Task metadata           │
-                        └────────────────────────────┘
+   CLIENTS                Dashboard (:3001)      MCP client        curl / SDK
+                          React · Socket.io      Claude, agents
+                                 │                    │                │
+                                 └────────────┬───────┴────────────────┘
+                                              │ Bearer <capability token>
+ ═════════════════════════════════════════════▼═══════════════════════════════
+   @absuite/capkit — THE CORE (library + service :8081)
+   Imported by every service below. Depends on nothing in this repo.
+
+     capability.ts   scopes, expiry, audience   │  trace.ts    Ed25519 traces
+     jwt.ts          HS256 on node:crypto       │  audit.ts    hash chain
+     keyring.ts      rotation w/o downtime      │  tenancy.ts  tenants, meters
+     middleware.ts   capabilityGuard()  ◄── enforcement point
+     revocation-store.ts   shared, cross-service
+ ═════════════════════════════════════════════╤═══════════════════════════════
+                                              │ imports capabilityGuard
+        ┌──────────────────┬──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼                  ▼
+ ┌─────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+ │ @absuite/   │   │ @absuite/    │   │ @absuite/    │   │ @absuite/    │
+ │ edge-run    │   │ quickbench   │   │ connector-   │   │ mcp          │
+ │ :8082       │   │ :8083        │   │ starter :8084│   │ stdio        │
+ │             │   │              │   │              │   │              │
+ │ cron        │   │ percentiles  │   │ registry     │   │ MCP tools    │
+ │ queue       │   │ providers    │   │ verification │   │ filtered by  │
+ │ retries     │   │ regression   │   │ scaffolding  │   │ capability   │
+ │ breaker     │   │ reports      │   │              │   │ + attested   │
+ └──────┬──────┘   └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
+        │ guards every mutating route with a required scope     │
+        └──────────────────┴─────────┬────────┴─────────────────┘
+                                     ▼
+                    ┌────────────────────────────────┐
+                    │   absuite-db  (SQLite, WAL)    │
+                    │   Single source of truth       │
+                    │                                │
+                    │  tenants · usage · revocations │
+                    │  executions (signed, chained)  │
+                    │  audit · schedules · queue     │
+                    └────────────────┬───────────────┘
+                                     │ public key only
+                                     ▼
+                    ┌────────────────────────────────┐
+                    │  ANY THIRD PARTY / AUDITOR     │
+                    │  docs/verify.html — in browser │
+                    │  No account. No server. No     │
+                    │  ability to forge.             │
+                    └────────────────────────────────┘
+```
+
+### Why enforcement is a library, not a gateway
+
+A common design routes every request through a central orchestrator, with the
+services stripped of authority. It looks tidy on a diagram and is worse in
+practice:
+
+- **Single point of failure.** The orchestrator goes down, everything stops.
+- **Throughput bottleneck.** All traffic funnels through one process.
+- **It leaves a bypass.** If services carry no authority, anything that reaches
+  a service directly — a misconfigured network, a container on the same host, a
+  developer with curl — executes unchecked.
+
+ABSuite distributes the *same* guard to every service instead. `capabilityGuard`
+comes from `@absuite/capkit`, so a request arriving at Edge-Run directly is
+checked by exactly the same code that would have checked it at a gateway.
+**There is no unguarded door.**
+
+The trade-off is honest: enforcement logic is deployed in several places, so a
+fix must be released to all of them. Sharing one library rather than
+reimplementing per service is what keeps that manageable.
+
+### The one invariant
+
+```
+@absuite/capkit            → (no workspace dependencies)
+@absuite/edge-run          → @absuite/capkit
+@absuite/quickbench        → @absuite/capkit
+@absuite/connector-starter → @absuite/capkit
+@absuite/mcp               → @absuite/capkit
+```
+
+The core depends on nothing; everything depends on the core. Never invert that
+arrow. Folder names do not matter; this direction does.
+
+### Request lifecycle
+
+```
+request → capability verified (signature, expiry, audience, scope, revocation)
+        → tenant resolved, quota checked        402 if exceeded, 403 if suspended
+        → execution                             real API call, real process
+        → trace recorded                        hash-chained, Ed25519-signed
+        → result returned with its attestation
 ```
 
 ---
@@ -54,7 +109,18 @@ ABSuite is structured as a **modular monorepo** — each package is an independe
 
 ### CapKit — Security Layer
 
-CapKit is the **policy enforcement point** for the entire platform. Every request that enters ABSuite passes through CapKit's validation layer.
+CapKit is both a **library** and a **service**, and the distinction matters.
+
+As a **library**, it is imported by every other package. `capabilityGuard()` is
+the enforcement point, and it runs *inside each service* — so a request reaching
+Edge-Run directly is checked by the same code that would check it anywhere else.
+
+As a **service** on `:8081`, it issues and revokes tokens, stores the audit chain
+and execution traces, and serves the public key auditors verify with.
+
+Traffic does **not** route through CapKit-the-service to be authorised. That
+would be a bottleneck and a single point of failure, and it would leave services
+unguarded to anything that reached them directly.
 
 **Responsibilities:**
 - **JWT creation and validation** — Issued by CapKit, validated on every request
@@ -225,20 +291,34 @@ It communicates with all modules via REST APIs and receives live updates via Soc
 
 1. **Network level** — Docker networks isolate services; only the dashboard port is exposed to host
 2. **Transport level** — All inter-service communication can be TLS-encrypted (configured via env vars)
-3. **Application level** — CapKit validates every inbound request
+3. **Application level** — every service enforces `capabilityGuard()` from `@absuite/capkit` on its own routes; there is no unguarded door
 4. **Capability level** — Even valid requests are scoped to specific resources and actions
 
 ### Token security
 
-Capability tokens use HMAC-SHA256 with per-tenant keys. Tokens are:
-- **Unforgeable** — HMAC prevents tampering
-- **Time-limited** — Expire automatically
-- **Scope-restricted** — Can only access explicitly granted resources
-- **Revocable** — Token ID tracked in database for immediate revocation
+Capability tokens are HS256 JWTs signed with `node:crypto` — no third-party JWT
+dependency on the security-critical path. Tokens are:
+- **Unforgeable** — signature verified in constant time; `alg: none` and tampered payloads rejected
+- **Time-limited** — expiry enforced, with optional audience binding
+- **Scope-restricted** — segment-wise matching, so `read:*` grants `read:users` but never `read:users:delete`
+- **Revocable** — `jti` recorded in a store every service reads, so revocation is immediate across the suite
+- **Rotatable** — `KeyRing` keeps recently retired keys verifying, so rotating a secret never logs running agents out
 
 ### Audit trail
 
-Every request goes through CapKit → audit entry written to SQLite → dashboard displays live.
+Two records exist, and they answer different questions.
+
+**The audit log** answers *"was this permitted?"* — every allow and deny, with
+subject, action, resource and reason. Hash-chained, so editing history breaks
+the chain and `/audit/verify` names the first broken entry.
+
+**The execution trace** answers *"what actually happened, and can you prove
+it?"* — hash-chained *and* Ed25519-signed. Verification needs only the public
+key, and a public key cannot produce a signature, so the operator cannot
+fabricate history and an auditor cannot fabricate an accusation.
+
+Inputs and outputs are stored as **hashes, never content** — a trace proves what
+happened without retaining the underlying data.
 
 ---
 
