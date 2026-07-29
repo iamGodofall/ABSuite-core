@@ -1,7 +1,7 @@
 {
-  "name": "dashboard-ui",
-  "version": "2.0.0",
-  "description": "ABSuite Dashboard UI - Production-Ready React Application",
+  "name": "@absuitecore/dashboard-ui",
+  "version": "1.1.0",
+  "description": "ABSuite dashboard — service health, token issuance and proof verification. Not published; runs from this repository.",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc && vite build",

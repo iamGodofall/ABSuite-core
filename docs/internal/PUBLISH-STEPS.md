@@ -4,7 +4,7 @@
 > Every package named below is published. The blocker it describes — an
 > unclaimed npm scope — was resolved by creating `@absuitecore`.
 > The current state of the project is in
-> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> [`docs/ROADMAP.md`](../ROADMAP.md); the current numbers are whatever
 > `pnpm test` and `pnpm docs:check` print. This document is kept for the
 > reasoning, not for its facts.
 

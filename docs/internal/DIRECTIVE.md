@@ -160,7 +160,7 @@ competitor offers." **False.** Correct picture:
 
 | Competitor | Does | Gap |
 |---|---|---|
-| **AgentLens** (MIT, ~13 stars) | MCP-native observability, SHA-256 hash chain | Hash chain only — **no asymmetric signature**; observes, does not enforce |
+| **AgentLens** (MIT) | MCP-native observability, SHA-256 hash chain | Hash chain only — **no asymmetric signature**; observes, does not enforce |
 | **Attestix** | EU AI Act compliance, W3C Verifiable Credentials | Identity-focused |
 | **nono** | Merkle-tree action log | Does not enforce |
 | **Arcade.dev** (funded) | Agent auth, token vault, hosted execution, $25/mo | Does not cryptographically attest execution |

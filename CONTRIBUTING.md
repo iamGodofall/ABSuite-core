@@ -27,7 +27,7 @@ corepack enable          # pnpm 9+
 pnpm install
 
 pnpm build               # also type-checks
-pnpm test                # 405 tests, ~7 seconds
+pnpm test                # 410 tests, a few seconds
 pnpm docs:check          # fails if docs/API.md has drifted from the routes
 ```
 

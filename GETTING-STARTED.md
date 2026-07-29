@@ -109,8 +109,22 @@ docker compose ps
 | Dashboard | 3001 | React UI |
 | absuite-db | — | Shared SQLite volume, not exposed |
 
-Ports bind to `127.0.0.1` only. Nothing is reachable from outside the host until
-you deliberately publish it.
+Every port binds to `127.0.0.1`, so nothing is reachable from outside the host
+until you deliberately publish it behind a proxy that terminates TLS and
+authenticates.
+
+Two things about the dashboard worth knowing before you run it, because neither
+is obvious from the compose file:
+
+- It receives **`CAPKIT_ADMIN_KEY`**, the bootstrap credential that mints
+  capability tokens. Anyone who reaches the dashboard can issue them.
+- It mounts **`/var/run/docker.sock` read-only** so it can report and control
+  service state. That is a real grant on the host. If you do not want it,
+  delete the `volumes:` entry on the `dashboard` service — everything except
+  start/stop/restart still works.
+
+The rest of the suite needs neither. If you only want the trust guarantees, run
+CapKit alone.
 
 ---
 

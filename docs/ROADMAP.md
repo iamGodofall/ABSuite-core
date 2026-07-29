@@ -26,7 +26,7 @@ This document is measured in **days**. The decade-scale view lives in
 | Governance Components | Complete |
 | Explainability | Complete |
 
-412 tests. 94 API endpoints. 7 npm packages on npm. 6 HTTP services and an MCP
+410 tests. 94 API endpoints. 7 npm packages on npm. 6 HTTP services and an MCP
 server.
 
 The sentence that used to sit here — *"nothing is installable and nobody has

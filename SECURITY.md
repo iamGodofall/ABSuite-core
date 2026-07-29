@@ -37,10 +37,20 @@ You will be credited in the advisory unless you would rather not be.
 
 ## Supported versions
 
-| Version | Supported |
+Packages version independently, so the honest answer is **the latest published
+version of each package**, which `npm view @absuitecore/<name> version` will
+tell you. Anything older gets a fix only if the issue is severe and the upgrade
+path is genuinely blocked.
+
+Versions with a known defect carry an npm deprecation notice, so `npm install`
+tells you at the point it matters rather than leaving you to find out:
+
+| Deprecated | Why |
 |---|---|
-| 1.0.x | Yes |
-| < 1.0 | No — pre-release, do not use |
+| `@absuitecore/capkit@<1.1.1` | `POST /auth/token/validate` accepted `requiredScope` and silently ignored it, returning `valid: true` for scopes a token did not hold |
+| `@absuitecore/cli@<1.0.2` | `1.0.0` could not run at all; `1.0.1` had broken `--help` and `status` for global installs |
+
+Anything below `1.0` was pre-release. Do not use it.
 
 ## What counts as a vulnerability
 

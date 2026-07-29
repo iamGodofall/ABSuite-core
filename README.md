@@ -76,21 +76,40 @@ computed one, so the disagreement is visible rather than asserted.
 Most AI governance products ask *can we trust the model?* ABSuite asks the
 question that has an answer: **can we trust the evidence around the model?**
 
-Every product in the category does one or two of these. They are only useful
-together. Attestation without enforcement records violations it could have
-prevented. Enforcement without replay cannot show what actually happened. Replay
-without certificates proves it to you and nobody else.
+### A hash chain is not a signature
 
-| | Attestation | Enforcement | Replay | Certificates |
-|---|---|---|---|---|
-| Arcade.dev | Yes | Yes | No | No |
-| AgentLens | Yes | No | Partial | No |
-| Attestix | Yes | No | No | Partial |
-| Traceloop / OpenLLMetry | Partial | No | No | No |
-| **ABSuite** | **Yes** | **Yes** | **Yes** | **Yes** |
+This is the distinction the whole project turns on, and it is worth being
+precise about because plenty of audit tools stop one step short of it.
 
-> Compiled from public documentation as of July 2026. Categories move fast — if
-> something here is out of date or wrong, open an issue and it gets corrected.
+Hash-chaining links each record to the one before it, the way git commits are
+linked. Edit history and verification fails. That is genuinely useful, and it is
+what most tamper-evident audit logs provide.
+
+**It proves a record was not edited afterwards. It does not prove who wrote
+it.** Anyone holding the log — including the operator being audited — can
+construct a perfectly valid hash chain containing whatever they like. If the
+question is *"did this company fabricate its own audit trail?"*, a hash chain
+cannot answer it.
+
+ABSuite hash-chains **and** signs each record with **Ed25519**. Verification
+needs only the public key, and a public key cannot produce a signature. So the
+operator cannot fabricate history, and the auditor cannot fabricate an
+accusation. That asymmetry is the product.
+
+### Four things that only work together
+
+| | Without it |
+|---|---|
+| **Attestation** | You have logs, not evidence |
+| **Enforcement** | You record violations you could have prevented |
+| **Replay** | You cannot show what actually happened, only what was written down |
+| **Independent verification** | You have proof for yourself and nobody else |
+
+ABSuite does all four. Other projects in this space do some of them, several do
+them well, and the category moves fast enough that a scorecard published here
+would be out of date within weeks — so this page does not keep one. Compare it
+against whatever you are considering on those four axes and on the signature
+question above; those are the criteria that matter, whoever wins them.
 
 ---
 
@@ -174,7 +193,7 @@ Input
 ## Status
 
 ```text
-412 tests                     94 API endpoints
+410 tests                     94 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```

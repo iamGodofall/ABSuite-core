@@ -4,7 +4,7 @@
 > The publish workflow it sets up exists and has run. Releases are now cut
 > from `.github/workflows/publish.yml`.
 > The current state of the project is in
-> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> [`docs/ROADMAP.md`](../ROADMAP.md); the current numbers are whatever
 > `pnpm test` and `pnpm docs:check` print. This document is kept for the
 > reasoning, not for its facts.
 

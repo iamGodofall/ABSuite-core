@@ -170,20 +170,42 @@ Audit logs are:
 
 ### Docker network isolation
 
-Each ABSuite service runs in an isolated Docker container on a private bridge network (`absuite-net`). Only the dashboard's port (3001) is exposed to the host.
+Each ABSuite service runs in its own container on a private bridge network
+(`absuite-net`). Six ports are published to the host, **every one bound to
+`127.0.0.1`** — reachable from the machine itself, not from the network.
 
 ```
-Host machine
+Host machine (loopback only)
     │
-    ├── :3001 ────► dashboard (absuite-dashboard)
-    │                   │
-    │                   ├── :8081 ───► capkit
-    │                   ├── :8082 ───► edge-run
-    │                   ├── :8083 ───► quickbench
-    │                   └── :8084 ───► connector-starter
+    ├── 127.0.0.1:3001 ──► dashboard            ┐
+    ├── 127.0.0.1:8081 ──► capkit               │
+    ├── 127.0.0.1:8082 ──► edge-run             │ all on absuite-net,
+    ├── 127.0.0.1:8083 ──► quickbench           │ talking to each other
+    ├── 127.0.0.1:8084 ──► connector-starter    │ over the bridge
+    ├── 127.0.0.1:8085 ──► trust                ┘
     │
-    └── (all other ports blocked by Docker)
+    └── absuite-db — no published port at all; reachable only on the bridge
 ```
+
+An earlier version of this document claimed only 3001 was exposed, and an
+earlier `docker-compose.yml` published 3001 on **every** interface rather than
+loopback. On a host with a public address that put the dashboard — which holds
+`CAPKIT_ADMIN_KEY` and mounts the Docker socket — on the open internet, while
+this page said it was isolated. Both are fixed; it is recorded here because a
+security document that quietly corrects itself is worth less than one that says
+what was wrong.
+
+### What the dashboard is granted
+
+The dashboard container is the most privileged part of a default deployment:
+
+| Grant | Why | How to drop it |
+|---|---|---|
+| `CAPKIT_ADMIN_KEY` | Issues capability tokens from the UI | Omit it; the rest of the dashboard still works |
+| `/var/run/docker.sock` (read-only) | Reports and controls service state | Delete the `volumes:` entry; you lose start/stop/restart |
+
+Neither is needed by any other service. A deployment that only needs the trust
+guarantees can run CapKit alone and skip the dashboard entirely.
 
 ### Inter-service communication
 

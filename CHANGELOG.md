@@ -4,6 +4,50 @@ All notable changes to ABSuite. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+
+- **The dashboard container published port 3001 on every interface** while every
+  other service bound to `127.0.0.1`. That container receives
+  `CAPKIT_ADMIN_KEY` — the credential that mints capability tokens — and mounts
+  the Docker socket read-only. On any host with a public address,
+  `docker compose up -d` therefore exposed an admin console to the internet,
+  while `GETTING-STARTED.md` stated that nothing was reachable from outside the
+  host and `docs/SECURITY-MODEL.md` stated that services were isolated.
+
+  The binding is now `127.0.0.1:3001:3001`. Both documents have been corrected
+  rather than quietly fixed, and the security model now states plainly what the
+  dashboard is granted and how to drop each grant.
+
+  No published npm package is affected — this is deployment configuration in
+  this repository only.
+
+### Removed
+
+- The dead prototype CLI at `src/`. It duplicated `@absuitecore/cli`, omitted
+  the Trust service from its service list, carried a `// Placeholder for status`
+  and contributed two tests to the advertised test count. The root `dev` script
+  pointed at it and `yargs` was carried as a dependency for it alone. Test count
+  is 410, down from 412, because two of those tests exercised code nobody runs.
+- The competitor scorecard from the README. It rated four named products on four
+  axes this project defined, which makes it unfalsifiable marketing wearing the
+  costume of evidence — and checking the ratings found at least one that
+  understated a competitor in our favour. Replaced with the distinction that is
+  actually checkable and actually matters: a hash chain proves a record was not
+  edited, it does not prove who wrote it; only an asymmetric signature does.
+
+### Changed
+
+- Strategy memos moved from `docs/` to `docs/internal/`, with a README stating
+  they are dated working notes rather than project claims. They sat alongside
+  the maintained documentation and read as official positions.
+- `SECURITY.md` supported-versions table replaced. It said "1.0.x — Yes" while
+  capkit was on 1.1.2, and listed no deprecations.
+- `packages/dashboard-ui` was named `dashboard-ui` at version `2.0.0` with the
+  description "Production-Ready React Application" — unscoped, ahead of every
+  other package, and making a claim in a manifest.
+
 ## [trust 1.1.1, capkit 1.1.2, mcp 1.0.3, cli 1.0.3] — 2026-07-29
 
 Package metadata only. No code changed in any of these.

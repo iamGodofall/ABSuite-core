@@ -3,7 +3,7 @@
 > **Historical — superseded 29 July 2026.**
 > A point-in-time judgement of a roadmap that has since moved on.
 > The current state of the project is in
-> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> [`docs/ROADMAP.md`](../ROADMAP.md); the current numbers are whatever
 > `pnpm test` and `pnpm docs:check` print. This document is kept for the
 > reasoning, not for its facts.
 
@@ -39,7 +39,7 @@ disagreement in §3 and §4 was resolved by changing what gets built, not by
 building it anyway or refusing outright.
 
 > **This is now the wrong table to be reading.** With all ten complete, the
-> binding constraint is no longer engineering. See [`ROADMAP.md`](./ROADMAP.md):
+> binding constraint is no longer engineering. See [`ROADMAP.md`](../ROADMAP.md):
 > *do not build another flagship feature until 100 people have installed
 > ABSuite.*
 

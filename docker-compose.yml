@@ -250,8 +250,17 @@ services:
       context: .
       dockerfile: ./packages/dashboard-ui/Dockerfile
     container_name: absuite-dashboard
+    # Loopback only, like every other service. This container holds
+    # CAPKIT_ADMIN_KEY — the credential that mints capability tokens — and
+    # mounts the Docker socket read-only so it can start and stop services.
+    # Published as "3001:3001" it bound to every interface, so on any host with
+    # a public address `docker compose up -d` put an admin console on the
+    # internet while the documentation said nothing was reachable.
+    #
+    # To expose it deliberately, put it behind a reverse proxy that terminates
+    # TLS and authenticates. Do not change this line to do it.
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       - NODE_ENV=production
       - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}

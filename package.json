@@ -8,7 +8,6 @@
   ],
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "tsx src/index.ts",
     "start": "docker compose -f docker-compose.yml up -d",
     "stop": "docker compose -f docker-compose.yml down",
     "restart": "docker compose -f docker-compose.yml restart",
@@ -45,12 +44,10 @@
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",
-    "@types/yargs": "^17.0.35",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
-    "yargs": "^18.0.0"
+    "typescript": "^6.0.2"
   },
   "dependencies": {
     "@types/socket.io": "^3.0.2",
