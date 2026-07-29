@@ -6,6 +6,58 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Fixed — capkit
+
+- **`POST /auth/token/validate` accepted `requiredScope` and silently ignored
+  it.** Asking whether a token holding only `payment:approve` was good for
+  `payment:refund` answered `200 {"valid": true}` — a false allow, from the
+  endpoint whose entire job is to answer that question. The field is now
+  honoured, an insufficient scope returns `400 CAPABILITY_INSUFFICIENT`, and a
+  successful response echoes `requiredScope` and `scopeSatisfied` back so a
+  caller can see the check ran rather than assume it.
+
+  The library API (`CapabilityToken.validate(token, secret, { requiredScope })`)
+  was always correct. Only the HTTP route dropped the field, and it dropped it
+  in silence — nothing in the response distinguished "checked and allowed" from
+  "never checked".
+
+  If you relied on this endpoint for authorisation decisions, tokens may have
+  been accepted for scopes they do not carry. Re-check any code that sends
+  `requiredScope` and treats `valid: true` as an authorisation.
+
+- **`/health` reported a hardcoded `1.0.0`.** It now reads the version from the
+  package manifest, so an operator debugging a deployment is not told the wrong
+  thing with complete confidence. The MCP server's `initialize` response had the
+  same hardcoded string and the same fix.
+
+- **The server started with an ephemeral trace-signing key in silence.** With a
+  durable `ABSUITE_DB_PATH` and no `CAPKIT_TRACE_PRIVATE_KEY`, every trace
+  recorded before a restart stops verifying afterwards, and
+  `/executions-verify-chain` then reports the whole chain broken —
+  indistinguishable from tampering. A tamper-evidence product must not raise its
+  own false alarm quietly. Startup now says so, and says it twice when the
+  database is durable.
+
+### Added
+
+- `packages/capkit/src/server.smoke.test.ts` — spawns the built server and talks
+  to it over HTTP. Every unit in the package was tested and none of the routes
+  were, which is exactly how the `requiredScope` bug shipped. No amount of
+  reading the handler would have found it; something had to send the request.
+
+### Changed
+
+- `GETTING-STARTED.md` rewritten. Every command in it was run against this
+  release first. The previous version required Node 18, pointed at a Discord and
+  a support address that do not exist, referenced an unpublished
+  `absuite-core` CLI package and a `DEPLOYMENT.md` that was never written, and
+  omitted the Trust service entirely.
+- `README-docker.md` deleted. It contradicted the real compose file — a
+  `docker-compose.full.yml` that does not exist, a missing Trust service, wrong
+  ports — and duplicated onboarding that now lives in one place.
+- `CONTRIBUTING.md` rewritten against the actual repository. It had promised
+  issue templates that did not exist; they exist now.
+
 ## [trust 1.1.0] — 2026-07-29
 
 ### Added

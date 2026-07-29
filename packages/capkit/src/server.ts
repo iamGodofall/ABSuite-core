@@ -7,6 +7,8 @@
  */
 import express from 'express';
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { CapabilityToken } from './capability';
 import { capabilityGuard } from './middleware';
 import { revocationStoreFromEnv } from './revocation-store';
@@ -24,7 +26,27 @@ import { TenantRateLimiter } from './rate-limit';
 const PORT = Number(process.env.CAPKIT_PORT || process.env.PORT || 8081);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const STARTED_AT = Date.now();
-const VERSION = '1.0.0';
+
+/**
+ * The version `/health` reports, read from the manifest rather than typed in.
+ *
+ * A hardcoded constant drifts the first time anyone forgets it, and an operator
+ * debugging a deployment reads `/health` and is told the wrong thing with
+ * complete confidence. That is the failure mode this project exists to argue
+ * against, so it should not be in this project.
+ */
+const VERSION = readVersion();
+
+function readVersion(): string {
+  try {
+    return String(
+      JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')).version || 'unknown'
+    );
+  } catch {
+    // Better to admit ignorance than to assert a number nobody checked.
+    return 'unknown';
+  }
+}
 
 /**
  * Resolve the signing secret.
@@ -299,14 +321,27 @@ app.post('/auth/token', authorise('auth:token:create'), enforceQuota('agents'), 
   }
 });
 
+/**
+ * Validate a token, optionally against a specific capability.
+ *
+ * `requiredScope` is honoured. It was accepted and silently ignored until
+ * 1.1.0, which meant asking "is this token good for payment:refund?" about a
+ * token holding only `payment:approve` answered `{"valid": true}` — a false
+ * allow produced by an unrecognised field, in the endpoint whose entire job is
+ * to answer that question. The response now echoes `requiredScope` back, so a
+ * caller can see the check was performed rather than assume it.
+ */
 app.post('/auth/token/validate', authorise('auth:token:validate'), enforceQuota('validations'), async (req, res) => {
   const token = String(req.body?.token ?? '');
+  const requiredScope = typeof req.body?.requiredScope === 'string' ? req.body.requiredScope.trim() : '';
+
   const peek = CapabilityToken.validate(token, SECRET, AUDIENCE ? { audience: AUDIENCE } : {});
   const revoked = peek.valid ? await revocations.isRevoked(peek.claims.jti) : false;
 
   const result = CapabilityToken.validate(token, SECRET, {
     ...(revoked ? { isRevoked: () => true } : {}),
     ...(AUDIENCE ? { audience: AUDIENCE } : {}),
+    ...(requiredScope ? { requiredScope } : {}),
   });
 
   if (!result.valid) {
@@ -318,6 +353,7 @@ app.post('/auth/token/validate', authorise('auth:token:validate'), enforceQuota(
     sub: result.claims.sub,
     scope: result.claims.scope,
     exp: result.claims.exp,
+    ...(requiredScope ? { requiredScope, scopeSatisfied: true } : {}),
   });
 });
 
@@ -713,6 +749,27 @@ if (require.main === module) {
     }
     if (!STRIPE_WEBHOOK_SECRET) {
       console.log('[capkit] STRIPE_WEBHOOK_SECRET not set — the billing webhook will reject all calls.');
+    }
+
+    // An ephemeral signing key plus a durable database is the worst
+    // combination this service can be started in, and until 1.1.0 it started
+    // that way in silence. Every trace recorded before a restart stops
+    // verifying afterwards, and /executions-verify-chain then reports the whole
+    // chain broken — indistinguishable from someone having tampered with it.
+    // A tamper-evidence product must not raise its own false alarm quietly.
+    if (signingKey.ephemeral) {
+      const durable = storage.path && storage.path !== ':memory:';
+      console.warn(
+        '[capkit] CAPKIT_TRACE_PRIVATE_KEY is not set — traces are signed with an ephemeral key ' +
+          'that is regenerated on every restart.'
+      );
+      if (durable) {
+        console.warn(
+          `[capkit] Traces are persisted to ${storage.path} but the key is not. After a restart ` +
+            'every existing trace will fail verification and the chain will report as broken. ' +
+            'Generate a key with SigningKey.createPair() and set CAPKIT_TRACE_PRIVATE_KEY.'
+        );
+      }
     }
   });
 

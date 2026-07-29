@@ -30,11 +30,13 @@ the record proves what happened without becoming a copy of your data.
 
 **[▶ Run the full incident investigation](./examples/incident-forensics.mjs)** —
 *"our agent approved $250,000 at 2:14 AM, what happened?"*, answered end to end
-in about 40 lines.
+in about 40 lines. Or start at
+**[Getting started](./GETTING-STARTED.md)** for the library, the HTTP API and
+the Docker stack, with every command verified against this release.
 
 ---
 
-![ABSuite](https://img.shields.io/badge/ABSuite-v1.0.0-7C3AED?style=for-the-badge&labelColor=1E1B4B)
+![ABSuite](https://img.shields.io/badge/ABSuite-v1.1.0-7C3AED?style=for-the-badge&labelColor=1E1B4B)
 [![MIT License](https://img.shields.io/badge/license-MIT-7C3AED?style=for-the-badge)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
@@ -81,7 +83,7 @@ in a single platform.**
 | Trust analytics | Yes |
 
 ```text
-391 tests                    93 API endpoints
+412 tests                    94 API endpoints
 7 npm packages               6 HTTP services + MCP server
 Documentation drift detection in CI
 npm distribution via GitHub Actions with provenance
@@ -129,7 +131,7 @@ ABSuite will not tell you that John has a trust score of 42. It will tell you:
 
 ```text
 User:                person:j.smith
-Actions recorded:    1,042
+Events recorded:     1,042
 Policy violations:   2
 Manual overrides:    1
 Audit findings:      0
@@ -165,7 +167,7 @@ WebCrypto — no server, no account, no trust in us required. Open it, click
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 20+ (or use `nvm`)
+- [Node.js](https://nodejs.org/) **22.5+** — the persistence layer is `node:sqlite`
 - [Docker](https://www.docker.com/) 24+ with Docker Compose
 - [pnpm](https://pnpm.io/) 9+ (`npm install -g pnpm`)
 
@@ -184,16 +186,19 @@ cp .env.example .env
 # Then edit .env — at minimum set CAPKIT_HMAC_SECRET and ABSUITE_ADMIN_API_KEY:
 #   openssl rand -hex 32
 
-# Start the implemented services (absuite-db, capkit, dashboard)
+# Start the stack (absuite-db, capkit, edge-run, quickbench, connector-starter, trust, dashboard)
 pnpm start
 
 # Open the dashboard
 open http://localhost:3001
 ```
 
-This starts the database, CapKit and the Dashboard. The dashboard reports live
+This starts the database and all six services. The dashboard reports live
 service status, issues real capability tokens through CapKit, and runs latency
 benchmarks against any running service.
+
+For the shortest path — library first, no Docker — see
+[Getting started](./GETTING-STARTED.md).
 
 ### Running without Docker
 

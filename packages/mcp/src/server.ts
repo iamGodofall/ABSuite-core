@@ -17,6 +17,8 @@ import {
   type VerificationKey,
   type ExecutionTrace,
 } from '@absuitecore/capkit';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   ErrorCode,
   PROTOCOL_VERSION,
@@ -39,6 +41,20 @@ export interface AbsuiteMcpOptions {
   traces?: TraceStore | null;
   fetchImpl?: typeof fetch;
 }
+
+/**
+ * Reported to the MCP host on `initialize`, read from the manifest rather than
+ * typed in. A host that is told the wrong server version has no way to know it.
+ */
+const SERVER_VERSION = ((): string => {
+  try {
+    return String(
+      JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')).version || 'unknown'
+    );
+  } catch {
+    return 'unknown';
+  }
+})();
 
 const DEFAULT_SERVICES = {
   capkit: process.env.CAPKIT_URL || 'http://localhost:8081',
@@ -200,7 +216,7 @@ export class AbsuiteMcpServer {
         return success(request.id!, {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'absuite', version: '1.0.0' },
+          serverInfo: { name: 'absuite', version: SERVER_VERSION },
           instructions:
             'ABSuite governs agent actions. Every tool call is checked against a capability token before it runs, and completed calls produce a signed execution trace that can be verified independently.',
         });
