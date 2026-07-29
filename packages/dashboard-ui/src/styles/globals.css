@@ -9,17 +9,25 @@
 
 @layer base {
   :root {
-    /* Refined Dark Palette */
-    --bg-primary: 0 0% 4%;      /* #09090b */
-    --bg-secondary: 0 0% 7%;    /* #111113 */
-    --bg-tertiary: 0 0% 11%;    /* #1a1a1d */
-    --border-color: 0 0% 15%;   /* #262629 */
-    --text-primary: 0 0% 98%;  /* #fafafa */
-    --text-muted: 0 0% 44%;     /* #71717a */
-    --accent-primary: 150 84% 42%; /* #10b981 - emerald-500 */
-    --accent-secondary: 210 100% 60%; /* blue-500 */
-    --accent-warning: 38 92% 50%; /* amber-500 */
-    --accent-danger: 0 84% 60%; /* red-500 */
+    /* ABSuite palette — matched to the brand: a green-tinted near-black ground,
+       one emerald accent, and red reserved for failure. The neutral greys and
+       the blue secondary that used to live here read as a generic admin
+       template; the ground is now the same #040706 as the verifier and the
+       landing page, so the three surfaces look like one product. */
+    --bg-primary: 160 26% 2%;     /* #040706 — near-black, green-tinted */
+    --bg-secondary: 158 18% 5%;   /* #0A100E — panel */
+    --bg-tertiary: 158 16% 8%;    /* #101A16 — raised */
+    --border-color: 158 30% 14%;  /* emerald-tinted hairline */
+    --text-primary: 158 30% 94%;  /* #E8F5F0 */
+    --text-muted: 158 10% 53%;    /* #7C9389 */
+    --accent-primary: 158 82% 55%;   /* #2DE9A5 — the brand emerald */
+    /* Secondary is a deeper teal, not blue. A blue "Restart" button next to an
+       emerald "Start" implied a distinction that does not exist. */
+    --accent-secondary: 168 62% 42%;
+    /* Amber stays, used only for genuinely indeterminate state. Collapsing
+       "unknown" into either emerald or red would assert something unknown. */
+    --accent-warning: 40 88% 55%;
+    --accent-danger: 0 84% 62%;   /* #FF4D4D */
     
     /* shadcn-ui compatibility */
     --background: var(--bg-primary);

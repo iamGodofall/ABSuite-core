@@ -49,7 +49,7 @@ const StatusDot = ({ status }: { status: Service['status'] }) => {
     up: 'bg-emerald-500 status-dot-up',
     down: 'bg-red-500 status-dot-down',
     unknown: 'bg-amber-500 status-dot-unknown',
-    starting: 'bg-blue-400 status-dot-starting animate-pulse',
+    starting: 'bg-teal-300 status-dot-starting animate-pulse',
     stopping: 'bg-yellow-400 status-dot-stopping',
     failed: 'bg-red-400 status-dot-failed'
   };
@@ -77,7 +77,7 @@ const CopyBlock = ({ text }: { text: string }) => {
 };
 
 const ProgressBar = ({ value, label, color = 'emerald' }: { value: number; label: string; color?: string }) => {
-  const colorMap: Record<string, string> = { emerald: 'bg-emerald-500', blue: 'bg-blue-500', amber: 'bg-amber-500', red: 'bg-red-500' };
+  const colorMap: Record<string, string> = { emerald: 'bg-emerald-500', blue: 'bg-teal-500', amber: 'bg-amber-500', red: 'bg-red-500' };
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between text-sm">
@@ -114,7 +114,7 @@ const ServiceActionBtn = ({ icon: Icon, label, variant, onClick, loading }: { ic
   const styles = {
     start: 'text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/50',
     stop: 'text-red-400 hover:bg-red-500/10 border-red-500/30 hover:border-red-500/50',
-    restart: 'text-blue-400 hover:bg-blue-500/10 border-blue-500/30 hover:border-blue-500/50',
+    restart: 'text-teal-300 hover:bg-teal-500/10 border-teal-500/30 hover:border-teal-500/50',
   };
   return (
     <button
@@ -133,7 +133,7 @@ const ServiceActionBtn = ({ icon: Icon, label, variant, onClick, loading }: { ic
 
 const NoticeCard = ({ tone = 'info', title, message }: { tone?: 'info' | 'warn' | 'error'; title: string; message: string }) => {
   const toneStyles = {
-    info: 'border-blue-500/30 bg-blue-500/10 text-blue-200',
+    info: 'border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-100',
     warn: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
     error: 'border-red-500/30 bg-red-500/10 text-red-200',
   } as const;
@@ -384,7 +384,7 @@ const ServicesTab = ({ services, onServiceAction }: { services: Service[]; onSer
               <button onClick={() => onServiceAction(svc.id, 'stop')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all text-sm font-medium">
                 <StopCircle className="w-4 h-4" /> Stop
               </button>
-              <button onClick={() => onServiceAction(svc.id, 'restart')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-all text-sm font-medium">
+              <button onClick={() => onServiceAction(svc.id, 'restart')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20 transition-all text-sm font-medium">
                 <RefreshCw className="w-4 h-4" /> Restart
               </button>
             </div>
@@ -666,7 +666,7 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
             <label className="text-xs text-text-muted mb-1 block">Policy Description</label>
             <textarea value={policyDesc} onChange={e => setPolicyDesc(e.target.value)} placeholder="Describe the AI policy rules and constraints..." rows={4} className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none" />
           </div>
-          <button onClick={generatePolicy} disabled={!policyDesc || policyLoading} className="w-full py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <button onClick={generatePolicy} disabled={!policyDesc || policyLoading} className="w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {policyLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Shield className="w-4 h-4" /> Generate Policy</>}
           </button>
           {policyError && <div className="mt-4"><NoticeCard tone="error" title="Policy generation failed" message={policyError} /></div>}
@@ -685,7 +685,7 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
           <div className="space-y-2">
             {recentGens.map(g => (
               <div key={g.id} className="flex items-center gap-3 py-2 px-3 bg-bg-primary/50 rounded-lg">
-                <span className={cn('text-xs px-2 py-0.5 rounded font-medium', g.type === 'token' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400')}>{g.type.toUpperCase()}</span>
+                <span className={cn('text-xs px-2 py-0.5 rounded font-medium', g.type === 'token' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-teal-500/10 text-teal-400')}>{g.type.toUpperCase()}</span>
                 <span className="text-sm text-text-secondary flex-1 truncate">{g.preview}</span>
                 <span className="text-xs text-text-muted">{g.provider} · {g.timestamp}</span>
               </div>
@@ -822,9 +822,9 @@ const BenchmarksTab = ({ demoMode }: { demoMode: boolean }) => {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {[
                   { label: 'p50 Latency', value: `${result.p50}ms`, color: 'text-emerald-400' },
-                  { label: 'p95 Latency', value: `${result.p95}ms`, color: 'text-blue-400' },
+                  { label: 'p95 Latency', value: `${result.p95}ms`, color: 'text-teal-400' },
                   { label: 'p99 Latency', value: `${result.p99}ms`, color: 'text-amber-400' },
-                  { label: 'Throughput', value: `${result.rps} rps`, color: 'text-purple-400' },
+                  { label: 'Throughput', value: `${result.rps} rps`, color: 'text-cyan-400' },
                 ].map(m => (
                   <div key={m.label} className="bg-bg-primary/60 rounded-xl p-4 text-center">
                     <div className="text-xs text-text-muted mb-1">{m.label}</div>
@@ -893,9 +893,9 @@ const BenchmarksTab = ({ demoMode }: { demoMode: boolean }) => {
                     <td className="px-5 py-3 font-medium text-text-primary">{h.service}</td>
                     <td className="px-5 py-3 text-text-secondary capitalize">{h.type}</td>
                     <td className="px-5 py-3 font-mono text-emerald-400">{h.p50}ms</td>
-                    <td className="px-5 py-3 font-mono text-blue-400">{h.p95}ms</td>
+                    <td className="px-5 py-3 font-mono text-teal-400">{h.p95}ms</td>
                     <td className="px-5 py-3 font-mono text-amber-400">{h.p99}ms</td>
-                    <td className="px-5 py-3 font-mono text-purple-400">{h.rps}</td>
+                    <td className="px-5 py-3 font-mono text-cyan-400">{h.rps}</td>
                     <td className="px-5 py-3 text-text-muted">{h.timestamp}</td>
                   </tr>
                 ))}
@@ -1043,7 +1043,7 @@ const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
               </select>
             </label>
           </div>
-          <button onClick={generateAgent} disabled={!agentPrompt || agentLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onClick={generateAgent} disabled={!agentPrompt || agentLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {agentLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Bot className="w-4 h-4" /> Generate Agent</>}
           </button>
           {agentError && <NoticeCard tone="error" title="Agent generation failed" message={agentError} />}
@@ -1748,7 +1748,7 @@ export default function App() {
 {unreadCount > 0 && <span className="notification-badge" />}
               </button>
 
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center text-sm font-bold text-bg-primary">E</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-sm font-bold text-bg-primary">E</div>
             </div>
           </header>
 
@@ -1800,7 +1800,7 @@ export default function App() {
               ) : (
                 notifications.map(n => (
                   <div key={n.id} className={cn('flex items-start gap-3 px-4 py-3 border-b border-border/30 hover:bg-bg-tertiary/50 transition-colors', !n.read && 'bg-emerald-500/5')}>
-                    <div className={cn('mt-0.5 w-2 h-2 rounded-full shrink-0', n.type === 'success' && 'bg-emerald-400', n.type === 'info' && 'bg-blue-400', n.type === 'warn' && 'bg-amber-400')} />
+                    <div className={cn('mt-0.5 w-2 h-2 rounded-full shrink-0', n.type === 'success' && 'bg-emerald-400', n.type === 'info' && 'bg-teal-400', n.type === 'warn' && 'bg-amber-400')} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-text-primary leading-snug">{n.message}</p>
                       <p className="text-xs text-text-muted mt-0.5">{n.time}</p>

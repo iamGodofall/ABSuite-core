@@ -6,6 +6,26 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Changed — one visual identity across every surface
+
+The campaign artwork established a real language — a green-tinted near-black
+ground, a single emerald accent, red reserved for failure, monospace technical
+labels. The verifier, the landing page and the dashboard each looked like a
+different product.
+
+- `docs/verify.html` and the Pages landing page rebuilt in that language. The
+  verifier's WebCrypto block was preserved byte-for-byte and both outcomes
+  re-checked in a real browser afterwards; a redesign that quietly broke
+  verification would be the worst possible failure for this particular page.
+- The dashboard palette now starts from the same `#040706` ground and `#2DE9A5`
+  accent. Blue is gone entirely — fourteen utility classes and the `info` notice
+  tone. A blue "Restart" beside an emerald "Start" implied a category
+  distinction that does not exist, and a blue information banner is the default
+  admin-template look this project is not.
+- Amber survives in exactly one role: genuinely indeterminate state. Collapsing
+  "unknown" into either emerald or red would assert something that is, by
+  definition, not known.
+
 ### Fixed — dashboard
 
 - **The Trust service was invisible in the control plane.** `:8085` was absent
