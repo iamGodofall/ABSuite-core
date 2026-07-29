@@ -49,11 +49,15 @@ jobs:
         if: inputs.scope != ''
         run: node scripts/set-scope.mjs "${{ inputs.scope }}" && pnpm install --no-frozen-lockfile
 
-      - name: Test
-        run: pnpm test
-
+      # Build before test. Six of the seven packages import @absuite/capkit,
+      # which resolves to its dist/ — so running the suite first fails to load
+      # those files entirely: 7 suites "failed" with 266 passed and 0 failed,
+      # because they never ran.
       - name: Build
         run: pnpm -r --filter "./packages/*" build
+
+      - name: Test
+        run: pnpm test
 
       - name: Show what would be published
         run: |
