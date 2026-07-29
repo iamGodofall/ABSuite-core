@@ -2,7 +2,11 @@
 node_modules/
 .pnp/
 .pnp.js
-pnpm-lock.yaml
+
+# pnpm-lock.yaml is deliberately NOT ignored. CI installs with
+# --frozen-lockfile, and a project whose whole argument is "verify what you
+# installed" cannot resolve its own dependencies differently on every machine.
+# It survived here only because it was committed before this rule existed.
 
 # Production builds
 dist/
@@ -48,4 +52,8 @@ desktop.ini
 
 # Generated
 *.tgz
+
+# Python scratch — no Python in this project, but tooling leaves it behind
+__pycache__/
+*.pyc
 

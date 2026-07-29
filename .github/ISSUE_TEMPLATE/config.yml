@@ -1,0 +1,21 @@
+# A blank issue is still allowed. Not every report fits a form, and forcing one
+# loses reports that were worth having.
+blank_issues_enabled: true
+
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/iamGodofall/ABSuite-core/security/advisories/new
+    about: >-
+      Forgery, undetected tampering, capability escape or anything else that
+      breaks a guarantee. Private, never a public issue.
+
+  - name: Documentation that is wrong or unclear
+    url: https://github.com/iamGodofall/ABSuite-core/compare
+    about: >-
+      Doc fixes need no issue. Open the pull request directly.
+
+  - name: Verify a trace yourself
+    url: https://github.com/iamGodofall/ABSuite-core/blob/main/docs/verify.html
+    about: >-
+      Before reporting that verification is broken, check a known-good trace in
+      your browser — no install, no account, no server.

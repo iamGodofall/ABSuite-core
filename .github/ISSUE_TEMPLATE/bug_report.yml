@@ -1,0 +1,82 @@
+name: Bug report
+description: Something behaves differently from what it claims
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Not for security vulnerabilities.** If this is a forgery, an undetected
+        tamper, or a capability escape, close this and use
+        [private reporting](https://github.com/iamGodofall/ABSuite-core/security/advisories/new)
+        instead — see [`SECURITY.md`](https://github.com/iamGodofall/ABSuite-core/blob/main/SECURITY.md).
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - '@absuitecore/capkit'
+        - '@absuitecore/trust'
+        - '@absuitecore/edge-run'
+        - '@absuitecore/quickbench'
+        - '@absuitecore/connector-starter'
+        - '@absuitecore/mcp'
+        - '@absuitecore/cli'
+        - Docker / docker-compose
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: '`npm ls @absuitecore/<package>`, or `absuite version` for the CLI.'
+      placeholder: 1.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version and OS
+      description: '`node -v`. Below 22.5 the SQLite layer cannot work at all.'
+      placeholder: v22.11.0 on macOS 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+      description: Both halves. "It does not work" is not reproducible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: |
+        The fastest possible fix is a failing test. Second fastest is a script
+        someone can paste into an empty project and run.
+      render: javascript
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Full error output
+      description: The whole stack trace, not the last line.
+      render: shell
+
+  - type: markdown
+    attributes:
+      value: |
+        ### If this is about verification failing
+
+        Please also include the output of `traces.verifyChain(publicKeyPem)` —
+        the `brokenAt` sequence number and `reason` are usually the whole
+        diagnosis. Do **not** paste private keys or real payloads; the trace
+        record itself never contains payloads, only their hashes.

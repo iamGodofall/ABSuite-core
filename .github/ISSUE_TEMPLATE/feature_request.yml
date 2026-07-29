@@ -1,0 +1,63 @@
+name: Feature request
+description: Something ABSuite should be able to do and cannot
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing: the current constraint on this project is **distribution,
+        not capability**. New flagship features are deliberately on hold until
+        the existing ones have real users. A request that makes an existing
+        capability easier to adopt will move faster than one that adds a new
+        one — that is a statement about sequencing, not about your idea.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: |
+        What were you trying to do when you hit this? Describe the situation,
+        not the solution — the best feature is often not the one first imagined.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How you imagine it working
+      description: Code you wish you could write is ideal.
+      render: typescript
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: |
+        Workarounds you found, and why they are not enough. If a workaround is
+        merely ugly rather than impossible, say so — that is useful and it will
+        not count against the request.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Does this belong in core?
+      options:
+        - 'Yes — it needs access to internals'
+        - 'Maybe — it could be a separate package'
+        - 'Not sure'
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Principles
+      description: |
+        [`PRINCIPLES.md`](https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md)
+        is what the code is held to. Anything that scores people, or that treats
+        model agreement as evidence, will be declined however well argued.
+      options:
+        - label: This does not produce a score or ranking about a person
+          required: true
+        - label: This does not treat confidence or consensus as proof
+          required: true
