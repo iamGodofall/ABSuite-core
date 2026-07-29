@@ -1,0 +1,85 @@
+name: Deprecate a published version
+
+# Publishing is irreversible; deprecation is how a bad version gets a warning
+# attached to it after the fact. It runs here rather than from a laptop so it
+# uses the same credential as the publish, leaves the same audit trail, and
+# does not depend on whose machine happens to be logged in.
+#
+# Reversible: run again with an empty message to undeprecate.
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: 'Package and range, e.g. @absuitecore/cli@1.0.0 or "@absuitecore/capkit@<1.1.1"'
+        type: string
+        required: true
+      message:
+        description: 'Why. Leave blank to UNDEPRECATE.'
+        type: string
+        required: false
+      dry_run:
+        description: 'Print what would happen and stop'
+        type: boolean
+        default: true
+
+jobs:
+  deprecate:
+    name: Attach a deprecation notice
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Confirm the credential works before touching anything
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # A typo in the spec silently deprecates nothing and reports success, so
+      # resolve it first and fail loudly when it matches no published version.
+      - name: Show which versions this matches
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          spec='${{ inputs.spec }}'
+          name="${spec%@*}"
+          [ "${spec:0:1}" = "@" ] && name="@${spec:1}" && name="${name%@*}"
+
+          echo "Package: $name"
+          if ! npm view "$name" versions --json; then
+            echo "::error::$name is not published"
+            exit 1
+          fi
+
+      - name: Deprecate
+        if: ${{ inputs.dry_run == false }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm deprecate '${{ inputs.spec }}' '${{ inputs.message }}'
+          echo "### Done" >> "$GITHUB_STEP_SUMMARY"
+          echo '`${{ inputs.spec }}`' >> "$GITHUB_STEP_SUMMARY"
+          if [ -z '${{ inputs.message }}' ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deprecation **removed**." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> ${{ inputs.message }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Dry run notice
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          {
+            echo "### Dry run — nothing was changed"
+            echo ""
+            echo '```'
+            echo "npm deprecate '${{ inputs.spec }}' '${{ inputs.message }}'"
+            echo '```'
+            echo ""
+            echo "Re-run with **dry_run unchecked** to apply it."
+          } >> "$GITHUB_STEP_SUMMARY"
