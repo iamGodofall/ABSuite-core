@@ -5,60 +5,174 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Verify an ABSuite execution trace</title>
 <meta name="description" content="Independently verify that an AI agent's recorded action has not been altered — in your browser, with no server and no account.">
+<meta name="color-scheme" content="dark">
+<meta property="og:title" content="Verify an AI execution trace — ABSuite">
+<meta property="og:description" content="Check a signed, hash-chained record in your browser. No install, no account, no server, no trust in us required.">
 <style>
-  :root{color-scheme:light dark;--bg:#fff;--fg:#18181b;--muted:#71717a;--border:#e4e4e7;--accent:#7C3AED;--card:#fafafa;--ok:#059669;--okbg:#ecfdf5;--bad:#dc2626;--badbg:#fef2f2;--code:#f4f4f5}
-  @media (prefers-color-scheme:dark){:root{--bg:#09090b;--fg:#fafafa;--muted:#a1a1aa;--border:#27272a;--accent:#a78bfa;--card:#18181b;--ok:#34d399;--okbg:#052e2b;--bad:#f87171;--badbg:#2c1618;--code:#18181b}}
+  :root{
+    --bg:#040706; --panel:#0A100E; --panel-2:#070C0A;
+    --line:rgba(45,233,165,.16); --line-soft:rgba(45,233,165,.08);
+    --fg:#E8F5F0; --muted:#7C9389; --dim:#4E635B;
+    --em:#2DE9A5; --em-dim:#00B87A; --em-glow:rgba(45,233,165,.28);
+    --bad:#FF4D4D; --bad-bg:rgba(255,77,77,.07); --bad-line:rgba(255,77,77,.32);
+    --ok-bg:rgba(45,233,165,.06);
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+  }
   *{box-sizing:border-box}
-  body{margin:0;padding:2rem 1rem 4rem;background:var(--bg);color:var(--fg);font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-  main{max-width:48rem;margin:0 auto}
-  h1{font-size:2rem;margin:0 0 .5rem;letter-spacing:-.025em}
-  .lede{color:var(--muted);margin:0 0 .5rem;font-size:1.05rem}
-  .sub{color:var(--muted);font-size:.9rem;margin:0 0 2rem}
-  h2{font-size:1rem;margin:2rem 0 .5rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-  textarea{width:100%;min-height:8rem;padding:.75rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;
-    color:var(--fg);background:var(--code);border:1px solid var(--border);border-radius:.5rem;resize:vertical}
-  textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
-  .row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
-  button{padding:.7rem 1.1rem;font:inherit;font-weight:600;border-radius:.5rem;border:1px solid var(--border);
-    background:var(--card);color:var(--fg);cursor:pointer}
-  button.primary{background:var(--accent);color:#fff;border-color:transparent}
-  button:hover{opacity:.9}
-  #result{margin-top:1.5rem;border-radius:.75rem;padding:1.25rem;border:1px solid var(--border);display:none}
-  #result.ok{background:var(--okbg);border-color:var(--ok)}
-  #result.bad{background:var(--badbg);border-color:var(--bad)}
-  .verdict{font-size:1.15rem;font-weight:700;margin:0 0 .75rem;display:flex;align-items:center;gap:.5rem}
-  #result.ok .verdict{color:var(--ok)}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.6 var(--sans);
+    background-image:
+      radial-gradient(900px 500px at 15% -10%, rgba(45,233,165,.07), transparent 60%),
+      radial-gradient(700px 420px at 95% 0%, rgba(45,233,165,.04), transparent 55%),
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size:auto,auto,44px 44px,44px 44px;
+    background-attachment:fixed;
+  }
+  main{max-width:62rem;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+
+  /* ---- masthead ------------------------------------------------------- */
+  .mast{display:flex;align-items:center;gap:.85rem;margin-bottom:2.5rem;flex-wrap:wrap}
+  .glyph{
+    width:38px;height:38px;flex:none;border:1.5px solid var(--em);border-radius:8px;
+    display:grid;place-items:center;box-shadow:0 0 22px var(--em-glow) inset,0 0 14px var(--em-glow);
+  }
+  .glyph svg{width:20px;height:20px;stroke:var(--em);fill:none;stroke-width:1.7}
+  .brand{font-weight:700;font-size:1.22rem;letter-spacing:-.01em;line-height:1}
+  .brand small{
+    display:block;font-weight:600;font-size:.6rem;letter-spacing:.19em;
+    color:var(--em);text-transform:uppercase;margin-top:.3rem;font-family:var(--mono)
+  }
+  .rec{
+    margin-left:auto;display:inline-flex;align-items:center;gap:.5rem;
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:.38rem .8rem;
+    background:var(--panel-2);
+  }
+  .rec i{width:7px;height:7px;border-radius:50%;background:var(--em);box-shadow:0 0 9px var(--em);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  @media (prefers-reduced-motion:reduce){.rec i{animation:none}}
+
+  /* ---- headline ------------------------------------------------------- */
+  h1{
+    font-size:clamp(2.1rem,6vw,3.4rem);line-height:.98;letter-spacing:-.035em;
+    margin:0 0 1rem;font-weight:800;text-transform:uppercase;
+  }
+  h1 .accent{color:var(--em)}
+  .lede{font-size:1.1rem;color:var(--fg);margin:0 0 .6rem;max-width:44rem}
+  .sub{color:var(--muted);margin:0 0 2.4rem;max-width:48rem;font-size:.95rem}
+  .sub em{color:var(--em);font-style:normal;font-weight:600}
+
+  /* ---- step panels ---------------------------------------------------- */
+  .step{
+    border:1px solid var(--line);border-radius:12px;background:var(--panel);
+    padding:1.15rem 1.15rem 1.25rem;margin-bottom:1rem;
+  }
+  .step-h{
+    display:flex;align-items:center;gap:.6rem;margin:0 0 .8rem;
+    font-family:var(--mono);font-size:.66rem;letter-spacing:.17em;text-transform:uppercase;color:var(--em);
+  }
+  .step-h b{
+    font-family:var(--mono);width:20px;height:20px;flex:none;display:grid;place-items:center;
+    border:1px solid var(--line);border-radius:5px;color:var(--em);font-size:.62rem;background:var(--panel-2)
+  }
+  textarea{
+    width:100%;min-height:118px;resize:vertical;padding:.85rem .95rem;
+    font:12.5px/1.65 var(--mono);color:var(--fg);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+  }
+  textarea:focus{outline:none;border-color:var(--em-dim);box-shadow:0 0 0 3px rgba(45,233,165,.1)}
+  textarea::placeholder{color:var(--dim)}
+  .note{color:var(--muted);font-size:.8rem;margin:.6rem 0 0}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);border:1px solid var(--line);padding:.14em .42em;border-radius:4px;color:var(--em)}
+
+  /* ---- actions -------------------------------------------------------- */
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;margin:1.4rem 0}
+  button{
+    font:600 .87rem/1 var(--sans);padding:.78rem 1.15rem;border-radius:8px;cursor:pointer;
+    background:var(--panel);color:var(--fg);border:1px solid var(--line);transition:border-color .15s,color .15s;
+  }
+  button:hover{border-color:var(--em-dim);color:var(--em)}
+  button:focus-visible{outline:2px solid var(--em);outline-offset:2px}
+  button.primary{
+    background:var(--em);color:#04120C;border-color:var(--em);
+    box-shadow:0 0 20px rgba(45,233,165,.22);
+  }
+  button.primary:hover{background:#4BF0B4;color:#04120C;border-color:#4BF0B4}
+
+  /* ---- result --------------------------------------------------------- */
+  #result{display:none;border-radius:12px;padding:1.3rem 1.35rem;margin:1.6rem 0;border:1px solid}
+  #result.ok{border-color:var(--em);background:var(--ok-bg);box-shadow:0 0 34px rgba(45,233,165,.09)}
+  #result.bad{border-color:var(--bad-line);background:var(--bad-bg);box-shadow:0 0 34px rgba(255,77,77,.08)}
+  .verdict{margin:0 0 1rem;font-weight:800;font-size:1.32rem;letter-spacing:-.02em;text-transform:uppercase}
+  #result.ok .verdict{color:var(--em)}
   #result.bad .verdict{color:var(--bad)}
-  .checks{list-style:none;padding:0;margin:0;font-size:.9rem}
-  .checks li{padding:.3rem 0;display:flex;gap:.6rem}
-  .checks .mark{width:1.2rem;flex:none;font-weight:700}
-  .pass{color:var(--ok)} .fail{color:var(--bad)}
-  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82em;background:var(--code);
-    padding:.1rem .35rem;border-radius:.25rem}
-  .note{font-size:.85rem;color:var(--muted);margin-top:.6rem}
-  .explain{background:var(--card);border:1px solid var(--border);border-radius:.75rem;padding:1.25rem;margin-top:2.5rem}
-  .explain p{margin:.6rem 0}
-  footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);color:var(--muted);font-size:.85rem}
-  a{color:var(--accent)}
-  .warn{background:var(--badbg);border:1px solid var(--bad);border-radius:.5rem;padding:.75rem;margin-bottom:1.5rem;font-size:.9rem;display:none}
+  .checks{list-style:none;margin:0;padding:0;display:grid;gap:.62rem}
+  .checks li{display:flex;gap:.7rem;align-items:flex-start;font-size:.92rem;line-height:1.5}
+  .checks .mark{flex:none;width:1.1rem;font-weight:700;font-family:var(--mono)}
+  .checks .mark.pass{color:var(--em)}
+  .checks .mark.fail{color:var(--bad)}
+
+  .warn{
+    display:none;border:1px solid var(--bad-line);background:var(--bad-bg);color:var(--bad);
+    padding:.85rem 1rem;border-radius:8px;margin-bottom:1.6rem;font-size:.9rem
+  }
+
+  /* ---- explainer ------------------------------------------------------ */
+  .explain{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:1.6rem;margin-top:3rem}
+  .explain h2{
+    margin:0 0 1rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.17em;
+    text-transform:uppercase;color:var(--em);font-weight:600
+  }
+  .explain p{margin:0 0 .95rem;color:var(--muted);max-width:52rem}
+  .explain p:last-child{margin-bottom:0}
+  .explain strong{color:var(--fg)}
+  .explain em{color:var(--em);font-style:normal;font-weight:600}
+
+  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin:2.6rem 0 0}
+  .pillar{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:.9rem}
+  .pillar b{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--em);margin-bottom:.35rem}
+  .pillar span{font-size:.82rem;color:var(--muted);line-height:1.45}
+
+  footer{margin-top:3.4rem;padding-top:1.6rem;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+  footer p{margin:0 0 .55rem}
+  footer strong{color:var(--fg)}
+  a{color:var(--em);text-decoration:none;border-bottom:1px solid rgba(45,233,165,.3)}
+  a:hover{border-bottom-color:var(--em)}
+  .tag{margin-top:1.4rem;font-family:var(--mono);font-size:.66rem;letter-spacing:.17em;text-transform:uppercase;color:var(--em)}
 </style>
 </head>
 <body>
 <main>
-  <h1>Verify an execution trace</h1>
+  <div class="mast">
+    <span class="glyph" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+    </span>
+    <span class="brand">ABSuite<small>AI Black Box Recorder</small></span>
+    <span class="rec"><i></i> Verifier · runs locally</span>
+  </div>
+
+  <h1>Verify an <span class="accent">execution trace</span></h1>
   <p class="lede">Check that an AI agent's recorded action has not been altered — <strong>in your browser</strong>.</p>
-  <p class="sub">No server. No account. No trust in us required. The verification runs locally using only the operator's <em>public</em> key, which cannot be used to forge a record.</p>
+  <p class="sub">No server. No account. No trust in us required. Verification runs locally using only the operator's <em>public</em> key, which cannot be used to forge a record.</p>
 
   <div class="warn" id="unsupported">
     Your browser does not support Ed25519 in WebCrypto. Try current Chrome, Edge, Safari 17+ or Firefox 129+.
   </div>
 
-  <h2>1. Public key</h2>
-  <textarea id="key" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"></textarea>
-  <p class="note">Fetch from the operator: <code>curl https://their-host/executions/public-key</code></p>
+  <div class="step">
+    <p class="step-h"><b>1</b> Public key</p>
+    <textarea id="key" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----"></textarea>
+    <p class="note">Fetch it from the operator: <code>curl https://their-host/executions/public-key</code></p>
+  </div>
 
-  <h2>2. Execution trace</h2>
-  <textarea id="trace" spellcheck="false" placeholder='{ "id": "exec_...", "subject": "agent-001", ... }'></textarea>
+  <div class="step">
+    <p class="step-h"><b>2</b> Execution trace</p>
+    <textarea id="trace" spellcheck="false" placeholder='{ "id": "exec_...", "subject": "agent-001", ... }'></textarea>
+  </div>
 
   <div class="row">
     <button class="primary" id="verify">Verify</button>
@@ -72,16 +186,25 @@
   </div>
 
   <div class="explain">
-    <h2 style="margin-top:0">Why this is stronger than a hash chain</h2>
+    <h2>[ Why this is stronger than a hash chain ]</h2>
     <p>Many audit systems hash-chain their records: each entry includes a hash of the one before it, so editing history breaks the chain.</p>
     <p><strong>That proves a record was not edited after the fact. It does not prove who wrote it.</strong> Anyone — including the operator being audited — can construct a perfectly valid hash chain containing whatever they like.</p>
     <p>ABSuite hash-chains <em>and</em> signs each record with <strong>Ed25519</strong>. Verification needs only the public key, and the public key cannot produce a signature. So the operator cannot fabricate history, and the auditor cannot fabricate an accusation.</p>
     <p>Inputs and outputs are stored as <strong>hashes, never as content</strong> — a trace proves what happened without anyone retaining the underlying data.</p>
   </div>
 
+  <div class="pillars">
+    <div class="pillar"><b>Recorded</b><span>Every real action produces a trace.</span></div>
+    <div class="pillar"><b>Signed</b><span>Ed25519, not a shared secret.</span></div>
+    <div class="pillar"><b>Chained</b><span>Linked to its predecessor.</span></div>
+    <div class="pillar"><b>Replayable</b><span>Re-run and compare hashes.</span></div>
+    <div class="pillar"><b>Verifiable</b><span>By anyone, with a public key.</span></div>
+  </div>
+
   <footer>
-    <p><strong>ABSuite</strong> — cryptographic proof of what your AI agents were allowed to do and what they actually did.</p>
+    <p><strong>ABSuite</strong> — cryptographic proof of what your AI agents were allowed to do, and what they actually did.</p>
     <p>MIT licensed · <a href="https://github.com/iamGodofall/ABSuite-core">Source on GitHub</a> · <code>npm install @absuitecore/capkit</code></p>
+    <p class="tag">[ Trust must be verifiable ]</p>
   </footer>
 </main>
 
