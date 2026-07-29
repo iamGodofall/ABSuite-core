@@ -4,6 +4,32 @@ All notable changes to ABSuite. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [semantic versioning](https://semver.org/).
 
+## [trust 1.1.1, capkit 1.1.2, mcp 1.0.3, cli 1.0.3] — 2026-07-29
+
+Package metadata only. No code changed in any of these.
+
+### Fixed
+
+- `@absuitecore/trust` listed **`hallucination`** as an npm keyword, while its
+  own README says on line 38 that it does not detect hallucinations and
+  `docs/CONSTITUTION.md` refuses to build such a thing. Someone searching npm
+  for "hallucination" was being offered a package whose documentation declines
+  the job. The keyword is gone.
+- `trust`'s description led with "explainable scores". Scores are not the
+  argument — evidence is. It now states what the package actually returns:
+  `SUPPORTED`, `UNVERIFIED` or `CONTRADICTED`, never a probability. The
+  `trust-score` keyword went with it.
+- `capkit`, `mcp` and `cli` descriptions said what they contain rather than what
+  they are for, and `cli`'s was one clause long. Keywords now carry the terms
+  someone would actually search — `ed25519`, `execution-trace`,
+  `tamper-evident`, `provenance` — each of which the code does.
+
+### Deprecated on npm
+
+- `@absuitecore/capkit@<1.1.1` — the `requiredScope` false allow.
+- `@absuitecore/cli@<1.0.2` — 1.0.0 could not run at all; 1.0.1 had broken
+  `--help` and `status` for global installs.
+
 ## [capkit 1.1.1, mcp 1.0.2] — 2026-07-29
 
 ### Fixed — capkit

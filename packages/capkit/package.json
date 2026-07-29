@@ -1,7 +1,7 @@
 {
   "name": "@absuitecore/capkit",
-  "version": "1.1.1",
-  "description": "Capability tokens, JWT validation, tamper-evident audit and verifiable execution traces for AI agents.",
+  "version": "1.1.2",
+  "description": "Ed25519-signed, hash-chained execution traces and capability tokens for AI agents — prove what an agent was allowed to do and what it actually did.",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,10 +18,15 @@
   },
   "keywords": [
     "capability-token",
-    "jwt",
+    "execution-trace",
+    "tamper-evident",
+    "ed25519",
+    "provenance",
+    "audit-log",
     "authorization",
+    "jwt",
     "ai-agents",
-    "audit-log"
+    "ai-governance"
   ],
   "dependencies": {
     "express": "^4.18.0"

@@ -1,7 +1,7 @@
 {
   "name": "@absuitecore/mcp",
-  "version": "1.0.2",
-  "description": "Model Context Protocol server for ABSuite \u2014 capability-checked, cryptographically attested tool calls for AI agents.",
+  "version": "1.0.3",
+  "description": "Model Context Protocol server for ABSuite — every tool call is checked against a capability token before it runs and produces a signed execution trace.",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,10 +22,12 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "ai-agents",
-    "authorization",
+    "attestation",
+    "execution-trace",
     "capability-token",
-    "audit"
+    "authorization",
+    "audit",
+    "ai-agents"
   ],
   "publishConfig": {
     "access": "public"

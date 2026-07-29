@@ -1,7 +1,7 @@
 {
   "name": "@absuitecore/cli",
-  "version": "1.0.2",
-  "description": "ABSuite CLI \u2014 unified command-line interface",
+  "version": "1.0.3",
+  "description": "Command-line interface for ABSuite — issue capability tokens, record and verify execution traces, and run the local stack.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -21,6 +21,9 @@
   "keywords": [
     "absuite",
     "cli",
+    "capability-token",
+    "execution-trace",
+    "ai-agents",
     "agent-builder"
   ],
   "dependencies": {},
