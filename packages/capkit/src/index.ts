@@ -96,6 +96,7 @@ export {
   type ExecutionStep,
   type ExecutionOutcome,
   type TraceVerdict,
+  type RecordExecutionInput,
 } from './trace';
 
 export { generatePolicy, type GeneratedPolicy, type SensitivityLevel, type FilterLevel } from './ai-policy-generator';

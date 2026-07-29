@@ -151,6 +151,20 @@ export class SigningKey {
       publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
     };
   }
+
+  /**
+   * Generate a keypair and the `SigningKey` that uses it, in one call.
+   *
+   * `generate()` returns PEMs, which then have to be fed back through the
+   * constructor — a small step, but one every newcomer trips over on their
+   * first attempt. This returns both: the key you sign with, and the PEMs you
+   * store (the public one to hand to auditors, the private one to your secret
+   * manager).
+   */
+  static createPair(keyId?: string): { key: SigningKey; privateKeyPem: string; publicKeyPem: string } {
+    const { privateKeyPem, publicKeyPem } = SigningKey.generate();
+    return { key: new SigningKey(privateKeyPem, keyId), privateKeyPem, publicKeyPem };
+  }
 }
 
 export function verifySignature(hashHex: string, signatureBase64: string, publicKeyPem: string): boolean {
@@ -203,6 +217,32 @@ export function verifyTrace(trace: ExecutionTrace, publicKeyPem?: string): Trace
     : { valid: false, reason: 'Signature does not verify against the supplied key', contentIntact: true, signatureValid: false };
 }
 
+/**
+ * Everything about an execution except the parts the store derives: its id,
+ * its place in the chain, its hash and its signature.
+ */
+type ExecutionBody = Omit<
+  ExecutionTrace,
+  'id' | 'inputHash' | 'outputHash' | 'startedAt' | 'steps' | 'prevHash' | 'hash' | 'signature' | 'keyId'
+> & {
+  /** Supplied only when the caller already owns an id. Otherwise generated. */
+  id?: string;
+  /** Defaults to now. Pass it explicitly when recording something historical. */
+  startedAt?: string;
+  /** Defaults to `[]`. A trace without steps is still a valid attestation. */
+  steps?: ExecutionStep[];
+};
+
+/**
+ * Either the payload — which is hashed here and immediately discarded — or a
+ * hash you computed yourself. Never both: two sources for one field is how
+ * records end up disagreeing with reality.
+ */
+type InputSource = { input: unknown; inputHash?: never } | { inputHash: string; input?: never };
+type OutputSource = { output: unknown; outputHash?: never } | { outputHash?: string; output?: never };
+
+export type RecordExecutionInput = ExecutionBody & InputSource & OutputSource;
+
 /** Records executions, chains them, signs them, and reads them back. */
 export class TraceStore {
   constructor(private readonly storage: Storage, private readonly signingKey?: SigningKey) {}
@@ -223,8 +263,42 @@ export class TraceStore {
    *
    * Chaining and insertion happen in one transaction so two concurrent
    * executions cannot both link to the same predecessor and fork the chain.
+   *
+   * Pass `input`/`output` and the payloads are hashed here and dropped; pass
+   * `inputHash`/`outputHash` if you hashed them yourself. `startedAt` defaults
+   * to now and `steps` to `[]`, so the shortest honest record is:
+   *
+   * ```ts
+   * traces.record({ subject, scope, module, action, input, output, outcome: 'success' });
+   * ```
    */
-  record(input: Omit<ExecutionTrace, 'id' | 'prevHash' | 'hash' | 'signature' | 'keyId'> & { id?: string }): ExecutionTrace {
+  record(request: RecordExecutionInput): ExecutionTrace {
+    const input = request as ExecutionBody & {
+      input?: unknown;
+      inputHash?: string;
+      output?: unknown;
+      outputHash?: string;
+    };
+
+    const hasInputHash = typeof input.inputHash === 'string';
+    if (!hasInputHash && !('input' in input)) {
+      throw new Error('record() needs either `input` (hashed here) or `inputHash` (hashed by you)');
+    }
+
+    const inputHash = hasInputHash ? input.inputHash! : hashPayload(input.input);
+    const outputHash = typeof input.outputHash === 'string'
+      ? input.outputHash
+      : 'output' in input ? hashPayload(input.output) : undefined;
+
+    const startedAt = input.startedAt ?? new Date().toISOString();
+
+    // Two timestamps already state the duration; deriving it is arithmetic on
+    // supplied facts, not an assumption. An explicit durationMs always wins,
+    // because the caller measured it and we did not.
+    const durationMs = input.durationMs !== undefined
+      ? input.durationMs
+      : elapsedBetween(startedAt, input.completedAt);
+
     return this.storage.transaction(() => {
       const { hash: prevHash, seq } = this.headHashAndSeq();
 
@@ -236,14 +310,14 @@ export class TraceStore {
         scope: input.scope,
         module: input.module,
         action: input.action,
-        inputHash: input.inputHash,
-        ...(input.outputHash ? { outputHash: input.outputHash } : {}),
+        inputHash,
+        ...(outputHash ? { outputHash } : {}),
         outcome: input.outcome,
         ...(input.error ? { error: input.error } : {}),
-        startedAt: input.startedAt,
+        startedAt,
         ...(input.completedAt ? { completedAt: input.completedAt } : {}),
-        ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
-        steps: input.steps,
+        ...(durationMs !== undefined ? { durationMs } : {}),
+        steps: input.steps ?? [],
         prevHash,
       };
 
@@ -351,6 +425,20 @@ function rowToTrace(row: Record<string, unknown>): ExecutionTrace {
     ...(row.signature ? { signature: String(row.signature) } : {}),
     ...(row.key_id ? { keyId: String(row.key_id) } : {}),
   };
+}
+
+/**
+ * Milliseconds between two ISO timestamps, or `undefined` if that cannot be
+ * stated honestly — no end time, an unparseable one, or a clock that appears to
+ * have run backwards. A negative duration is a symptom, not a measurement, so
+ * it is omitted rather than recorded.
+ */
+function elapsedBetween(startedAt: string, completedAt?: string): number | undefined {
+  if (!completedAt) return undefined;
+  const from = Date.parse(startedAt);
+  const to = Date.parse(completedAt);
+  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return undefined;
+  return to - from;
 }
 
 function safeParse<T>(value: unknown, fallback: T): T {

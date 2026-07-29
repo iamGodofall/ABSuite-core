@@ -6,6 +6,54 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+## [trust 1.1.0] — 2026-07-29
+
+### Added
+
+- `EvidenceRecord.eventsRecorded`, which counts what the field has always
+  counted: events, not actions. Recording that an agent made an unsupported
+  claim about an action is a *second event about the same action*, so the number
+  was never a count of things the subject did.
+
+### Deprecated
+
+- `EvidenceRecord.actionsRecorded`. It is a misnomer and always was. It still
+  returns exactly `eventsRecorded` and will be removed in 2.0. A package whose
+  entire argument is that names must match evidence cannot ship a field that
+  overstates what a subject did — the demo printed "Actions recorded 2" after
+  one action, which is how this was caught.
+
+## [capkit 1.1.0] — 2026-07-29
+
+Nothing new to demo. This release exists because writing
+`examples/incident-forensics.mjs` against the published packages surfaced four
+steps a newcomer had to perform by hand, none of which carried information the
+library did not already have. Every addition is backwards compatible — the 1.0
+call sites in this repository were left untouched and still compile.
+
+### Added
+
+- `TraceStore.record()` accepts `input` and `output` payloads directly and
+  hashes them itself. Payloads are still hashed and discarded, never stored;
+  `inputHash` / `outputHash` remain fully supported for callers who hash their
+  own. Supplying both forms for one field is a type error — two sources for one
+  fact is how records end up disagreeing with reality.
+- `TraceStore.record()` defaults `startedAt` to now and `steps` to `[]`, and
+  derives `durationMs` when both timestamps are given. An explicitly measured
+  `durationMs` always wins, and a duration that would come out negative is
+  omitted rather than recorded — a clock that ran backwards is a symptom, not a
+  measurement.
+- `SigningKey.createPair()` returns the `SigningKey` **and** both PEMs in one
+  call. `SigningKey.generate()` returns the PEMs alone and is unchanged.
+
+### Changed
+
+- `TraceStore.record()` now throws when neither `input` nor `inputHash` is
+  supplied. Previously the field was required by the type alone; the runtime
+  would have written `undefined` into the chain. Defaulting to an empty payload
+  was rejected — it would put a hash in the chain attesting to something nobody
+  ever processed.
+
 ### Fixed
 
 - Cross-package dependencies used `workspace:*`, which resolves to an **exact**

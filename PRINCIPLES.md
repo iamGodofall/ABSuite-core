@@ -31,7 +31,7 @@ Where a count will do, report the count. Scores about people are conclusions a
 machine reached about a human being, and they get used to deny things by people
 who never see how they were computed.
 
-> `evidenceRecord()` reports `actionsRecorded`, `policyViolations`,
+> `evidenceRecord()` reports `eventsRecorded`, `policyViolations`,
 > `manualOverrides`, `auditFindings`. It has no `score` field and cannot be
 > given one. Scoring humans at all requires an explicit opt-in.
 

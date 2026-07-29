@@ -305,3 +305,132 @@ describe('replay', () => {
     expect(compareReplay(trace, { input: {}, output: {} }).outputMatches).toBe(false);
   });
 });
+
+// The friction below was found by writing examples/incident-forensics.mjs
+// against the published packages: every one of these is a step a newcomer had
+// to perform manually in 1.0, and none of them carried information the library
+// did not already have.
+describe('recording without the ceremony', () => {
+  test('hashes the payloads for you', () => {
+    const { traces } = freshStore();
+    const input = { batch: 'BATCH-8891', total: 250000 };
+    const output = { approved: true };
+
+    const trace = traces.record({
+      subject: 'agent:invoicing',
+      scope: ['payment:approve'],
+      module: 'payments',
+      action: 'approve_batch',
+      input,
+      output,
+      outcome: 'success',
+    });
+
+    expect(trace.inputHash).toBe(hashPayload(input));
+    expect(trace.outputHash).toBe(hashPayload(output));
+    // Hashed, never stored. The convenience must not become a data copy.
+    expect(JSON.stringify(traces.get(trace.id))).not.toContain('BATCH-8891');
+  });
+
+  test('a pre-computed hash is still accepted', () => {
+    const { traces } = freshStore();
+    const trace = traces.record({
+      subject: 'a', scope: [], module: 'm', action: 'x',
+      inputHash: hashPayload({ n: 1 }),
+      outcome: 'success',
+    });
+
+    expect(trace.inputHash).toBe(hashPayload({ n: 1 }));
+    expect(trace.outputHash).toBeUndefined();
+  });
+
+  test('refuses to record an execution with no input at all', () => {
+    const { traces } = freshStore();
+    expect(() =>
+      // Neither form supplied. Guessing an empty payload would put a hash in
+      // the chain that attests to something nobody ever processed.
+      traces.record({ subject: 'a', scope: [], module: 'm', action: 'x', outcome: 'success' } as never)
+    ).toThrow(/either `input`.*or `inputHash`/);
+  });
+
+  test('defaults startedAt to now and steps to none', () => {
+    const { traces } = freshStore();
+    const before = Date.now();
+    const trace = traces.record({
+      subject: 'a', scope: [], module: 'm', action: 'x', input: {}, outcome: 'success',
+    });
+
+    expect(trace.steps).toEqual([]);
+    expect(Date.parse(trace.startedAt)).toBeGreaterThanOrEqual(before - 1000);
+    expect(Date.parse(trace.startedAt)).toBeLessThanOrEqual(Date.now() + 1000);
+  });
+
+  test('derives durationMs from the two timestamps', () => {
+    const { traces } = freshStore();
+    const trace = traces.record({
+      subject: 'a', scope: [], module: 'm', action: 'x', input: {}, outcome: 'success',
+      startedAt: '2026-07-29T02:14:03.000Z',
+      completedAt: '2026-07-29T02:14:05.500Z',
+    });
+
+    expect(trace.durationMs).toBe(2500);
+  });
+
+  test('a measured duration always beats a derived one', () => {
+    const { traces } = freshStore();
+    const trace = traces.record({
+      subject: 'a', scope: [], module: 'm', action: 'x', input: {}, outcome: 'success',
+      startedAt: '2026-07-29T02:14:03.000Z',
+      completedAt: '2026-07-29T02:14:05.500Z',
+      durationMs: 41,
+    });
+
+    // The caller measured it; the store did not.
+    expect(trace.durationMs).toBe(41);
+  });
+
+  test('omits the duration rather than record a negative one', () => {
+    const { traces } = freshStore();
+    const trace = traces.record({
+      subject: 'a', scope: [], module: 'm', action: 'x', input: {}, outcome: 'success',
+      startedAt: '2026-07-29T02:14:05.000Z',
+      completedAt: '2026-07-29T02:14:03.000Z',
+    });
+
+    // A clock that ran backwards is a symptom, not a measurement.
+    expect(trace.durationMs).toBeUndefined();
+  });
+
+  test('the convenience form still signs, chains and verifies', () => {
+    const { traces, key } = freshStore();
+    const first = traces.record({ subject: 'a', scope: [], module: 'm', action: 'x', input: 1, outcome: 'success' });
+    const second = traces.record({ subject: 'a', scope: [], module: 'm', action: 'y', input: 2, outcome: 'success' });
+
+    expect(second.prevHash).toBe(first.hash);
+    expect(traces.verifyChain(key!.publicKeyPem).valid).toBe(true);
+  });
+});
+
+describe('SigningKey.createPair', () => {
+  test('returns a key that signs and PEMs that verify it', () => {
+    const { key, privateKeyPem, publicKeyPem } = SigningKey.createPair();
+    const storage = new Storage(':memory:');
+    const traces = new TraceStore(storage, key);
+
+    const trace = traces.record({ subject: 'a', scope: [], module: 'm', action: 'x', input: {}, outcome: 'success' });
+
+    expect(privateKeyPem).toContain('PRIVATE KEY');
+    expect(verifyTrace(trace, publicKeyPem).valid).toBe(true);
+    // Not ephemeral: restarting with the same PEM keeps old signatures valid.
+    expect(key.ephemeral).toBe(false);
+    expect(verifyTrace(trace, new SigningKey(privateKeyPem).publicKeyPem).valid).toBe(true);
+  });
+
+  test('carries a custom key id through to the trace', () => {
+    const { key } = SigningKey.createPair('billing-2026-q3');
+    const traces = new TraceStore(new Storage(':memory:'), key);
+    const trace = traces.record({ subject: 'a', scope: [], module: 'm', action: 'x', input: {}, outcome: 'success' });
+
+    expect(trace.keyId).toBe('billing-2026-q3');
+  });
+});

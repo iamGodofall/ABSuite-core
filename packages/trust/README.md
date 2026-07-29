@@ -105,7 +105,7 @@ reports facts:
 
 ```ts
 scorer.evidence('person:j.smith', 'human');
-// { actionsRecorded: 1042, policyViolations: 2,
+// { eventsRecorded: 1042, policyViolations: 2,
 //   manualOverrides: 1, auditFindings: 0,
 //   note: 'These are recorded facts, not an assessment...' }
 ```

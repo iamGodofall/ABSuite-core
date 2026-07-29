@@ -167,7 +167,7 @@ export interface TrustScorerOptions extends ScoringOptions {
  * This is the *only* thing ABSuite will report about a person by default, and
  * the distinction is not a technicality. "John has a trust score of 42" is a
  * conclusion a machine reached about a human being, and it will be used to deny
- * him things by people who never see how it was computed. "John: 1,042 actions
+ * him things by people who never see how it was computed. "John: 1,042 events
  * recorded, 2 policy violations, 1 manual override, 0 audit findings" is a set
  * of facts he can check, contest line by line, and explain.
  *
@@ -179,6 +179,20 @@ export interface EvidenceRecord {
   subjectType: SubjectType;
   /** Every recorded event kind and how many times it occurred. */
   counts: Record<string, number>;
+  /**
+   * Events on the record, excluding any neutralised by a successful appeal.
+   *
+   * Events, not actions. Recording that an agent made an unsupported claim
+   * about an action it took is a second event about the same action — so this
+   * number is larger than the number of things the subject did, and calling it
+   * a count of actions would be exactly the kind of overstated claim this
+   * package exists to catch.
+   */
+  eventsRecorded: number;
+  /**
+   * @deprecated Misnamed: it has always counted events, not actions. Identical
+   * to `eventsRecorded`, which says what it is. Removed in 2.0.
+   */
   actionsRecorded: number;
   policyViolations: number;
   manualOverrides: number;
@@ -218,12 +232,14 @@ export function evidenceRecord(
   }
 
   const timestamps = events.map(e => e.at).sort();
+  const eventsRecorded = events.length - neutralised;
 
   return {
     subjectId,
     subjectType,
     counts,
-    actionsRecorded: events.length - neutralised,
+    eventsRecorded,
+    actionsRecorded: eventsRecorded,
     policyViolations: counts.policy_violation ?? 0,
     manualOverrides: counts.manual_override ?? 0,
     auditFindings: (counts.verification_failed ?? 0) + (counts.unsupported_claim ?? 0) + (counts.contradiction ?? 0),

@@ -68,10 +68,9 @@ const trace = traces.record({
   scope: ['write:tasks'],
   module: 'my-service',
   action: 'http:POST https://api.example.com/sync',
-  inputHash: hashPayload(input),
-  outputHash: hashPayload(output),
+  input,          // hashed here and discarded — pass `inputHash` if you hashed it yourself
+  output,
   outcome: 'success',
-  startedAt, completedAt, steps: [],
 })
 
 // Anyone holding the public key can check it — no ABSuite credentials needed.
@@ -81,7 +80,9 @@ traces.verifyChain(publicKeyPem)  // names the sequence number of any broken rec
 ```
 
 Payloads are **hashed, never stored**, so a trace proves what happened without
-retaining your customers' data.
+retaining your customers' data. `startedAt` defaults to now, `steps` to none,
+and `durationMs` is derived when you supply both timestamps — a default is only
+ever taken where the library already knows the answer.
 
 ## Tamper-evident audit log
 
@@ -121,7 +122,9 @@ tenancy.usageReport(tenant)  // usage, quotas, and which limits are being approa
 | `CAPKIT_TRACE_PRIVATE_KEY` | Ed25519 PEM for signing traces. Generated ephemerally if unset. |
 
 Generate secrets with `openssl rand -hex 32`, and a trace keypair with
-`SigningKey.generate()`.
+`SigningKey.createPair()` — it hands back the key to sign with plus both PEMs,
+the public one to give auditors and the private one for your secret manager.
+`SigningKey.generate()` returns the PEMs alone and remains supported.
 
 ## Known limitations
 

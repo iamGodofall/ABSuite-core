@@ -10,7 +10,7 @@ The question ABSuite exists to answer:
 > *Our AI agent approved $250,000 of transactions at 2:14 AM. What happened?*
 
 ```bash
-npm install @absuitecore/capkit @absuitecore/trust
+npm install @absuitecore/capkit@^1.1.0 @absuitecore/trust@^1.1.0
 node incident-forensics.mjs
 ```
 

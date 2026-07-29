@@ -9,16 +9,15 @@ npm install @absuitecore/capkit
 ```
 
 ```js
-import { SigningKey, TraceStore, Storage, verifyTrace, hashPayload } from '@absuitecore/capkit';
+import { SigningKey, TraceStore, Storage, verifyTrace } from '@absuitecore/capkit';
 
-const { privateKeyPem, publicKeyPem } = SigningKey.generate();
-const traces = new TraceStore(new Storage('./audit.db'), new SigningKey(privateKeyPem));
+const { key, publicKeyPem } = SigningKey.createPair();
+const traces = new TraceStore(new Storage('./audit.db'), key);
 
 const trace = traces.record({
   subject: 'agent:invoicing', scope: ['payment:approve'],
   module: 'payments', action: 'approve_batch', outcome: 'success',
-  inputHash: hashPayload({ batch: 'BATCH-8891', total: 250000 }),
-  startedAt: new Date().toISOString(), steps: [],
+  input: { batch: 'BATCH-8891', total: 250000 },   // hashed here, never stored
 });
 
 verifyTrace(trace, publicKeyPem).valid;   // true — Ed25519, not a log line

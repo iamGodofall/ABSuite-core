@@ -155,7 +155,7 @@ describe('evidence records — facts, never conclusions', () => {
 
     const record = evidenceRecord('person:1', 'human', events.forSubject('person:1'));
 
-    expect(record.actionsRecorded).toBe(14);
+    expect(record.eventsRecorded).toBe(14);
     expect(record.policyViolations).toBe(1);
     expect(record.manualOverrides).toBe(1);
     expect(record.auditFindings).toBe(0);
@@ -175,7 +175,7 @@ describe('evidence records — facts, never conclusions', () => {
     // Counting what happened is not the same act as rating a person, so this
     // has no off switch.
     const scorer = new TrustScorer(events, { scoreHumans: false });
-    expect(scorer.evidence('person:1', 'human').actionsRecorded).toBe(1);
+    expect(scorer.evidence('person:1', 'human').eventsRecorded).toBe(1);
   });
 
   test('neutralised events are excluded from the counts but reported separately', () => {
@@ -191,8 +191,24 @@ describe('evidence records — facts, never conclusions', () => {
 
   test('an unknown subject reports zeroes, not an absence of trust', () => {
     const record = evidenceRecord('person:new', 'human', []);
-    expect(record.actionsRecorded).toBe(0);
+    expect(record.eventsRecorded).toBe(0);
     expect(record.firstRecorded).toBeUndefined();
+  });
+
+  test('counts events, not actions, and says so', () => {
+    const events = store();
+    // One action, two events about it: it happened, and its justification was
+    // unsupported. Reporting "1 action" would be wrong; reporting "2 actions"
+    // would be worse — it would overstate what the subject did.
+    events.record({ subjectId: 'agent:1', subjectType: 'agent', kind: 'execution_success', evidenceRef: 'exec_1' });
+    events.record({ subjectId: 'agent:1', subjectType: 'agent', kind: 'unsupported_claim', evidenceRef: 'exec_1' });
+
+    const record = evidenceRecord('agent:1', 'agent', events.forSubject('agent:1'));
+
+    expect(record.eventsRecorded).toBe(2);
+    expect(record.counts).toEqual({ execution_success: 1, unsupported_claim: 1 });
+    // The old name is a misnomer kept for compatibility; it must not drift.
+    expect(record.actionsRecorded).toBe(record.eventsRecorded);
   });
 });
 

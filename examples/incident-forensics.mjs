@@ -6,14 +6,14 @@
  * more than any feature list. Below is the whole investigation, start to
  * finish, using only published packages.
  *
- *   npm install @absuitecore/capkit @absuitecore/trust
+ *   npm install @absuitecore/capkit@^1.1.0 @absuitecore/trust@^1.1.0
  *   node incident-forensics.mjs
  *
  * Nothing here is mocked. The signatures are real Ed25519 signatures, the
  * chain is really hash-linked, and the tamper detection really fails when the
  * record is edited.
  */
-import { SigningKey, TraceStore, Storage, verifyTrace, hashPayload, CapabilityToken } from '@absuitecore/capkit';
+import { SigningKey, TraceStore, Storage, verifyTrace, CapabilityToken } from '@absuitecore/capkit';
 import { TrustEventStore, evidenceRecord, verifyOutput, renderReport } from '@absuitecore/trust';
 
 const line = (t) => console.log(`\n\x1b[1m${t}\x1b[0m\n${'─'.repeat(t.length)}`);
@@ -21,8 +21,7 @@ const line = (t) => console.log(`\n\x1b[1m${t}\x1b[0m\n${'─'.repeat(t.length)}
 // ── The setup ────────────────────────────────────────────────────────────────
 // One signing key, one store. In production the key lives in your secret
 // manager and the store is a file on a volume you back up.
-const { privateKeyPem, publicKeyPem } = SigningKey.generate();
-const key = new SigningKey(privateKeyPem);
+const { key, publicKeyPem } = SigningKey.createPair();
 const storage = new Storage('');
 const traces = new TraceStore(storage, key);
 const events = new TrustEventStore(storage);
@@ -45,10 +44,10 @@ const approval = traces.record({
   scope: ['payment:approve'],
   module: 'payments',
   action: 'approve_batch',
-  // Payloads are hashed, never stored. The record proves what was processed
-  // without becoming a copy of your customers' data.
-  inputHash: hashPayload({ batch: 'BATCH-8891', total: 250000, currency: 'USD', count: 47 }),
-  outputHash: hashPayload({ approved: true, reference: 'PAY-2214-8891' }),
+  // Payloads are hashed on the way in and dropped. The record proves what was
+  // processed without becoming a copy of your customers' data.
+  input: { batch: 'BATCH-8891', total: 250000, currency: 'USD', count: 47 },
+  output: { approved: true, reference: 'PAY-2214-8891' },
   outcome: 'success',
   startedAt: new Date('2026-07-29T02:14:03Z').toISOString(),
   steps: [
@@ -94,7 +93,7 @@ events.record({ subjectId: 'agent:invoicing', subjectType: 'agent', kind: 'unsup
   note: 'Claimed CEO approval with nothing to support it' });
 
 const record = evidenceRecord('agent:invoicing', 'agent', events.forSubject('agent:invoicing'));
-console.log(`Actions recorded            ${record.actionsRecorded}`);
+console.log(`Events recorded             ${record.eventsRecorded}`);
 console.log(`Policy violations           ${record.policyViolations}`);
 console.log(`Audit findings              ${record.auditFindings}`);
 
