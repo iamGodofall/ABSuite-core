@@ -121,7 +121,7 @@ at all requires setting `ABSUITE_TRUST_SCORE_HUMANS=true` deliberately.
 ### What makes it a suite, not six services
 
 CapKit is the shared authorisation layer. Every other service imports
-`capabilityGuard` from `@absuite/capkit` and enforces the same capability model,
+`capabilityGuard` from `@absuitecore/capkit` and enforces the same capability model,
 so **one token works everywhere, and revoking it at CapKit locks it out of all
 of them**. Enforcement lives in a library distributed to every service rather
 than in a gateway, because a gateway leaves each service unguarded to anything
@@ -179,7 +179,7 @@ benchmarks against any running service.
 ```bash
 # Terminal 1 — CapKit
 CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) CAPKIT_ADMIN_KEY=dev-admin-key \
-  pnpm --filter @absuite/capkit dev
+  pnpm --filter @absuitecore/capkit dev
 
 # Terminal 2 — Dashboard
 ABSUITE_ADMIN_API_KEY=dev-admin-key pnpm --filter dashboard-ui start
@@ -266,7 +266,7 @@ ABSuite-core/
 ## 🏗️ Architecture
 
 ABSuite enforces authority **at every service**, not at a single gateway. Each
-service imports `capabilityGuard` from `@absuite/capkit`, so there is no path
+service imports `capabilityGuard` from `@absuitecore/capkit`, so there is no path
 that reaches execution without a capability check — including a caller who
 bypasses the dashboard entirely and talks to a service directly.
 
@@ -277,7 +277,7 @@ bypasses the dashboard entirely and talks to a service directly.
                                  └────────────┬───────┴────────────────┘
                                               │ Bearer <capability token>
  ═════════════════════════════════════════════▼═══════════════════════════════
-   @absuite/capkit — THE CORE (library + service :8081)
+   @absuitecore/capkit — THE CORE (library + service :8081)
    Imported by every service below. Depends on nothing in this repo.
 
      capability.ts   scopes, expiry, audience   │  trace.ts    Ed25519 traces
@@ -290,7 +290,7 @@ bypasses the dashboard entirely and talks to a service directly.
         ┌──────────────────┬──────────────────┼──────────────────┐
         ▼                  ▼                  ▼                  ▼
  ┌─────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
- │ @absuite/   │   │ @absuite/    │   │ @absuite/    │   │ @absuite/    │
+ │ @absuitecore/   │   │ @absuitecore/    │   │ @absuitecore/    │   │ @absuitecore/    │
  │ edge-run    │   │ quickbench   │   │ connector-   │   │ mcp          │
  │ :8082       │   │ :8083        │   │ starter :8084│   │ stdio        │
  │             │   │              │   │              │   │              │
@@ -336,7 +336,7 @@ bottleneck, and — critically — it leaves a bypass: anything that reaches a
 service directly skips the check. Distributing the *same* guard to every
 service means direct access is checked too. There is no unguarded door.
 
-**The one invariant:** `@absuite/capkit` depends on nothing in this repo;
+**The one invariant:** `@absuitecore/capkit` depends on nothing in this repo;
 everything else depends on it. Never invert that arrow.
 
 ---
@@ -346,7 +346,7 @@ everything else depends on it. Never invert that arrow.
 ### CapKit — Security Without Compromise
 
 ```typescript
-import { CapabilityToken, hasCapability } from '@absuite/capkit'
+import { CapabilityToken, hasCapability } from '@absuitecore/capkit'
 
 // Create a capability token with scoped permissions
 const created = CapabilityToken.create({
@@ -377,7 +377,7 @@ third-party JWT dependency on the security-critical path.
 ### Edge-Run — Agents That Run Reliably
 
 ```typescript
-import { TaskQueue, TaskRuntime, AgentScheduler, nextRun } from '@absuite/edge-run'
+import { TaskQueue, TaskRuntime, AgentScheduler, nextRun } from '@absuitecore/edge-run'
 
 const runtime = new TaskRuntime({ allowedHosts: ['api.example.com'] })
 const queue = new TaskQueue({ runtime, concurrency: 10 })
@@ -409,7 +409,7 @@ never takes the whole queue down with it.
 ### QuickBench — Know Before You Deploy
 
 ```typescript
-import { BenchmarkRunner, summarise, compareRuns } from '@absuite/quickbench'
+import { BenchmarkRunner, summarise, compareRuns } from '@absuitecore/quickbench'
 
 const runner = new BenchmarkRunner()
 
@@ -433,7 +433,7 @@ so every figure is a latency that was actually observed.
 ### Connector-Starter — Integrations You Can Trust
 
 ```typescript
-import { describeConnectors, verifyConnector, generate } from '@absuite/connector-starter'
+import { describeConnectors, verifyConnector, generate } from '@absuitecore/connector-starter'
 
 // What is available, and what is actually configured?
 describeConnectors()
@@ -550,10 +550,10 @@ DASHBOARD_PORT=3001
 pnpm test
 
 # A single module
-pnpm --filter @absuite/capkit test
-pnpm --filter @absuite/edge-run test
-pnpm --filter @absuite/quickbench test
-pnpm --filter @absuite/connector-starter test
+pnpm --filter @absuitecore/capkit test
+pnpm --filter @absuitecore/edge-run test
+pnpm --filter @absuitecore/quickbench test
+pnpm --filter @absuitecore/connector-starter test
 ```
 
 The suites target the paths where being wrong actually costs something:

@@ -12,13 +12,13 @@ COPY packages/quickbench/package.json ./packages/quickbench/package.json
 COPY packages/quickbench/tsconfig.json ./packages/quickbench/tsconfig.json
 COPY packages/quickbench/src ./packages/quickbench/src
 
-RUN pnpm install --filter @absuite/quickbench... --no-frozen-lockfile
-RUN pnpm --filter @absuite/capkit build
-RUN pnpm --filter @absuite/quickbench build
+RUN pnpm install --filter @absuitecore/quickbench... --no-frozen-lockfile
+RUN pnpm --filter @absuitecore/capkit build
+RUN pnpm --filter @absuitecore/quickbench build
 
 # Drop devDependencies now that dist exists. The runtime image carries the
 # workspace layout verbatim, so pruning has to happen here, before the copy.
-RUN pnpm install --filter @absuite/quickbench... --prod --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --filter @absuitecore/quickbench... --prod --no-frozen-lockfile --ignore-scripts
 
 FROM node:22-alpine
 

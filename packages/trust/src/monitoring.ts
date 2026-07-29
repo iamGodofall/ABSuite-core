@@ -26,7 +26,7 @@
  * human should look.
  */
 import { randomUUID } from 'node:crypto';
-import type { Storage } from '@absuite/capkit';
+import type { Storage } from '@absuitecore/capkit';
 
 export type InteractionKind = 'invoke' | 'delegate' | 'review' | 'handoff' | 'respond';
 

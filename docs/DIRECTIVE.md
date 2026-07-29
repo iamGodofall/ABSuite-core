@@ -57,11 +57,11 @@ Six workspace packages. Five are publishable.
 
 | Package | Purpose | State |
 |---|---|---|
-| `@absuite/capkit` | Capability tokens, audit, traces, tenancy, billing, metrics | Complete |
-| `@absuite/edge-run` | Cron, queue, retries, circuit breaker | Complete |
-| `@absuite/quickbench` | LLM/HTTP benchmarking, regression detection | Complete |
-| `@absuite/connector-starter` | Connector registry, scaffolding | Complete |
-| `@absuite/mcp` | MCP server — capability-checked, attested tool calls | Complete |
+| `@absuitecore/capkit` | Capability tokens, audit, traces, tenancy, billing, metrics | Complete |
+| `@absuitecore/edge-run` | Cron, queue, retries, circuit breaker | Complete |
+| `@absuitecore/quickbench` | LLM/HTTP benchmarking, regression detection | Complete |
+| `@absuitecore/connector-starter` | Connector registry, scaffolding | Complete |
+| `@absuitecore/mcp` | MCP server — capability-checked, attested tool calls | Complete |
 | `dashboard-ui` | Web control plane (not published) | Complete |
 
 **246 tests pass. All packages typecheck and pack cleanly.**
@@ -69,11 +69,11 @@ Six workspace packages. Five are publishable.
 ### 5. Architecture — the rule that matters
 
 ```
-@absuite/capkit            → (no workspace dependencies)
-@absuite/edge-run          → @absuite/capkit
-@absuite/quickbench        → @absuite/capkit
-@absuite/connector-starter → @absuite/capkit
-@absuite/mcp               → @absuite/capkit
+@absuitecore/capkit            → (no workspace dependencies)
+@absuitecore/edge-run          → @absuitecore/capkit
+@absuitecore/quickbench        → @absuitecore/capkit
+@absuitecore/connector-starter → @absuitecore/capkit
+@absuitecore/mcp               → @absuitecore/capkit
 ```
 
 **The core depends on nothing. Everything depends on the core.** This is the
@@ -227,7 +227,7 @@ Two or more "no" answers means do not build it.
 
 1. **Publish to npm.** Nothing sells while nobody can install it.
 2. **Make the GitHub repo public.**
-3. **List `@absuite/mcp` in MCP registries.** Highest-intent audience.
+3. **List `@absuitecore/mcp` in MCP registries.** Highest-intent audience.
 4. **Dashboard trace-verification view.** The demo that closes deals — show an
    auditor pasting a trace and getting a green tick.
 5. **Per-tenant rate limiting.** One tenant can still saturate a node.

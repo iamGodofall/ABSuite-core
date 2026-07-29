@@ -1,4 +1,4 @@
-# @absuite/trust
+# @absuitecore/trust
 
 Evidence-based trust for multi-agent systems.
 
@@ -10,7 +10,7 @@ later is evidence. One you cannot is a black-box rating that quietly ruins
 someone's day.
 
 ```bash
-npm install @absuite/trust
+npm install @absuitecore/trust
 ```
 
 Requires Node 22.5+ (uses `node:sqlite`). Service runs on `:8085`.
@@ -45,7 +45,7 @@ What `verifyOutput` answers instead is a closed-domain question that *does* have
 a real answer: **does this output assert things its own sources do not support?**
 
 ```ts
-import { verifyOutput, renderReport } from '@absuite/trust';
+import { verifyOutput, renderReport } from '@absuitecore/trust';
 
 const report = verifyOutput(
   'The CEO approved this.',

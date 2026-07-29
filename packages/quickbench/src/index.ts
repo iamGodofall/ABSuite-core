@@ -1,5 +1,5 @@
 /**
- * @absuite/quickbench — LLM and service benchmarking with statistically
+ * @absuitecore/quickbench — LLM and service benchmarking with statistically
  * grounded regression detection.
  */
 export {

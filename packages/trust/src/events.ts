@@ -8,7 +8,7 @@
  * governance from a black-box rating that quietly ruins someone's day.
  */
 import { randomUUID } from 'node:crypto';
-import type { Storage } from '@absuite/capkit';
+import type { Storage } from '@absuitecore/capkit';
 
 export type SubjectType = 'agent' | 'human' | 'system' | 'model';
 

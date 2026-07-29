@@ -28,8 +28,8 @@ backend customers has nobody to serve.
 
 | Channel | What goes there | Effort | Why it matters |
 |---|---|---|---|
-| **npm** | `@absuite/capkit`, `edge-run`, `quickbench`, `connector-starter`, `mcp` | Low | Primary discovery for developers. `npm install` is the whole funnel. |
-| **MCP directories** | `@absuite/mcp` listed in MCP server registries | Low | Where agent builders look for tools. Highest-intent audience there is. |
+| **npm** | `@absuitecore/capkit`, `edge-run`, `quickbench`, `connector-starter`, `mcp` | Low | Primary discovery for developers. `npm install` is the whole funnel. |
+| **MCP directories** | `@absuitecore/mcp` listed in MCP server registries | Low | Where agent builders look for tools. Highest-intent audience there is. |
 | **GitHub** | Source, releases, docs | Low | Where technical buyers evaluate before they ever contact you. |
 | **Docker Hub / GHCR** | Per-service images | Low | Lets someone run the suite in one command. |
 | **GitHub Marketplace** | An Action wrapping QuickBench regression checks | Medium | Puts the product inside a workflow developers already run. |
@@ -177,11 +177,11 @@ curl -X POST localhost:8081/admin/tenants \
 
 ```bash
 pnpm -r build
-pnpm --filter @absuite/capkit publish --access public
-pnpm --filter @absuite/edge-run publish --access public
-pnpm --filter @absuite/quickbench publish --access public
-pnpm --filter @absuite/connector-starter publish --access public
-pnpm --filter @absuite/mcp publish --access public
+pnpm --filter @absuitecore/capkit publish --access public
+pnpm --filter @absuitecore/edge-run publish --access public
+pnpm --filter @absuitecore/quickbench publish --access public
+pnpm --filter @absuitecore/connector-starter publish --access public
+pnpm --filter @absuitecore/mcp publish --access public
 ```
 
 Or in one command: `pnpm publish:packages`.

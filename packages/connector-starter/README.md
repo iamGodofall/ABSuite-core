@@ -1,4 +1,4 @@
-# @absuite/connector-starter
+# @absuitecore/connector-starter
 
 Connector registry, credential verification and deterministic connector
 scaffolding.
@@ -20,7 +20,7 @@ scaffolding.
 ## Running
 
 ```bash
-CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) pnpm --filter @absuite/connector-starter dev
+CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) pnpm --filter @absuitecore/connector-starter dev
 ```
 
 ## API

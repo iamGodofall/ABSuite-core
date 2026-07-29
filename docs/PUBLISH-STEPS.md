@@ -1,6 +1,6 @@
 # Publishing to npm — exact steps
 
-> Verified 2026-07-28: `@absuite/capkit`, `edge-run`, `quickbench`,
+> Verified 2026-07-28: `@absuitecore/capkit`, `edge-run`, `quickbench`,
 > `connector-starter` and `mcp` all return **"Not found"** on the npm registry.
 > The publish has not landed yet. Here is why, and exactly how to fix it.
 
@@ -8,12 +8,12 @@
 
 ## The blocker
 
-The packages are **scoped**: `@absuite/capkit`, not `absuite-capkit`.
+The packages are **scoped**: `@absuitecore/capkit`, not `absuite-capkit`.
 
 npm only lets you publish under a scope you own. A scope is either:
 
 - **your username** — so `@yourusername/capkit` would work, or
-- **an organisation you created** — so `@absuite/capkit` needs an npm
+- **an organisation you created** — so `@absuitecore/capkit` needs an npm
   organisation literally named `absuite`.
 
 If you ran `pnpm publish:packages` without creating that organisation, npm
@@ -27,7 +27,7 @@ npm error 404 Scope not found
 or
 
 ```
-npm error 403 Forbidden - You do not have permission to publish "@absuite/capkit"
+npm error 403 Forbidden - You do not have permission to publish "@absuitecore/capkit"
 ```
 
 **Good news:** the name `absuite` is currently unregistered on npm. It is
@@ -122,11 +122,11 @@ seconds; if it expires, wait for the next one rather than reusing it.
 > other four depend on it:
 >
 > ```bash
-> pnpm --filter @absuite/capkit publish --access public --no-git-checks
-> pnpm --filter @absuite/edge-run publish --access public --no-git-checks
-> pnpm --filter @absuite/quickbench publish --access public --no-git-checks
-> pnpm --filter @absuite/connector-starter publish --access public --no-git-checks
-> pnpm --filter @absuite/mcp publish --access public --no-git-checks
+> pnpm --filter @absuitecore/capkit publish --access public --no-git-checks
+> pnpm --filter @absuitecore/edge-run publish --access public --no-git-checks
+> pnpm --filter @absuitecore/quickbench publish --access public --no-git-checks
+> pnpm --filter @absuitecore/connector-starter publish --access public --no-git-checks
+> pnpm --filter @absuitecore/mcp publish --access public --no-git-checks
 > ```
 
 ---
@@ -134,13 +134,13 @@ seconds; if it expires, wait for the next one rather than reusing it.
 ## Step 6 — Verify it is really live (1 minute)
 
 ```bash
-npm view @absuite/capkit
-npm view @absuite/mcp
+npm view @absuitecore/capkit
+npm view @absuitecore/mcp
 
 # The real test — install it somewhere else entirely
 cd /tmp && mkdir t && cd t && npm init -y
-npm install @absuite/capkit
-node -e "console.log(Object.keys(require('@absuite/capkit')).length + ' exports')"
+npm install @absuitecore/capkit
+node -e "console.log(Object.keys(require('@absuitecore/capkit')).length + ' exports')"
 ```
 
 If that prints a number, you are genuinely published.
@@ -168,7 +168,7 @@ If that prints a number, you are genuinely published.
    ```bash
    git tag v1.0.0 && git push origin v1.0.0
    ```
-3. **Submit `@absuite/mcp` to MCP registries** — that is the highest-intent
+3. **Submit `@absuitecore/mcp` to MCP registries** — that is the highest-intent
    audience available to this project.
 4. **Tell me it is live** and I will verify all five from the registry.
 

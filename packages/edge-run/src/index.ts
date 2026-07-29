@@ -1,5 +1,5 @@
 /**
- * @absuite/edge-run — cron scheduling, task queueing and self-healing
+ * @absuitecore/edge-run — cron scheduling, task queueing and self-healing
  * execution for AI agents.
  */
 export { parseCron, nextRun, isValidCron, type CronFields } from './cron';

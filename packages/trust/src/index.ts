@@ -1,5 +1,5 @@
 /**
- * @absuite/trust — evidence-based trust for multi-agent systems.
+ * @absuitecore/trust — evidence-based trust for multi-agent systems.
  *
  * Five capabilities, each built around the same rule: a judgement about a
  * subject must be traceable to a recorded, verifiable event, and must be

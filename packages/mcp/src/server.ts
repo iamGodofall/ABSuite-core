@@ -16,7 +16,7 @@ import {
   getStorage,
   type VerificationKey,
   type ExecutionTrace,
-} from '@absuite/capkit';
+} from '@absuitecore/capkit';
 import {
   ErrorCode,
   PROTOCOL_VERSION,

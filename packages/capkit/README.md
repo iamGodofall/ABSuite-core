@@ -1,4 +1,4 @@
-# @absuite/capkit
+# @absuitecore/capkit
 
 **Scoped, expiring, auditable credentials for AI agents. Stop handing your agents your root API key.**
 
@@ -9,13 +9,13 @@ account access. CapKit replaces that with capability tokens: narrow, expiring,
 revocable grants, with a tamper-evident record of everything they were used for.
 
 ```bash
-npm install @absuite/capkit
+npm install @absuitecore/capkit
 ```
 
 ## Capability tokens
 
 ```typescript
-import { CapabilityToken } from '@absuite/capkit'
+import { CapabilityToken } from '@absuitecore/capkit'
 
 const created = CapabilityToken.create({
   sub: 'agent-001',
@@ -42,7 +42,7 @@ downgrades and tampered payloads are rejected.
 
 ```typescript
 import express from 'express'
-import { capabilityGuard, revocationStoreFromEnv } from '@absuite/capkit'
+import { capabilityGuard, revocationStoreFromEnv } from '@absuitecore/capkit'
 
 const requireCapability = capabilityGuard({ revocations: revocationStoreFromEnv() })
 
@@ -59,7 +59,7 @@ Every real action can produce a signed, hash-chained trace. Signatures are
 without also being able to forge them.
 
 ```typescript
-import { TraceStore, SigningKey, verifyTrace, getStorage } from '@absuite/capkit'
+import { TraceStore, SigningKey, verifyTrace, getStorage } from '@absuitecore/capkit'
 
 const traces = new TraceStore(getStorage(), new SigningKey(process.env.CAPKIT_TRACE_PRIVATE_KEY))
 
@@ -86,7 +86,7 @@ retaining your customers' data.
 ## Tamper-evident audit log
 
 ```typescript
-import { AuditLog } from '@absuite/capkit'
+import { AuditLog } from '@absuitecore/capkit'
 
 const audit = new AuditLog('/data/audit.jsonl')
 audit.record({ subject: 'agent-001', action: 'POST /tasks', resource: '/tasks', result: 'allow' })
@@ -100,7 +100,7 @@ verifier names the first record that fails.
 ## Multi-tenancy, metering and quotas
 
 ```typescript
-import { Storage, TenantService } from '@absuite/capkit'
+import { Storage, TenantService } from '@absuitecore/capkit'
 
 const tenancy = new TenantService(new Storage('/data/absuite.db'))
 const tenant = tenancy.tenants.create('Acme Corp', 'team')
@@ -132,8 +132,8 @@ Generate secrets with `openssl rand -hex 32`, and a trace keypair with
 
 ## Part of ABSuite
 
-`@absuite/edge-run` (scheduling), `@absuite/quickbench` (benchmarking) and
-`@absuite/connector-starter` (integrations) all enforce CapKit capabilities, so
+`@absuitecore/edge-run` (scheduling), `@absuitecore/quickbench` (benchmarking) and
+`@absuitecore/connector-starter` (integrations) all enforce CapKit capabilities, so
 one token works across the suite and revoking it locks it out everywhere.
 
 MIT licensed. [Source](https://github.com/iamGodofall/ABSuite-core).

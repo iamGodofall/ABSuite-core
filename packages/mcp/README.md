@@ -1,4 +1,4 @@
-# @absuite/mcp
+# @absuitecore/mcp
 
 **Capability-checked, cryptographically attested tool calls for AI agents — over the Model Context Protocol.**
 
@@ -8,7 +8,7 @@ runs, and every completed call produces an Ed25519-signed execution trace that
 anyone can verify independently.
 
 ```bash
-npm install -g @absuite/mcp
+npm install -g @absuitecore/mcp
 ```
 
 ## Claude Desktop / any MCP client

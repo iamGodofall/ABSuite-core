@@ -1,5 +1,5 @@
 {
-  "name": "@absuite/cli",
+  "name": "@absuitecore/cli",
   "version": "1.0.0",
   "description": "ABSuite CLI — unified command-line interface",
   "type": "module",

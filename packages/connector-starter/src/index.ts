@@ -1,5 +1,5 @@
 /**
- * @absuite/connector-starter — connector registry, credential verification and
+ * @absuitecore/connector-starter — connector registry, credential verification and
  * deterministic connector scaffolding.
  */
 export {

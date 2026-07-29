@@ -1,4 +1,4 @@
-# @absuite/quickbench
+# @absuitecore/quickbench
 
 LLM and HTTP service benchmarking with percentile latency, throughput and
 statistically grounded regression detection.
@@ -20,7 +20,7 @@ statistically grounded regression detection.
 ## Running
 
 ```bash
-CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) pnpm --filter @absuite/quickbench dev
+CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) pnpm --filter @absuitecore/quickbench dev
 ```
 
 ## API

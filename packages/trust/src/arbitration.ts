@@ -32,7 +32,7 @@
  * discounted and why, and what would have changed the outcome.
  */
 import { randomUUID } from 'node:crypto';
-import type { Storage } from '@absuite/capkit';
+import type { Storage } from '@absuitecore/capkit';
 import type { TrustScorer } from './scoring';
 
 export type ArbitrationOutcome = 'resolved' | 'escalate' | 'no_consensus';

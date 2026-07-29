@@ -1,4 +1,4 @@
-import { CapabilityToken, KeyRing, Storage, TraceStore, SigningKey } from '@absuite/capkit';
+import { CapabilityToken, KeyRing, Storage, TraceStore, SigningKey } from '@absuitecore/capkit';
 import { AbsuiteMcpServer, TOOLS } from './server';
 import { parseRequest, splitMessages, PROTOCOL_VERSION, ErrorCode } from './protocol';
 

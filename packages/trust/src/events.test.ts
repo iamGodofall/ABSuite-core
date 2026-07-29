@@ -1,4 +1,4 @@
-import { Storage } from '@absuite/capkit';
+import { Storage } from '@absuitecore/capkit';
 import { TrustEventStore, EVENT_WEIGHTS } from './events';
 
 function store(): TrustEventStore {

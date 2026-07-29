@@ -1,4 +1,4 @@
-import { Storage } from '@absuite/capkit';
+import { Storage } from '@absuitecore/capkit';
 import { EdgeRunPersistence, persistenceFromEnv } from './persistence';
 import type { Schedule } from './scheduler';
 import type { QueuedTask } from './queue';

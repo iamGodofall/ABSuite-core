@@ -205,7 +205,7 @@ ${spec.envVars.length > 0
 
 ${methods}
 }
-${spec.schedule ? `\n// Suggested schedule for @absuite/edge-run:\n// { id: '${spec.name}', cron: '${spec.schedule}', task: { type: 'http', url: '<endpoint>' } }\n` : ''}`;
+${spec.schedule ? `\n// Suggested schedule for @absuitecore/edge-run:\n// { id: '${spec.name}', cron: '${spec.schedule}', task: { type: 'http', url: '<endpoint>' } }\n` : ''}`;
 }
 
 export function generate(description: string) {

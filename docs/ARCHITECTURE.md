@@ -16,7 +16,7 @@ depends on it and on nothing else in the repo.
                                  └────────────┬───────┴────────────────┘
                                               │ Bearer <capability token>
  ═════════════════════════════════════════════▼═══════════════════════════════
-   @absuite/capkit — THE CORE (library + service :8081)
+   @absuitecore/capkit — THE CORE (library + service :8081)
    Imported by every service below. Depends on nothing in this repo.
 
      capability.ts   scopes, expiry, audience   │  trace.ts    Ed25519 traces
@@ -29,7 +29,7 @@ depends on it and on nothing else in the repo.
         ┌──────────────────┬──────────────────┼──────────────────┐
         ▼                  ▼                  ▼                  ▼
  ┌─────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
- │ @absuite/   │   │ @absuite/    │   │ @absuite/    │   │ @absuite/    │
+ │ @absuitecore/   │   │ @absuitecore/    │   │ @absuitecore/    │   │ @absuitecore/    │
  │ edge-run    │   │ quickbench   │   │ connector-   │   │ mcp          │
  │ :8082       │   │ :8083        │   │ starter :8084│   │ stdio        │
  │             │   │              │   │              │   │              │
@@ -72,7 +72,7 @@ practice:
   developer with curl — executes unchecked.
 
 ABSuite distributes the *same* guard to every service instead. `capabilityGuard`
-comes from `@absuite/capkit`, so a request arriving at Edge-Run directly is
+comes from `@absuitecore/capkit`, so a request arriving at Edge-Run directly is
 checked by exactly the same code that would have checked it at a gateway.
 **There is no unguarded door.**
 
@@ -83,11 +83,11 @@ reimplementing per service is what keeps that manageable.
 ### The one invariant
 
 ```
-@absuite/capkit            → (no workspace dependencies)
-@absuite/edge-run          → @absuite/capkit
-@absuite/quickbench        → @absuite/capkit
-@absuite/connector-starter → @absuite/capkit
-@absuite/mcp               → @absuite/capkit
+@absuitecore/capkit            → (no workspace dependencies)
+@absuitecore/edge-run          → @absuitecore/capkit
+@absuitecore/quickbench        → @absuitecore/capkit
+@absuitecore/connector-starter → @absuitecore/capkit
+@absuitecore/mcp               → @absuitecore/capkit
 ```
 
 The core depends on nothing; everything depends on the core. Never invert that
@@ -234,7 +234,7 @@ Connector-Starter is a **scaffold generator** that produces production-ready ada
 
 **Usage:**
 ```bash
-npx @absuite/connector-starter
+npx @absuitecore/connector-starter
 
 # Or from the repo:
 pnpm --filter connector-starter run dev
@@ -291,7 +291,7 @@ It communicates with all modules via REST APIs and receives live updates via Soc
 
 1. **Network level** — Docker networks isolate services; only the dashboard port is exposed to host
 2. **Transport level** — All inter-service communication can be TLS-encrypted (configured via env vars)
-3. **Application level** — every service enforces `capabilityGuard()` from `@absuite/capkit` on its own routes; there is no unguarded door
+3. **Application level** — every service enforces `capabilityGuard()` from `@absuitecore/capkit` on its own routes; there is no unguarded door
 4. **Capability level** — Even valid requests are scoped to specific resources and actions
 
 ### Token security

@@ -3,7 +3,7 @@
  * execution and scaffold generation.
  */
 import express from 'express';
-import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuite/capkit';
+import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuitecore/capkit';
 import { describeConnectors, getConnector, verifyConnector, runAction } from './connectors';
 import { generate } from './scaffold';
 

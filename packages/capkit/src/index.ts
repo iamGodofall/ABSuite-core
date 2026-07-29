@@ -1,5 +1,5 @@
 /**
- * @absuite/capkit — capability tokens, JWT primitives, audit logging and
+ * @absuitecore/capkit — capability tokens, JWT primitives, audit logging and
  * access-policy generation for ABSuite agents.
  */
 export {

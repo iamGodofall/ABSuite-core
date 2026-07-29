@@ -7,7 +7,7 @@
  * not want reachable without a token.
  */
 import express from 'express';
-import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics, getStorage } from '@absuite/capkit';
+import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics, getStorage } from '@absuitecore/capkit';
 import { TrustEventStore, type SubjectType, type TrustEventKind } from './events';
 import { TrustScorer } from './scoring';
 import { verifyOutput, findingsToEventKinds, renderReport } from './verification';

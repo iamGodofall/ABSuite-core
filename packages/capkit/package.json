@@ -1,5 +1,5 @@
 {
-  "name": "@absuite/capkit",
+  "name": "@absuitecore/capkit",
   "version": "1.0.0",
   "description": "Capability tokens, JWT validation, tamper-evident audit and verifiable execution traces for AI agents.",
   "license": "MIT",

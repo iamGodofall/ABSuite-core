@@ -2,7 +2,7 @@
  * QuickBench HTTP server — benchmark submission, status, reports and history.
  */
 import express from 'express';
-import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuite/capkit';
+import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuitecore/capkit';
 import { BenchmarkRunner } from './runner';
 import { availableProviders } from './providers';
 import { toMarkdown, toCsv } from './report';

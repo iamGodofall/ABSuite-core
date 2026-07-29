@@ -71,10 +71,10 @@ If it succeeds, all five packages are live on npm.
 ### 5. Verify
 
 ```
-https://www.npmjs.com/package/@absuite/capkit
+https://www.npmjs.com/package/@absuitecore/capkit
 ```
 
-Or ask anyone to run `npm view @absuite/capkit`.
+Or ask anyone to run `npm view @absuitecore/capkit`.
 
 ---
 
@@ -89,7 +89,7 @@ If the log shows `404 Scope not found` or `403 Forbidden`, you do not own the
 The workflow renames every package, dependency and import automatically before
 publishing. Your username scope always belongs to you and needs no organisation.
 
-`@themba-mpehle/capkit` installs exactly as easily as `@absuite/capkit`. You can
+`@themba-mpehle/capkit` installs exactly as easily as `@absuitecore/capkit`. You can
 always move to an organisation later. Do not lose an evening to a name.
 
 ---

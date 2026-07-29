@@ -95,7 +95,7 @@ function render() {
     '`read:users` but never `read:users:delete`. A bare `*` grants everything.',
     '',
     '**Enforcement is distributed.** Every service imports `capabilityGuard` from',
-    '`@absuite/capkit`, so a request reaching a service directly is checked by the',
+    '`@absuitecore/capkit`, so a request reaching a service directly is checked by the',
     'same code a gateway would have used. There is no unguarded door.',
     '',
     '---',
@@ -162,7 +162,7 @@ function render() {
   lines.push(
     '## MCP server',
     '',
-    '`@absuite/mcp` speaks Model Context Protocol over stdio rather than HTTP.',
+    '`@absuitecore/mcp` speaks Model Context Protocol over stdio rather than HTTP.',
     'Tool discovery is filtered by capability — an agent never sees a tool its',
     'token cannot call — and every completed call returns the signed trace that',
     'attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).',

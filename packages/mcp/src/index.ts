@@ -1,5 +1,5 @@
 /**
- * @absuite/mcp — Model Context Protocol server for ABSuite.
+ * @absuitecore/mcp — Model Context Protocol server for ABSuite.
  *
  * Gives any MCP-speaking agent runtime capability-checked, cryptographically
  * attested tool calls.

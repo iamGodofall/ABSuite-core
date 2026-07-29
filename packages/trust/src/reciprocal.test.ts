@@ -1,4 +1,4 @@
-import { Storage } from '@absuite/capkit';
+import { Storage } from '@absuitecore/capkit';
 import { ReciprocalTrust, STANDARD_OBLIGATIONS } from './reciprocal';
 import { TrustEventStore } from './events';
 import { computeScore } from './scoring';

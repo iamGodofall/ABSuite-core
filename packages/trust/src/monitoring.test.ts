@@ -1,4 +1,4 @@
-import { Storage } from '@absuite/capkit';
+import { Storage } from '@absuitecore/capkit';
 import { InteractionMonitor } from './monitoring';
 
 function monitor(options = {}): InteractionMonitor {

@@ -2,7 +2,7 @@
 /**
  * Rename the npm scope across every package, consistently.
  *
- * The packages publish as `@absuite/*`, which requires owning the `absuite`
+ * The packages publish as `@absuitecore/*`, which requires owning the `absuite`
  * organisation on npm. If that name is unavailable, this switches the whole
  * workspace to a scope you definitely control — your own username works
  * without creating anything.
@@ -16,10 +16,10 @@
  * old scope.
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { join, extname, basename } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const PACKAGES = ['capkit', 'edge-run', 'quickbench', 'connector-starter', 'mcp'];
+const PACKAGES = ['capkit', 'trust', 'edge-run', 'quickbench', 'connector-starter', 'mcp', 'cli'];
 
 function currentScope() {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'packages/capkit/package.json'), 'utf8'));
@@ -57,10 +57,14 @@ function* files(dir) {
 }
 
 const TEXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.json', '.md', '.yaml', '.yml', '.html']);
+// Extensionless build files matter too: a Dockerfile still referencing the old
+// scope fails with "no projects matched the filter" only once CI builds an
+// image, long after the rename looked complete.
+const TEXT_BY_NAME = new Set(['Dockerfile', 'Makefile', '.npmrc', '.dockerignore']);
 let changed = 0;
 
 for (const file of files(ROOT)) {
-  if (!TEXT.has(extname(file))) continue;
+  if (!TEXT.has(extname(file)) && !TEXT_BY_NAME.has(basename(file))) continue;
 
   const before = readFileSync(file, 'utf8');
   // Only rewrite the scope when followed by '/' or a quote, so unrelated

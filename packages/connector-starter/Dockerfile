@@ -12,13 +12,13 @@ COPY packages/connector-starter/package.json ./packages/connector-starter/packag
 COPY packages/connector-starter/tsconfig.json ./packages/connector-starter/tsconfig.json
 COPY packages/connector-starter/src ./packages/connector-starter/src
 
-RUN pnpm install --filter @absuite/connector-starter... --no-frozen-lockfile
-RUN pnpm --filter @absuite/capkit build
-RUN pnpm --filter @absuite/connector-starter build
+RUN pnpm install --filter @absuitecore/connector-starter... --no-frozen-lockfile
+RUN pnpm --filter @absuitecore/capkit build
+RUN pnpm --filter @absuitecore/connector-starter build
 
 # Drop devDependencies now that dist exists. The runtime image carries the
 # workspace layout verbatim, so pruning has to happen here, before the copy.
-RUN pnpm install --filter @absuite/connector-starter... --prod --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --filter @absuitecore/connector-starter... --prod --no-frozen-lockfile --ignore-scripts
 
 FROM node:22-alpine
 

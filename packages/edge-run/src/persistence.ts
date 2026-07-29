@@ -9,7 +9,7 @@
  * When no database is configured the whole layer becomes a no-op, so local
  * development stays zero-setup.
  */
-import type { Storage } from '@absuite/capkit';
+import type { Storage } from '@absuitecore/capkit';
 import type { TaskDefinition } from './runtime';
 import type { QueuedTask, Priority, TaskState, RetryPolicy } from './queue';
 import type { Schedule } from './scheduler';

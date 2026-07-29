@@ -13,7 +13,7 @@ import {
   TraceStore,
   SigningKey,
   hashPayload,
-} from '@absuite/capkit';
+} from '@absuitecore/capkit';
 import { TaskRuntime } from './runtime';
 import { TaskQueue, type QueuedTask } from './queue';
 import { AgentScheduler } from './scheduler';

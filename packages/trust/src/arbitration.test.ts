@@ -1,4 +1,4 @@
-import { Storage } from '@absuite/capkit';
+import { Storage } from '@absuitecore/capkit';
 import { arbitrate, ArbitrationStore, normaliseAnswer, type Dispute, type Position } from './arbitration';
 import { TrustEventStore } from './events';
 import { TrustScorer } from './scoring';

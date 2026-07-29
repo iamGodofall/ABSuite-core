@@ -1,4 +1,4 @@
-# @absuite/edge-run
+# @absuitecore/edge-run
 
 Cron scheduling, task queueing, retries and self-healing execution for AI agents.
 
@@ -20,7 +20,7 @@ issued and revoked centrally rather than per service.
 ## Running
 
 ```bash
-CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) pnpm --filter @absuite/edge-run dev
+CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) pnpm --filter @absuitecore/edge-run dev
 ```
 
 ## API

@@ -30,7 +30,7 @@
  * are recorded honestly and count for something.
  */
 import { randomUUID } from 'node:crypto';
-import type { Storage } from '@absuite/capkit';
+import type { Storage } from '@absuitecore/capkit';
 import type { TrustEventStore } from './events';
 
 export type Party = 'agent' | 'operator';

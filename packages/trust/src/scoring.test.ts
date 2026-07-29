@@ -1,4 +1,4 @@
-import { Storage } from '@absuite/capkit';
+import { Storage } from '@absuitecore/capkit';
 import { TrustEventStore } from './events';
 import { computeScore, bandFor, evidenceRecord, TrustScorer, BASELINE_SCORE } from './scoring';
 

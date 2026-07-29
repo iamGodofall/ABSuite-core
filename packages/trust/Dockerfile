@@ -12,13 +12,13 @@ COPY packages/trust/package.json ./packages/trust/package.json
 COPY packages/trust/tsconfig.json ./packages/trust/tsconfig.json
 COPY packages/trust/src ./packages/trust/src
 
-RUN pnpm install --filter @absuite/trust... --no-frozen-lockfile
-RUN pnpm --filter @absuite/capkit build
-RUN pnpm --filter @absuite/trust build
+RUN pnpm install --filter @absuitecore/trust... --no-frozen-lockfile
+RUN pnpm --filter @absuitecore/capkit build
+RUN pnpm --filter @absuitecore/trust build
 
 # Drop devDependencies now that dist exists. The runtime image carries the
 # workspace layout verbatim, so pruning has to happen here, before the copy.
-RUN pnpm install --filter @absuite/trust... --prod --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --filter @absuitecore/trust... --prod --no-frozen-lockfile --ignore-scripts
 
 FROM node:22-alpine
 

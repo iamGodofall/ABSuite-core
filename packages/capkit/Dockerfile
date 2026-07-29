@@ -9,12 +9,12 @@ COPY packages/capkit/package.json ./packages/capkit/package.json
 COPY packages/capkit/tsconfig.json ./packages/capkit/tsconfig.json
 COPY packages/capkit/src ./packages/capkit/src
 
-RUN pnpm install --filter @absuite/capkit... --no-frozen-lockfile
-RUN pnpm --filter @absuite/capkit build
+RUN pnpm install --filter @absuitecore/capkit... --no-frozen-lockfile
+RUN pnpm --filter @absuitecore/capkit build
 
 # Drop devDependencies now that dist exists. The runtime image carries the
 # workspace layout verbatim, so pruning has to happen here, before the copy.
-RUN pnpm install --filter @absuite/capkit... --prod --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --filter @absuitecore/capkit... --prod --no-frozen-lockfile --ignore-scripts
 
 FROM node:22-alpine
 

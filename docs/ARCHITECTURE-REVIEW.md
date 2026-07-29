@@ -55,10 +55,10 @@ The vision's hardest architectural rule is "core never depends on modules."
 Checked against `package.json` and imports:
 
 ```
-@absuite/capkit            -> (no workspace dependencies)
-@absuite/edge-run          -> @absuite/capkit
-@absuite/quickbench        -> @absuite/capkit
-@absuite/connector-starter -> @absuite/capkit
+@absuitecore/capkit            -> (no workspace dependencies)
+@absuitecore/edge-run          -> @absuitecore/capkit
+@absuitecore/quickbench        -> @absuitecore/capkit
+@absuitecore/connector-starter -> @absuitecore/capkit
 ```
 
 CapKit imports nothing from its siblings. The arrows point modules → core, which
