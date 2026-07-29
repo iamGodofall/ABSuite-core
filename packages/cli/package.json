@@ -1,17 +1,28 @@
 {
   "name": "@absuitecore/cli",
   "version": "1.0.0",
-  "description": "ABSuite CLI — unified command-line interface",
+  "description": "ABSuite CLI \u2014 unified command-line interface",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "absuite": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "test": "echo \"CLI tests not yet implemented\" && exit 0"
   },
+  "keywords": [
+    "absuite",
+    "cli",
+    "agent-builder"
+  ],
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -21,5 +32,16 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "keywords": ["absuite", "cli", "agent-builder"]
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamGodofall/ABSuite-core.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/iamGodofall/ABSuite-core#readme",
+  "bugs": {
+    "url": "https://github.com/iamGodofall/ABSuite-core/issues"
+  }
 }

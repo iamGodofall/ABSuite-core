@@ -119,13 +119,33 @@ jobs:
           # CapKit first — every other package depends on it, and npm resolves
           # dependencies at install time against what is actually on the
           # registry.
+          published=0
+          skipped=0
           for p in capkit trust edge-run quickbench connector-starter mcp cli; do
-            echo "Publishing $p..."
+            name=$(node -p "require('./packages/$p/package.json').name")
+            version=$(node -p "require('./packages/$p/package.json').version")
+
+            # Skip what is already on the registry. npm refuses to republish a
+            # version, so without this a re-run after a partial failure dies on
+            # the first already-published package and never reaches the one
+            # that actually needs fixing.
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "  $name@$version is already published, skipping"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            echo "Publishing $name@$version..."
             (cd "packages/$p" && pnpm publish --access public --no-git-checks --provenance) || {
-              echo "::error::Failed to publish $p"
+              echo "::error::Failed to publish $name"
               exit 1
             }
+            published=$((published + 1))
           done
+          echo "Published $published, skipped $skipped already on the registry."
+          {
+            echo "Published **$published**, skipped **$skipped** already on the registry."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary
         run: |
