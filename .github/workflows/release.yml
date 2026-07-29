@@ -1,0 +1,112 @@
+name: Tag and release
+
+# Manual. Creating a tag is a decision, not something that should happen on
+# every push to main.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to tag, e.g. v1.0.0'
+        type: string
+        required: true
+      draft:
+        description: 'Create the release as a draft'
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    name: Tag and publish a release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A tag is a claim that this commit is releasable. Verify it rather than
+      # taking the claim on faith — the whole project is about not doing that.
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      - name: API docs are in sync
+        run: pnpm docs:check
+
+      - name: Refuse to move an existing tag
+        run: |
+          if git rev-parse "${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::${{ inputs.version }} already exists. Tags are immutable; pick a new version."
+            exit 1
+          fi
+
+      - name: Create the tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ inputs.version }}" -m "ABSuite ${{ inputs.version }}"
+          git push origin "${{ inputs.version }}"
+
+      # Report the versions actually on the registry rather than what the
+      # manifests say they should be.
+      - name: Collect published versions
+        id: packages
+        run: |
+          {
+            echo 'list<<PKGEOF'
+            for p in capkit trust edge-run quickbench connector-starter mcp cli; do
+              v=$(npm view "@absuitecore/$p" version 2>/dev/null || echo "not published")
+              echo "- [\`@absuitecore/$p\`](https://www.npmjs.com/package/@absuitecore/$p) — \`$v\`"
+            done
+            echo 'PKGEOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: ABSuite ${{ inputs.version }}
+          draft: ${{ inputs.draft }}
+          generate_release_notes: true
+          body: |
+            > **Intelligence is becoming abundant. Trust is becoming scarce.**
+
+            ## Install
+
+            ```bash
+            npm install @absuitecore/capkit
+            npm install @absuitecore/trust
+            ```
+
+            ## Packages
+
+            ${{ steps.packages.outputs.list }}
+
+            Every package is published with a signed Sigstore provenance
+            attestation, so you can verify which commit and workflow produced
+            each tarball without trusting us.
+
+            ## Verify it yourself
+
+            [`docs/verify.html`](https://github.com/${{ github.repository }}/blob/main/docs/verify.html)
+            checks an execution trace entirely in your browser using WebCrypto —
+            no server, no account, no trust in this project required.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
