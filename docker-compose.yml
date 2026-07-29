@@ -4,7 +4,18 @@ services:
   absuite-db:
     image: alpine:latest
     container_name: absuite-db
-    command: sh -c "touch /data/absuite.db || true && exec tail -f /dev/null"
+    # Every service runs as the unprivileged `node` user (uid 1000), but this
+    # init container is root — so anything it creates is root-owned and the
+    # services die with "attempt to write a readonly database". SQLite also
+    # writes WAL and journal files beside the database, so the directory has
+    # to be writable too, not just the file.
+    command: >
+      sh -c "mkdir -p /data
+      && touch /data/absuite.db
+      && chown -R 1000:1000 /data
+      && chmod 775 /data
+      && chmod 664 /data/absuite.db
+      && exec tail -f /dev/null"
     volumes:
       - absuite-data:/data
     healthcheck:
