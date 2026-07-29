@@ -24,24 +24,37 @@ const CLI_DIR = path.join(ROOT, 'packages', 'cli')
 // ---- Helpers ----
 
 function getDockerComposeCmd(service?: string): string {
-  // The published package contains dist/, README and LICENSE — not the
-  // compose file, which lives in the repository. Installed globally, these
-  // commands would otherwise fail with a bare "no configuration file
-  // provided" from Docker, which says nothing about what to do next.
-  if (!fs.existsSync(COMPOSE_FILE)) {
-    throw new Error(
-      `No docker-compose.yml found at ${COMPOSE_FILE}.\n\n` +
-      'The service commands (start, stop, restart, status, logs) drive the\n' +
-      'suite through Docker Compose and need the repository checked out:\n\n' +
-      '  git clone https://github.com/iamGodofall/ABSuite-core\n' +
-      '  cd ABSuite-core && pnpm install && pnpm start\n\n' +
-      'To use the libraries directly instead, install the package you need:\n\n' +
-      '  npm install @absuitecore/capkit\n' +
-      '  npm install @absuitecore/trust\n'
-    )
-  }
   const base = `docker compose -p absuite-core -f "${COMPOSE_FILE}"`
   return service ? `${base} ${service}` : base
+}
+
+/** Commands that drive the suite through Docker Compose. */
+const COMPOSE_COMMANDS = new Set(['start', 'stop', 'restart', 'status', 'logs'])
+
+/**
+ * Explain the situation when the compose file is not there.
+ *
+ * Checked in the dispatcher rather than thrown from deeper down, because each
+ * command catches broadly and substitutes its own message — `status` was
+ * answering a global install with "Run: pnpm start", which is advice for a
+ * directory the user does not have.
+ *
+ * The published tarball is dist, README and LICENSE. The compose file lives in
+ * the repository, so a global install legitimately cannot run these commands.
+ */
+function composeAvailable(): boolean {
+  if (fs.existsSync(COMPOSE_FILE)) return true
+
+  logError('This command needs the ABSuite repository, which is not present here.')
+  console.log(`\n  Looked for: ${COMPOSE_FILE}\n`)
+  console.log('  start, stop, restart, status and logs drive the suite through')
+  console.log('  Docker Compose, which needs the repo checked out:\n')
+  console.log('    git clone https://github.com/iamGodofall/ABSuite-core')
+  console.log('    cd ABSuite-core && pnpm install && pnpm start\n')
+  console.log('  To use the libraries directly, install what you need:\n')
+  console.log('    npm install @absuitecore/capkit')
+  console.log('    npm install @absuitecore/trust\n')
+  return false
 }
 
 function run(cmd: string, options: { cwd?: string; stdio?: 'inherit' | 'pipe' } = {}): string {
@@ -261,6 +274,11 @@ async function main() {
   }
 
   const [command, ...rest] = args
+
+  if (COMPOSE_COMMANDS.has(command ?? '') && !composeAvailable()) {
+    process.exitCode = 1
+    return
+  }
 
   // Parse global flags
   const { values: globalFlags } = parseArgs({

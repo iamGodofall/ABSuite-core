@@ -1,6 +1,6 @@
 {
   "name": "@absuitecore/cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "ABSuite CLI \u2014 unified command-line interface",
   "license": "MIT",
   "type": "module",
