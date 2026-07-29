@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const SERVICES = ['capkit', 'edge-run', 'quickbench', 'connector-starter', 'dashboard', 'absuite-db'] as const;
+const SERVICES = ['capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard', 'absuite-db'] as const;
 type ServiceName = typeof SERVICES[number];
 type ServiceState = 'up' | 'down' | 'unknown' | 'starting' | 'stopping' | 'failed';
 
@@ -129,6 +129,7 @@ const SERVICE_BASE_URLS: Record<Exclude<ServiceName, 'absuite-db'>, string> = {
   'edge-run': process.env.EDGE_RUN_URL || (inDocker ? 'http://edge-run:8082' : 'http://localhost:8082'),
   quickbench: process.env.QUICKBENCH_URL || (inDocker ? 'http://quickbench:8083' : 'http://localhost:8083'),
   'connector-starter': process.env.CONNECTOR_STARTER_URL || (inDocker ? 'http://connector-starter:8084' : 'http://localhost:8084'),
+  'trust': process.env.TRUST_URL || (inDocker ? 'http://trust:8085' : 'http://localhost:8085'),
   dashboard: process.env.DASHBOARD_URL || (inDocker ? 'http://dashboard:3001' : 'http://localhost:3001'),
 };
 
@@ -197,7 +198,7 @@ async function fetchJson(url: string, init?: RequestInit) {
 function isAllowedHealthUrl(rawUrl: string): boolean {
   try {
     const parsed = new URL(rawUrl);
-    return ['localhost', '127.0.0.1', 'capkit', 'edge-run', 'quickbench', 'connector-starter', 'dashboard'].includes(parsed.hostname);
+    return ['localhost', '127.0.0.1', 'capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard'].includes(parsed.hostname);
   } catch {
     return false;
   }

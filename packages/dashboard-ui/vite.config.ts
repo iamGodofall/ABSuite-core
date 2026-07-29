@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // @ts-ignore
 import { defineConfig } from 'vite';
 // @ts-ignore
@@ -5,7 +6,14 @@ import react from '@vitejs/plugin-react';
 // @ts-ignore
 import tsconfigPaths from 'vite-tsconfig-paths';
 
+// Read once at config time so the UI reports the version in its own manifest
+// rather than a string somebody has to remember to update.
+const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+  },
   plugins: [react(), tsconfigPaths()],
   server: { 
     host: true,

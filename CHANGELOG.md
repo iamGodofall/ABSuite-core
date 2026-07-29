@@ -6,6 +6,33 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Fixed — dashboard
+
+- **The Trust service was invisible in the control plane.** `:8085` was absent
+  from the service list in `server.ts`, from `SERVICE_PORTS` and
+  `DEFAULT_SERVICES` in `useServices.ts`, and from the proxy's allowed-host
+  list. A shipped flagship service could not be seen, started, stopped or
+  health-checked from the dashboard that exists to do exactly that. The same
+  omission had also left it out of the architecture diagram.
+- **A Google Fonts stylesheet that never loaded.** `index.html` requested Inter
+  from `fonts.googleapis.com`, which the content security policy blocked on
+  every page load — so the font always fell through to the system stack anyway,
+  while attempting a third-party request on each visit of a tool whose whole
+  argument is that your data stays yours. The link is gone and the CSS font
+  stacks are self-sufficient.
+- **Two banners saying the same thing.** The Overview tab rendered "Live mode
+  enabled — showing the real ABSuite service state" directly above "Live mode is
+  active — this reflects the real orchestrator state." One is enough.
+- **A hardcoded version that had drifted.** The dashboard reported `v2.0.0` in
+  its title, its settings panel and its exported config while the package was
+  `1.1.0`, and claimed "5 Active" services next to a grid of six. Vite now
+  injects the version from the manifest at build time and the service count is
+  derived.
+
+Verified by building the dashboard, serving it, and loading it in a real
+browser: the console is now clean, where it previously reported a CSP violation
+on every load.
+
 ### Added
 
 - A **Security** section in the README. A trust-infrastructure project whose

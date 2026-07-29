@@ -226,14 +226,11 @@ const OverviewTab = ({ services, demoMode, error, onServiceAction }: { services:
 
   return (
     <div className="space-y-6">
-      {demoMode ? (
+      {/* Only the demo-mode notice belongs here. The live-mode notice is rendered
+          once by the Overview tab; showing it again produced two stacked banners
+          telling the reader the same thing in different words. */}
+      {demoMode && (
         <NoticeCard tone="warn" title="Demo mode is active" message="This tab is using showcase activity data. Switch back to Live to monitor the real suite." />
-      ) : (
-        <NoticeCard
-          tone={error ? 'error' : 'info'}
-          title={error ? 'Live mode reports a real issue' : 'Live mode is active'}
-          message={error ? `${error} No fake fallback data is being shown.` : 'This activity feed and service grid reflect the real orchestrator state.'}
-        />
       )}
 
       {/* Stats Bar */}
@@ -371,7 +368,7 @@ const ServicesTab = ({ services, onServiceAction }: { services: Service[]; onSer
               </div>
               <div className="bg-bg-primary/60 rounded-xl p-4">
                 <div className="text-xs text-text-muted mb-1">Version</div>
-                <div className="text-lg font-mono text-text-primary">v2.0.0</div>
+                <div className="text-lg font-mono text-text-primary">v{__APP_VERSION__}</div>
               </div>
             </div>
             <div className="mb-6">
@@ -1218,7 +1215,7 @@ const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: bo
   };
 
   const exportConfig = () => {
-    const config = { endpoints, notifications: notifs, version: '2.0.0' };
+    const config = { endpoints, notifications: notifs, version: __APP_VERSION__ };
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'absuite-config.json'; a.click();
@@ -1354,7 +1351,7 @@ const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: bo
           </div>
         </div>
         <div className="grid grid-cols-3 gap-4 text-center">
-          {[{ label: 'Version', value: '2.0.0' }, { label: 'Build', value: '2026.03.30' }, { label: 'Services', value: '5 Active' }].map(item => (
+          {[{ label: 'Version', value: __APP_VERSION__ }, { label: 'Services', value: `${services.length} tracked` }].map(item => (
             <div key={item.label} className="bg-bg-primary/60 rounded-xl p-3">
               <div className="text-xs text-text-muted">{item.label}</div>
               <div className="text-sm font-mono font-medium text-text-primary mt-0.5">{item.value}</div>

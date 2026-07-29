@@ -35,6 +35,7 @@ const SERVICE_PORTS: Record<string, number> = {
   'edge-run': 8082,
   'quickbench': 8083,
   'connector-starter': 8084,
+  'trust': 8085,
   'dashboard': 3001,
 };
 
@@ -72,6 +73,15 @@ const DEFAULT_SERVICES: Service[] = [
     status: 'unknown',
     port: 8084,
     features: ['Adapter Factory', 'AI Agent Generator', 'Multi-Platform'],
+    health: { cpu: 0, memory: 0, uptime: 0 },
+    lastCheck: new Date(),
+  },
+  {
+    id: 'trust',
+    name: 'trust',
+    status: 'unknown',
+    port: 8085,
+    features: ['Evidence Validation', 'Chain Monitoring', 'Arbitration'],
     health: { cpu: 0, memory: 0, uptime: 0 },
     lastCheck: new Date(),
   },
