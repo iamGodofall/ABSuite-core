@@ -1,5 +1,13 @@
 # Publishing to npm — exact steps
 
+> **Historical — superseded 29 July 2026.**
+> Every package named below is published. The blocker it describes — an
+> unclaimed npm scope — was resolved by creating `@absuitecore`.
+> The current state of the project is in
+> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> `pnpm test` and `pnpm docs:check` print. This document is kept for the
+> reasoning, not for its facts.
+
 > Verified 2026-07-28: `@absuitecore/capkit`, `edge-run`, `quickbench`,
 > `connector-starter` and `mcp` all return **"Not found"** on the npm registry.
 > The publish has not landed yet. Here is why, and exactly how to fix it.

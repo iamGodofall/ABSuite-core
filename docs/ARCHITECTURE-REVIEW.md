@@ -1,5 +1,13 @@
 # Architecture Review — Vision vs. Codebase
 
+> **Historical — superseded 29 July 2026.**
+> A point-in-time comparison of vision against code. The gaps it names have
+> since been closed.
+> The current state of the project is in
+> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> `pnpm test` and `pnpm docs:check` print. This document is kept for the
+> reasoning, not for its facts.
+
 > Written 2026-07-28, measuring the ABSuite architectural vision against what
 > the repository actually contains. Every "present" and "missing" below was
 > checked against source, not inferred.

@@ -1,5 +1,12 @@
 # Roadmap Verdict — point by point
 
+> **Historical — superseded 29 July 2026.**
+> A point-in-time judgement of a roadmap that has since moved on.
+> The current state of the project is in
+> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> `pnpm test` and `pnpm docs:check` print. This document is kept for the
+> reasoning, not for its facts.
+
 > You asked what I agree with, what I disagree with, and what I would do
 > differently. Here is every item from the strategic conversation, judged
 > against what is actually built and what the market actually shows.

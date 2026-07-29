@@ -1,5 +1,13 @@
 # Publishing from GitHub — no computer setup needed
 
+> **Historical — superseded 29 July 2026.**
+> The publish workflow it sets up exists and has run. Releases are now cut
+> from `.github/workflows/publish.yml`.
+> The current state of the project is in
+> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> `pnpm test` and `pnpm docs:check` print. This document is kept for the
+> reasoning, not for its facts.
+
 > You do **not** need Node, pnpm, or a terminal on your own machine. This
 > publishes from GitHub's servers, triggered by a button.
 

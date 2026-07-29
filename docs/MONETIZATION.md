@@ -1,5 +1,14 @@
 # ABSuite Monetization Strategy
 
+> **Historical — superseded 29 July 2026.**
+> Written when there were five modules and 119 tests; there are now seven
+> published packages and 412 tests. The pricing reasoning still stands; the
+> inventory does not.
+> The current state of the project is in
+> [`docs/ROADMAP.md`](./ROADMAP.md); the current numbers are whatever
+> `pnpm test` and `pnpm docs:check` print. This document is kept for the
+> reasoning, not for its facts.
+
 > Updated 2026-07-28, after building out the full suite. Every capability claim
 > below was verified by running the code, not read off a README.
 
