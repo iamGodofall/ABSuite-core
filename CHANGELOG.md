@@ -4,7 +4,7 @@ All notable changes to ABSuite. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [capkit 1.1.1, mcp 1.0.2] — 2026-07-29
 
 ### Fixed — capkit
 
