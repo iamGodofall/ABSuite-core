@@ -33,12 +33,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # GITHUB_TOKEN cannot create a Pages site — that needs admin scope the
+      # default token does not carry, and `enablement: true` fails with
+      # "Resource not accessible by integration". Pages has to be switched on
+      # once by a repository admin; after that this workflow owns every deploy.
       - name: Configure Pages
+        id: pages
         uses: actions/configure-pages@v5
-        with:
-          # Turn Pages on if it is not already, so this needs no click in
-          # repository settings.
-          enablement: true
+        continue-on-error: true
+
+      - name: Explain if Pages is not enabled yet
+        if: steps.pages.outcome == 'failure'
+        run: |
+          echo "::error::GitHub Pages is not enabled for this repository."
+          {
+            echo "### GitHub Pages needs enabling once"
+            echo ""
+            echo "Settings → Pages → **Build and deployment** → Source → **GitHub Actions**"
+            echo ""
+            echo "That is the only manual step. Re-run this workflow afterwards and"
+            echo "every future deploy is automatic."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       # A landing page so the root URL is not a directory listing.
       - name: Build the site
@@ -95,7 +111,7 @@ jobs:
 
             <ul>
               <li><a href="https://github.com/iamGodofall/ABSuite-core">Source on GitHub</a></li>
-              <li><a href="./API.html">API reference</a> · <a href="./API.md">markdown</a></li>
+              <li><a href="https://github.com/iamGodofall/ABSuite-core/blob/main/docs/API.md">API reference</a></li>
               <li><a href="https://www.npmjs.com/org/absuitecore">Packages on npm</a></li>
             </ul>
 
