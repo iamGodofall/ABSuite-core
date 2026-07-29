@@ -1,6 +1,6 @@
 {
   "name": "@absuitecore/cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ABSuite CLI \u2014 unified command-line interface",
   "license": "MIT",
   "type": "module",
@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "test": "echo \"CLI tests not yet implemented\" && exit 0"
+    "test": "jest -c ../../jest.config.js --rootDir ../.. --testPathPatterns packages/cli"
   },
   "keywords": [
     "absuite",

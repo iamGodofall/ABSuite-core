@@ -6,18 +6,40 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
 import { execSync, spawn } from 'child_process'
 import { parseArgs } from 'util'
 
 // ---- Config ----
 
-const ROOT = path.resolve(__dirname, '..')
+// This package is ESM ("type": "module"), where __dirname does not exist. Using
+// it threw `ReferenceError: __dirname is not defined in ES module scope` on the
+// very first line of every command, so the CLI could never run at all once
+// installed from the registry.
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(HERE, '..')
 const COMPOSE_FILE = path.join(ROOT, 'docker-compose.yml')
 const CLI_DIR = path.join(ROOT, 'packages', 'cli')
 
 // ---- Helpers ----
 
 function getDockerComposeCmd(service?: string): string {
+  // The published package contains dist/, README and LICENSE — not the
+  // compose file, which lives in the repository. Installed globally, these
+  // commands would otherwise fail with a bare "no configuration file
+  // provided" from Docker, which says nothing about what to do next.
+  if (!fs.existsSync(COMPOSE_FILE)) {
+    throw new Error(
+      `No docker-compose.yml found at ${COMPOSE_FILE}.\n\n` +
+      'The service commands (start, stop, restart, status, logs) drive the\n' +
+      'suite through Docker Compose and need the repository checked out:\n\n' +
+      '  git clone https://github.com/iamGodofall/ABSuite-core\n' +
+      '  cd ABSuite-core && pnpm install && pnpm start\n\n' +
+      'To use the libraries directly instead, install the package you need:\n\n' +
+      '  npm install @absuitecore/capkit\n' +
+      '  npm install @absuitecore/trust\n'
+    )
+  }
   const base = `docker compose -p absuite-core -f "${COMPOSE_FILE}"`
   return service ? `${base} ${service}` : base
 }
@@ -196,11 +218,16 @@ async function cmdVersion() {
 
 // ---- CLI Entry Point ----
 
-async function main() {
-  const args = process.argv.slice(2)
-
-  // Handle no arguments gracefully
-  if (args.length === 0) {
+/**
+ * Print usage.
+ *
+ * Reachable from `--help`, `-h`, `help` and no arguments alike. `--help` is the
+ * first thing anyone types after installing a CLI, and answering it with
+ * "Unknown command" and a non-zero exit is a poor first impression that also
+ * breaks any script probing for support.
+ */
+function showHelp(): void {
+  {
     banner()
     console.log('Usage: absuite <command> [options]\n')
     console.log('Commands:')
@@ -222,6 +249,14 @@ async function main() {
     console.log('  absuite logs -f edge-run      # Follow edge-run logs')
     console.log('  absuite bench --model llama3  # Benchmark llama3')
     console.log('  absuite token create --capabilities read,write --expires 8h\n')
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2)
+
+  if (args.length === 0 || ['--help', '-h', 'help'].includes(args[0] ?? '')) {
+    showHelp()
     return
   }
 
