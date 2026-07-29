@@ -101,3 +101,9 @@ npm audit signatures
 That checks the published artefact against the commit and workflow that built
 it — which is, appropriately, the same thing this project asks you to demand of
 your AI systems.
+
+The same principle applies to the records themselves:
+[**the browser verifier**](https://iamgodofall.github.io/ABSuite-core/verify.html)
+checks a signed execution trace with WebCrypto, on your machine, using nothing
+but a public key. If a claim in this document is wrong, that page is where you
+would find out.

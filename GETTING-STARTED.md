@@ -210,8 +210,10 @@ can verify must not also be able to forge.
 
 `"ephemeral": true` means the startup warning above applies to you.
 
-[`docs/verify.html`](./docs/verify.html) runs the same check in a browser using
-WebCrypto — no install, no account, no server, no trust in this project.
+[**iamgodofall.github.io/ABSuite-core/verify.html**](https://iamgodofall.github.io/ABSuite-core/verify.html)
+runs the same check in a browser using WebCrypto — no install, no account, no
+server, no trust in this project. The source is
+[`docs/verify.html`](./docs/verify.html); it is one file and reads in a sitting.
 
 ---
 

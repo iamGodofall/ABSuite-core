@@ -160,10 +160,16 @@ Every real action produces an Ed25519-signed, hash-chained execution trace.
 `GET /executions-verify-chain` walks the whole log and names the sequence number
 of the first record that breaks.
 
-**Try it without installing anything:** [`docs/verify.html`](./docs/verify.html)
-is a standalone page that verifies a trace entirely in your browser using
-WebCrypto — no server, no account, no trust in us required. Open it, click
-*Load a valid example*, then click *Tamper with it* and verify again.
+**Try it without installing anything:**
+[**iamgodofall.github.io/ABSuite-core/verify.html**](https://iamgodofall.github.io/ABSuite-core/verify.html)
+verifies a trace entirely in your browser using WebCrypto — no server, no
+account, no trust in us required. Click *Load a valid example*, then click
+*Tamper with it* and verify again.
+
+<img src="docs/images/verifier-valid.png" alt="The browser verifier reporting a trace as genuine and unaltered, with content hash, Ed25519 signature, action, subject and authorising scopes each checked" width="49%"> <img src="docs/images/verifier-tampered.png" alt="The same page after one field was edited: tampering detected, showing the expected hash against the computed one" width="49%">
+
+One field edited is all it takes. The page names the expected hash and the
+computed one, so the disagreement is visible rather than asserted.
 
 ---
 

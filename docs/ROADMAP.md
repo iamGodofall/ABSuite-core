@@ -60,9 +60,11 @@ deferred in favour of building something.
       the release before being written down
 - [x] A runnable investigation against the published packages —
       [`examples/incident-forensics.mjs`](../examples/incident-forensics.mjs)
-- [ ] Host the browser verifier (needs Pages enabled once, by hand)
-- [ ] Add npm version and download badges to the README
-- [ ] Add screenshots of the dashboard and the browser verifier
+- [x] Host the browser verifier — <https://iamgodofall.github.io/ABSuite-core/verify.html>
+- [x] Add npm version and download badges to the README — read live from the
+      registry, so they cannot go stale
+- [x] Screenshots of the browser verifier, valid and tampered
+- [ ] Screenshot of the dashboard
 - [ ] Record a five-minute demo: install → issue a token → run an action →
       verify the proof in a browser
 
