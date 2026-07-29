@@ -1,0 +1,117 @@
+name: Publish the verifier
+
+# The browser verifier is the shortest path from "interesting claim" to
+# "I checked it myself" — no install, no account, no server, no trust in this
+# project. Hosting it turns the pitch into a link.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a deploy in progress; let it finish and queue the next.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Turn Pages on if it is not already, so this needs no click in
+          # repository settings.
+          enablement: true
+
+      # A landing page so the root URL is not a directory listing.
+      - name: Build the site
+        run: |
+          mkdir -p _site
+          cp -r docs/* _site/
+          cp README.md _site/README.md 2>/dev/null || true
+
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>ABSuite — prove what your AI actually did</title>
+            <meta name="description" content="Trust infrastructure for intelligent systems. Verify a signed execution trace in your browser — no install, no account.">
+            <style>
+              :root { color-scheme: light dark; }
+              body {
+                font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, sans-serif;
+                max-width: 46rem; margin: 0 auto; padding: 3rem 1.25rem;
+              }
+              h1 { font-size: 2rem; margin-bottom: .25rem; letter-spacing: -.02em; }
+              .lede { font-size: 1.15rem; opacity: .8; margin-top: 0; }
+              pre {
+                background: color-mix(in srgb, currentColor 8%, transparent);
+                padding: 1rem; border-radius: .5rem; overflow-x: auto;
+              }
+              a.cta {
+                display: inline-block; margin: 1.5rem 0; padding: .8rem 1.4rem;
+                background: #7C3AED; color: #fff; border-radius: .5rem;
+                text-decoration: none; font-weight: 600;
+              }
+              ul { padding-left: 1.1rem; }
+              footer { margin-top: 3rem; opacity: .7; font-size: .9rem; }
+            </style>
+          </head>
+          <body>
+            <h1>ABSuite</h1>
+            <p class="lede">Intelligence is becoming abundant. Trust is becoming scarce.</p>
+
+            <p><strong>Prove what your AI actually did.</strong> Every action is
+            Ed25519-signed and hash-chained, so anyone can check the record —
+            including people with no reason to trust you.</p>
+
+            <a class="cta" href="./verify.html">Verify a trace in your browser →</a>
+
+            <p>No install. No account. No server. The page below loads a real
+            signed execution trace, verifies it with WebCrypto, then lets you
+            tamper with it and watch verification fail.</p>
+
+            <pre><code>npm install @absuitecore/capkit
+          npm install @absuitecore/trust</code></pre>
+
+            <ul>
+              <li><a href="https://github.com/iamGodofall/ABSuite-core">Source on GitHub</a></li>
+              <li><a href="./API.html">API reference</a> · <a href="./API.md">markdown</a></li>
+              <li><a href="https://www.npmjs.com/org/absuitecore">Packages on npm</a></li>
+            </ul>
+
+            <footer>
+              Evidence over opinion · verification over confidence · facts over
+              scores · confidence never determines truth.
+            </footer>
+          </body>
+          </html>
+          HTML
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4

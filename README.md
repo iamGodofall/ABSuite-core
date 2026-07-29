@@ -1,17 +1,39 @@
 # ABSuite
 
 > **Intelligence is becoming abundant. Trust is becoming scarce.**
->
-> ABSuite is the trust infrastructure for intelligent systems.
 
-- **Cryptographically verifiable execution** — every action Ed25519-signed
-- **Replayable decisions** — re-run it, prove the output matches
-- **Tamper detection** — hash-chained logs that name the broken record
-- **Evidence validation** — claims, their sources, and a status
-- **Multi-AI arbitration** — disputes resolved without counting correlated votes
-- **Continuous governance** — trust earned, decayed, and contestable
+Prove what your AI actually did.
 
-**Because confidence is not evidence.**
+```bash
+npm install @absuitecore/capkit
+```
+
+```js
+import { SigningKey, TraceStore, Storage, verifyTrace, hashPayload } from '@absuitecore/capkit';
+
+const { privateKeyPem, publicKeyPem } = SigningKey.generate();
+const traces = new TraceStore(new Storage('./audit.db'), new SigningKey(privateKeyPem));
+
+const trace = traces.record({
+  subject: 'agent:invoicing', scope: ['payment:approve'],
+  module: 'payments', action: 'approve_batch', outcome: 'success',
+  inputHash: hashPayload({ batch: 'BATCH-8891', total: 250000 }),
+  startedAt: new Date().toISOString(), steps: [],
+});
+
+verifyTrace(trace, publicKeyPem).valid;   // true — Ed25519, not a log line
+traces.verifyChain(publicKeyPem);         // names the first tampered record
+```
+
+That is the whole idea. Every action is signed, hash-chained, and checkable by
+someone who has no reason to trust you. Payloads are hashed, never stored, so
+the record proves what happened without becoming a copy of your data.
+
+**[▶ Run the full incident investigation](./examples/incident-forensics.mjs)** —
+*"our agent approved $250,000 at 2:14 AM, what happened?"*, answered end to end
+in about 40 lines.
+
+---
 
 ![ABSuite](https://img.shields.io/badge/ABSuite-v1.0.0-7C3AED?style=for-the-badge&labelColor=1E1B4B)
 [![MIT License](https://img.shields.io/badge/license-MIT-7C3AED?style=for-the-badge)](LICENSE)
