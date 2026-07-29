@@ -126,16 +126,31 @@ export class Storage {
     this.path = (path || '').trim() || ':memory:';
     this.db = new DatabaseSync(this.path);
 
-    // WAL gives concurrent readers alongside a writer; it is meaningless for
-    // an in-memory database, so only enable it for a real file.
     if (this.path !== ':memory:') {
-      this.db.exec('PRAGMA journal_mode = WAL');
-
-      // Every ABSuite service opens this same file, and Docker Compose starts
-      // them simultaneously. Without a busy timeout SQLite fails immediately
-      // with SQLITE_BUSY when two processes migrate at once, crashing whichever
-      // lost the race. Wait for the lock instead.
+      // busy_timeout MUST be set before anything that takes a lock.
+      //
+      // Every ABSuite service opens this same file and Docker Compose starts
+      // them simultaneously. Switching journal mode needs a brief exclusive
+      // lock, so without a timeout SQLite returns SQLITE_BUSY *immediately* and
+      // the process dies at boot. This pragma used to sit one line below the
+      // WAL switch — the mitigation was present, correct, and applied too late
+      // to protect the only statement that needed it. Starting all five
+      // services at once crashed two of them with "database is locked".
       this.db.exec('PRAGMA busy_timeout = 10000');
+
+      // WAL gives concurrent readers alongside a writer; it is meaningless for
+      // an in-memory database, so only enable it for a real file.
+      //
+      // Journal mode is persistent database state, not per-connection: once any
+      // connection has set WAL the file stays in WAL. So losing this race is
+      // harmless — another service already did it — and refusing to start over
+      // it would be worse than continuing.
+      try {
+        this.db.exec('PRAGMA journal_mode = WAL');
+      } catch {
+        // Already WAL, or another process is mid-switch. Either way the mode
+        // is or is about to be correct, and busy_timeout above covers the rest.
+      }
     }
     this.db.exec('PRAGMA foreign_keys = ON');
     this.migrate();

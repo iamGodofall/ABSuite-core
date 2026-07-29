@@ -6,6 +6,38 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Fixed — found by running the whole suite at once
+
+Docker has no daemon in this environment, so all five services were started as
+plain Node processes against one shared database — the same thing
+`docker compose up -d` does. Two of the five died at boot.
+
+- **`database is locked` on cold start.** Switching journal mode to WAL takes a
+  brief exclusive lock, and `PRAGMA busy_timeout` was set on the line *below*
+  it — the mitigation was present, its comment described this exact failure,
+  and it was applied one statement too late to protect the only statement that
+  needed it. `busy_timeout` now comes first, and losing the WAL race is
+  tolerated because journal mode is persistent database state: once any
+  connection sets it, the file stays in WAL.
+
+  This is the shipped deployment path. Anyone running the compose stack on a
+  cold volume had a coin-flip chance of two services failing to start.
+
+- **The dashboard listened on every interface and ignored `PORT`.**
+  `server.listen(3001)` with no host binds `0.0.0.0`. That process holds
+  `CAPKIT_ADMIN_KEY` and mounts the Docker socket, so running it outside a
+  container put an admin console on the network. It now defaults to `127.0.0.1`,
+  binds `0.0.0.0` only inside a container where Docker's port mapping needs it,
+  honours `PORT`, and warns when bound beyond loopback. `ABSUITE_BIND`
+  overrides it deliberately.
+
+- A regression test spawns five processes opening the same database
+  simultaneously. Nothing in the unit suite could have caught this: one
+  `Storage` in one process never contends with anything.
+
+Verified afterwards by starting all five services at once and loading the
+dashboard against them: six services up, zero down, console clean.
+
 ### Changed — one visual identity across every surface
 
 The campaign artwork established a real language — a green-tinted near-black

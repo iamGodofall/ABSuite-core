@@ -716,6 +716,27 @@ app.get('*', (req, res, next) => {
   return res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
 });
 
-server.listen(3001, () => {
-  console.log('ABSuite Dashboard Orchestrator on :3001');
+// Loopback by default, and PORT is honoured.
+//
+// `server.listen(3001)` with no host binds every interface. This container
+// holds CAPKIT_ADMIN_KEY — the credential that mints capability tokens — and
+// mounts the Docker socket, so running it directly on a machine with a public
+// address published an admin console to the network. Inside a container that
+// binding is required for Docker's own port mapping to reach it, and the
+// compose file already restricts the published port to 127.0.0.1; outside one,
+// there is no reason to listen beyond the loopback interface.
+//
+// ABSUITE_BIND overrides it deliberately, for anyone fronting this with a proxy
+// that terminates TLS and authenticates.
+const PORT = Number(process.env.PORT || 3001);
+const HOST = process.env.ABSUITE_BIND || (inDocker ? '0.0.0.0' : '127.0.0.1');
+
+server.listen(PORT, HOST, () => {
+  console.log(`ABSuite Dashboard Orchestrator on ${HOST}:${PORT}`);
+  if (HOST !== '127.0.0.1') {
+    console.warn(
+      `[dashboard] Listening on ${HOST}. This process holds CAPKIT_ADMIN_KEY and can control services — ` +
+        'put it behind an authenticating proxy before exposing it.'
+    );
+  }
 });
