@@ -105,8 +105,13 @@ jobs:
 
             ## Verify it yourself
 
-            [`docs/verify.html`](https://github.com/${{ github.repository }}/blob/main/docs/verify.html)
-            checks an execution trace entirely in your browser using WebCrypto —
-            no server, no account, no trust in this project required.
+            **<https://iamgodofall.github.io/ABSuite-core/verify.html>** checks a
+            signed execution trace entirely in your browser using WebCrypto — no
+            server, no account, no trust in this project required. Click *Load a
+            valid example*, then *Tamper with it*, and verify again.
+
+            The source is
+            [`docs/verify.html`](https://github.com/${{ github.repository }}/blob/main/docs/verify.html);
+            it is one file.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
