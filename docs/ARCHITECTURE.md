@@ -359,4 +359,4 @@ Each module runs on separate hosts, communicating over HTTPS:
 
 ## Configuration Reference
 
-See [Configuration](./CONFIG.md) for the full environment variable reference.
+See [Configuration](../README.md#-configuration) for the full environment variable reference.

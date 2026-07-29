@@ -175,7 +175,7 @@ Docs live in the repo alongside code. If you change an API, update the docs in t
 - `README.md` — Getting started and high-level overview
 - `docs/ARCHITECTURE.md` — System design and module interactions
 - `docs/API.md` — API reference for each module
-- `docs/SECURITY.md` — Security model and threat analysis
+- `docs/SECURITY-MODEL.md` — Security model and threat analysis
 
 ---
 

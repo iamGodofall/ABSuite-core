@@ -1,5 +1,10 @@
 # Security Policy
 
+> **How the system is designed** is a separate document:
+> [`docs/SECURITY-MODEL.md`](./docs/SECURITY-MODEL.md) covers the threat model,
+> capability tokens, key rotation and defence in depth. This page is about
+> **reporting a problem**.
+
 ABSuite is trust infrastructure. A vulnerability here is not an inconvenience —
 it is a hole in the thing people are relying on to prove what happened. Reports
 are treated accordingly.

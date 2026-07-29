@@ -1,6 +1,15 @@
 # ABSuite Security Model
 
 > How ABSuite protects your AI agents and infrastructure.
+>
+> **Found a vulnerability?** Do not open a public issue — see
+> [`SECURITY.md`](../SECURITY.md) for private disclosure.
+>
+> Note that two different primitives are in play, deliberately: **capability
+> tokens are HMAC-signed** (symmetric, simple to operate, described below),
+> while **execution traces are Ed25519-signed** (asymmetric, so a verifier
+> needs only the public key and cannot forge). That is not an inconsistency —
+> a trace has to be checkable by someone who is not trusted to issue one.
 
 ---
 

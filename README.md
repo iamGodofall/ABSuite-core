@@ -640,7 +640,7 @@ CapKit deployment needs a shared store before revocation is reliable.
 - [Architecture Overview](./docs/ARCHITECTURE.md)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [API Reference](./docs/API.md)
-- [Security Model](./docs/SECURITY.md)
+- [Security Model](./docs/SECURITY-MODEL.md)
 
 ---
 
