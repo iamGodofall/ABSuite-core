@@ -81,6 +81,12 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
+    # Docker image names must be lowercase. github.repository_owner preserves
+    # the account's original casing ("iamGodofall"), which produces an invalid
+    # reference and fails the push instantly.
+    - name: Lowercase the owner for image names
+      run: echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -99,7 +105,7 @@ jobs:
         context: .
         file: ./packages/dashboard-ui/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-dashboard:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-dashboard:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -110,7 +116,7 @@ jobs:
         context: .
         file: ./packages/capkit/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-capkit:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-capkit:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -121,7 +127,7 @@ jobs:
         context: .
         file: ./packages/edge-run/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-edge-run:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-edge-run:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -132,7 +138,7 @@ jobs:
         context: .
         file: ./packages/quickbench/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-quickbench:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-quickbench:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -143,7 +149,7 @@ jobs:
         context: .
         file: ./packages/connector-starter/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-connector:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-connector:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -154,7 +160,7 @@ jobs:
         context: .
         file: ./packages/trust/Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/absuite-trust:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-trust:${{ github.sha }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
