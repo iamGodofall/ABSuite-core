@@ -6,6 +6,31 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Fixed — the Proof tab had never worked
+
+The screen this product exists for called four endpoints the dashboard server
+never implemented. Every request fell through to the SPA catch-all, so the UI
+received `<!DOCTYPE html>` where it expected JSON and reported
+*"Could not load proof data — Unexpected token '<'"*. The interface was built;
+the proxy behind it was not.
+
+- Added `GET /executions`, `GET /executions/public-key`,
+  `POST /executions/verify` and `GET /executions-verify-chain`, forwarding to
+  CapKit. The two verification routes are deliberately unauthenticated, mirroring
+  CapKit itself: the entire argument is that a third party can check a record
+  without holding any credential of yours, and a public key that needed a
+  password would defeat it.
+- The failure message now names the cause and the fix. Reading the audit trail
+  needs the admin key, which lives in Settings; "Could not load executions" told
+  the reader neither what was wrong nor what to do, on the one screen that
+  matters most. A `403` now says to add the key under Settings, and a `502` says
+  CapKit is not running.
+
+Verified end to end against the live suite: three signed executions recorded
+through CapKit, listed in the tab, one selected and inspected (action, subject,
+outcome, authorising scope), and the chain verified — *"Chain intact — 3
+record(s) verified."*
+
 ### Fixed — found by running the whole suite at once
 
 Docker has no daemon in this environment, so all five services were started as

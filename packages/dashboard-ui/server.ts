@@ -332,6 +332,69 @@ app.get('/logs/:service', requireAdminAccess, (req, res) => {
   }
 });
 
+// ─── Execution traces ────────────────────────────────────────────────────────
+//
+// The Proof tab is the screen this product exists for, and it called three
+// endpoints that were never implemented here. Every request fell through to the
+// SPA catch-all, so the UI received `<!DOCTYPE html>` and reported
+// "Could not load proof data — Unexpected token '<'". The panel had never
+// worked; the interface was built and the proxy behind it was not.
+
+/** Recorded executions, newest first. Reading the audit trail needs the admin key. */
+app.get('/executions', requireAdminAccess, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 200);
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions?limit=${limit}`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable', executions: [] });
+  }
+});
+
+/**
+ * The trace-signing public key.
+ *
+ * Deliberately unauthenticated, mirroring CapKit: the entire argument is that a
+ * third party can verify a record without holding any credential of yours. A
+ * public key that needed a password to fetch would defeat the point.
+ */
+app.get('/executions/public-key', async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/public-key`);
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/** Verify a trace. Also unauthenticated, for the same reason. */
+app.post('/executions/verify', async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/** Walk the whole chain and report the first record that fails. */
+app.get('/executions-verify-chain', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions-verify-chain`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 app.get('/capkit/token/generate', requireAdminAccess, async (req, res) => {
   try {
     const name = String(req.query.name || 'absuite-agent');

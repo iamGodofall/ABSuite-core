@@ -1401,7 +1401,21 @@ const ProofTab = () => {
         fetch('/executions/public-key'),
       ]);
       const execData = await execRes.json();
-      if (!execRes.ok) throw new Error(execData?.error?.message ?? 'Could not load executions');
+      if (!execRes.ok) {
+        // Name the cause and the fix. Reading the audit trail needs the admin
+        // key, which lives in Settings — "Could not load executions" told the
+        // reader neither what was wrong nor what to do about it, on the one
+        // screen this product exists for.
+        if (execRes.status === 403 || execRes.status === 401) {
+          throw new Error(
+            'Reading the execution log requires your admin key. Add it under Settings → Admin API key, then reload this tab.'
+          );
+        }
+        if (execRes.status === 502 || execRes.status === 503) {
+          throw new Error('CapKit is not reachable on :8081. Start it from the Services tab, then reload.');
+        }
+        throw new Error(execData?.error?.message ?? execData?.error ?? 'Could not load executions');
+      }
 
       setTraces(Array.isArray(execData.executions) ? execData.executions : []);
       const keyData = await keyRes.json();
