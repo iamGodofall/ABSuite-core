@@ -42,6 +42,31 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
+      # Fail in seconds on a credential problem rather than after a full
+      # build-and-test cycle. npm rejects a token that cannot bypass 2FA only
+      # at the final upload, which is two minutes of work in and a confusing
+      # place to discover an auth issue.
+      - name: Check the npm token before doing any work
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "::error::NPM_TOKEN is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          if ! whoami_out=$(npm whoami 2>&1); then
+            echo "::error::npm rejected the token: ${whoami_out}"
+            echo "The token must be able to publish without an interactive 2FA prompt." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Use either:" >> "$GITHUB_STEP_SUMMARY"
+            echo "- a **Classic token** of type **Automation**, or" >> "$GITHUB_STEP_SUMMARY"
+            echo "- a **Granular access token** with **Bypass 2FA enabled** and read/write on the target scope." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Authenticated to npm as: ${whoami_out}"
+          echo "Authenticated to npm as \`${whoami_out}\`" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
