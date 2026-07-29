@@ -32,8 +32,6 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       # node:sqlite requires 22.5+. Pinning the major avoids a surprise upgrade
       # changing behaviour under us.
