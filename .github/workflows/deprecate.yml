@@ -39,15 +39,22 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # Inputs go through `env`, never straight into the script. A deprecation
+      # message naturally contains apostrophes — "'__dirname' is not defined" —
+      # and interpolating that into a single-quoted shell string produces a
+      # syntax error at best and an injection at worst.
+      #
       # A typo in the spec silently deprecates nothing and reports success, so
-      # resolve it first and fail loudly when it matches no published version.
+      # resolve the package first and fail loudly when it does not exist.
       - name: Show which versions this matches
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          SPEC: ${{ inputs.spec }}
         run: |
-          spec='${{ inputs.spec }}'
-          name="${spec%@*}"
-          [ "${spec:0:1}" = "@" ] && name="@${spec:1}" && name="${name%@*}"
+          # Strip the version: everything after the last '@'. On a scoped name
+          # with no version that '@' is the scope marker, so fall back.
+          name="${SPEC%@*}"
+          [ -z "$name" ] && name="$SPEC"
 
           echo "Package: $name"
           if ! npm view "$name" versions --json; then
@@ -56,29 +63,36 @@ jobs:
           fi
 
       - name: Deprecate
-        if: ${{ inputs.dry_run == false }}
+        if: inputs.dry_run == false
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          SPEC: ${{ inputs.spec }}
+          MESSAGE: ${{ inputs.message }}
         run: |
-          npm deprecate '${{ inputs.spec }}' '${{ inputs.message }}'
-          echo "### Done" >> "$GITHUB_STEP_SUMMARY"
-          echo '`${{ inputs.spec }}`' >> "$GITHUB_STEP_SUMMARY"
-          if [ -z '${{ inputs.message }}' ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Deprecation **removed**." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "> ${{ inputs.message }}" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          npm deprecate "$SPEC" "$MESSAGE"
+          {
+            echo "### Done"
+            echo ""
+            echo "\`$SPEC\`"
+            echo ""
+            if [ -z "$MESSAGE" ]; then
+              echo "Deprecation **removed**."
+            else
+              echo "> $MESSAGE"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Dry run notice
-        if: ${{ inputs.dry_run == true }}
+        if: inputs.dry_run != false
+        env:
+          SPEC: ${{ inputs.spec }}
+          MESSAGE: ${{ inputs.message }}
         run: |
           {
             echo "### Dry run — nothing was changed"
             echo ""
             echo '```'
-            echo "npm deprecate '${{ inputs.spec }}' '${{ inputs.message }}'"
+            echo "npm deprecate \"$SPEC\" \"$MESSAGE\""
             echo '```'
             echo ""
             echo "Re-run with **dry_run unchecked** to apply it."
