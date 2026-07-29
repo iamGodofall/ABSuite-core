@@ -74,7 +74,7 @@ importers:
   packages/connector-starter:
     dependencies:
       '@absuitecore/capkit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../capkit
       express:
         specifier: ^4.18.0
@@ -193,7 +193,7 @@ importers:
   packages/edge-run:
     dependencies:
       '@absuitecore/capkit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../capkit
       express:
         specifier: ^4.18.0
@@ -215,7 +215,7 @@ importers:
   packages/mcp:
     dependencies:
       '@absuitecore/capkit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../capkit
     devDependencies:
       '@types/node':
@@ -231,7 +231,7 @@ importers:
   packages/quickbench:
     dependencies:
       '@absuitecore/capkit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../capkit
       express:
         specifier: ^4.18.0
@@ -253,7 +253,7 @@ importers:
   packages/trust:
     dependencies:
       '@absuitecore/capkit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../capkit
       express:
         specifier: ^4.18.0

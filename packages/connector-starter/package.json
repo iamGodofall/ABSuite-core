@@ -1,6 +1,6 @@
 {
   "name": "@absuitecore/connector-starter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Connector registry, credential verification and deterministic connector scaffolding.",
   "license": "MIT",
   "main": "dist/index.js",
@@ -23,7 +23,7 @@
     "ai-agents"
   ],
   "dependencies": {
-    "@absuitecore/capkit": "workspace:*",
+    "@absuitecore/capkit": "workspace:^",
     "express": "^4.18.0"
   },
   "devDependencies": {

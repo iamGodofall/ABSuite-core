@@ -1,6 +1,6 @@
 {
   "name": "@absuitecore/trust",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Evidence-based trust for multi-agent systems: explainable scores, output grounding checks, agent-to-agent monitoring, correlation-aware arbitration and reciprocal contracts.",
   "license": "MIT",
   "main": "dist/index.js",
@@ -26,7 +26,7 @@
     "ai-safety"
   ],
   "dependencies": {
-    "@absuitecore/capkit": "workspace:*",
+    "@absuitecore/capkit": "workspace:^",
     "express": "^4.18.0"
   },
   "devDependencies": {
