@@ -1,8 +1,9 @@
 # ABSuite
 
-> **Intelligence is becoming abundant. Trust is becoming scarce.**
+> **The black box for AI systems.** A flight recorder — not an opaque model.
 
-Prove what your AI actually did.
+ABSuite records what your AI systems did, proves it cryptographically, and tells
+you whether the evidence supports what they claimed.
 
 ```bash
 npm install @absuitecore/capkit
@@ -24,19 +25,12 @@ verifyTrace(trace, publicKeyPem).valid;   // true — Ed25519, not a log line
 traces.verifyChain(publicKeyPem);         // names the first tampered record
 ```
 
-That is the whole idea. Every action is signed, hash-chained, and checkable by
-someone who has no reason to trust you. Payloads are hashed, never stored, so
+Every action is signed and hash-chained, so anyone can check the record —
+including people with no reason to trust you. Payloads are hashed, never stored:
 the record proves what happened without becoming a copy of your data.
 
-**[▶ Run the full incident investigation](./examples/incident-forensics.mjs)** —
-*"our agent approved $250,000 at 2:14 AM, what happened?"*, answered end to end
-in about 40 lines. Or start at
-**[Getting started](./GETTING-STARTED.md)** for the library, the HTTP API and
-the Docker stack, with every command verified against this release.
+**[Getting started →](./GETTING-STARTED.md)** · **[Run the full incident investigation →](./examples/incident-forensics.mjs)**
 
----
-
-<!-- Live from the registry rather than typed in, so they cannot drift. -->
 [![npm](https://img.shields.io/npm/v/%40absuitecore%2Fcapkit?label=%40absuitecore%2Fcapkit&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/capkit)
 [![npm](https://img.shields.io/npm/v/%40absuitecore%2Ftrust?label=%40absuitecore%2Ftrust&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/trust)
 [![downloads](https://img.shields.io/npm/dm/%40absuitecore%2Fcapkit?label=downloads&color=1E1B4B)](https://www.npmjs.com/package/@absuitecore/capkit)
@@ -47,13 +41,45 @@ the Docker stack, with every command verified against this release.
 
 ---
 
+## Questions ABSuite answers
+
+| | |
+|---|---|
+| **What happened?** | A signed, hash-chained execution trace of every real action |
+| **Who or what did it?** | The subject of the capability token that authorised it |
+| **Was it authorised?** | Segment-wise scope matching, enforced in every service |
+| **What evidence supports the output?** | Claims checked against sources — `SUPPORTED`, `UNVERIFIED` or `CONTRADICTED` |
+| **Has the record been modified?** | Chain verification names the sequence number of the first broken record |
+| **Can it be reproduced?** | Replay compares a re-run against the recorded hashes |
+| **Should someone investigate?** | Counts you can contest line by line, never a score |
+
+None of these answers require trusting the operator. That is the whole design.
+
+---
+
+## Verify it yourself, right now
+
+[**iamgodofall.github.io/ABSuite-core/verify.html**](https://iamgodofall.github.io/ABSuite-core/verify.html)
+checks a real signed execution trace entirely in your browser using WebCrypto.
+No install, no account, no server, no trust in this project. Click *Load a valid
+example*, then *Tamper with it*, and verify again.
+
+<img src="docs/images/verifier-valid.png" alt="The browser verifier reporting a trace as genuine and unaltered, with content hash, Ed25519 signature, action, subject and authorising scopes each checked" width="49%"> <img src="docs/images/verifier-tampered.png" alt="The same page after one field was edited: tampering detected, showing the expected hash against the computed one" width="49%">
+
+One field edited is all it takes. The page names the expected hash and the
+computed one, so the disagreement is visible rather than asserted.
+
+---
+
 ## Why this exists
 
-Every AI governance product in the market does one or two of these. ABSuite is
-the only one that does all four in a single system — which matters because they
-are only useful together. Attestation without enforcement records violations it
-could have prevented. Enforcement without replay cannot show what actually
-happened. Replay without certificates proves it to you and nobody else.
+Most AI governance products ask *can we trust the model?* ABSuite asks the
+question that has an answer: **can we trust the evidence around the model?**
+
+Every product in the category does one or two of these. They are only useful
+together. Attestation without enforcement records violations it could have
+prevented. Enforcement without replay cannot show what actually happened. Replay
+without certificates proves it to you and nobody else.
 
 | | Attestation | Enforcement | Replay | Certificates |
 |---|---|---|---|---|
@@ -66,630 +92,141 @@ happened. Replay without certificates proves it to you and nobody else.
 > Compiled from public documentation as of July 2026. Categories move fast — if
 > something here is out of date or wrong, open an issue and it gets corrected.
 
-**ABSuite combines enforcement, replay, attestation and cryptographic evidence
-in a single platform.**
+---
+
+## What it refuses to do
+
+Most projects document what they do. This one also documents what it will not
+build, because the refusals are the design.
+
+**No hallucination detection.** Deciding whether an arbitrary statement is true
+is open-domain fact-checking. Nobody can do it, and a product claiming to is a
+classifier with a confident voice. ABSuite reports whether a claim traces to a
+supplied source — `UNVERIFIED` means the evidence is absent, **not** that the
+claim is false.
+
+**No trust scores for people.** ABSuite will not tell you John scores 42. It
+reports events recorded, policy violations, manual overrides and audit findings
+— facts he can check and contest, line by line. The record object has no `score`
+field and cannot be given one.
+
+**No confidence as proof.** Agreement between models is not evidence. Arbitration
+discounts correlated agreement, and a leader that only wins because three
+witnesses share a model family does not win.
+
+**No hidden verification.** The verification path is free, offline-capable and
+permanently open. A proof you must pay to check is not a proof.
+
+The reasoning is in [`PRINCIPLES.md`](./PRINCIPLES.md) and
+[`docs/CONSTITUTION.md`](./docs/CONSTITUTION.md).
 
 ---
 
-## Capability matrix
+## Packages
 
-| Capability | Status |
+All seven are published with signed Sigstore provenance attestations — you can
+verify which commit and workflow produced each tarball without trusting us
+(`npm audit signatures`).
+
+| Package | What it does |
 |---|---|
-| Cryptographic attestation | Yes |
-| Replay | Yes |
-| Execution certificates | Yes |
-| Evidence validation | Yes |
-| AI arbitration | Yes |
-| Reciprocal trust | Yes |
-| Human approval | Yes |
-| Tamper detection | Yes |
-| Audit trails | Yes |
-| Trust analytics | Yes |
+| [`@absuitecore/capkit`](https://www.npmjs.com/package/@absuitecore/capkit) | Capability tokens, tamper-evident audit, signed execution traces, tenancy |
+| [`@absuitecore/trust`](https://www.npmjs.com/package/@absuitecore/trust) | Evidence validation, chain monitoring, arbitration, reciprocal contracts |
+| [`@absuitecore/edge-run`](https://www.npmjs.com/package/@absuitecore/edge-run) | Scheduling, priority queue, retries with jitter, circuit-breaker self-healing |
+| [`@absuitecore/quickbench`](https://www.npmjs.com/package/@absuitecore/quickbench) | LLM and HTTP benchmarking, nearest-rank percentiles, regression detection |
+| [`@absuitecore/connector-starter`](https://www.npmjs.com/package/@absuitecore/connector-starter) | Connector registry, read-only credential verification, deterministic scaffolding |
+| [`@absuitecore/mcp`](https://www.npmjs.com/package/@absuitecore/mcp) | MCP server — puts ABSuite inside the tool-calling path |
+| [`@absuitecore/cli`](https://www.npmjs.com/package/@absuitecore/cli) | The `absuite` command |
 
-```text
-412 tests                    94 API endpoints
-7 npm packages               6 HTTP services + MCP server
-Documentation drift detection in CI
-npm distribution via GitHub Actions with provenance
-```
-
-Numbers are generated, not claimed: run `pnpm test` and `pnpm docs:check`.
-
----
-
-## The six modules
-
-| Module | Port | What it does |
-|--------|------|-------------|
-| **CapKit** | 8081 | Capability tokens, tamper-evident audit, signed execution traces, tenancy, billing |
-| **Edge-Run** | 8082 | Cron scheduling, priority queue, retries with jitter, circuit-breaker self-healing |
-| **QuickBench** | 8083 | LLM and HTTP benchmarking, nearest-rank percentiles, statistical regression detection |
-| **Connector-Starter** | 8084 | Connector registry, read-only credential verification, deterministic scaffolding |
-| **Trust** | 8085 | Evidence validation, trust analytics, chain monitoring, arbitration, reciprocal contracts |
-| **Dashboard** | 3001 | Control plane — live status, token issuance, proof verification |
-| **MCP** | stdio | Model Context Protocol server — puts ABSuite inside the tool-calling path |
-
-Read [`PRINCIPLES.md`](./PRINCIPLES.md) for the six engineering rules these are
-built on. The short version: evidence over opinion, verification over
-confidence, facts over scores, and confidence never determines truth.
-
-### Evidence validation, not hallucination detection
-
-Deciding whether an arbitrary statement is true is open-domain fact-checking.
-Nobody can do it, and a product claiming to is a classifier with a confident
-voice. ABSuite answers the question that *does* have an answer:
-
-```text
-Claim:     "The CEO approved this."
-Evidence:  none
-Status:    UNVERIFIED
-```
-
-No score. No probability. No judgement about truth. `UNVERIFIED` means the
-evidence is absent — **not** that the claim is false. That distinction is what
-keeps the answer defensible in a room where it matters.
-
-### Evidence records, not human trust scores
-
-ABSuite will not tell you that John has a trust score of 42. It will tell you:
-
-```text
-User:                person:j.smith
-Events recorded:     1,042
-Policy violations:   2
-Manual overrides:    1
-Audit findings:      0
-```
-
-Facts, never conclusions. Every line is contestable against the underlying
-events. This is infrastructure, not a social credit system — and scoring a human
-at all requires setting `ABSUITE_TRUST_SCORE_HUMANS=true` deliberately.
+Code for each is in [`docs/MODULES.md`](./docs/MODULES.md).
 
 ### What makes it a suite, not six services
 
 CapKit is the shared authorisation layer. Every other service imports
-`capabilityGuard` from `@absuitecore/capkit` and enforces the same capability model,
-so **one token works everywhere, and revoking it at CapKit locks it out of all
-of them**. Enforcement lives in a library distributed to every service rather
-than in a gateway, because a gateway leaves each service unguarded to anything
-that reaches it directly.
+`capabilityGuard` from `@absuitecore/capkit` and enforces the same capability
+model, so **one token works everywhere, and revoking it at CapKit locks it out
+of all of them**. Enforcement lives in a library distributed to every service
+rather than in a gateway, because a gateway leaves each service unguarded to
+anything that reaches it directly.
 
-### Provable, not just traceable
-
-Every real action produces an Ed25519-signed, hash-chained execution trace.
-`GET /executions-verify-chain` walks the whole log and names the sequence number
-of the first record that breaks.
-
-**Try it without installing anything:**
-[**iamgodofall.github.io/ABSuite-core/verify.html**](https://iamgodofall.github.io/ABSuite-core/verify.html)
-verifies a trace entirely in your browser using WebCrypto — no server, no
-account, no trust in us required. Click *Load a valid example*, then click
-*Tamper with it* and verify again.
-
-<img src="docs/images/verifier-valid.png" alt="The browser verifier reporting a trace as genuine and unaltered, with content hash, Ed25519 signature, action, subject and authorising scopes each checked" width="49%"> <img src="docs/images/verifier-tampered.png" alt="The same page after one field was edited: tampering detected, showing the expected hash against the computed one" width="49%">
-
-One field edited is all it takes. The page names the expected hash and the
-computed one, so the disagreement is visible rather than asserted.
+As services, they listen on 8081 (CapKit), 8082 (Edge-Run), 8083 (QuickBench),
+8084 (Connector-Starter), 8085 (Trust) and 3001 (Dashboard). Full design in
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ---
 
-## 🚀 Quick Start
+## The path an action takes
 
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) **22.5+** — the persistence layer is `node:sqlite`
-- [Docker](https://www.docker.com/) 24+ with Docker Compose
-- [pnpm](https://pnpm.io/) 9+ (`npm install -g pnpm`)
-
-### One-Command Setup
-
-```bash
-# Clone the repo
-git clone https://github.com/iamGodofall/ABSuite-core.git
-cd ABSuite-core
-
-# Install everything
-pnpm install
-
-# Set the secrets CapKit needs (see .env.example)
-cp .env.example .env
-# Then edit .env — at minimum set CAPKIT_HMAC_SECRET and ABSUITE_ADMIN_API_KEY:
-#   openssl rand -hex 32
-
-# Start the stack (absuite-db, capkit, edge-run, quickbench, connector-starter, trust, dashboard)
-pnpm start
-
-# Open the dashboard
-open http://localhost:3001
-```
-
-This starts the database and all six services. The dashboard reports live
-service status, issues real capability tokens through CapKit, and runs latency
-benchmarks against any running service.
-
-For the shortest path — library first, no Docker — see
-[Getting started](./GETTING-STARTED.md).
-
-### Running without Docker
-
-```bash
-# Terminal 1 — CapKit
-CAPKIT_HMAC_SECRET=$(openssl rand -hex 32) CAPKIT_ADMIN_KEY=dev-admin-key \
-  pnpm --filter @absuitecore/capkit dev
-
-# Terminal 2 — Dashboard
-ABSUITE_ADMIN_API_KEY=dev-admin-key pnpm --filter dashboard-ui start
-```
-
-The dashboard falls back to direct HTTP health checks when Docker is not
-available, so service status stays accurate either way.
-
-### Using the CLI
-
-```bash
-# Check service status
-pnpm cli status
-
-# Start a specific service
-pnpm cli start capkit
-
-# Stop everything
-pnpm cli stop
-```
-
-> The CLI's `bench` and `token` subcommands shell into running containers. When
-> running outside Docker, use the QuickBench and CapKit HTTP APIs directly
-> (see below).
-
----
-
-## 📁 Project Structure
-
-```
-ABSuite-core/
-├── packages/
-│   ├── capkit/              # ✅ Security & capability validation
-│   │   ├── Dockerfile
-│   │   └── src/
-│   │       ├── index.ts     # Public API exports
-│   │       ├── server.ts    # HTTP API server (:8081)
-│   │       ├── jwt.ts       # HS256 sign/verify on node:crypto
-│   │       ├── capability.ts # Capability tokens, scopes, revocation
-│   │       ├── audit.ts     # Append-only audit log (memory + JSONL)
-│   │       ├── ai-policy-generator.ts # Rule-based access policies
-│   │       ├── llm-provider.ts  # Provider configuration inspection
-│   │       └── capkit.test.ts   # 27 tests
-│   │
-│   ├── dashboard-ui/        # ✅ Web dashboard (React + Vite)
-│   │   ├── Dockerfile
-│   │   ├── server.ts        # Orchestrator + API proxy (:3001)
-│   │   └── src/
-│   │       ├── App.tsx      # Main application
-│   │       ├── components/  # UI components
-│   │       └── hooks/       # React hooks for service integration
-│   │
-│   ├── cli/                 # ✅ Command-line interface
-│   │   └── src/index.ts
-│   │
-│   ├── edge-run/            # ✅ Scheduling, queue, retries, self-healing (:8082)
-│   │   └── src/
-│   │       ├── cron.ts      # Cron parsing & next-run calculation
-│   │       ├── queue.ts     # Priority queue, retries with jitter
-│   │       ├── runtime.ts   # HTTP & script executors (scripts opt-in)
-│   │       ├── scheduler.ts # Cron -> queue handoff
-│   │       └── self-healing.ts # Circuit breaker per target
-│   │
-│   ├── quickbench/          # ✅ LLM & service benchmarking (:8083)
-│   │   └── src/
-│   │       ├── stats.ts     # Percentiles, Welch's t-test
-│   │       ├── providers.ts # Ollama, OpenAI, Anthropic, HTTP
-│   │       ├── runner.ts    # Job orchestration & comparison
-│   │       └── report.ts    # Markdown & CSV reports
-│   │
-│   └── connector-starter/   # ✅ Connectors & scaffolding (:8084)
-│       └── src/
-│           ├── connectors.ts # Registry, verification, actions
-│           └── scaffold.ts   # Manifest + TypeScript generation
-│
-├── src/                     # Shared orchestrator helpers
-├── docker-compose.yml       # Implemented services by default
-├── package.json             # Workspace root (pnpm)
-└── tsconfig.json            # Shared TypeScript config
+```text
+Input
+  ↓  capability check          ← refused here, or it never runs
+  ↓  execution
+  ↓  evidence collection       ← claims checked against sources
+  ↓  hashing and signing       ← Ed25519, payloads hashed and dropped
+  ↓  chain append              ← linked to its predecessor
+  ↓  independent verification  ← public key only; no credentials, no server
+  ↓  human review              ← where a person should look, and why
+  → audit history
 ```
 
 ---
 
-## 🏗️ Architecture
+## Status
 
-ABSuite enforces authority **at every service**, not at a single gateway. Each
-service imports `capabilityGuard` from `@absuitecore/capkit`, so there is no path
-that reaches execution without a capability check — including a caller who
-bypasses the dashboard entirely and talks to a service directly.
-
-```
-   CLIENTS                Dashboard (:3001)      MCP client        curl / SDK
-                          React · Socket.io      Claude, agents
-                                 │                    │                │
-                                 └────────────┬───────┴────────────────┘
-                                              │ Bearer <capability token>
- ═════════════════════════════════════════════▼═══════════════════════════════
-   @absuitecore/capkit — THE CORE (library + service :8081)
-   Imported by every service below. Depends on nothing in this repo.
-
-     capability.ts   scopes, expiry, audience   │  trace.ts    Ed25519 traces
-     jwt.ts          HS256 on node:crypto       │  audit.ts    hash chain
-     keyring.ts      rotation w/o downtime      │  tenancy.ts  tenants, meters
-     middleware.ts   capabilityGuard()  ◄── enforcement point
-     revocation-store.ts   shared, cross-service
- ═════════════════════════════════════════════╤═══════════════════════════════
-                                              │ imports capabilityGuard
-        ┌──────────────────┬──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼                  ▼
- ┌─────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
- │ @absuitecore/   │   │ @absuitecore/    │   │ @absuitecore/    │   │ @absuitecore/    │
- │ edge-run    │   │ quickbench   │   │ connector-   │   │ mcp          │
- │ :8082       │   │ :8083        │   │ starter :8084│   │ stdio        │
- │             │   │              │   │              │   │              │
- │ cron        │   │ percentiles  │   │ registry     │   │ MCP tools    │
- │ queue       │   │ providers    │   │ verification │   │ filtered by  │
- │ retries     │   │ regression   │   │ scaffolding  │   │ capability   │
- │ breaker     │   │ reports      │   │              │   │ + attested   │
- └──────┬──────┘   └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-        │ guards every mutating route with a required scope     │
-        └──────────────────┴─────────┬────────┴─────────────────┘
-                                     ▼
-                    ┌────────────────────────────────┐
-                    │   absuite-db  (SQLite, WAL)    │
-                    │   Single source of truth       │
-                    │                                │
-                    │  tenants · usage · revocations │
-                    │  executions (signed, chained)  │
-                    │  audit · schedules · queue     │
-                    └────────────────┬───────────────┘
-                                     │ public key only
-                                     ▼
-                    ┌────────────────────────────────┐
-                    │  ANY THIRD PARTY / AUDITOR     │
-                    │  docs/verify.html — in browser │
-                    │  No account. No server. No     │
-                    │  ability to forge.             │
-                    └────────────────────────────────┘
+```text
+412 tests                     94 API endpoints
+7 npm packages on npm         6 HTTP services + MCP server
+API docs drift-checked in CI  published from CI with provenance
 ```
 
-### Every request follows the same path
+Numbers are generated, not claimed: run `pnpm test` and `pnpm docs:check`.
 
-```
-request → capability verified (signature, expiry, audience, scope, revocation)
-        → tenant resolved, quota checked        402 if exceeded, 403 if suspended
-        → execution                             real API call, real process
-        → trace recorded                        hash-chained, Ed25519-signed
-        → result returned with its attestation
-```
-
-**Why enforcement lives in a library, not a gateway.** A central orchestrator
-that everything must route through is a single point of failure, a throughput
-bottleneck, and — critically — it leaves a bypass: anything that reaches a
-service directly skips the check. Distributing the *same* guard to every
-service means direct access is checked too. There is no unguarded door.
-
-**The one invariant:** `@absuitecore/capkit` depends on nothing in this repo;
-everything else depends on it. Never invert that arrow.
+It is installable. Nobody outside the project has used it yet — that is the
+honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 
 ---
 
-## 🔑 Key Features
+## Documentation
 
-### CapKit — Security Without Compromise
-
-```typescript
-import { CapabilityToken, hasCapability } from '@absuitecore/capkit'
-
-// Create a capability token with scoped permissions
-const created = CapabilityToken.create({
-  sub: 'agent-001',
-  scope: ['read:users', 'write:tasks', 'execute:scripts'],
-  expiresIn: '8h',
-  aud: 'absuite://production',
-  kid: 'service-key-1',
-}, hmacKey)
-
-// Validate an incoming request, requiring a specific scope
-const result = CapabilityToken.validate(created.token, hmacKey, {
-  requiredScope: 'write:tasks',
-})
-
-if (!result.valid) {
-  // 'TOKEN_EXPIRED' | 'TOKEN_INVALID' | 'CAPABILITY_INSUFFICIENT' | ...
-  throw new Error(`Capability rejected: ${result.error}`)
-}
-
-console.log(result.claims.sub) // 'agent-001'
-```
-
-Scopes match segment-wise, so `read:*` grants `read:users` but never
-`read:users:delete`. Tokens are HS256 JWTs signed with `node:crypto` — no
-third-party JWT dependency on the security-critical path.
-
-### Edge-Run — Agents That Run Reliably
-
-```typescript
-import { TaskQueue, TaskRuntime, AgentScheduler, nextRun } from '@absuitecore/edge-run'
-
-const runtime = new TaskRuntime({ allowedHosts: ['api.example.com'] })
-const queue = new TaskQueue({ runtime, concurrency: 10 })
-const scheduler = new AgentScheduler(queue)
-
-// Recurring task, retried with exponential backoff and jitter
-scheduler.schedule({
-  id: 'data-sync',
-  cron: '*/15 * * * *',
-  task: { type: 'http', url: 'https://api.example.com/sync', method: 'POST' },
-  retry: { maxAttempts: 3, backoff: 'exponential' },
-})
-
-// One-off delayed task
-queue.enqueue(
-  { type: 'http', url: 'https://api.example.com/welcome', method: 'POST' },
-  { id: 'welcome-email', delay: 30_000, priority: 'high' },
-)
-
-queue.start()      // drain the queue
-scheduler.start()  // fire schedules as they come due
-
-nextRun('0 0 29 2 *')  // -> the next 29 February, computed without brute force
-```
-
-The circuit breaker groups failures by target host, so one failing dependency
-never takes the whole queue down with it.
-
-### QuickBench — Know Before You Deploy
-
-```typescript
-import { BenchmarkRunner, summarise, compareRuns } from '@absuitecore/quickbench'
-
-const runner = new BenchmarkRunner()
-
-const job = runner.submit({
-  name: 'llama3 latency',
-  provider: 'ollama',
-  model: 'llama3',
-  warmupRuns: 3,   // discarded: measures cold cache, not steady state
-  testRuns: 20,
-  concurrency: 4,
-})
-
-// Later, once both runs have completed:
-runner.compare(baselineJobId, job.jobId)
-// -> { deltaPercent: 42.3, significant: true, verdict: 'regression' }
-```
-
-`summarise()` reports min/mean/stddev and p50/p90/p95/p99 using nearest-rank,
-so every figure is a latency that was actually observed.
-
-### Connector-Starter — Integrations You Can Trust
-
-```typescript
-import { describeConnectors, verifyConnector, generate } from '@absuitecore/connector-starter'
-
-// What is available, and what is actually configured?
-describeConnectors()
-// -> [{ id: 'github', configured: true, missing: [], actions: [...] }, ...]
-
-// Verify credentials without any side effect — never posts or creates anything
-await verifyConnector('github')
-
-// Turn a description into a manifest and compilable TypeScript
-const { manifest, typescript, spec } = generate(
-  'Read GitHub issues and post them to Slack every 15 minutes'
-)
-spec.schedule  // '*/15 * * * *' — ready to hand to Edge-Run
-```
-
-Generation is deterministic and rule-based: no API key required, and the same
-description always produces identical output — which matters when the result is
-committed to a repository.
-
----
-
-## 📊 Dashboard
-
-The dashboard gives you a real-time unified view of your entire ABSuite deployment:
-
-- **System Overview** — All services at a glance, live health metrics
-- **AI Studio** — Configure AI providers, test prompts, inspect responses
-- **Service Control** — Start, stop, and restart any module from one place
-- **Live Logs** — Streaming logs from all services via WebSocket
-- **Benchmark Results** — Historical performance data with trend charts
-
-Access it at `http://localhost:3001` after running `pnpm start`.
-
----
-
-## 🐳 Docker Deployment
-
-Every module ships as a Docker container. Deploy everything at once:
-
-```bash
-# Start all services
-docker compose up -d
-
-# Check status
-docker compose ps
-
-# View logs
-docker compose logs -f
-
-# Stop everything
-docker compose down
-```
-
-Or run individual services:
-
-```bash
-docker compose up -d capkit edge-run
-```
-
----
-
-## 🔧 Configuration
-
-ABSuite is configured via environment variables:
-
-```env
-# Core
-ABSUITE_ENV=development          # development | production
-ABSUITE_DB_PATH=./data/absuite.db  # SQLite database path
-ABSUITE_LOG_LEVEL=info           # debug | info | warn | error
-
-# CapKit
-CAPKIT_PORT=8081
-CAPKIT_HMAC_SECRET=your-secret-key   # REQUIRED in production (min 32 chars)
-CAPKIT_JWT_SECRET=your-jwt-secret    # Fallback if HMAC secret is unset
-CAPKIT_ADMIN_KEY=your-admin-key      # Bootstrap key for issuing the first token
-CAPKIT_AUDIENCE=absuite://production # Optional; enforced at validation
-CAPKIT_AUDIT_LOG=/data/capkit-audit.jsonl
-
-# Shared revocation store — set to a path every service can read so a
-# revocation at CapKit locks the token out of the whole suite.
-CAPKIT_REVOCATION_FILE=/data/capkit-revocations.jsonl
-
-# Edge-Run
-EDGERUN_PORT=8082
-EDGERUN_MAX_CONCURRENT=10
-EDGERUN_QUEUE_LIMIT=100
-EDGERUN_SCRIPT_ROOT=              # unset = script tasks disabled (default)
-EDGERUN_ALLOWED_HOSTS=            # unset = any host allowed
-EDGERUN_FAILURE_THRESHOLD=5       # failures before the breaker opens
-EDGERUN_COOLDOWN_MS=30000
-
-# QuickBench
-QUICKBENCH_PORT=8083
-QUICKBENCH_OLLAMA_URL=http://localhost:11434
-
-# Connector-Starter (all optional — each connector reports its own state)
-CONNECTOR_STARTER_PORT=8084
-GITHUB_TOKEN=
-SLACK_BOT_TOKEN=
-NOTION_TOKEN=
-LINEAR_API_KEY=
-
-# Dashboard
-DASHBOARD_PORT=3001
-```
-
----
-
-## 🧪 Running Tests
-
-```bash
-# All packages (246 tests)
-pnpm test
-
-# A single module
-pnpm --filter @absuitecore/capkit test
-pnpm --filter @absuitecore/edge-run test
-pnpm --filter @absuitecore/quickbench test
-pnpm --filter @absuitecore/connector-starter test
-```
-
-The suites target the paths where being wrong actually costs something:
-
-| Module | Covered |
+| | |
 |---|---|
-| CapKit | Signature tampering, `alg: none` downgrade, expiry, audience mismatch, scope escalation, revocation, audit-chain tampering and deletion |
-| Edge-Run | Cron ranges/steps/aliases, leap-year schedules, day-of-month OR day-of-week, backoff jitter and caps, breaker transitions, script path escapes, host allowlist |
-| QuickBench | Nearest-rank percentiles, zero-variance comparison, noise rejection, run-count clamping |
-| Connector-Starter | `anyOf` credential groups, input validation, non-https rejection, deterministic generation, brace balance in generated code |
-| Commercial | API keys stored only as hashes, quota boundaries, suspension, plan monotonicity, Stripe signature tampering and replay, metering period isolation |
-| Persistence | Schedule and task round-trip, interrupted tasks resumed, finished work not resurrected, corrupt rows skipped rather than fatal |
+| [Getting started](./GETTING-STARTED.md) | Library, HTTP API and Docker — every command verified |
+| [Modules in code](./docs/MODULES.md) | What each package looks like to use |
+| [API reference](./docs/API.md) | Every route, generated from source |
+| [Architecture](./docs/ARCHITECTURE.md) | How the pieces fit together |
+| [Principles](./PRINCIPLES.md) | The rules the code is held to |
+| [Constitution](./docs/CONSTITUTION.md) | What this will never become |
+| [Security model](./docs/SECURITY-MODEL.md) | Threat model and defence in depth |
+| [Reporting a vulnerability](./SECURITY.md) | Private disclosure |
+| [Roadmap](./docs/ROADMAP.md) | What is next, and what is deliberately refused |
+| [Changelog](./CHANGELOG.md) | Including the bugs, and how they were found |
 
 ---
 
-## 🔐 CapKit HTTP API
+## Contributing
 
-CapKit runs on `:8081`. Every endpoint except `/health` requires either a
-capability token carrying the right scope, or the bootstrap admin key.
+Open an issue before writing anything beyond a small fix — it avoids duplicate
+work and makes disagreement about design cheap. Every command in
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) has been run against this repository; if
+one does not work, that is a bug and a PR fixing it needs no issue.
 
-```bash
-# Health — no auth
-curl localhost:8081/health
+Contributions are held to the principles above. Anything that scores a person,
+or treats model agreement as evidence, will be declined however well argued.
 
-# Issue a token (bootstrap with the admin key)
-curl -X POST localhost:8081/auth/token \
-  -H 'Content-Type: application/json' \
-  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" \
-  -d '{"sub":"agent-1","scope":["read:users","audit:read"],"expiresIn":"8h"}'
-
-# Validate a token
-curl -X POST localhost:8081/auth/token/validate \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOKEN" \
-  -d "{\"token\":\"$TOKEN\"}"
-
-# Revoke a token
-curl -X POST localhost:8081/auth/token/revoke \
-  -H 'Content-Type: application/json' \
-  -H "X-ABSuite-Admin-Key: $CAPKIT_ADMIN_KEY" \
-  -d "{\"token\":\"$TOKEN\"}"
-
-# Read the audit trail
-curl -H "Authorization: Bearer $TOKEN" 'localhost:8081/audit?limit=20'
-
-# Generate a least-privilege access policy from a description
-curl -X POST localhost:8081/ai/policy/generate \
-  -H 'Content-Type: application/json' \
-  -d '{"description":"read and delete customer credentials"}'
-```
-
-Every allow and deny is written to the audit log with subject, action,
-resource and reason.
-
-**Known limitation:** the revocation list is process-local, so a multi-replica
-CapKit deployment needs a shared store before revocation is reliable.
+Security vulnerabilities go to [private disclosure](./SECURITY.md), never the
+issue tracker.
 
 ---
 
-## 📖 Documentation
+## License
 
-- [Architecture Overview](./docs/ARCHITECTURE.md)
-- [Contributing Guide](./CONTRIBUTING.md)
-- [API Reference](./docs/API.md)
-- [Security Model](./docs/SECURITY-MODEL.md)
+[MIT](./LICENSE). Copyright © 2025–2026 ABSuite Contributors.
 
----
-
-## 🌍 Open Source Strategy
-
-ABSuite is **mostly open source** under the MIT license:
-
-- ✅ **Core modules** (CapKit, Edge-Run, QuickBench, Dashboard) — MIT, free forever
-- ✅ **Connector templates** — MIT, community-contributed connectors welcome
-- 🔒 **Enterprise features** — Advanced auth, SSO, audit log aggregation, team management (planned)
-
-The goal is to be the **standard infrastructure layer** for AI agents in the same way that Express is the standard for web frameworks. Open, extensible, and community-built.
-
----
-
-## 🤝 Contributing
-
-We welcome contributions from engineers of all skill levels. Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting PRs.
-
-**The fast path to getting your PR merged:** open an issue first to discuss what you're planning to build. This avoids wasted work and ensures your contribution aligns with the project direction.
-
----
-
-## 📝 License
-
-ABSuite Core is [MIT licensed](./LICENSE). Copyright © 2025–2026 ABSuite Contributors.
-
----
-
-## 🌟 Acknowledgments
-
-Built with: TypeScript · React · Vite · Express · Socket.io · Docker · SQLite
+The verification path stays free and open, permanently. That is a commitment in
+[the Constitution](./docs/CONSTITUTION.md), not a pricing decision.
 
 ---
 
 <p align="center">
-  <strong>ABSuite — Build agents. Not infrastructure.</strong>
+  <strong>Record what happened. Prove it happened. Preserve the evidence.</strong>
 </p>
