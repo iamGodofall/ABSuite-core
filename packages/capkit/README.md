@@ -133,10 +133,29 @@ the public one to give auditors and the private one for your secret manager.
 - SQLite is single-node. The `Storage` and `RevocationStore` interfaces exist so
   a Postgres or Redis backend drops in without callers changing.
 
+## One token, every service
+
+`@absuitecore/edge-run` (scheduling), `@absuitecore/quickbench` (benchmarking),
+`@absuitecore/connector-starter` (integrations) and `@absuitecore/trust`
+(evidence) all import `capabilityGuard` from this package, so one token works
+across the suite and revoking it at CapKit locks it out everywhere.
+
+---
+
 ## Part of ABSuite
 
-`@absuitecore/edge-run` (scheduling), `@absuitecore/quickbench` (benchmarking) and
-`@absuitecore/connector-starter` (integrations) all enforce CapKit capabilities, so
-one token works across the suite and revoking it locks it out everywhere.
+**The black box for AI systems** — record what happened, prove it happened,
+preserve the evidence.
 
-MIT licensed. [Source](https://github.com/iamGodofall/ABSuite-core).
+| | |
+|---|---|
+| Source | <https://github.com/iamGodofall/ABSuite-core> |
+| Verify a trace in your browser | <https://iamgodofall.github.io/ABSuite-core/verify.html> |
+| Getting started | [GETTING-STARTED.md](https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md) |
+| Reporting a vulnerability | [SECURITY.md](https://github.com/iamGodofall/ABSuite-core/blob/main/SECURITY.md) — never a public issue |
+| What this project refuses to build | [PRINCIPLES.md](https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md) |
+
+Published from CI with a signed Sigstore provenance attestation — check it with
+`npm audit signatures` rather than taking our word for it.
+
+MIT licensed.

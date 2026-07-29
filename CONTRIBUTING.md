@@ -13,6 +13,10 @@ about the design cheaply, before either of us has invested in it.
 Security vulnerabilities do **not** go in the issue tracker. See
 [`SECURITY.md`](./SECURITY.md).
 
+How people are expected to treat each other here is in
+[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md). The short version: argue with the
+work, not the person.
+
 ## Development setup
 
 **Node 22.5 or newer is required.** Not 20, not 18. The persistence layer is

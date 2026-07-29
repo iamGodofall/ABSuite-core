@@ -6,6 +6,38 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- A **Security** section in the README. A trust-infrastructure project whose
+  front page never mentioned its own security posture was a gap that should not
+  have needed pointing out: guarantees, the deliberate trade-offs behind them,
+  what the dashboard is granted, and `npm audit signatures` for checking what
+  you installed.
+- **`CODE_OF_CONDUCT.md`**, the last item missing from GitHub's community
+  profile. Written in this project's voice rather than pasted, and honest that a
+  one-person project has no neutral party to hear a conflict involving the
+  maintainer.
+- A **"Part of ABSuite"** footer on all seven package READMEs. Four of the seven
+  npm pages had no link back to the repository, the verifier, or the security
+  policy — for most people, that page *is* the project, and it was a dead end.
+- An **evaluation checklist** replacing the competitor scorecard rather than
+  leaving a hole where the differentiation argument had been. Six questions to
+  put to any tool in this space, including this one, each answerable from public
+  documentation. It does the same job without grading anyone, and it stays true
+  when the category moves.
+
+### Fixed
+
+- The **Trust service was missing entirely** from the system diagram in
+  `docs/ARCHITECTURE.md` — a whole flagship service absent from the picture of
+  the system — and the package boxes were misaligned because `@absuitecore/` is
+  wider than the box it was drawn in. Redrawn with all six services and the
+  trust tables in the database box.
+- The README's execution-flow diagram ended with "human review", implying a
+  review queue that does not exist. It now names the mechanisms that do:
+  `GET /anomalies` for where to look, `POST /events/:id/appeal` for contesting a
+  record. Every step names the function or route that performs it.
+
 ### Security
 
 - **The dashboard container published port 3001 on every interface** while every

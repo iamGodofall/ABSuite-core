@@ -239,6 +239,22 @@ Scopes: `trust:read`, `trust:write`, `trust:verify`, `trust:arbitrate`,
 | `CAPKIT_ADMIN_KEY` | — | Bootstrap credential |
 | `ABSUITE_TRUST_SCORE_HUMANS` | `false` | Permit scoring human subjects |
 
-## Licence
+---
 
-MIT
+## Part of ABSuite
+
+**The black box for AI systems** — record what happened, prove it happened,
+preserve the evidence.
+
+| | |
+|---|---|
+| Source | <https://github.com/iamGodofall/ABSuite-core> |
+| Verify a trace in your browser | <https://iamgodofall.github.io/ABSuite-core/verify.html> |
+| Getting started | [GETTING-STARTED.md](https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md) |
+| Reporting a vulnerability | [SECURITY.md](https://github.com/iamGodofall/ABSuite-core/blob/main/SECURITY.md) — never a public issue |
+| What this project refuses to build | [PRINCIPLES.md](https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md) |
+
+Published from CI with a signed Sigstore provenance attestation — check it with
+`npm audit signatures` rather than taking our word for it.
+
+MIT licensed.

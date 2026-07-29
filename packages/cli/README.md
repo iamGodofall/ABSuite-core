@@ -35,6 +35,22 @@ Run `absuite --help` for the full command list.
 | [`@absuitecore/connector-starter`](https://www.npmjs.com/package/@absuitecore/connector-starter) | Connector registry and scaffolding |
 | [`@absuitecore/mcp`](https://www.npmjs.com/package/@absuitecore/mcp) | Model Context Protocol server |
 
-## Licence
+---
 
-MIT
+## Part of ABSuite
+
+**The black box for AI systems** — record what happened, prove it happened,
+preserve the evidence.
+
+| | |
+|---|---|
+| Source | <https://github.com/iamGodofall/ABSuite-core> |
+| Verify a trace in your browser | <https://iamgodofall.github.io/ABSuite-core/verify.html> |
+| Getting started | [GETTING-STARTED.md](https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md) |
+| Reporting a vulnerability | [SECURITY.md](https://github.com/iamGodofall/ABSuite-core/blob/main/SECURITY.md) — never a public issue |
+| What this project refuses to build | [PRINCIPLES.md](https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md) |
+
+Published from CI with a signed Sigstore provenance attestation — check it with
+`npm audit signatures` rather than taking our word for it.
+
+MIT licensed.

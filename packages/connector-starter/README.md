@@ -71,3 +71,23 @@ Scaffolding is rule-based keyword analysis, not a language model. It reliably
 detects common integrations, verbs and cadences, but it will not infer intent
 from an unusual description. It is a starting point to edit, not a finished
 connector.
+
+---
+
+## Part of ABSuite
+
+**The black box for AI systems** — record what happened, prove it happened,
+preserve the evidence.
+
+| | |
+|---|---|
+| Source | <https://github.com/iamGodofall/ABSuite-core> |
+| Verify a trace in your browser | <https://iamgodofall.github.io/ABSuite-core/verify.html> |
+| Getting started | [GETTING-STARTED.md](https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md) |
+| Reporting a vulnerability | [SECURITY.md](https://github.com/iamGodofall/ABSuite-core/blob/main/SECURITY.md) — never a public issue |
+| What this project refuses to build | [PRINCIPLES.md](https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md) |
+
+Published from CI with a signed Sigstore provenance attestation — check it with
+`npm audit signatures` rather than taking our word for it.
+
+MIT licensed.

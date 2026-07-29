@@ -67,3 +67,23 @@ cannot ask for unbounded work.
 
 Job history is in memory and capped at 100 jobs. Results do not survive a
 restart; export to CSV to retain them.
+
+---
+
+## Part of ABSuite
+
+**The black box for AI systems** — record what happened, prove it happened,
+preserve the evidence.
+
+| | |
+|---|---|
+| Source | <https://github.com/iamGodofall/ABSuite-core> |
+| Verify a trace in your browser | <https://iamgodofall.github.io/ABSuite-core/verify.html> |
+| Getting started | [GETTING-STARTED.md](https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md) |
+| Reporting a vulnerability | [SECURITY.md](https://github.com/iamGodofall/ABSuite-core/blob/main/SECURITY.md) — never a public issue |
+| What this project refuses to build | [PRINCIPLES.md](https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md) |
+
+Published from CI with a signed Sigstore provenance attestation — check it with
+`npm audit signatures` rather than taking our word for it.
+
+MIT licensed.

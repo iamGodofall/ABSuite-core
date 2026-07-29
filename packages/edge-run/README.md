@@ -73,3 +73,23 @@ unset to allow any host. Only `http:` and `https:` are ever permitted.
 Schedules and queued tasks are held **in memory**. A restart loses pending work
 and registered schedules. Durable storage is the next step for multi-replica
 deployments.
+
+---
+
+## Part of ABSuite
+
+**The black box for AI systems** — record what happened, prove it happened,
+preserve the evidence.
+
+| | |
+|---|---|
+| Source | <https://github.com/iamGodofall/ABSuite-core> |
+| Verify a trace in your browser | <https://iamgodofall.github.io/ABSuite-core/verify.html> |
+| Getting started | [GETTING-STARTED.md](https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md) |
+| Reporting a vulnerability | [SECURITY.md](https://github.com/iamGodofall/ABSuite-core/blob/main/SECURITY.md) — never a public issue |
+| What this project refuses to build | [PRINCIPLES.md](https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md) |
+
+Published from CI with a signed Sigstore provenance attestation — check it with
+`npm audit signatures` rather than taking our word for it.
+
+MIT licensed.

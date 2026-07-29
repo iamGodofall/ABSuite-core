@@ -10,53 +10,55 @@ ABSuite is a **modular monorepo**. One package is the core; every other package
 depends on it and on nothing else in the repo.
 
 ```
-   CLIENTS                Dashboard (:3001)      MCP client        curl / SDK
-                          React · Socket.io      Claude, agents
-                                 │                    │                │
-                                 └────────────┬───────┴────────────────┘
-                                              │ Bearer <capability token>
- ═════════════════════════════════════════════▼═══════════════════════════════
-   @absuitecore/capkit — THE CORE (library + service :8081)
-   Imported by every service below. Depends on nothing in this repo.
+  CLIENTS      Dashboard :3001      MCP client       curl / SDK / library
+               React · Socket.io    agents           any HTTP client
+                      │                  │                  │
+                      └──────────────────┼──────────────────┘
+                                         │  Authorization: Bearer <capability token>
+ ════════════════════════════════════════▼════════════════════════════════════
+  @absuitecore/capkit — THE CORE          library + service on :8081
+  Imported by every service below. Depends on nothing else in this repo.
 
-     capability.ts   scopes, expiry, audience   │  trace.ts    Ed25519 traces
-     jwt.ts          HS256 on node:crypto       │  audit.ts    hash chain
-     keyring.ts      rotation w/o downtime      │  tenancy.ts  tenants, meters
-     middleware.ts   capabilityGuard()  ◄── enforcement point
-     revocation-store.ts   shared, cross-service
- ═════════════════════════════════════════════╤═══════════════════════════════
-                                              │ imports capabilityGuard
-        ┌──────────────────┬──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼                  ▼
- ┌─────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
- │ @absuitecore/   │   │ @absuitecore/    │   │ @absuitecore/    │   │ @absuitecore/    │
- │ edge-run    │   │ quickbench   │   │ connector-   │   │ mcp          │
- │ :8082       │   │ :8083        │   │ starter :8084│   │ stdio        │
- │             │   │              │   │              │   │              │
- │ cron        │   │ percentiles  │   │ registry     │   │ MCP tools    │
- │ queue       │   │ providers    │   │ verification │   │ filtered by  │
- │ retries     │   │ regression   │   │ scaffolding  │   │ capability   │
- │ breaker     │   │ reports      │   │              │   │ + attested   │
- └──────┬──────┘   └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-        │ guards every mutating route with a required scope     │
-        └──────────────────┴─────────┬────────┴─────────────────┘
-                                     ▼
-                    ┌────────────────────────────────┐
-                    │   absuite-db  (SQLite, WAL)    │
-                    │   Single source of truth       │
-                    │                                │
-                    │  tenants · usage · revocations │
-                    │  executions (signed, chained)  │
-                    │  audit · schedules · queue     │
-                    └────────────────┬───────────────┘
-                                     │ public key only
-                                     ▼
-                    ┌────────────────────────────────┐
-                    │  ANY THIRD PARTY / AUDITOR     │
-                    │  docs/verify.html — in browser │
-                    │  No account. No server. No     │
-                    │  ability to forge.             │
-                    └────────────────────────────────┘
+    capability.ts  scopes, expiry, audience  │  trace.ts    Ed25519 traces
+    jwt.ts         HS256 on node:crypto      │  audit.ts    hash chain
+    keyring.ts     rotation without downtime │  tenancy.ts  tenants, metering
+    revocation-store.ts  shared across all services, fails closed
+    middleware.ts  capabilityGuard()  ◄──── the enforcement point
+ ════════════════════════════════════════╤════════════════════════════════════
+                                         │ every service imports capabilityGuard
+     ┌─────────────┬─────────────┬───────┴─────┬─────────────┐
+     ▼             ▼             ▼             ▼             ▼
+ ┌─────────┐  ┌──────────┐  ┌───────────┐  ┌─────────┐  ┌──────────┐
+ │ edge-run│  │quickbench│  │ connector-│  │  trust  │  │   mcp    │
+ │  :8082  │  │  :8083   │  │  starter  │  │  :8085  │  │  stdio   │
+ │         │  │          │  │   :8084   │  │         │  │          │
+ │ cron    │  │percentile│  │ registry  │  │evidence │  │ tools    │
+ │ queue   │  │providers │  │ verify    │  │chains   │  │ filtered │
+ │ retries │  │regression│  │ scaffold  │  │arbitrate│  │ by scope │
+ │ breaker │  │ reports  │  │           │  │contracts│  │ attested │
+ └────┬────┘  └────┬─────┘  └─────┬─────┘  └────┬────┘  └────┬─────┘
+      │            │              │             │            │
+      └────────────┴──────┬───────┴─────────────┴────────────┘
+              every mutating route guarded by a required scope
+                                 ▼
+                ┌────────────────────────────────────┐
+                │   absuite-db   SQLite in WAL mode  │
+                │   one source of truth              │
+                │                                    │
+                │   tenants · usage · revocations    │
+                │   executions (signed, chained)     │
+                │   audit · schedules · queue        │
+                │   trust events · appeals · chains  │
+                └────────────────┬───────────────────┘
+                                 │  public key only — nothing secret leaves
+                                 ▼
+                ┌────────────────────────────────────┐
+                │   ANY THIRD PARTY OR AUDITOR       │
+                │   docs/verify.html, in a browser   │
+                │                                    │
+                │   No account. No server.           │
+                │   No ability to forge.             │
+                └────────────────────────────────────┘
 ```
 
 ### Why enforcement is a library, not a gateway

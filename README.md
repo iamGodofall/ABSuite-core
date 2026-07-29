@@ -105,11 +105,65 @@ accusation. That asymmetry is the product.
 | **Replay** | You cannot show what actually happened, only what was written down |
 | **Independent verification** | You have proof for yourself and nobody else |
 
-ABSuite does all four. Other projects in this space do some of them, several do
-them well, and the category moves fast enough that a scorecard published here
-would be out of date within weeks — so this page does not keep one. Compare it
-against whatever you are considering on those four axes and on the signature
-question above; those are the criteria that matter, whoever wins them.
+ABSuite does all four.
+
+### Evaluating this against anything else
+
+Good alternatives exist and several are excellent at what they do. Rather than
+publish a scorecard — which would be us grading competitors on axes we chose,
+going stale within weeks — here are the questions to put to **any** tool in this
+space, including this one. Every answer is checkable from public documentation.
+
+| Ask | Why it matters | ABSuite |
+|---|---|---|
+| Are records **signed**, or only hash-chained? | A chain proves no edit; only a signature proves authorship | Ed25519 signed **and** chained |
+| Can a verifier check without being able to forge? | Symmetric secrets let the auditor fake evidence too | Yes — public key verifies, cannot sign |
+| Can it **refuse** an unauthorised action, or only record it? | Recording a breach you could have blocked is not governance | Refuses before execution |
+| Is verification possible **offline**, with no vendor? | A proof you need the vendor to check is a promise | Yes — [one HTML file](./docs/verify.html) |
+| Are payloads **stored** or hashed? | Storing them makes your audit log a second copy of your data | Hashed, never stored |
+| What does it say when evidence is **absent**? | "Low confidence" and "unverified" are different claims | `UNVERIFIED` — absent, not false |
+
+If something else answers these better, use it. These are the criteria that
+matter whoever wins them, and getting them into more people's evaluation
+checklists is worth more to us than winning a table we drew ourselves.
+
+---
+
+## Security
+
+Trust infrastructure has to be held to its own standard, so the security posture
+is documented rather than implied.
+
+**Guarantees.** Forging a trace that verifies against a public key without the
+private key; modifying a stored record while `verifyChain()` still reports the
+chain intact; obtaining a scope a token does not grant. Anything breaking one of
+those is a vulnerability — see [`SECURITY.md`](./SECURITY.md) for the full scope
+and private reporting.
+
+**Deliberate choices, not oversights:**
+
+- Traces are **Ed25519-signed, not HMAC'd**, so a verifier cannot also forge.
+- The revocation store **fails closed** — unreachable means `503` and nothing is
+  authorised. Availability is worth less than the guarantee.
+- Script execution, human trust scoring and public signup are each **off unless
+  explicitly enabled**, because each mints capability or judgement.
+- API keys are stored **SHA-256 only** and shown exactly once.
+- Every compose port binds to **`127.0.0.1`**. The dashboard holds the admin key
+  and mounts the Docker socket — [what it is granted, and how to drop each
+  grant](./docs/SECURITY-MODEL.md#what-the-dashboard-is-granted).
+
+**Verify what you installed.** Every package is published from CI with a signed
+Sigstore attestation:
+
+```bash
+npm audit signatures
+```
+
+That checks the tarball against the commit and workflow that produced it — the
+same thing this project asks you to demand of your AI systems.
+
+Full threat model: [`docs/SECURITY-MODEL.md`](./docs/SECURITY-MODEL.md).
+Reporting a vulnerability: [`SECURITY.md`](./SECURITY.md).
 
 ---
 
@@ -177,16 +231,22 @@ As services, they listen on 8081 (CapKit), 8082 (Edge-Run), 8083 (QuickBench),
 ## The path an action takes
 
 ```text
-Input
-  ↓  capability check          ← refused here, or it never runs
-  ↓  execution
-  ↓  evidence collection       ← claims checked against sources
-  ↓  hashing and signing       ← Ed25519, payloads hashed and dropped
-  ↓  chain append              ← linked to its predecessor
-  ↓  independent verification  ← public key only; no credentials, no server
-  ↓  human review              ← where a person should look, and why
-  → audit history
+  Input
+    │
+    ▼  capability check        capabilityGuard() — refused here, or it never runs
+    ▼  execution               the action itself
+    ▼  evidence check          verifyOutput() — claims against their sources
+    ▼  hash + sign             Ed25519; payloads hashed and dropped, never stored
+    ▼  chain append            linked to its predecessor, in one transaction
+    ▼  verification            verifyChain() — public key only, no server
+    ▼  where to look           GET /anomalies — stalls, runaways, disagreement
+    ▼  contest it              POST /events/:id/appeal — upheld, it repairs the record
+    │
+    └─► audit history
 ```
+
+Each step names the thing that performs it. Nothing in that column is
+aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 94.
 
 ---
 
@@ -217,6 +277,7 @@ honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 | [Constitution](./docs/CONSTITUTION.md) | What this will never become |
 | [Security model](./docs/SECURITY-MODEL.md) | Threat model and defence in depth |
 | [Reporting a vulnerability](./SECURITY.md) | Private disclosure |
+| [Code of conduct](./CODE_OF_CONDUCT.md) | How people are expected to treat each other |
 | [Roadmap](./docs/ROADMAP.md) | What is next, and what is deliberately refused |
 | [Changelog](./CHANGELOG.md) | Including the bugs, and how they were found |
 
@@ -233,7 +294,8 @@ Contributions are held to the principles above. Anything that scores a person,
 or treats model agreement as evidence, will be declined however well argued.
 
 Security vulnerabilities go to [private disclosure](./SECURITY.md), never the
-issue tracker.
+issue tracker. How people are expected to treat each other is in
+[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
 
 ---
 
