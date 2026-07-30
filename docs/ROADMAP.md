@@ -109,6 +109,45 @@ years were spent making trust infrastructure boringly reliable.
 
 ---
 
+## The next session's goal
+
+> **Make a stranger understand ABSuite in sixty seconds.**
+
+The build question is answered: six services run, 103 endpoints are documented
+and 46 documented GET routes were confirmed answering against a live suite. The
+open question is a different one, and no amount of further building settles it —
+*can someone else understand this in five minutes?*
+
+Nobody adopts a project because it has 496 tests. They adopt it because they
+opened the dashboard and understood what it was. That makes the interface the
+highest-leverage work in the repository right now, ahead of any remaining layer.
+
+**One scenario, end to end, watchable without reading anything:**
+
+```text
+Agent receives a request
+  ↓  capability checked
+  ↓  governing rule evaluated
+  ↓  action performed
+  ↓  trace signed and chained
+  ↓  evidence verified
+  ↓  an unknown identified, with its resolution
+  ↓  dashboard updates
+  ↓  a human clicks "Explain"
+  ↓  conditions shown, trust composition shown
+```
+
+If a person can watch that and say *"oh — this is an evidence layer for
+automated systems"*, the interface is doing its job. If they cannot, nothing
+else on this roadmap matters yet.
+
+**Order of work:** dashboard experience, onboarding, the demo scenario above,
+then finishing layers 1–6. Layer 7 is a design exercise before it is a build
+one. Layer 8 is frozen — see the Constitution for why it is not a thing that
+gets built.
+
+---
+
 ## Known limits, written down before anyone hits them
 
 These are correct today and bounded today. They are recorded here because a

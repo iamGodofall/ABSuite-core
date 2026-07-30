@@ -348,6 +348,17 @@ go away as autonomy grows; it gets larger, and it gets harder to answer after th
 fact than during. Building the answer now is the entire bet. Whether ABSuite is
 what answers it is not something this document is entitled to assert.
 
+**Layer 8 is not something you build.** Civilisation is a scale, not a feature.
+No commit makes it true. It becomes true only if the seven layers beneath it are
+good enough that people use them at that scale — which is a fact about the world,
+arrived at over decades, not a milestone anyone here can close.
+
+Most projects open by claiming civilisation-scale impact. This one ends its
+roadmap by declining to. Civilisation is not built; it happens to things that
+survive, and marking this layer complete would be the single clearest violation
+of the root that governs everything above: nothing may look more complete than it
+actually is.
+
 Layer 7 is where the design decision lives that determines what this project
 becomes. Verification between deployments must be **federated, never
 centralised**: a million recorders that can each prove their own history, with
