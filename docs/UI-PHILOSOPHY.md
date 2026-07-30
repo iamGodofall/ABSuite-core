@@ -1,4 +1,9 @@
-# Build the room people will sit in when intelligence becomes infrastructure.
+# ABSuite is not software you browse. It is evidence you inhabit.
+
+**Build the room people will sit in when intelligence becomes infrastructure.**
+
+Everything below follows from those two sentences. If a change satisfies the
+rest of this document but violates them, the change is wrong.
 
 ---
 
@@ -401,7 +406,7 @@ fail the build, on the principle the blueprint's own README states first.
 
 ## How this document is enforced
 
-This is not aspiration filed away. Four things hold it in place:
+This is not aspiration filed away. Five things hold it in place:
 
 - **`scripts/check-ui-philosophy.mjs`** — fails the build if the thirteen
   primary views above are not all reachable from the shell, if the header loses
@@ -413,6 +418,14 @@ This is not aspiration filed away. Four things hold it in place:
   literals shaped like invented values. Every other check in this repo reads
   code, docs or routes; this is the only one that looks at the thing a stranger
   judges the product by.
+- **`scripts/check-ui-doctrine.mjs`** — guards the interaction model against
+  regression, which is now the larger risk. Four assertions, each phrased as an
+  absence, because absences are far harder to satisfy by accident than
+  presences: no permanent navigation, no document-flow primary layout, the cube
+  mounted *and steered* by the shell, and state rendered before explanation. It
+  exists because someone six months from now will add `<Sidebar />` with
+  entirely good intentions, every test will still pass, every number will still
+  be real, and ABSuite will be a SaaS admin panel again.
 - **The critical rule outranks every other line here.** Where "alive" and
   "never fake data" conflict, the data wins and the motion stops. A particle
   field with nothing behind it is a screensaver, and a screensaver in a trust

@@ -335,6 +335,9 @@ export const Environment = ({
           <span className="block text-[8px] font-mono uppercase tracking-[0.26em] text-text-muted mt-0.5">
             Trust Operations Center
           </span>
+          <span className="block text-[8px] italic text-text-muted/50 mt-0.5">
+            The Future Is Accountable.
+          </span>
         </span>
 
         <span className="flex items-center gap-5 flex-wrap">
