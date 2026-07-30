@@ -19,7 +19,7 @@ import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
 import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './billing';
 import { createServiceMetrics } from './metrics';
-import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, type GovernanceRecord } from './trace';
+import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, CANONICAL_VERSION, type GovernanceRecord } from './trace';
 import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
 import { determineTrace } from './determination';
@@ -157,6 +157,37 @@ app.use((req, res, next) => {
 
 function fail(res: express.Response, status: number, code: string, message: string) {
   return res.status(status).json({ error: { code, message } });
+}
+
+/**
+ * Provenance for anything a person might save and read later.
+ *
+ * A report opened in 2046 that says "3 records require attention" has told its
+ * reader almost nothing. One that says which build produced it, when, and over
+ * what scope can still be interpreted by someone with no access to this system
+ * and no memory of how it worked.
+ *
+ * Context is part of the evidence, and a report that outlives the software
+ * needs to carry its own. The benchmark has done this from the start — every
+ * figure names its machine — and this is the same idea applied to every other
+ * report the product emits.
+ */
+function generated(scope: string): {
+  service: string;
+  version: string;
+  at: string;
+  canonicalVersion: number;
+  scope: string;
+} {
+  return {
+    service: 'capkit',
+    version: VERSION,
+    at: new Date().toISOString(),
+    // Which canonical form this build writes, so a future reader knows what
+    // rules the records underneath were verified against.
+    canonicalVersion: CANONICAL_VERSION,
+    scope,
+  };
 }
 
 type TenantRequest = express.Request & { tenant?: Tenant };
@@ -629,6 +660,7 @@ app.get('/executions/stats', authorise('execution:read'), (req, res) => {
   const chain = traces.verifyChain(signingKey.publicKeyPem);
 
   res.status(200).json({
+    generated: generated(`all ${stats.total} record(s) held, counted over a ${windowHours}-hour window`),
     ...stats,
     chain: {
       valid: chain.valid,
@@ -665,6 +697,11 @@ app.get('/executions/attention', authorise('execution:read'), (req, res) => {
   const held = traces.stats().total;
 
   res.status(200).json({
+    generated: generated(
+      items.length === limit
+        ? `the ${limit} most recent flagged record(s) of an unknown larger number, among ${held} held`
+        : `all flagged records among ${held} held`
+    ),
     items,
     count: items.length,
     // A count with no denominator reads the same whether it is 3 of 10 or 3 of
@@ -729,6 +766,7 @@ app.get('/executions/unknowns', authorise('execution:read'), (req, res) => {
     .sort((a, b) => a.resolution.localeCompare(b.resolution));
 
   return res.status(200).json({
+    generated: generated(`${records.length} of ${held} record(s) held`),
     examined: records.length,
     held,
     queue,
@@ -750,6 +788,7 @@ app.get('/executions/authority', authorise('execution:read'), (_req, res) => {
   const subjects = traces.authorityInventory();
   const held = traces.stats().total;
   res.status(200).json({
+    generated: generated(`all ${held} execution(s) held`),
     subjects,
     count: subjects.length,
     // Unlike the other listings this one is a complete scan, and saying so is
@@ -783,7 +822,11 @@ app.get('/executions/:id/explain', authorise('execution:read'), (req, res) => {
   const trace = traces.get(String(req.params.id));
   if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');
   const verdict = verifyTrace(trace, signingKey.publicKeyPem);
-  return res.status(200).json({ id: trace.id, ...explainTrace(trace, verdict) });
+  return res.status(200).json({
+    generated: generated(`execution ${trace.id}`),
+    id: trace.id,
+    ...explainTrace(trace, verdict),
+  });
 });
 
 /** Compare a re-run of an execution against its recorded hashes. */
@@ -806,7 +849,10 @@ app.get('/executions/:id/conditions', authorise('execution:read'), (req, res) =>
   const verdict = verifyTrace(trace, signingKey.publicKeyPem);
   const chain = traces.verifyChain(signingKey.publicKeyPem);
 
-  return res.status(200).json(trustConditions(trace, verdict, chain.valid));
+  return res.status(200).json({
+    generated: generated(`execution ${trace.id}, against a chain of ${chain.checked} record(s)`),
+    ...trustConditions(trace, verdict, chain.valid),
+  });
 });
 
 app.post('/executions/:id/replay', authorise('execution:read'), (req, res) => {

@@ -201,12 +201,16 @@ something, and they are the part worth believing:
 | Evidence composes pessimistically | The overall finding is the weakest condition, never an average |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 
-A principle that cannot fail a build is a preference.
+A principle that cannot fail a build is a preference. And underneath all of
+them is one rule: **nothing may look more complete, more certain, or more
+authoritative than it actually is.**
 
-**Every statement carries its context.** Verified against which key; unknown
+**Context is part of the evidence.** Verified against which key; unknown
 resolved by what; absent because of what; measured on which machine; counted out
 of how many, and whether the list was truncated. A claim without its conditions
-is not a smaller claim — it is a different one.
+is not a smaller claim — it is a different one. Every report carries the build,
+the moment and the scope that produced it, because the software will not be
+there in 2046 to explain itself.
 
 **And there is no severity field anywhere.** Severity is context, and context
 belongs to whoever holds it. "HIGH: missing governance" — according to whom?

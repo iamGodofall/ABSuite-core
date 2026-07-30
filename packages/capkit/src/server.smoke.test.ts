@@ -182,6 +182,51 @@ describe('the running CapKit server', () => {
   });
 
   /**
+   * Every report can be read by someone who has only the report.
+   *
+   * A file opened in 2046 saying "3 records require attention" has told its
+   * reader almost nothing: which build, over what scope, verified under which
+   * rules? Context is part of the evidence, and a report that outlives the
+   * software has to carry its own.
+   */
+  test('every report carries the build, the moment and the scope that produced it', async () => {
+    const token = await issue(['execution:record', 'execution:read']);
+    const { body: recorded } = await post('/executions',
+      { subject: 'agent:provenance', scope: ['x:y'], jti: 'tok_p', module: 'm', action: 'act', input: { a: 1 }, output: { b: 2 }, outcome: 'success' },
+      { authorization: `Bearer ${token}` });
+
+    const headers = { 'x-absuite-admin-key': ADMIN };
+    const reports = [
+      '/executions/stats',
+      '/executions/attention',
+      '/executions/unknowns',
+      '/executions/authority',
+      `/executions/${String(recorded.id)}/conditions`,
+      `/executions/${String(recorded.id)}/explain`,
+    ];
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const manifest = require('../package.json') as { version: string };
+
+    for (const path of reports) {
+      const body = (await (await fetch(`${base}${path}`, { headers })).json()) as {
+        generated?: { service: string; version: string; at: string; canonicalVersion: number; scope: string };
+      };
+
+      expect(body.generated).toBeDefined();
+      expect(body.generated!.service).toBe('capkit');
+      // Read from the manifest, never typed in — a report asserting the wrong
+      // version with confidence is the failure this project argues against.
+      expect(body.generated!.version).toBe(manifest.version);
+      expect(Date.parse(body.generated!.at)).not.toBeNaN();
+      // Which rules the records underneath were verified against.
+      expect(body.generated!.canonicalVersion).toBe(1);
+      // Scope is prose because a future reader is a person, not a parser.
+      expect(body.generated!.scope.length).toBeGreaterThan(10);
+    }
+  }, 20_000);
+
+  /**
    * Every count states what it is a count *of*.
    *
    * "3 records need attention" reads identically whether it is 3 of 10 or 3 of
