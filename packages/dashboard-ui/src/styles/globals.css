@@ -729,3 +729,20 @@
 }
 .governance-breach { animation: governance-breach 5s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .governance-breach { animation: none; } }
+
+/* The unknown beacon. Dark when nothing is outstanding; otherwise it beats once
+   per unknown and then rests, so the count is something you see rather than
+   read. Amber never red — unresolved is not failed. */
+@keyframes unknown-beat {
+  0%, 100% { background: rgba(246,177,0,0.14); box-shadow: 0 0 0 0 rgba(246,177,0,0); }
+  50%      { background: rgba(246,177,0,1);    box-shadow: 0 0 12px 2px rgba(246,177,0,0.7); }
+}
+.unknown-beacon {
+  background: rgba(246,177,0,0.14);
+  animation: unknown-beat 0.62s ease-in-out;
+  animation-iteration-count: var(--beats, 1);
+  animation-fill-mode: both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .unknown-beacon { animation: none; background: rgba(246,177,0,0.9); }
+}

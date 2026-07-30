@@ -31,7 +31,6 @@ import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
 import { Operations } from './tabs/Operations';
 import { ChainView } from './tabs/ChainView';
-import { AskBar } from './tabs/AskBar';
 import { Agents } from './tabs/Agents';
 import { ActLayer } from './tabs/ActLayer';
 import { LearnLayer } from './tabs/LearnLayer';
@@ -1649,7 +1648,9 @@ export default function App() {
         integrity={integrity}
         arrivals={arrivals}
         verifying={verifying}
-        ask={<AskBar onOpenRecord={setOpenRecordId} />}
+        unknowns={queue?.total ?? null}
+        onOpenUnknowns={() => setActiveTab('unknowns')}
+        onOpenRecord={setOpenRecordId}
         stream={
           <EvidenceStream
             stages={stages}
@@ -1657,9 +1658,8 @@ export default function App() {
             onOpen={() => latestId && setOpenRecordId(latestId)}
           />
         }
-      >
-        {activeTab && renderTab()}
-      </Environment>
+        body={activeTab ? renderTab() : null}
+      />
 
       {error && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[92%]">

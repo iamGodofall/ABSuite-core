@@ -31,6 +31,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrustCube, type Integrity } from '../components/TrustCube';
+import { CommandLine } from './CommandLine';
 import { cn } from '../utils';
 
 export type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
@@ -47,18 +48,34 @@ export interface Station {
   detail?: string[];
 }
 
-/** Where each station stands, and which gesture reaches it. */
-const RING: Record<string, { x: number; y: number; gesture: string }> = {
-  observe:   { x: 50, y: 7,  gesture: 'drag up' },
-  verify:    { x: 88, y: 32, gesture: 'drag right' },
-  govern:    { x: 12, y: 32, gesture: 'drag left' },
-  explain:   { x: 50, y: 83, gesture: 'drag down' },
-  arbitrate: { x: 85, y: 71, gesture: 'push in' },
-  act:       { x: 15, y: 71, gesture: 'pull out' },
-  // Learn is reached by double-clicking the core, so its position is free of
-  // the four directions. It stands clear of the cube's silhouette rather than
-  // on top of it.
-  learn:     { x: 82, y: 13, gesture: 'double click the core' },
+/**
+ * One orbit per layer. Ring 1 is Observe, ring 7 is Learn.
+ *
+ * The geometry states the stack rather than decorating it: a station's distance
+ * from the core is its position in the order trust is built. Angles are chosen
+ * so the four directional gestures land where the hand expects them — Observe
+ * above, Verify right, Explain below, Govern left — and the remaining three sit
+ * clear of those axes.
+ */
+const ORBIT: Record<string, { ring: number; angle: number; gesture: string }> = {
+  observe:   { ring: 1, angle: 90,  gesture: 'drag up' },
+  verify:    { ring: 2, angle: 8,   gesture: 'drag right' },
+  explain:   { ring: 3, angle: 272, gesture: 'drag down' },
+  govern:    { ring: 4, angle: 172, gesture: 'drag left' },
+  arbitrate: { ring: 5, angle: 315, gesture: 'push in' },
+  act:       { ring: 6, angle: 205, gesture: 'pull out' },
+  learn:     { ring: 7, angle: 52,  gesture: 'double click the core' },
+};
+
+/** Ring radius as a fraction of the field's half-extent. */
+const RADIUS = [0, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90];
+
+const placeOn = (ring: number, angle: number) => {
+  const radians = (angle * Math.PI) / 180;
+  return {
+    x: 50 + RADIUS[ring]! * 44 * Math.cos(radians),
+    y: 50 - RADIUS[ring]! * 42 * Math.sin(radians),
+  };
 };
 
 /** The order a record travels. Observe first, Learn last. */
@@ -76,12 +93,13 @@ const TONE: Record<Determination, { text: string; line: string; rgb: string }> =
    explaining the layer's purpose only appears when someone asks for it by
    hovering. Mission Control does not explain what fuel is. */
 
-const StationMark = ({ station, at, active, dimmed, onEnter }: {
+const StationMark = ({ station, at, active, dimmed, onEnter, onFocusChange }: {
   station: Station;
   at: { x: number; y: number; gesture: string };
   active: boolean;
   dimmed: boolean;
   onEnter: () => void;
+  onFocusChange: (near: boolean) => void;
 }) => {
   const tone = TONE[station.state];
 
@@ -91,8 +109,12 @@ const StationMark = ({ station, at, active, dimmed, onEnter }: {
       onClick={onEnter}
       aria-label={`${station.label} — ${station.purpose}`}
       initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: dimmed ? 0.2 : 1, scale: active ? 1.08 : 1 }}
-      whileHover={{ scale: 1.1, opacity: 1 }}
+      animate={{ opacity: dimmed ? 0.16 : 1, scale: active ? 1.1 : 1 }}
+      whileHover={{ scale: 1.12, opacity: 1 }}
+      onHoverStart={() => onFocusChange(true)}
+      onHoverEnd={() => onFocusChange(false)}
+      onFocus={() => onFocusChange(true)}
+      onBlur={() => onFocusChange(false)}
       transition={{ duration: 0.35, ease: 'easeOut' }}
       className="absolute -translate-x-1/2 -translate-y-1/2 group focus:outline-none w-[132px]"
       style={{ left: `${at.x}%`, top: `${at.y}%` }}
@@ -133,7 +155,7 @@ const StationMark = ({ station, at, active, dimmed, onEnter }: {
 export const Environment = ({
   stations, vitals, active, onEnter, onLeave,
   connected, integrity, arrivals, verifying,
-  ask, stream, children,
+  unknowns, onOpenUnknowns, onOpenRecord, stream, body, children,
 }: {
   stations: Station[];
   /** The line of state that leads everything. */
@@ -145,9 +167,14 @@ export const Environment = ({
   integrity: Integrity;
   arrivals: { id: string; outcome?: string }[];
   verifying: boolean;
-  ask: React.ReactNode;
+  /** Count of open unknowns, or null when the queue could not be read. */
+  unknowns: number | null;
+  onOpenUnknowns: () => void;
+  onOpenRecord?: (id: string) => void;
   /** The evidence stream the specification places along the bottom. */
   stream: React.ReactNode;
+  /** The entered layer's surface. */
+  body?: React.ReactNode;
   children?: React.ReactNode;
 }) => {
   const entered = active !== null;
@@ -182,10 +209,37 @@ export const Environment = ({
     return () => window.clearInterval(timer);
   }, []);
 
+  /**
+   * `/` summons the command line.
+   *
+   * Guarded so it cannot fire while someone is typing — a shortcut that hijacks
+   * a keystroke mid-sentence is one people learn to fear.
+   */
+  const [commanding, setCommanding] = useState(false);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
+      if (event.key === '/' && !commanding) { event.preventDefault(); setCommanding(true); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [commanding]);
+
   /* ── Gestures ────────────────────────────────────────────────────────── */
 
   const drag = useRef<{ x: number; y: number } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  /**
+   * The station under the pointer.
+   *
+   * Focusing one darkens the rest — not for drama, but because an operations
+   * room with everything equally lit is one where nothing is being attended to.
+   * The focused layer keeps its own colour; the others fall back, they do not
+   * change what they say.
+   */
+  const [focus, setFocus] = useState<string | null>(null);
+  const attention = hint ?? focus;
 
   const commit = useCallback((id: string) => {
     if (stations.some(station => station.id === id)) onEnter(id);
@@ -269,8 +323,8 @@ export const Environment = ({
     return () => window.clearTimeout(timer);
   }, [arrivals]);
 
-  const ringStations = stations.filter(station => RING[station.id]);
-  const others = stations.filter(station => !RING[station.id]);
+  const ringStations = stations.filter(station => ORBIT[station.id]);
+  const others = stations.filter(station => !ORBIT[station.id]);
 
   return (
     <div className="fixed inset-0 bg-[#05070A] text-text-primary overflow-hidden hex-field select-none">
@@ -304,9 +358,36 @@ export const Environment = ({
           </span>
         </span>
 
-        <span className="ml-auto pointer-events-auto w-full sm:w-auto sm:min-w-[300px] lg:min-w-[380px]">
-          {ask}
-        </span>
+        {/*
+          * The unknown queue is a light, not a panel.
+          *
+          * Dark when there is nothing outstanding — a panel reading
+          * "UNKNOWN QUEUE: 0" occupies a corner to tell you nothing happened.
+          * When there are unknowns it beats once per item, so the number is
+          * something you see rather than read. Amber, never red: unresolved is
+          * not failed.
+          */}
+        <button
+          type="button"
+          onClick={onOpenUnknowns}
+          className="ml-auto pointer-events-auto flex items-center gap-2 group focus:outline-none"
+          title={unknowns === null ? 'The unknown queue could not be read'
+            : unknowns === 0 ? 'Nothing outstanding'
+            : `${unknowns} unresolved`}
+        >
+          <span
+            className={cn('w-2.5 h-2.5 rounded-full border',
+              unknowns === null ? 'border-amber-500/50 bg-transparent'
+                : unknowns === 0 ? 'border-text-muted/25 bg-transparent'
+                : 'border-transparent unknown-beacon')}
+            style={unknowns && unknowns > 0
+              ? ({ ['--beats']: String(Math.min(unknowns, 5)) } as React.CSSProperties)
+              : undefined}
+          />
+          <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-text-muted/60 group-hover:text-text-primary transition-colors">
+            {unknowns === null ? 'unknowns not checked' : unknowns === 0 ? 'nothing unresolved' : `${unknowns} unresolved`}
+          </span>
+        </button>
       </div>
 
       {/* ── The field. One continuous space. ─────────────────────────────── */}
@@ -326,17 +407,18 @@ export const Environment = ({
         className={cn('absolute inset-x-0 top-16 bottom-32',
           entered ? 'pointer-events-none' : 'cursor-grab active:cursor-grabbing')}
       >
-        {/* Connection lines: every station wired back to the centre, each
-            carrying its own determination. */}
+        {/* Every station wired back to the core, each carrying its own state. */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {ringStations.map(station => {
-            const at = RING[station.id]!;
+            const orbit = ORBIT[station.id]!;
+            const at = placeOn(orbit.ring, orbit.angle);
             return (
               <motion.line
                 key={station.id}
                 x1={50} y1={50} x2={at.x} y2={at.y}
                 stroke={TONE[station.state].line}
                 strokeWidth={0.12}
+                opacity={attention && attention !== station.id ? 0.18 : 1}
                 vectorEffect="non-scaling-stroke"
                 initial={{ pathLength: 0, opacity: 0 }}
                 animate={{ pathLength: 1, opacity: 1 }}
@@ -357,10 +439,10 @@ export const Environment = ({
                 boxShadow: `0 0 12px ${traveller.failed ? 'rgba(239,68,68,0.9)' : 'rgba(0,245,140,0.9)'}`,
                 marginLeft: -3.5, marginTop: -3.5,
               }}
-              initial={{ left: '50%', top: '6%', opacity: 0 }}
+              initial={{ left: '50%', top: '50%', opacity: 0 }}
               animate={{
-                left: FLOW.map(id => `${RING[id]!.x}%`),
-                top: FLOW.map(id => `${RING[id]!.y}%`),
+                left: FLOW.map(id => `${placeOn(ORBIT[id]!.ring, ORBIT[id]!.angle).x}%`),
+                top: FLOW.map(id => `${placeOn(ORBIT[id]!.ring, ORBIT[id]!.angle).y}%`),
                 opacity: [0, 1, 1, 1, 1, 1, 0],
               }}
               exit={{ opacity: 0 }}
@@ -369,22 +451,28 @@ export const Environment = ({
           ))}
         </AnimatePresence>
 
-        {/* Six orbital rings. Structure, not activity — they turn slowly enough
-            that the eye reads depth rather than movement. */}
-        {[
-          { w: 34, h: 46 }, { w: 46, h: 62 }, { w: 58, h: 78 },
-          { w: 70, h: 92 }, { w: 82, h: 106 }, { w: 94, h: 120 },
-        ].map((orbit, index) => (
-          <div
-            key={orbit.w}
-            className={cn('ops-ring absolute', index % 2 === 1 && 'reverse')}
-            style={{
-              width: `${orbit.w}%`, height: `${orbit.h}%`,
-              top: `${(100 - orbit.h) / 2}%`, left: `${(100 - orbit.w) / 2}%`,
-              opacity: 1 - index * 0.13,
-            }}
-          />
-        ))}
+        {/* Seven orbits, one per layer. The attended one brightens and takes
+            that layer's colour; the rest fall back. */}
+        {([1, 2, 3, 4, 5, 6, 7] as const).map(ring => {
+          const owner = stations.find(station => ORBIT[station.id]?.ring === ring);
+          const lit = owner ? attention === owner.id : false;
+          const w = RADIUS[ring]! * 88;
+          const h = RADIUS[ring]! * 84;
+          return (
+            <div
+              key={ring}
+              className={cn('ops-ring absolute', ring % 2 === 0 && 'reverse')}
+              style={{
+                width: `${w}%`, height: `${h}%`,
+                top: `${(100 - h) / 2}%`, left: `${(100 - w) / 2}%`,
+                borderColor: lit && owner
+                  ? TONE[owner.state].line
+                  : `rgba(0,245,140,${attention ? 0.04 : 0.10})`,
+                transition: 'border-color 320ms ease',
+              }}
+            />
+          );
+        })}
 
         {/* The reactor core. Roughly half the field. */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
@@ -402,9 +490,10 @@ export const Environment = ({
           <StationMark
             key={station.id}
             station={station}
-            at={RING[station.id]!}
-            active={hint === station.id}
-            dimmed={hint !== null && hint !== station.id}
+            at={{ ...placeOn(ORBIT[station.id]!.ring, ORBIT[station.id]!.angle), gesture: ORBIT[station.id]!.gesture }}
+            active={attention === station.id}
+            dimmed={attention !== null && attention !== station.id}
+            onFocusChange={near => setFocus(near ? station.id : current => (current === station.id ? null : current))}
             onEnter={() => commit(station.id)}
           />
         ))}
@@ -445,6 +534,17 @@ export const Environment = ({
         Nothing may look more complete, more certain, or more authoritative than it actually is.
       </p>
 
+      {!entered && (
+        <p className="absolute bottom-3 right-6 z-20 text-[9px] font-mono uppercase tracking-[0.16em] text-text-muted/35 pointer-events-none hidden lg:block">
+          drag · scroll · double click · <span className="text-[#00F58C]/60">/</span> to ask · esc
+        </p>
+      )}
+
+      {/* The command line, summoned rather than resident. The room behind it
+          stops: no rotation, no travellers, nothing to read past the question. */}
+      <CommandLine open={commanding} onClose={() => setCommanding(false)} onOpenRecord={onOpenRecord} />
+      {children}
+
       {/* ── Descent. The layer arrives from inside the cube. ─────────────── */}
       <AnimatePresence>
         {entered && (
@@ -476,7 +576,7 @@ export const Environment = ({
               </span>
             </header>
 
-            <div className="flex-1 overflow-y-auto px-8 pb-8">{children}</div>
+            <div className="flex-1 overflow-y-auto px-8 pb-8">{body}</div>
           </motion.section>
         )}
       </AnimatePresence>
