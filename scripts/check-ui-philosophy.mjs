@@ -19,7 +19,23 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const doc = readFileSync(join(root, 'docs/UI-PHILOSOPHY.md'), 'utf8');
-const app = readFileSync(join(root, 'packages/dashboard-ui/src/App.tsx'), 'utf8');
+/**
+ * "The shell" is App.tsx plus the room, not App.tsx alone.
+ *
+ * The masthead moved into src/room/Room.tsx when the sidebar was deleted, and
+ * this check failed on the header identity even though every line was still on
+ * screen — it was reading one file and calling it the shell. A check whose
+ * scope drifts behind the code reports absence where there is only relocation.
+ */
+const shellFiles = [join(root, 'packages/dashboard-ui/src/App.tsx')];
+const roomDir = join(root, 'packages/dashboard-ui/src/room');
+try {
+  for (const entry of readdirSync(roomDir)) {
+    if (/\.tsx?$/.test(entry)) shellFiles.push(join(roomDir, entry));
+  }
+} catch { /* No room directory yet; App.tsx alone is the shell. */ }
+
+const app = shellFiles.map(file => readFileSync(file, 'utf8')).join('\n');
 const css = readFileSync(join(root, 'packages/dashboard-ui/src/styles/globals.css'), 'utf8');
 
 const failures = [];

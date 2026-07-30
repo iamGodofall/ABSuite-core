@@ -231,26 +231,28 @@ built must be removed. Neither drift survives a build.
 
 | Promise | State | Recorded |
 | --- | --- | --- |
-| The interaction model is spatial, not document navigation | Not built — sidebar, pages, cards, scroll | 2026-07-30 |
 
-**Determination: FAILED.**
+**Determination: RESOLVED.**
 
-Claim: "The dashboard is now a Trust Operations Center."
-Reason: the visual language exists; the interaction model does not. The
-underlying model remains sidebar → page → cards → scroll.
-Resolution: replace the shell.
+The sidebar, the page router and the scrolling card column are deleted. The
+shell is now `src/room/Room.tsx`: a cube at the centre, the seven layers and the
+standing views around it at fixed positions, and descent — room → layer →
+record — instead of navigation between pages. Escape climbs. Clicking the cube
+returns you to the room. Verified against the running instance: zero `nav`
+elements, one cube, no page-level scroll.
 
-This entry was opened after the previous one was closed, because every promise
-above was ticked while the thing itself was not achieved. A cube in a dashboard
-is a dashboard with a cube in it. Position decides meaning, not comments: a 34px
-cube in the top-left corner is a logo; a 500px cube at the centre that controls
-navigation is infrastructure. Those are different things, and only the second
-one is what this document asks for.
+The prior determination is kept here rather than deleted, because it is the
+reason this section exists: every promise in the earlier ledger was ticked while
+the thing itself was not achieved. A cube in a dashboard is a dashboard with a
+cube in it. Position decides meaning, not comments — a 34px cube in the top-left
+corner is a logo; a cube at the centre that you navigate by is infrastructure.
 
 The lesson for whoever maintains the checks: they verified that
 `CubeConnections` was imported, not that the room existed. A mechanical check
 can confirm a token is present. It cannot confirm a goal is met, and it must
-never be read as if it had.
+never be read as if it had. The claim that finally caught this was phrased as an
+absence — no nav list — because absences are far harder to satisfy by accident
+than presences.
 
 Kept since this ledger was opened: the cube is a shell component mounted on all
 thirteen views; particle convergence fires once per record that genuinely
