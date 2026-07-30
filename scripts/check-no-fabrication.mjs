@@ -70,6 +70,35 @@ const RULES = [
     pattern: /['"`](?:ck_)?(?:demo|mock|fake|sample)[_:-][^'"`]*['"`]/gi,
     why: 'A string literal shaped like a fabricated value. The token generator shipped `ck_demo_<random>` inside a dead branch for months.',
   },
+  {
+    /**
+     * The specification forbids four figures outright, whatever the layout:
+     * a trust score, a confidence value, a count of attacks prevented, and an
+     * intelligence rating. Each is a judgement wearing a decimal point, and
+     * none is a thing this system measures.
+     *
+     * They are banned as rendered strings rather than as variable names,
+     * because the harm is done when a reader sees them — the label is the lie,
+     * not the identifier behind it.
+     */
+    id: 'forbidden-metric',
+    pattern: /['"`>][^'"`<]*\b(?:trust score|confidence score|confidence:\s*0\.|attacks? prevented|tampering prevented|intelligence rating)\b/gi,
+    why: 'Forbidden by the specification: trust scores, confidence figures, attacks prevented and intelligence ratings are judgements this system does not measure.',
+    /**
+     * Refusing a thing is not doing it.
+     *
+     * This rule's first run flagged Agents.tsx, whose copy reads "Not a trust
+     * score. Trust is not a quantity this system computes." That sentence is
+     * the product's argument, and a check that cannot tell an assertion from a
+     * refusal would delete the clearest statement of the principle it exists to
+     * enforce. Matches preceded by a negation are left alone.
+     */
+    exempt: (text, index, matched) =>
+      // The negation usually sits inside the match — "Not a trust score" —
+      // because the match starts at the enclosing quote or tag.
+      /\b(?:not|no|never|without|refus\w*|nor)\b/i.test(matched) ||
+      /\b(?:not|no|never|without|refus\w*|nor)\b[^.]{0,40}$/i.test(text.slice(Math.max(0, index - 60), index)),
+  },
 ];
 
 /**
@@ -107,6 +136,7 @@ for (const file of sources) {
       // keeps the justification next to the thing it justifies.
       const previous = lines[line - 2] ?? '';
       if (/absuite-allow-fabrication:/.test(previous)) continue;
+      if (rule.exempt?.(text, match.index, match[0])) continue;
 
       failures.push({
         file: relative(root, file),

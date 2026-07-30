@@ -25,9 +25,9 @@ export const Panel = ({ title, icon, children, action }: {
   children: React.ReactNode;
   action?: React.ReactNode;
 }) => (
-  <section className="rounded-xl border border-[#00FF88]/12 bg-[#0D1117]/80 backdrop-blur-sm overflow-hidden">
-    <header className="flex items-center gap-2 px-4 py-3 border-b border-[#00FF88]/10">
-      {icon && <span className="text-[#00FF88]/70 shrink-0">{icon}</span>}
+  <section className="rounded-xl border border-[#00F58C]/12 bg-[#0D1117]/80 backdrop-blur-sm overflow-hidden">
+    <header className="flex items-center gap-2 px-4 py-3 border-b border-[#00F58C]/10">
+      {icon && <span className="text-[#00F58C]/70 shrink-0">{icon}</span>}
       <h2 className="text-[11px] font-mono uppercase tracking-[0.18em] text-text-primary">{title}</h2>
       {action && <span className="ml-auto">{action}</span>}
     </header>
@@ -58,7 +58,7 @@ export const SystemHealth = ({ services }: {
           <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--border))" strokeWidth="5" />
           <motion.circle
             cx="50" cy="50" r="42" fill="none" strokeWidth="5" strokeLinecap="round"
-            stroke={state === 'DEMONSTRATED' ? '#00FF88' : state === 'FAILED' ? '#EF4444' : '#F59E0B'}
+            stroke={state === 'DEMONSTRATED' ? '#00F58C' : state === 'FAILED' ? '#EF4444' : '#F59E0B'}
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
             animate={{ strokeDashoffset: circumference - (pct / 100) * circumference }}
@@ -68,7 +68,7 @@ export const SystemHealth = ({ services }: {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={cn('text-xl font-bold tabular-nums',
-            state === 'DEMONSTRATED' ? 'text-[#00FF88]' : state === 'FAILED' ? 'text-red-400' : 'text-amber-400')}>
+            state === 'DEMONSTRATED' ? 'text-[#00F58C]' : state === 'FAILED' ? 'text-red-400' : 'text-amber-400')}>
             {total === 0 ? '—' : `${pct}%`}
           </span>
           <span className="text-[7px] font-mono uppercase tracking-[0.14em] text-text-muted mt-0.5">
@@ -82,7 +82,7 @@ export const SystemHealth = ({ services }: {
         {services.map(service => (
           <li key={service.id} className="flex items-center gap-2">
             <span className={cn('w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 text-[8px]',
-              service.status === 'up' ? 'border-[#00FF88]/50 text-[#00FF88]'
+              service.status === 'up' ? 'border-[#00F58C]/50 text-[#00F58C]'
                 : service.status === 'down' || service.status === 'failed' ? 'border-red-500/50 text-red-400'
                 : 'border-amber-500/50 text-amber-400')}>
               {service.status === 'up' ? '✓' : service.status === 'unknown' ? '?' : '✕'}
@@ -113,7 +113,7 @@ export interface ActivityRow {
 }
 
 const ROW_TONE: Record<string, string> = {
-  DEMONSTRATED: 'text-[#00FF88]',
+  DEMONSTRATED: 'text-[#00F58C]',
   FAILED: 'text-red-400',
   UNKNOWN: 'text-amber-400',
   ABSENT: 'text-text-muted',
@@ -139,7 +139,7 @@ export const LiveActivity = ({ rows, onOpen }: {
         onClick={() => onOpen?.(row.id)}
         initial={{ opacity: 0, x: -4 }}
         animate={{ opacity: 1, x: 0 }}
-        className="w-full flex items-baseline gap-2.5 py-1 text-left hover:bg-[#00FF88]/[0.04] rounded px-1 -mx-1 transition-colors"
+        className="w-full flex items-baseline gap-2.5 py-1 text-left hover:bg-[#00F58C]/[0.04] rounded px-1 -mx-1 transition-colors"
       >
         <span className="text-[10px] font-mono text-text-muted/60 shrink-0 tabular-nums">{row.time}</span>
         <span className="text-[11px] font-mono text-text-secondary truncate max-w-[46%]">{row.subject}</span>
@@ -165,7 +165,7 @@ export const UnknownQueue = ({ total, breakdown, onOpen }: {
     <div className="flex items-start gap-4">
       <div className="shrink-0">
         <div className={cn('text-4xl font-bold tabular-nums',
-          total === null ? 'text-amber-400' : total > 0 ? 'text-[#00FF88]' : 'text-text-muted')}>
+          total === null ? 'text-amber-400' : total > 0 ? 'text-[#00F58C]' : 'text-text-muted')}>
           {total === null ? '—' : total}
         </div>
         <div className="text-[8px] font-mono uppercase tracking-[0.14em] text-text-muted mt-1 max-w-[92px] leading-tight">
@@ -193,7 +193,7 @@ export const UnknownQueue = ({ total, breakdown, onOpen }: {
       <button
         type="button"
         onClick={onOpen}
-        className="mt-3 w-full text-[10px] font-mono uppercase tracking-[0.16em] text-[#00FF88]/70 hover:text-[#00FF88] transition-colors text-right"
+        className="mt-3 w-full text-[10px] font-mono uppercase tracking-[0.16em] text-[#00F58C]/70 hover:text-[#00F58C] transition-colors text-right"
       >
         open queue →
       </button>
@@ -226,7 +226,7 @@ export const AgentsAttention = ({ agents, held }: {
               <span key={tag.label} className={cn('text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border',
                 tag.tone === 'bad' ? 'border-red-500/40 text-red-400'
                   : tag.tone === 'warn' ? 'border-amber-500/40 text-amber-400'
-                  : 'border-[#00FF88]/40 text-[#00FF88]')}>
+                  : 'border-[#00F58C]/40 text-[#00F58C]')}>
                 {tag.label}
               </span>
             ))}
@@ -239,7 +239,7 @@ export const AgentsAttention = ({ agents, held }: {
       </div>
     ))}
 
-    <p className="text-[9px] text-text-muted/60 leading-snug pt-2 border-t border-[#00FF88]/10">
+    <p className="text-[9px] text-text-muted/60 leading-snug pt-2 border-t border-[#00F58C]/10">
       Ordering is not ranking — which of these matters is your judgement, not ABSuite's.
     </p>
   </div>
@@ -268,11 +268,11 @@ export const EvidenceStream = ({ stages, latest, onOpen }: {
             transition={{ delay: index * 0.07, duration: 0.35 }}
             className={cn('flex-1 min-w-[104px] rounded-lg border px-3 py-2.5 text-center',
               stage.reached
-                ? 'border-[#00FF88]/35 bg-[#00FF88]/[0.05]'
+                ? 'border-[#00F58C]/35 bg-[#00F58C]/[0.05]'
                 : 'border-border bg-bg-primary/40 opacity-55')}
           >
             <div className={cn('text-[9px] font-mono uppercase tracking-[0.14em]',
-              stage.reached ? 'text-[#00FF88]' : 'text-text-muted')}>
+              stage.reached ? 'text-[#00F58C]' : 'text-text-muted')}>
               {stage.name}
             </div>
             <div className="text-[10px] text-text-secondary mt-1">{stage.note}</div>
@@ -282,7 +282,7 @@ export const EvidenceStream = ({ stages, latest, onOpen }: {
           </motion.div>
           {index < stages.length - 1 && (
             <div className="flex items-center px-1 shrink-0">
-              <span className={cn('text-xs', stage.reached ? 'text-[#00FF88]/50' : 'text-text-muted/30')}>→</span>
+              <span className={cn('text-xs', stage.reached ? 'text-[#00F58C]/50' : 'text-text-muted/30')}>→</span>
             </div>
           )}
         </React.Fragment>
@@ -293,12 +293,12 @@ export const EvidenceStream = ({ stages, latest, onOpen }: {
       <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-text-muted">
         latest record
       </span>
-      <span className="text-[11px] font-mono text-[#00FF88]">{latest ?? 'none held'}</span>
+      <span className="text-[11px] font-mono text-[#00F58C]">{latest ?? 'none held'}</span>
       {latest && onOpen && (
         <button
           type="button"
           onClick={onOpen}
-          className="ml-auto text-[10px] font-mono uppercase tracking-[0.16em] text-[#00FF88]/70 hover:text-[#00FF88] transition-colors"
+          className="ml-auto text-[10px] font-mono uppercase tracking-[0.16em] text-[#00F58C]/70 hover:text-[#00F58C] transition-colors"
         >
           open record →
         </button>
@@ -319,7 +319,7 @@ export const ConstitutionalReminder = () => (
     <p className="text-[11px] text-text-muted mt-3 leading-relaxed">
       ABSuite answers the first two. The third is shown by what the first two rest on.
     </p>
-    <p className="text-[10px] font-mono text-[#00FF88]/70 mt-3 leading-snug uppercase tracking-[0.08em]">
+    <p className="text-[10px] font-mono text-[#00F58C]/70 mt-3 leading-snug uppercase tracking-[0.08em]">
       Nothing may look more complete, more certain, or more authoritative than it actually is.
     </p>
   </div>

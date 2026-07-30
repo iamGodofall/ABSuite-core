@@ -75,17 +75,32 @@ The UI should behave like a living system.
 | Role | Value |
 | --- | --- |
 | Background | `#05070A` |
-| Surface | `#0D1117` |
-| Primary | `#00FF88` |
+| Grid | `#0B1117` |
+| Primary | `#00F58C` |
 | Secondary | `#00D9FF` |
-| White | `#FFFFFF` |
+| Unresolved | `#F6B100` |
+| White | `#F4F7FA` |
 
-White is reserved for peak emphasis — the wordmark — not for body copy. Pure
-white halates against the `#05070A` ground at small sizes, so body text sits at
-`#E8F5F0`: 94% lightness with a faint green cast, which reads cleanly on a
-near-black field lit by `#00FF88`. The deviation is recorded here rather than
-left to drift, because `check-ui-philosophy.mjs` would otherwise pass on a
-colour system nobody uses.
+`#F4F7FA` is the working white throughout, and it is deliberately not pure
+white: `#FFFFFF` halates against the `#05070A` ground at small sizes. The
+specification names `#F4F7FA` for exactly that reason, so there is no deviation
+left to record.
+
+### Constitutional constraints on the interface
+
+1. Nothing may look more complete, more certain, or more authoritative than it
+   actually is.
+2. Unknown is not false.
+3. `ABSENT` must always carry a reason.
+4. No trust scores.
+5. Every number must be measurable.
+6. Every explanation must be derivable.
+7. The cube is the operating system.
+
+**Forbidden outright**, whatever the layout: a trust score, a confidence
+figure, a count of attacks prevented, or an intelligence rating. Each of those
+is a judgement wearing a decimal point, and none of them is a thing this system
+measures.
 
 **Motion principles**
 

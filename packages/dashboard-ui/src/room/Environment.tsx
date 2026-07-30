@@ -52,7 +52,7 @@ const RING: Record<string, { x: number; y: number; gesture: string }> = {
   observe:   { x: 50, y: 7,  gesture: 'drag up' },
   verify:    { x: 88, y: 32, gesture: 'drag right' },
   govern:    { x: 12, y: 32, gesture: 'drag left' },
-  explain:   { x: 50, y: 87, gesture: 'drag down' },
+  explain:   { x: 50, y: 83, gesture: 'drag down' },
   arbitrate: { x: 85, y: 71, gesture: 'push in' },
   act:       { x: 15, y: 71, gesture: 'pull out' },
   // Learn is reached by double-clicking the core, so its position is free of
@@ -65,7 +65,7 @@ const RING: Record<string, { x: number; y: number; gesture: string }> = {
 const FLOW = ['observe', 'verify', 'explain', 'govern', 'arbitrate', 'act', 'learn'] as const;
 
 const TONE: Record<Determination, { text: string; line: string; rgb: string }> = {
-  DEMONSTRATED: { text: 'text-[#00FF88]', line: 'rgba(0,255,136,0.45)',  rgb: '0,255,136' },
+  DEMONSTRATED: { text: 'text-[#00F58C]', line: 'rgba(0,245,140,0.45)',  rgb: '0,245,140' },
   FAILED:       { text: 'text-red-400',   line: 'rgba(239,68,68,0.55)',  rgb: '239,68,68' },
   UNKNOWN:      { text: 'text-amber-400', line: 'rgba(245,158,11,0.45)', rgb: '245,158,11' },
   ABSENT:       { text: 'text-text-muted', line: 'rgba(120,140,130,0.16)', rgb: '120,140,130' },
@@ -133,7 +133,7 @@ const StationMark = ({ station, at, active, dimmed, onEnter }: {
 export const Environment = ({
   stations, vitals, active, onEnter, onLeave,
   connected, integrity, arrivals, verifying,
-  ask, children,
+  ask, stream, children,
 }: {
   stations: Station[];
   /** The line of state that leads everything. */
@@ -146,11 +146,41 @@ export const Environment = ({
   arrivals: { id: string; outcome?: string }[];
   verifying: boolean;
   ask: React.ReactNode;
+  /** The evidence stream the specification places along the bottom. */
+  stream: React.ReactNode;
   children?: React.ReactNode;
 }) => {
   const entered = active !== null;
   const activeStation = stations.find(station => station.id === active) ?? null;
   const field = useRef<HTMLDivElement>(null);
+
+  /**
+   * The core takes about half the field's shorter side.
+   *
+   * The specification asks for roughly 50% of the viewport, and a fixed pixel
+   * size cannot honour that across screens — it would be half a laptop and a
+   * fifth of a desk monitor. Measured, then clamped so it neither swallows the
+   * stations nor shrinks to an ornament.
+   */
+  const [coreSize, setCoreSize] = useState(320);
+  useEffect(() => {
+    const measure = () => {
+      const node = field.current;
+      if (!node) return;
+      const shorter = Math.min(node.clientWidth, node.clientHeight);
+      setCoreSize(Math.round(Math.max(220, Math.min(shorter * 0.5, 520))));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  /** Wall-clock, because a control room states the time it is reporting for. */
+  const [clock, setClock] = useState(() => new Date().toISOString().slice(11, 19));
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date().toISOString().slice(11, 19)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   /* ── Gestures ────────────────────────────────────────────────────────── */
 
@@ -247,7 +277,7 @@ export const Environment = ({
       {/* ── State, leading. Not a status bar — a line of vitals. ────────── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-6 px-6 py-3 flex-wrap pointer-events-none">
         <span className="leading-none">
-          <span className="text-base font-bold text-[#FFFFFF] tracking-tight">ABSuite</span>
+          <span className="text-base font-bold text-[#F4F7FA] tracking-tight">ABSuite</span>
           <span className="block text-[8px] font-mono uppercase tracking-[0.26em] text-text-muted mt-0.5">
             Trust Operations Center
           </span>
@@ -265,6 +295,13 @@ export const Environment = ({
               </span>
             </span>
           ))}
+        </span>
+
+        <span className="leading-none">
+          <span className="block text-[8px] font-mono uppercase tracking-[0.2em] text-text-muted/70">Time</span>
+          <span className="block text-[13px] font-mono font-semibold tabular-nums text-text-primary mt-0.5">
+            {clock} UTC
+          </span>
         </span>
 
         <span className="ml-auto pointer-events-auto w-full sm:w-auto sm:min-w-[300px] lg:min-w-[380px]">
@@ -286,7 +323,7 @@ export const Environment = ({
           filter: entered ? 'blur(3px)' : 'blur(0px)',
         }}
         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-        className={cn('absolute inset-x-0 top-16 bottom-10',
+        className={cn('absolute inset-x-0 top-16 bottom-32',
           entered ? 'pointer-events-none' : 'cursor-grab active:cursor-grabbing')}
       >
         {/* Connection lines: every station wired back to the centre, each
@@ -316,8 +353,8 @@ export const Environment = ({
               key={traveller.id}
               className="absolute w-[7px] h-[7px] rounded-full pointer-events-none z-10"
               style={{
-                background: traveller.failed ? 'hsl(0 84% 62%)' : 'hsl(153 100% 50%)',
-                boxShadow: `0 0 12px ${traveller.failed ? 'rgba(239,68,68,0.9)' : 'rgba(0,255,136,0.9)'}`,
+                background: traveller.failed ? 'hsl(0 84% 62%)' : 'hsl(154 100% 48%)',
+                boxShadow: `0 0 12px ${traveller.failed ? 'rgba(239,68,68,0.9)' : 'rgba(0,245,140,0.9)'}`,
                 marginLeft: -3.5, marginTop: -3.5,
               }}
               initial={{ left: '50%', top: '6%', opacity: 0 }}
@@ -332,9 +369,22 @@ export const Environment = ({
           ))}
         </AnimatePresence>
 
-        {/* Orbits. */}
-        <div className="ops-ring absolute" style={{ width: '58%', height: '78%', top: '11%', left: '21%' }} />
-        <div className="ops-ring reverse absolute" style={{ width: '80%', height: '104%', top: '-2%', left: '10%' }} />
+        {/* Six orbital rings. Structure, not activity — they turn slowly enough
+            that the eye reads depth rather than movement. */}
+        {[
+          { w: 34, h: 46 }, { w: 46, h: 62 }, { w: 58, h: 78 },
+          { w: 70, h: 92 }, { w: 82, h: 106 }, { w: 94, h: 120 },
+        ].map((orbit, index) => (
+          <div
+            key={orbit.w}
+            className={cn('ops-ring absolute', index % 2 === 1 && 'reverse')}
+            style={{
+              width: `${orbit.w}%`, height: `${orbit.h}%`,
+              top: `${(100 - orbit.h) / 2}%`, left: `${(100 - orbit.w) / 2}%`,
+              opacity: 1 - index * 0.13,
+            }}
+          />
+        ))}
 
         {/* The reactor core. Roughly half the field. */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
@@ -344,7 +394,7 @@ export const Environment = ({
             arrivals={arrivals}
             verifying={verifying}
             variant="centre"
-            size={340}
+            size={coreSize}
           />
         </div>
 
@@ -359,6 +409,13 @@ export const Environment = ({
           />
         ))}
       </motion.div>
+
+      {/* ── Evidence stream, along the bottom as the specification places it. */}
+      {!entered && (
+        <div className="absolute bottom-16 inset-x-0 z-20 px-6 pointer-events-auto">
+          {stream}
+        </div>
+      )}
 
       {/* ── The standing views. A thin line of words, not a rail of cards. */}
       {!entered && (
@@ -384,7 +441,7 @@ export const Environment = ({
       )}
 
       {/* ── The sentence the whole product is built around. ──────────────── */}
-      <p className="absolute bottom-3 inset-x-0 z-20 text-center text-[9px] font-mono uppercase tracking-[0.18em] text-[#00FF88]/45 px-6 pointer-events-none">
+      <p className="absolute bottom-3 inset-x-0 z-20 text-center text-[9px] font-mono uppercase tracking-[0.18em] text-[#00F58C]/45 px-6 pointer-events-none">
         Nothing may look more complete, more certain, or more authoritative than it actually is.
       </p>
 
@@ -403,7 +460,7 @@ export const Environment = ({
               <button
                 type="button"
                 onClick={onLeave}
-                className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-muted hover:text-[#00FF88] transition-colors"
+                className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-muted hover:text-[#00F58C] transition-colors"
               >
                 ← the centre
               </button>

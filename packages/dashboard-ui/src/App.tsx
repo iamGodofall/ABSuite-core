@@ -41,6 +41,7 @@ import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
 import { type Integrity } from './components/TrustCube';
 import { Environment, type Station, type Determination } from './room/Environment';
+import { EvidenceStream, type Stage } from './room/panels';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1361,6 +1362,8 @@ export default function App() {
    */
   const [figures, setFigures] = useState<{ total: number; withoutScope: number; failures: number; subjects: number } | null>(null);
   const [queue, setQueue] = useState<{ total: number; breakdown: { label: string; count: number }[] } | null>(null);
+  const [latestId, setLatestId] = useState<string | null>(null);
+  const [latestRecord, setLatestRecord] = useState<{ startedAt: string; scope?: string[]; governance?: unknown; outputHash?: string } | null>(null);
   useEffect(() => {
     let active = true;
     const read = async () => {
@@ -1396,8 +1399,26 @@ export default function App() {
    * falling back to a plausible number.
    */
   const readInstruments = useCallback(async () => {
+    const headers = getAdminHeaders();
+
+    // Hold the record; the stages are derived at render so the stream and the
+    // vitals line read from the same integrity value and cannot disagree. They
+    // did: the stream said "not checked" while the vitals said DEMONSTRATED,
+    // because the stage array had been frozen at the moment it was built.
     try {
-      const res = await fetch('/executions/unknowns?limit=200', { headers: getAdminHeaders() });
+      const res = await fetch('/executions?limit=1', { headers });
+      if (res.ok) {
+        const payload = (await res.json()) as {
+          executions: { id: string; startedAt: string; scope?: string[]; governance?: unknown; outputHash?: string }[];
+        };
+        const newest = payload.executions?.[0] ?? null;
+        setLatestId(newest?.id ?? null);
+        setLatestRecord(newest);
+      }
+    } catch { setLatestRecord(null); setLatestId(null); }
+
+    try {
+      const res = await fetch('/executions/unknowns?limit=200', { headers });
       if (!res.ok) { setQueue(null); return; }
       const payload = (await res.json()) as { queue?: { resolution: string; examples?: string[] }[] };
       const items = payload.queue ?? [];
@@ -1421,6 +1442,28 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [readInstruments]);
 
+  /**
+   * The evidence stream: Action, Evidence, Verification, Policy, Governance,
+   * Ledger. A stage lights only when the newest record genuinely carries what
+   * that stage needs — a record naming no rule shows Governance dark and says
+   * so, rather than glowing because a complete pipeline looks better.
+   *
+   * Derived at render rather than stored, so the stream and the vitals line
+   * read the same integrity value. Stored, they disagreed: the stream said
+   * "not checked" while the vitals said DEMONSTRATED, because the stage array
+   * had been frozen at the moment it was built.
+   */
+  const stages: Stage[] = React.useMemo(() => {
+    if (!latestRecord) return [];
+    return [
+      { name: 'Action', note: 'recorded', reached: true, at: new Date(latestRecord.startedAt).toLocaleTimeString('en-GB', { hour12: false }) },
+      { name: 'Evidence', note: latestRecord.outputHash ? 'captured' : 'no output hash', reached: Boolean(latestRecord.outputHash) },
+      { name: 'Verification', note: integrity === 'DEMONSTRATED' ? 'intact' : integrity === 'FAILED' ? 'broken' : integrity === 'ABSENT' ? 'nothing to verify' : 'not checked', reached: integrity === 'DEMONSTRATED' },
+      { name: 'Policy', note: latestRecord.scope?.length ? 'scoped' : 'no scope recorded', reached: Boolean(latestRecord.scope?.length) },
+      { name: 'Governance', note: latestRecord.governance ? 'applied' : 'no rule named', reached: Boolean(latestRecord.governance) },
+      { name: 'Ledger', note: 'hash-chained', reached: true },
+    ];
+  }, [latestRecord, integrity]);
   /** Only records the socket actually delivered as new. */
   const arrivals = React.useMemo(
     () => liveExecutions.filter(execution => arrivedIds.has(execution.id))
@@ -1607,6 +1650,13 @@ export default function App() {
         arrivals={arrivals}
         verifying={verifying}
         ask={<AskBar onOpenRecord={setOpenRecordId} />}
+        stream={
+          <EvidenceStream
+            stages={stages}
+            latest={latestId}
+            onOpen={() => latestId && setOpenRecordId(latestId)}
+          />
+        }
       >
         {activeTab && renderTab()}
       </Environment>
@@ -1631,7 +1681,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setOpenRecordId(null)}
-              className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-muted hover:text-[#00FF88] transition-colors mb-4"
+              className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-muted hover:text-[#00F58C] transition-colors mb-4"
             >
               ← {activeTab ?? 'the centre'}
             </button>

@@ -15,10 +15,10 @@
        template; the ground is now the same #040706 as the verifier and the
        landing page, so the three surfaces look like one product. */
     --bg-primary: 213 33% 3%;     /* #05070A — the operations ground */
-    --bg-secondary: 213 21% 7%;   /* #0D1117 — surface */
+    --bg-secondary: 210 24% 6%;   /* #0B1117 — the grid, per the specification */
     --bg-tertiary: 158 16% 8%;    /* #101A16 — raised */
     --border-color: 158 30% 14%;  /* emerald-tinted hairline */
-    --text-primary: 158 30% 94%;  /* #E8F5F0 */
+    --text-primary: 210 26% 96%;  /* #F4F7FA — the specification's white */
     /*
      * #FFFFFF — reserved for peak emphasis only.
      *
@@ -31,10 +31,11 @@
      */
     --white: 0 0% 100%;
     --text-muted: 158 10% 53%;    /* #7C9389 */
-    --accent-primary: 153 100% 50%;  /* #00FF88 — signal green */
+    --accent-primary: 154 100% 48%;  /* #00F58C — signal green, per the specification */
     /* Secondary is a deeper teal, not blue. A blue "Restart" button next to an
        emerald "Start" implied a distinction that does not exist. */
     --accent-secondary: 191 100% 50%;  /* #00D9FF — the cold second signal */
+    --accent-warn: 43 100% 48%;        /* #F6B100 — unresolved, per the specification */
     /* Amber stays, used only for genuinely indeterminate state. Collapsing
        "unknown" into either emerald or red would assert something unknown. */
     --accent-warning: 40 88% 55%;
@@ -551,7 +552,7 @@
 .ops-cube {
   position: relative;
   transform-style: preserve-3d;
-  animation: ops-cube-turn 28s linear infinite;
+  animation: ops-cube-turn 18s linear infinite;
 }
 
 .ops-cube.is-still { animation-play-state: paused; }
@@ -617,7 +618,7 @@
 .trust-cube {
   position: relative;
   transform-style: preserve-3d;
-  animation: ops-cube-turn 28s linear infinite;
+  animation: ops-cube-turn 18s linear infinite;
 }
 
 /* Not connected means not observing, and the cube says so by stopping. */
@@ -638,7 +639,7 @@
 .trust-cube.cube-intact    { --cube-line: hsl(var(--accent-primary) / 0.4);  --cube-wash: hsl(var(--accent-primary) / 0.06); }
 .trust-cube.cube-broken    { --cube-line: hsl(0 84% 60% / 0.55);             --cube-wash: hsl(0 84% 60% / 0.08); }
 .trust-cube.cube-unchecked { --cube-line: hsl(38 92% 55% / 0.45);            --cube-wash: hsl(38 92% 55% / 0.06);
-                             animation: ops-cube-turn 28s linear infinite, cube-unresolved 2.6s ease-in-out infinite; }
+                             animation: ops-cube-turn 18s linear infinite, cube-unresolved 2.6s ease-in-out infinite; }
 .trust-cube.cube-empty     { --cube-line: hsl(var(--text-muted) / 0.25);     --cube-wash: transparent; opacity: 0.45; }
 
 @keyframes cube-unresolved { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
@@ -718,3 +719,13 @@
     repeating-linear-gradient(-60deg, rgba(0,255,136,0.020) 0 1px, transparent 1px 46px),
     repeating-linear-gradient(0deg, rgba(0,255,136,0.014) 0 1px, transparent 1px 46px);
 }
+
+
+/* Governance violation. One pulse every five seconds, per the specification —
+   long enough to be noticed, rare enough not to be tuned out. */
+@keyframes governance-breach {
+  0%, 84%, 100% { box-shadow: 0 0 0 0 rgba(246,177,0,0); }
+  90%           { box-shadow: 0 0 22px 2px rgba(246,177,0,0.55); }
+}
+.governance-breach { animation: governance-breach 5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .governance-breach { animation: none; } }

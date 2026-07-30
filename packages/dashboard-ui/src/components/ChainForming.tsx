@@ -59,7 +59,7 @@ export const ChainForming = ({ held, verified, brokenAt, checkable = true, verif
               className={cn('block w-[7px] h-5 rounded-[2px] border',
                 !checkable ? 'border-amber-500/40 bg-amber-500/10'
                   : isBroken ? 'border-red-500/50 bg-red-500/10'
-                  : isSealed ? 'border-[#00FF88]/50 bg-[#00FF88]/20 chain-link-sealed'
+                  : isSealed ? 'border-[#00F58C]/50 bg-[#00F58C]/20 chain-link-sealed'
                   : 'border-border bg-bg-primary/60')}
             />
           );

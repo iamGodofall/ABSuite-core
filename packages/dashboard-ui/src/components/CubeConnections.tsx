@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 export type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
 
 const STROKE: Record<Determination, string> = {
-  DEMONSTRATED: 'hsl(153 100% 50% / 0.5)',
+  DEMONSTRATED: 'hsl(154 100% 48% / 0.5)',
   FAILED: 'hsl(0 84% 62% / 0.6)',
   UNKNOWN: 'hsl(38 92% 55% / 0.5)',
   ABSENT: 'hsl(160 10% 60% / 0.18)',
