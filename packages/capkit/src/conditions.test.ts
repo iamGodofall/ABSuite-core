@@ -124,6 +124,52 @@ describe('the necessary conditions for trust', () => {
     expect(evidence.state).toBe('FAILED');
   });
 
+  test('nothing composes upward — the overall is the weakest condition', () => {
+    const { traces, key } = fresh();
+
+    // Four conditions in good order and one gap. This is not "mostly fine".
+    const withGap = trustConditions(sample(traces, { scope: [] }), verifyTrace(sample(traces), key.publicKeyPem), true);
+    expect(withGap.overall).not.toBe('DEMONSTRATED');
+    expect(withGap.constrainedBy).toContain('Capability');
+    expect(withGap.conclusion).toMatch(/do not compensate for the/i);
+  });
+
+  test('a failure dominates every other state', () => {
+    const { traces, key, storage } = fresh();
+    const trace = sample(traces);
+    storage.run("UPDATE executions SET outcome = 'failure' WHERE id = ?", trace.id);
+    const altered = traces.get(trace.id)!;
+
+    const report = trustConditions(altered, verifyTrace(altered, key.publicKeyPem), false);
+
+    // Whatever else holds, a contradiction in the evidence is the answer.
+    expect(report.overall).toBe('FAILED');
+  });
+
+  test('constrainedBy names every condition holding the answer down, not just one', () => {
+    const { traces } = fresh();
+    // Unverified and unscoped: several conditions short at once.
+    const report = trustConditions(sample(traces, { scope: [] }));
+
+    expect(report.constrainedBy.length).toBeGreaterThan(1);
+    // Nobody has to accept the severity ordering to read the report.
+    for (const name of report.constrainedBy) {
+      expect(report.conditions.find(c => c.condition === name)!.state).not.toBe('DEMONSTRATED');
+    }
+  });
+
+  test('every condition demonstrated makes the overall demonstrated', () => {
+    const { traces, key } = fresh();
+    const trace = sample(traces, {
+      governance: { policyRef: 'p', policyVersion: '1', decision: 'PERMITTED', evidence: ['checked'] },
+    });
+    const report = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true);
+
+    expect(report.overall).toBe('DEMONSTRATED');
+    expect(report.constrainedBy).toEqual([]);
+    expect(report.allDemonstrated).toBe(true);
+  });
+
   test('every finding names the field it was read from', () => {
     const { traces, key } = fresh();
     const trace = sample(traces);

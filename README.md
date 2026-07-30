@@ -127,6 +127,12 @@ step is paralysis; with one it is work. Constructing an unknown without a
 resolution throws — as does an absence that does not say why the record is
 silent.
 
+**Nothing composes upward.** Four conditions demonstrated and one failure is not
+"mostly trustworthy"; it is a record with a failure in it. Every report states
+the strongest claim it can still defend and names what constrains it. A system
+is not defined by the evidence it possesses, but by what it can still defend
+after accounting for what it does not know.
+
 **A record says under what rule, never whether the rule was right.** Given a
 policy whose content is indefensible, ABSuite reports the action as permitted
 under that policy in exactly the same words it uses for any other — because a
@@ -190,6 +196,7 @@ something, and they are the part worth believing:
 | History must survive improvement | A chain signed in January 2026 is committed, and must still verify — forever |
 | Unknown is not the same as false, or true | Four states; the vocabulary contains no TRUE, FALSE or VALID |
 | Every unknown carries its path to resolution | Constructing one without a resolution throws |
+| Nothing composes upward | The overall finding is the weakest condition, never an average |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 
 A principle that cannot fail a build is a preference.
@@ -429,7 +436,7 @@ of that command.
 ## Status
 
 ```text
-484 tests                    102 API endpoints
+488 tests                    102 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```

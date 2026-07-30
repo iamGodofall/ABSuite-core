@@ -50,8 +50,37 @@ export interface ConditionsReport {
   conditions: TrustCondition[];
   /** Prose. Never a score, never a percentage, never a grade. */
   conclusion: string;
+  /**
+   * The weakest condition's state, because nothing composes upward.
+   *
+   * Four demonstrated conditions and one failure is not "mostly trustworthy" —
+   * it is a record with a failure in it. The strongest parts of a system do not
+   * compensate for the weakest; they are limited by them.
+   */
+  overall: ConditionState;
+  /** Which conditions are holding the overall answer down. Never just one. */
+  constrainedBy: string[];
   /** Convenience for a caller that must branch. Not a measure of anything. */
   allDemonstrated: boolean;
+}
+
+/**
+ * Severity order, weakest first. FAILED dominates everything.
+ *
+ * UNKNOWN is ranked below ABSENT deliberately, and it is a judgement rather
+ * than a fact: an unknown might still resolve to FAILED, so nothing can be
+ * claimed until it is checked, whereas an absence is a known and bounded gap —
+ * the record simply never spoke to it. Somebody could argue the reverse, which
+ * is exactly why `constrainedBy` lists every condition that is not
+ * DEMONSTRATED. Nobody has to accept this ordering to read the report.
+ */
+const SEVERITY: ConditionState[] = ['FAILED', 'UNKNOWN', 'ABSENT', 'DEMONSTRATED'];
+
+function weakest(states: ConditionState[]): ConditionState {
+  for (const state of SEVERITY) {
+    if (states.includes(state)) return state;
+  }
+  return 'DEMONSTRATED';
 }
 
 /**
@@ -82,6 +111,8 @@ export function trustConditions(
       ],
       conclusion:
         'This record cannot be read by this build, so nothing about it has been demonstrated or disproven. Upgrade and ask again.',
+      overall: 'UNKNOWN',
+      constrainedBy: ['All'],
       allDemonstrated: false,
     };
   }
@@ -209,13 +240,22 @@ export function trustConditions(
   const demonstrated = conditions.filter(condition => condition.state === 'DEMONSTRATED');
   const outstanding = conditions.filter(condition => condition.state !== 'DEMONSTRATED');
 
+  const limit = weakest(conditions.map(condition => condition.state));
+
   const conclusion = outstanding.length === 0
     ? 'All necessary conditions for trust have been demonstrated. Whether that is sufficient is a judgement, and it is yours.'
-    : `${demonstrated.length} of ${conditions.length} necessary conditions are demonstrated. ` +
-      `${outstanding.map(condition => condition.condition).join(', ')} ${outstanding.length === 1 ? 'is' : 'are'} not. ` +
-      'This is a statement about what the record can show, not a verdict on the subject.';
+    : `${demonstrated.length} of ${conditions.length} necessary conditions are demonstrated, but the strongest claim ` +
+      `this record supports is ${limit}, because ${outstanding.map(condition => condition.condition).join(', ')} ` +
+      `${outstanding.length === 1 ? 'is' : 'are'} not. The strongest parts of a record do not compensate for the ` +
+      'weakest. This is a statement about what the record can show, not a verdict on the subject.';
 
-  return { conditions, conclusion, allDemonstrated: outstanding.length === 0 };
+  return {
+    conditions,
+    conclusion,
+    overall: weakest(conditions.map(condition => condition.state)),
+    constrainedBy: outstanding.map(condition => condition.condition),
+    allDemonstrated: outstanding.length === 0,
+  };
 }
 
 /** The report as plain text, for a terminal, an email or a ticket. */

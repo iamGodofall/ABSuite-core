@@ -526,6 +526,37 @@ tampering. Collapsing those into "invalid" turns every limitation of the verifie
 into an accusation against the evidence — and the accused record is usually the
 one that is right.
 
+### Nothing composes upward
+
+**The overall finding is never better than the weakest part of it.**
+
+Four conditions demonstrated and one failure is not "mostly trustworthy" — it is
+a record with a failure in it. Trust does not average, and it does not
+accumulate: the strongest parts of a system do not compensate for the weakest,
+they are limited by them.
+
+```text
+Trust is constrained by min(Identity, Capability, Evidence, Governance, Time)
+```
+
+Not numerically. There is no arithmetic here and never will be — see the refusal
+to compute `f`. It means only this: if Identity is UNKNOWN, nothing that can be
+claimed exceeds UNKNOWN. If Governance is ABSENT, the claim stops there.
+
+The report therefore states the strongest claim the record supports, and names
+every condition holding it down rather than the single worst one. **A system is
+not defined by the evidence it possesses. It is defined by the strongest claim it
+can still defend after accounting for what it does not know.**
+
+One judgement is embedded here and is worth flagging as a judgement: UNKNOWN
+ranks below ABSENT, on the reasoning that an unknown might still resolve to
+FAILED — so nothing can be claimed until it is checked — whereas an absence is a
+known and bounded gap. Someone could argue the reverse. `constrainedBy` lists
+every condition that is not DEMONSTRATED precisely so that nobody has to accept
+the ordering to read the report.
+
+---
+
 ### Every unknown must carry its path to resolution
 
 Uncertainty without a next step is paralysis. Uncertainty with one is work.
@@ -636,6 +667,7 @@ checks are the part that is worth anything:
 | History must survive improvement | `frozen-chain.test.ts` verifies records signed in 2026 against their committed public key, forever |
 | Unknown is not the same as false | Four states, and the vocabulary contains no TRUE, FALSE or VALID |
 | Every unknown carries its path to resolution | `finding()` throws on an UNKNOWN with no resolution, or an ABSENT with no reason |
+| Nothing composes upward | The conditions report's overall state is the weakest condition, and names what constrains it |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 | The interface only calls things that answer | `check:routes` fails if a client call has no server route |
 

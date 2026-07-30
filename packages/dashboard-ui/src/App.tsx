@@ -1425,7 +1425,7 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
   const [tampered, setTampered] = useState(false);
   const [replay, setReplay] = useState<{ inputMatches: boolean; outputMatches: boolean; deterministic: boolean } | null>(null);
   const [explanation, setExplanation] = useState<{ headline: string; conclusion: string; warrantsReview: boolean; findings: { question: string; answer: string; from: string; status: string }[] } | null>(null);
-  const [conditions, setConditions] = useState<{ conclusion: string; allDemonstrated: boolean; conditions: { condition: string; answers: string; state: string; finding: string; from: string; resolvedBy?: string; notAnsweredBecause?: string }[] } | null>(null);
+  const [conditions, setConditions] = useState<{ conclusion: string; allDemonstrated: boolean; overall?: string; constrainedBy?: string[]; conditions: { condition: string; answers: string; state: string; finding: string; from: string; resolvedBy?: string; notAnsweredBecause?: string }[] } | null>(null);
   const [replayInput, setReplayInput] = useState('');
   const [replayOutput, setReplayOutput] = useState('');
 
@@ -1839,10 +1839,26 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
                       ))}
                     </div>
 
-                    <p className={cn('text-[11px] mt-3 pt-2 border-t border-border',
-                      conditions.allDemonstrated ? 'text-emerald-400' : 'text-text-muted')}>
-                      {conditions.conclusion}
-                    </p>
+                    {/* The weakest condition is the answer. Four green ticks
+                        and one gap is not "mostly trustworthy". */}
+                    <div className="mt-3 pt-2 border-t border-border">
+                      {conditions.overall && (
+                        <p className="text-[11px] font-mono mb-1">
+                          <span className="text-text-muted">Strongest claim this record supports: </span>
+                          <span className={cn(
+                            conditions.overall === 'DEMONSTRATED' ? 'text-emerald-400'
+                              : conditions.overall === 'FAILED' ? 'text-red-400' : 'text-amber-400')}>
+                            {conditions.overall}
+                          </span>
+                          {conditions.constrainedBy && conditions.constrainedBy.length > 0 && (
+                            <span className="text-text-muted"> — limited by {conditions.constrainedBy.join(', ')}</span>
+                          )}
+                        </p>
+                      )}
+                      <p className={cn('text-[11px]', conditions.allDemonstrated ? 'text-emerald-400' : 'text-text-muted')}>
+                        {conditions.conclusion}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
