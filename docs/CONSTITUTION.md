@@ -906,3 +906,25 @@ to be subtraction than addition. Before anything is added, two questions:
 2. Can a test fail when it is violated? If not, it is philosophy — and this
    project has spent a great deal of effort learning that philosophy without
    enforcement is decoration.
+
+### A note for whoever inherits this
+
+> **A constitutional line should be harder to add than code, and easier to
+> remove than either.**
+
+Addition already costs something: the two questions above, plus a test that can
+fail. Removal costs nothing — which means nothing forces it, and *accumulation*
+rather than bad principles is what kills a document like this over a decade.
+
+So the applications are capped. `check:doctrine` fails at the fifteenth. It is
+not forbidden; it simply cannot be free. Adding one means removing another,
+promoting it to a root, or raising the budget in a commit that argues for why
+this document should be longer. All three are deliberate acts, which is the
+entire point.
+
+If you are reading this years from now: the trajectory worth protecting is that
+the code grew, the tests grew, the endpoints grew, and the doctrine shrank. That
+is the opposite of what usually happens. Nobody will remember all fourteen
+applications. They will remember the five roots — and if those no longer fit on
+a single page, something has been lost that is worth more than whatever was
+gained.

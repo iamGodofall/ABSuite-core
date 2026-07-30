@@ -127,6 +127,28 @@ if (derivations.length === 0) {
   }
 }
 
+// ── A budget, so that subtraction has a forcing function ───────────────────
+//
+// Adding a principle already costs something: it must derive from a root and a
+// test must be able to fail when it is violated. Removing one costs nothing,
+// which means nothing ever forces it — and accumulation, not bad principles, is
+// what kills a constitution over a decade.
+//
+// So the applications are capped at what exists today. The fifteenth is not
+// forbidden; it just cannot be free. Adding it means removing one, promoting it
+// to a root, or raising this number in a commit that argues for why the
+// document should be longer. All three are deliberate acts, which is the point.
+const APPLICATION_BUDGET = 14;
+
+if (derivations.length > APPLICATION_BUDGET) {
+  console.error(
+    `\n✗ ${derivations.length} constitutional applications, and the budget is ${APPLICATION_BUDGET}.\n` +
+      '  A constitutional line should be harder to add than code, and easier to remove than either.\n' +
+      '  Remove one, promote it to a root, or raise the budget in a commit that argues for a longer document.'
+  );
+  failures++;
+}
+
 if (failures > 0) {
   console.error(`\n${failures} claim(s) do not hold. Fix the code or fix the claim.`);
   process.exit(1);
