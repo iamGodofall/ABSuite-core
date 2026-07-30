@@ -25,6 +25,7 @@ import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
 import { Operations } from './tabs/Operations';
 import { ChainView } from './tabs/ChainView';
+import { AskBar } from './tabs/AskBar';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -2420,9 +2421,10 @@ export default function App() {
               <Menu className="w-5 h-5 text-text-muted" />
             </button>
 
-            <div className="hidden md:flex items-center gap-2 flex-1 max-w-md bg-bg-primary border border-border rounded-xl px-3 py-2">
-              <Search className="w-4 h-4 text-text-muted shrink-0" />
-              <input placeholder="Search services, logs, configs..." className="bg-transparent text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none w-full" />
+            {/* A control that looked capable and did nothing is the same failure
+                as a number that looks measured and is not. It asks the log now. */}
+            <div className="hidden md:flex flex-1">
+              <AskBar onOpenRecord={setOpenRecordId} />
             </div>
 
             <div className="flex items-center gap-3 ml-auto">
