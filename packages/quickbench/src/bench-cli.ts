@@ -10,11 +10,30 @@
  * from. It records the machine alongside the figures, because a number without
  * its machine is not a measurement.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { runCoreSuite } from './core-suite';
-import { renderReport } from './measure';
+import { renderReport, compareReports, type BenchReport } from './measure';
+
+/**
+ * The previous run on this machine, if there is one.
+ *
+ * The loop only closes if a measurement is compared to something. Without a
+ * baseline this is a number; with one it is a signal.
+ */
+function previousReport(historyDir: string, exclude: string): BenchReport | null {
+  if (!existsSync(historyDir)) return null;
+  const files = readdirSync(historyDir).filter(name => name.endsWith('.json') && name !== exclude).sort();
+  const latest = files.at(-1);
+  if (!latest) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(join(historyDir, latest), 'utf8')) as BenchReport;
+    return parsed?.schema === 'absuite.bench.v1' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 function flag(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -64,12 +83,37 @@ async function main() {
   // A dated copy as well, so a regression has something to be a regression from.
   const history = join(dirname(out), 'history');
   mkdirSync(history, { recursive: true });
-  writeFileSync(
-    join(history, `${report.environment.measuredAt.replace(/[:.]/g, '-')}.json`),
-    `${JSON.stringify(report, null, 2)}\n`
-  );
+  const filename = `${report.environment.measuredAt.replace(/[:.]/g, '-')}.json`;
+  const baseline = previousReport(history, filename);
+  writeFileSync(join(history, filename), `${JSON.stringify(report, null, 2)}\n`);
 
   process.stdout.write(`${renderReport(report)}\n\nWritten to ${out}\n`);
+
+  // Learn feeds back: this run against the last one on the same machine.
+  if (baseline) {
+    const comparison = compareReports(baseline, report);
+    if (!comparison.comparable) {
+      process.stdout.write(`\nNot compared to the previous run — ${comparison.reason}\n`);
+    } else {
+      process.stdout.write(`\nAgainst ${comparison.baselineMeasuredAt}:\n`);
+      for (const delta of comparison.deltas) {
+        const arrow = delta.verdict === 'slower' ? '▲' : delta.verdict === 'faster' ? '▼' : '·';
+        const note = delta.significant ? '' : ' (within noise)';
+        process.stdout.write(
+          `  ${arrow} ${delta.operation.padEnd(22)} ${delta.deltaPercent > 0 ? '+' : ''}${delta.deltaPercent}% mean latency${note}\n`
+        );
+      }
+      for (const skipped of comparison.incomparable) {
+        process.stdout.write(`  ? ${skipped.operation.padEnd(22)} not compared — the work changed between runs\n`);
+      }
+      if (comparison.regressions.length > 0) {
+        process.stdout.write(
+          `\n${comparison.regressions.length} significant regression(s): ${comparison.regressions.join(', ')}\n`
+        );
+        if (has('fail-on-regression')) process.exitCode = 1;
+      }
+    }
+  }
 
   const failing = report.measurements.filter(m => m.successRate < 1);
   if (failing.length > 0) {

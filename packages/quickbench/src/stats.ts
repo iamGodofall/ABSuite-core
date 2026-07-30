@@ -65,6 +65,48 @@ export function summarise(values: readonly number[]): LatencySummary {
 }
 
 /**
+ * Compare two runs from their summaries alone.
+ *
+ * Welch's t-test needs only a mean, a standard deviation and a sample size, all
+ * of which a `LatencySummary` already carries — so a regression can be judged
+ * against a stored baseline without keeping thousands of raw timings around.
+ * Same test, same threshold, same answer as `compareRuns`; less to store.
+ */
+export function compareSummaries(
+  baseline: LatencySummary,
+  candidate: LatencySummary
+): { deltaMeanMs: number; deltaPercent: number; significant: boolean; tStatistic: number } {
+  const deltaMeanMs = candidate.mean - baseline.mean;
+  const deltaPercent = baseline.mean === 0 ? 0 : (deltaMeanMs / baseline.mean) * 100;
+
+  const baselineVariance = baseline.count > 1 ? baseline.stddev ** 2 / baseline.count : 0;
+  const candidateVariance = candidate.count > 1 ? candidate.stddev ** 2 / candidate.count : 0;
+  const denominator = Math.sqrt(baselineVariance + candidateVariance);
+
+  const round = (value: number) => Math.round(value * 100) / 100;
+
+  // Two perfectly repeatable runs with different means are strong evidence, not
+  // absent evidence. Deciding on the means beats reporting 0/0 as "no change".
+  if (denominator === 0) {
+    const changed = deltaMeanMs !== 0;
+    return {
+      deltaMeanMs: round(deltaMeanMs),
+      deltaPercent: round(deltaPercent),
+      significant: changed,
+      tStatistic: changed ? Infinity : 0,
+    };
+  }
+
+  const tStatistic = deltaMeanMs / denominator;
+  return {
+    deltaMeanMs: round(deltaMeanMs),
+    deltaPercent: round(deltaPercent),
+    significant: Math.abs(tStatistic) > 2,
+    tStatistic: round(tStatistic),
+  };
+}
+
+/**
  * Compare two runs and report whether the change is likely real.
  *
  * Uses Welch's t-test, which does not assume the two runs have equal variance —

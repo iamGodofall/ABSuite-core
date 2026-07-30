@@ -64,10 +64,21 @@ None of these answers require trusting the operator. That is the whole design.
 
 ## The stack
 
+**ABSuite is the trust layer for autonomous systems: eight architectural layers,
+powered by a seven-stage operational loop.**
+
+Two different questions, two different answers, and both are needed. The layers
+ascend — what this becomes, over years. The loop recurses — what it does, every
+second it is running. Without the layers there is no destination; without the
+loop there is no behaviour.
+
+### The loop — what it does now
+
 A recorder records. A trust layer observes, verifies, explains, governs,
-arbitrates, acts and learns. The recorder is one component; these seven are the
-system, and they are also the seven screens of the console — a product whose
-navigation does not match its architecture is telling two different stories.
+arbitrates, acts and learns, then observes again. The recorder is one component;
+these seven are the system, and they are also the seven screens of the console —
+a product whose navigation does not match its architecture is telling two
+different stories.
 
 | | | |
 |---|---|---|
@@ -79,7 +90,7 @@ navigation does not match its architecture is telling two different stories.
 | 6 | **Act** | What can it reach? — MCP, edge execution, connectors, under capability |
 | 7 | **Learn** | How fast is it, really? — measured, with the machine stated |
 
-Two of those layers carry a rule that costs us something:
+Two of those stages carry a rule that costs us something:
 
 **Explanation is derived, never generated.** Using an LLM to explain a trace
 would stack a second black box on the first — a new claim, from reasoning nobody
@@ -90,6 +101,46 @@ checkable.
 **No number is published that a measurement did not produce.** Every figure names
 the machine it came from, or it does not appear. This is the worst possible
 project to be caught rounding up.
+
+And Learn returns to Observe, or it is not a loop: every benchmark run is
+compared against the previous run on the same machine, with Welch's t-test
+deciding whether a change is real rather than noise. The comparison refuses to
+run across different hardware, different Node versions, or an operation whose
+workload changed — a regression alert that fires on a machine swap gets muted
+within a week, and then the real one arrives and nobody looks.
+
+### The layers — what it becomes
+
+| | | | |
+|---|---|---|---|
+| 1 | **Identity** | Every agent, model and human has one that survives restarts | Partly built |
+| 2 | **Capability** | Authority granted narrowly, expiring, revocable | Built |
+| 3 | **Evidence** | Claims checked against sources — supported, unverified, contradicted | Built |
+| 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built |
+| 5 | **Governance** | Policies, obligations, approvals, and the workflows humans run it with | Partly built |
+| 6 | **Autonomy** | ABSuite's own agents watch the record and raise what a person should see | Partly built |
+| 7 | **Collective Intelligence** | Independent deployments verify each other without merging | Not built |
+| 8 | **Civilization** | Millions of agents, autonomous economies, planetary-scale accountability | Not built |
+
+The last column is the point. A roadmap that does not mark what is shipped is a
+wish list wearing an architecture diagram.
+
+Layer 8 is a claim about a question, not about us: at that scale somebody has to
+answer *who did what, under whose authority, using what evidence, according to
+which rules* — and that question gets larger as autonomy grows, not smaller.
+Whether ABSuite is what answers it is not something a README gets to assert.
+
+### Architecture defines capability. Runtime defines behaviour.
+
+The two models are never zipped together. A building and a heartbeat don't need
+the same number of floors: Governance is a layer, Govern is an operation; Trust
+is a property, Arbitrate is an operation. **Every layer participates in the loop
+according to its nature** — the matrix, including which cells are real today, is
+in [the Constitution](./docs/CONSTITUTION.md).
+
+Keeping them separate is also what lets them evolve apart. The loop could gain
+stages — simulate, negotiate, coordinate — without a layer changing; Civilization
+could split into planetary and beyond without touching the loop.
 
 ---
 
@@ -291,7 +342,7 @@ As services, they listen on 8081 (CapKit), 8082 (Edge-Run), 8083 (QuickBench),
 ```
 
 Each step names the thing that performs it. Nothing in that column is
-aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 100.
+aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 101.
 
 ---
 
@@ -301,14 +352,16 @@ Measured, not estimated. `pnpm bench:core` runs the real signing, storage and
 verification paths — no stubs — and writes the numbers below. On a 4-vCPU
 Intel Xeon @ 2.80GHz, Node 22.22.2:
 
+<!-- BENCH:START — generated by scripts/gen-performance-doc.mjs. Do not edit by hand. -->
 | Operation | ops/sec | p50 | p95 | p99 |
 |---|---:|---:|---:|---:|
-| Sign an execution into the chain | 734 | 1.21 ms | 2.36 ms | 3.47 ms |
-| Verify a record (Ed25519 + hash) | 6,085 | 0.15 ms | 0.21 ms | 0.27 ms |
-| Verify a 1,000-record chain | 5.6 | 173 ms | 189 ms | 189 ms |
-| Issue a capability token | 51,123 | 0.02 ms | 0.02 ms | 0.06 ms |
-| Check a capability | 40,138 | 0.02 ms | 0.06 ms | 0.10 ms |
-| Explain a record | 5,156 | 0.18 ms | 0.30 ms | 0.37 ms |
+| Sign an execution into the chain | 606 | 1.27 ms | 2.48 ms | 6.53 ms |
+| Verify a record (Ed25519 + hash) | 5,216 | 0.17 ms | 0.3 ms | 0.64 ms |
+| Verify the whole chain | 6 | 171.2 ms | 201.9 ms | 201.9 ms |
+| Issue a capability token | 50,634 | 0.02 ms | 0.03 ms | 0.05 ms |
+| Check a capability | 39,508 | 0.02 ms | 0.04 ms | 0.09 ms |
+| Explain a record | 5,458 | 0.17 ms | 0.25 ms | 0.32 ms |
+<!-- BENCH:END -->
 
 Your machine will give different numbers — that is why ours is stated. The
 table is generated from [`bench/core-latest.json`](./bench/core-latest.json) and
@@ -324,7 +377,7 @@ of that command.
 ## Status
 
 ```text
-444 tests                    100 API endpoints
+449 tests                    101 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```

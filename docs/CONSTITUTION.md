@@ -137,11 +137,77 @@ project and the people who install it.
 
 ---
 
-## The stack
+## The two models
 
-Seven things this system does, in the order trust is built. Each rests on the one
-below it, and each is a screen in the console, because a product whose navigation
-does not match its architecture is telling two different stories.
+ABSuite is described by two things at once, and confusing them has cost this
+project clarity more than once. They are different axes, and both are needed:
+
+- **Eight architectural layers** — what ABSuite *becomes*. They ascend. Identity
+  at the bottom, civilisation at the top, each resting on the one below. This is
+  the building, and it is a destination measured in years.
+- **A seven-stage operational loop** — what ABSuite *does*, every second it runs.
+  It recurses. Observe, verify, explain, govern, arbitrate, act, learn, and back
+  to observe. This is the heartbeat, and it is running today.
+
+Without the eight layers there is no destination. Without the seven stages there
+is no behaviour. The canonical picture is one inside the other:
+
+```text
+              Civilization                     ▲
+        Collective Intelligence                │
+              Autonomy                         │
+              Governance          ┌─────────────────────────┐
+                Trust             │  Observe → Verify →     │   the loop,
+              Evidence            │  Explain → Govern →     │   running now
+             Capability           │  Arbitrate → Act →      │
+              Identity            │  Learn ──┐              │
+                  ▲               │     ▲    │              │
+                  │               │     └────┘              │
+            the building          └─────────────────────────┘
+             (a decade)
+```
+
+**Architecture defines capability. Runtime defines behaviour.**
+
+The two are never zipped together. Seven stages and eight layers is not an
+accident of counting to be corrected — a building and a heartbeat don't need the
+same number of floors. Governance is a layer; Govern is an operation. Trust is a
+property; Arbitrate is an operation. Autonomy is a state; Act is an operation.
+Related, not identical, and forcing a one-to-one mapping would be a tidy diagram
+that lies.
+
+The honest relationship is a matrix. **Every layer participates in the loop
+according to its nature** — some layers touch two stages, some touch all seven:
+
+| Layer | Observe | Verify | Explain | Govern | Arbitrate | Act | Learn |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| Identity | ● | ● | | | | | |
+| Capability | ● | ● | ● | | | | |
+| Evidence | ● | ● | ● | | | | |
+| Trust | | ● | ● | | ● | | ● |
+| Governance | | | | ● | ● | | |
+| Autonomy | | | | | | ● | ● |
+| Collective Intelligence | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Civilization | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+
+● participates today · ○ would participate, at a layer not yet built
+
+The circles matter as much as the dots. The upper two rows touch every stage by
+their nature, and neither layer exists — filling them with the same mark as the
+built rows would turn an architecture into an advertisement.
+
+The two models also evolve independently, which is the practical reason to keep
+them apart. The loop may one day gain stages — simulate, negotiate, coordinate —
+without a single layer changing. Civilization may split into planetary and
+beyond without the loop changing at all.
+
+---
+
+## The loop
+
+Seven things this system does, in the order trust is built, returning to the
+start. Each is a screen in the console, because a product whose navigation does
+not match its architecture is telling two different stories.
 
 | | | |
 |---|---|---|
@@ -153,7 +219,15 @@ does not match its architecture is telling two different stories.
 | 6 | **Act** | Execute — MCP, edge execution, connectors — only under a capability that was granted |
 | 7 | **Learn** | Measure the system against itself: baselines, regression detection, and numbers that came from a benchmark |
 
-Layer 3 carries a rule that looks like a limitation and is the opposite of one.
+**Learn returns to Observe, or it is not a loop.** A measurement that terminates
+in a dashboard tile has taught nobody anything. Every benchmark run is compared
+against the previous run on the same machine, with Welch's t-test deciding
+whether a change is real; the comparison refuses to run across different hardware,
+different runtimes, or an operation whose workload changed, because a regression
+alert that fires on a machine swap gets muted within a week — and then the real
+regression arrives and nobody looks.
+
+Stage 3 carries a rule that looks like a limitation and is the opposite of one.
 **Explanation is derived, never generated.** Using a language model to explain a
 record would place a second unauditable system on top of the first: a new claim,
 produced by reasoning nobody can inspect, about a record whose entire value is
@@ -162,15 +236,12 @@ trustworthy thing on the screen. A generated explanation would be more
 impressive. A derived one is checkable, and this project chooses checkable over
 impressive every time the two conflict.
 
-Layer 7 carries the matching rule. **No number is published that a measurement
+Stage 7 carries the matching rule. **No number is published that a measurement
 did not produce.** Throughput, latency, record counts, verification rates — every
 figure names the machine it was measured on, or it does not appear. A system that
 says "trust must be verifiable" and then advertises an unverifiable number has
 refuted itself in its own marketing, and one fabricated figure costs more than
 ten honest ones are worth.
-
-The seven layers above are what the system *does*. The seven below are what it
-*becomes* — a different axis, over a longer horizon.
 
 ---
 
@@ -180,15 +251,29 @@ The black box is the first capability people understand immediately, and it is
 the front door — one package, sixty seconds, no account. It is not the whole
 building. What it grows into, in order, each layer resting on the one below:
 
-| | | |
-|---|---|---|
-| 1 | **Identity** | Every agent, model and human has one that survives restarts |
-| 2 | **Capability** | Authority is granted narrowly, expires, and is revocable centrally |
-| 3 | **Evidence** | Claims are checked against sources and reported as supported, unverified or contradicted |
-| 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people |
-| 5 | **Governance** | Policies, obligations, approvals and the workflows humans use to run all of it |
-| 6 | **Autonomy** | ABSuite's own agents watch the record continuously and raise what a person should see |
-| 7 | **Collective** | Independent deployments verify each other's records without merging them |
+| | | | |
+|---|---|---|---|
+| 1 | **Identity** | Every agent, model and human has one that survives restarts | Partly built |
+| 2 | **Capability** | Authority is granted narrowly, expires, and is revocable centrally | Built |
+| 3 | **Evidence** | Claims are checked against sources and reported as supported, unverified or contradicted | Built |
+| 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built |
+| 5 | **Governance** | Policies, obligations, approvals and the workflows humans use to run all of it | Partly built |
+| 6 | **Autonomy** | ABSuite's own agents watch the record continuously and raise what a person should see | Partly built |
+| 7 | **Collective Intelligence** | Independent deployments verify each other's records without merging them | Not built |
+| 8 | **Civilization** | Millions of agents, autonomous economies, planetary-scale accountability | Not built |
+
+The last column is not decoration. A roadmap that does not mark what is shipped
+is a wish list wearing an architecture diagram, and this project does not get to
+publish one of those.
+
+**Layer 8 is a claim about a question, not about us.** At civilisation scale
+somebody has to be able to answer *who did what, under whose authority, using
+what evidence, according to which rules* — when a city allocates electricity
+between autonomous systems at three in the morning and a person asks, years
+later, which agent decided and whether it was allowed to. That question does not
+go away as autonomy grows; it gets larger, and it gets harder to answer after the
+fact than during. Building the answer now is the entire bet. Whether ABSuite is
+what answers it is not something this document is entitled to assert.
 
 Layer 7 is where the design decision lives that determines what this project
 becomes. Verification between deployments must be **federated, never

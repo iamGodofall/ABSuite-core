@@ -42,6 +42,28 @@ interface BenchReport {
   reproduce: string;
 }
 
+interface Delta {
+  operation: string;
+  baselineOpsPerSecond: number;
+  currentOpsPerSecond: number;
+  deltaPercent: number;
+  significant: boolean;
+  verdict: 'faster' | 'slower' | 'unchanged';
+}
+
+interface Regression {
+  compared: boolean;
+  reason?: string;
+  comparison?: {
+    comparable: boolean;
+    reason?: string;
+    baselineMeasuredAt?: string;
+    deltas?: Delta[];
+    regressions?: string[];
+    incomparable?: { operation: string; reason: string }[];
+  };
+}
+
 type BenchState =
   | { status: 'loading' }
   | { status: 'unmeasured'; howTo: string; reason: string }
@@ -68,6 +90,7 @@ const HEADLINE: Record<string, string> = {
 
 export const PerformanceTab = () => {
   const [state, setState] = useState<BenchState>({ status: 'loading' });
+  const [regression, setRegression] = useState<Regression | null>(null);
   const [running, setRunning] = useState(false);
 
   const load = useCallback(async () => {
@@ -87,6 +110,15 @@ export const PerformanceTab = () => {
         return;
       }
       setState({ status: 'measured', report: data.report, source: data.source ?? 'unknown' });
+
+      // The loop closes here: a measurement compared against the last one is a
+      // signal; on its own it is only a number.
+      try {
+        const compared = await fetch('/bench/core/regression');
+        setRegression(compared.ok ? ((await compared.json()) as Regression) : null);
+      } catch {
+        setRegression(null);
+      }
     } catch (error) {
       setState({ status: 'error', message: (error as Error).message });
     }
@@ -192,6 +224,71 @@ export const PerformanceTab = () => {
               {runButton}
             </div>
           </div>
+
+          {regression && (
+            <div className="rounded-xl border border-border bg-bg-secondary p-4">
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-2">
+                Against the previous run
+              </div>
+
+              {!regression.compared && (
+                <p className="text-xs text-text-muted leading-relaxed">
+                  {regression.comparison?.reason ?? regression.reason}
+                </p>
+              )}
+
+              {regression.compared && regression.comparison?.deltas && (
+                <>
+                  <p className="text-xs text-text-muted mb-3 leading-relaxed">
+                    Compared with the run of{' '}
+                    {regression.comparison.baselineMeasuredAt
+                      ? new Date(regression.comparison.baselineMeasuredAt).toLocaleString()
+                      : 'an earlier date'}
+                    , on this same machine. Significance is Welch's t-test — a change inside the run-to-run
+                    spread is called noise rather than an improvement.
+                  </p>
+
+                  <ul className="space-y-1">
+                    {regression.comparison.deltas.map(delta => (
+                      <li key={delta.operation} className="flex items-baseline gap-2 text-[11px] font-mono">
+                        <span className={cn('w-4 shrink-0',
+                          delta.verdict === 'slower' ? 'text-amber-400'
+                            : delta.verdict === 'faster' ? 'text-emerald-400' : 'text-text-muted')}>
+                          {delta.verdict === 'slower' ? '▲' : delta.verdict === 'faster' ? '▼' : '·'}
+                        </span>
+                        <span className="text-text-primary w-44 shrink-0">{delta.operation}</span>
+                        <span className={cn(
+                          delta.verdict === 'slower' ? 'text-amber-400'
+                            : delta.verdict === 'faster' ? 'text-emerald-400' : 'text-text-muted')}>
+                          {delta.deltaPercent > 0 ? '+' : ''}{delta.deltaPercent}% mean latency
+                        </span>
+                        {!delta.significant && <span className="text-text-muted opacity-70">within noise</span>}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {regression.comparison.incomparable && regression.comparison.incomparable.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {regression.comparison.incomparable.map(item => (
+                        <li key={item.operation} className="text-[11px] text-text-muted leading-snug">
+                          <span className="font-mono">{item.operation}</span> — not compared: the work changed
+                          between runs, so a difference would say nothing about speed.
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {regression.comparison.regressions && regression.comparison.regressions.length > 0 && (
+                    <p className="text-[11px] text-amber-400 mt-2">
+                      {regression.comparison.regressions.length} significant regression(s):{' '}
+                      {regression.comparison.regressions.join(', ')}. That is a statement about two
+                      measurements, not a diagnosis.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {state.report.measurements.map(m => (

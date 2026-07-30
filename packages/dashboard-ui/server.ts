@@ -588,6 +588,16 @@ app.get('/bench/core', async (_req, res) => {
   }
 });
 
+/** This run against the previous one on the same machine. */
+app.get('/bench/core/regression', async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.quickbench}/bench/core/regression`);
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'QuickBench is unreachable', compared: false });
+  }
+});
+
 /** Run it here, now, on this machine. Costs CPU, which is why it needs the key. */
 app.post('/bench/core', requireAdminAccess, async (req, res) => {
   try {

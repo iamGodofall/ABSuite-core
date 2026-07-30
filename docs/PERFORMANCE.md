@@ -16,8 +16,8 @@ A performance figure is only true of the machine that produced it. This one is:
 | Memory | 15.7 GB |
 | Platform | linux/x64 |
 | Runtime | Node 22.22.2 |
-| Commit | `c62a35b` |
-| Measured | 2026-07-30T00:59:05.068Z |
+| Commit | `7bfdc5f` |
+| Measured | 2026-07-30T07:46:12.807Z |
 
 Your hardware will give different numbers. That is the point of stating ours:
 
@@ -29,14 +29,14 @@ pnpm bench:core
 
 | Operation | ops/sec | p50 ms | p95 ms | p99 ms | Iterations | Success |
 |---|---:|---:|---:|---:|---:|---:|
-| `trace.record` | 734.4 | 1.21 | 2.36 | 3.47 | 2,000 | 100.00% |
-| `trace.verify` | 6,084.9 | 0.15 | 0.21 | 0.27 | 2,000 | 100.00% |
-| `chain.verify` | 5.6 | 173.32 | 189.46 | 189.46 | 10 | 100.00% |
-| `capability.issue` | 51,123.3 | 0.02 | 0.02 | 0.06 | 2,000 | 100.00% |
-| `capability.validate` | 40,138 | 0.02 | 0.06 | 0.1 | 2,000 | 100.00% |
-| `explain.render` | 5,156.3 | 0.18 | 0.3 | 0.37 | 2,000 | 100.00% |
+| `trace.record` | 606.4 | 1.27 | 2.48 | 6.53 | 2,000 | 100.00% |
+| `trace.verify` | 5,215.9 | 0.17 | 0.3 | 0.64 | 2,000 | 100.00% |
+| `chain.verify` | 5.7 | 171.2 | 201.9 | 201.9 | 10 | 100.00% |
+| `capability.issue` | 50,633.6 | 0.02 | 0.03 | 0.05 | 2,000 | 100.00% |
+| `capability.validate` | 39,508.3 | 0.02 | 0.04 | 0.09 | 2,000 | 100.00% |
+| `explain.render` | 5,458.2 | 0.17 | 0.25 | 0.32 | 2,000 | 100.00% |
 
-Whole suite: 7.2s.
+Whole suite: 7.8s.
 
 ## What each operation is
 
@@ -44,48 +44,48 @@ Whole suite: 7.2s.
 
 Hash an input and output, link to the previous record, Ed25519-sign the result and commit it to SQLite (WAL) in one transaction.
 
-- **734.4 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
-- Latency: min 0.88 ms · p50 1.21 ms · p95 2.36 ms · p99 3.47 ms · max 11.87 ms (σ 0.6 ms).
+- **606.4 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
+- Latency: min 0.91 ms · p50 1.27 ms · p95 2.48 ms · p99 6.53 ms · max 68.73 ms (σ 2.9 ms).
 - Every iteration succeeded.
 
 ### `trace.verify`
 
 Re-canonicalise a stored record, recompute its hash and verify the Ed25519 signature against the public key.
 
-- **6,084.9 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
-- Latency: min 0.14 ms · p50 0.15 ms · p95 0.21 ms · p99 0.27 ms · max 1.68 ms (σ 0.06 ms).
+- **5,215.9 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
+- Latency: min 0.14 ms · p50 0.17 ms · p95 0.3 ms · p99 0.64 ms · max 1.9 ms (σ 0.1 ms).
 - Every iteration succeeded.
 
 ### `chain.verify`
 
 Walk a 1000-record chain end to end: every link checked against its predecessor and every record's signature verified.
 
-- **5.6 operations/second** measured over 10 iterations (1 warmup iterations discarded, concurrency 1).
-- Latency: min 169.48 ms · p50 173.32 ms · p95 189.46 ms · p99 189.46 ms · max 189.46 ms (σ 6.59 ms).
+- **5.7 operations/second** measured over 10 iterations (1 warmup iterations discarded, concurrency 1).
+- Latency: min 161.81 ms · p50 171.2 ms · p95 201.9 ms · p99 201.9 ms · max 201.9 ms (σ 10.85 ms).
 - Every iteration succeeded.
 
 ### `capability.issue`
 
 Mint a scoped, expiring HS256 capability token.
 
-- **51,123.3 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
-- Latency: min 0.01 ms · p50 0.02 ms · p95 0.02 ms · p99 0.06 ms · max 4.1 ms (σ 0.09 ms).
+- **50,633.6 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
+- Latency: min 0.01 ms · p50 0.02 ms · p95 0.03 ms · p99 0.05 ms · max 4.07 ms (σ 0.09 ms).
 - Every iteration succeeded.
 
 ### `capability.validate`
 
 Verify a token signature, check expiry and audience, and match the requested scope segment-wise.
 
-- **40,138 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
-- Latency: min 0.01 ms · p50 0.02 ms · p95 0.06 ms · p99 0.1 ms · max 1.64 ms (σ 0.04 ms).
+- **39,508.3 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
+- Latency: min 0.01 ms · p50 0.02 ms · p95 0.04 ms · p99 0.09 ms · max 1.51 ms (σ 0.04 ms).
 - Every iteration succeeded.
 
 ### `explain.render`
 
 Derive the plain-language explanation of a verified record from its signed fields and render it as text. No model involved.
 
-- **5,156.3 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
-- Latency: min 0.15 ms · p50 0.18 ms · p95 0.3 ms · p99 0.37 ms · max 3.85 ms (σ 0.1 ms).
+- **5,458.2 operations/second** measured over 2,000 iterations (50 warmup iterations discarded, concurrency 1).
+- Latency: min 0.15 ms · p50 0.17 ms · p95 0.25 ms · p99 0.32 ms · max 4.11 ms (σ 0.09 ms).
 - Every iteration succeeded.
 
 ## What these numbers are not

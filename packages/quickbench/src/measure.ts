@@ -15,7 +15,7 @@
  * requests that never happened.
  */
 import { cpus, totalmem, platform, arch, hostname } from 'node:os';
-import { summarise, type LatencySummary } from './stats';
+import { summarise, compareSummaries, type LatencySummary } from './stats';
 
 /** The machine a measurement is only true of. */
 export interface BenchEnvironment {
@@ -198,6 +198,132 @@ export async function measureSuite(
     measurements,
     totalDurationMs: round(Number(process.hrtime.bigint() - startedAt) / 1e6),
     reproduce: options.reproduce ?? 'pnpm bench:core',
+  };
+}
+
+export interface OperationDelta {
+  operation: string;
+  baselineOpsPerSecond: number;
+  currentOpsPerSecond: number;
+  deltaPercent: number;
+  /** Change in mean latency, milliseconds. Positive is slower. */
+  deltaMeanMs: number;
+  /** Welch's t-test says this is unlikely to be noise. */
+  significant: boolean;
+  tStatistic: number;
+  verdict: 'faster' | 'slower' | 'unchanged';
+}
+
+export type ReportComparison =
+  | {
+      comparable: false;
+      /** Why these two runs must not be compared. */
+      reason: string;
+    }
+  | {
+      comparable: true;
+      baselineMeasuredAt: string;
+      currentMeasuredAt: string;
+      deltas: OperationDelta[];
+      /** Operations that got significantly slower. The reason this exists. */
+      regressions: string[];
+      /** Present in one report and not the other; compared to nothing. */
+      onlyInCurrent: string[];
+      onlyInBaseline: string[];
+      /** Same name, different work. Reported rather than silently compared. */
+      incomparable: { operation: string; reason: string }[];
+    };
+
+/**
+ * Compare a run against an earlier one — the step that closes the loop.
+ *
+ * Measurement on its own is a number. A measurement compared against the last
+ * one is a signal, and that is what makes "Learn" feed back into the system
+ * rather than terminating in a dashboard tile.
+ *
+ * It refuses to compare across machines. A laptop and a CI runner produce
+ * different numbers for reasons that have nothing to do with the code, and a
+ * regression alert that fires on hardware differences gets muted within a week —
+ * after which the real regression arrives and nobody looks.
+ */
+export function compareReports(baseline: BenchReport, current: BenchReport): ReportComparison {
+  const a = baseline.environment;
+  const b = current.environment;
+
+  if (a.cpuModel !== b.cpuModel || a.cpuCount !== b.cpuCount || a.arch !== b.arch || a.platform !== b.platform) {
+    return {
+      comparable: false,
+      reason:
+        `Measured on different machines (${a.cpuModel}, ${a.cpuCount} vCPU, ${a.platform}/${a.arch} vs ` +
+        `${b.cpuModel}, ${b.cpuCount} vCPU, ${b.platform}/${b.arch}). A difference between them says nothing about the code.`,
+    };
+  }
+
+  if (a.node !== b.node) {
+    return {
+      comparable: false,
+      reason: `Measured on different Node versions (${a.node} vs ${b.node}). The runtime is part of what was measured.`,
+    };
+  }
+
+  const byOperation = new Map(baseline.measurements.map(m => [m.operation, m]));
+  const deltas: OperationDelta[] = [];
+  const regressions: string[] = [];
+  const onlyInCurrent: string[] = [];
+  const incomparable: { operation: string; reason: string }[] = [];
+
+  for (const measurement of current.measurements) {
+    const previous = byOperation.get(measurement.operation);
+    if (!previous) {
+      onlyInCurrent.push(measurement.operation);
+      continue;
+    }
+
+    // The description states the work — "a 1,000-record chain" versus "a
+    // 400-record chain" is the same operation doing different amounts of it.
+    // Comparing those produced a 59% "improvement" that was purely the smaller
+    // chain, which is exactly the kind of flattering nonsense this file exists
+    // to prevent.
+    if (previous.description !== measurement.description) {
+      incomparable.push({
+        operation: measurement.operation,
+        reason: `The work changed between runs, so a difference says nothing about speed. Was: "${previous.description}" Now: "${measurement.description}"`,
+      });
+      continue;
+    }
+
+    const comparison = compareSummaries(previous.latencyMs, measurement.latencyMs);
+    const verdict: OperationDelta['verdict'] = !comparison.significant
+      ? 'unchanged'
+      : comparison.deltaMeanMs > 0
+        ? 'slower'
+        : 'faster';
+
+    if (verdict === 'slower') regressions.push(measurement.operation);
+
+    deltas.push({
+      operation: measurement.operation,
+      baselineOpsPerSecond: previous.opsPerSecond,
+      currentOpsPerSecond: measurement.opsPerSecond,
+      deltaPercent: comparison.deltaPercent,
+      deltaMeanMs: comparison.deltaMeanMs,
+      significant: comparison.significant,
+      tStatistic: comparison.tStatistic,
+      verdict,
+    });
+  }
+
+  const current_ops = new Set(current.measurements.map(m => m.operation));
+
+  return {
+    comparable: true,
+    baselineMeasuredAt: a.measuredAt,
+    currentMeasuredAt: b.measuredAt,
+    deltas,
+    regressions,
+    onlyInCurrent,
+    onlyInBaseline: baseline.measurements.map(m => m.operation).filter(op => !current_ops.has(op)),
+    incomparable,
   };
 }
 

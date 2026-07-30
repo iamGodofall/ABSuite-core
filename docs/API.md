@@ -148,6 +148,7 @@ LLM and HTTP benchmarking with statistical regression detection.
 |---|---|---|---|
 | GET | `/bench/core` | _public_ | — |
 | POST | `/bench/core` | `bench:run` | — |
+| GET | `/bench/core/regression` | _public_ | — |
 | GET | `/compare` | `bench:read` | — |
 | GET | `/health` | _public_ | — |
 | GET | `/history` | `bench:read` | — |
@@ -157,6 +158,10 @@ LLM and HTTP benchmarking with statistical regression detection.
 | POST | `/run` | `bench:run` | — |
 | GET | `/run/:jobId` | `bench:read` | — |
 | GET | `/run/:jobId/report` | `bench:read` | — |
+
+### Notes
+
+**`GET /bench/core/regression`** — This run against the previous one — the step that closes the loop. A measurement on its own is a number on a screen. Compared against the last run on the same machine it becomes a signal, which is what makes Learn feed back into the system instead of terminating in a dashboard tile.
 
 ---
 
@@ -259,4 +264,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_100 HTTP endpoints across 5 services. Generated from source._
+_101 HTTP endpoints across 5 services. Generated from source._

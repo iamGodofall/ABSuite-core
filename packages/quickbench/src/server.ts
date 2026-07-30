@@ -3,13 +3,13 @@
  */
 import express from 'express';
 import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuitecore/capkit';
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
 import { BenchmarkRunner } from './runner';
 import { availableProviders } from './providers';
 import { toMarkdown, toCsv } from './report';
 import { runCoreSuite } from './core-suite';
-import { renderReport, type BenchReport } from './measure';
+import { renderReport, compareReports, type BenchReport } from './measure';
 
 const PORT = Number(process.env.QUICKBENCH_PORT || process.env.PORT || 8083);
 const STARTED_AT = Date.now();
@@ -174,6 +174,28 @@ function loadRecordedReport(): BenchReport | null {
   }
 }
 
+/** The most recent run before `measuredAt`, from the history directory. */
+function loadPreviousReport(measuredAt: string): BenchReport | null {
+  try {
+    const dir = join(dirname(RESULTS_PATH), 'history');
+    if (!existsSync(dir)) return null;
+    const candidates = readdirSync(dir)
+      .filter(name => name.endsWith('.json'))
+      .sort()
+      .reverse();
+
+    for (const name of candidates) {
+      const parsed = JSON.parse(readFileSync(join(dir, name), 'utf8')) as BenchReport;
+      if (parsed?.schema !== 'absuite.bench.v1') continue;
+      // Strictly earlier: comparing a run against itself is not a comparison.
+      if (parsed.environment.measuredAt < measuredAt) return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** The most recent run in this process, which beats anything on disk. */
 let liveReport: BenchReport | null = null;
 let running = false;
@@ -196,6 +218,32 @@ app.get('/bench/core', (req, res) => {
   }
 
   return res.status(200).json({ measured: true, source: liveReport ? 'this process' : RESULTS_PATH, report });
+});
+
+/**
+ * This run against the previous one — the step that closes the loop.
+ *
+ * A measurement on its own is a number on a screen. Compared against the last
+ * run on the same machine it becomes a signal, which is what makes Learn feed
+ * back into the system instead of terminating in a dashboard tile.
+ */
+app.get('/bench/core/regression', (_req, res) => {
+  const current = liveReport ?? loadRecordedReport();
+  if (!current) {
+    return res.status(200).json({ compared: false, reason: 'No benchmark has been run on this machine.', howTo: 'pnpm bench:core' });
+  }
+
+  const baseline = loadPreviousReport(current.environment.measuredAt);
+  if (!baseline) {
+    return res.status(200).json({
+      compared: false,
+      reason: 'Only one run exists, so there is nothing to compare it against. Run the benchmark again to get a baseline.',
+      howTo: 'pnpm bench:core',
+    });
+  }
+
+  const comparison = compareReports(baseline, current);
+  return res.status(200).json({ compared: comparison.comparable, comparison });
 });
 
 app.post('/bench/core', requireCapability('bench:run'), async (req, res) => {

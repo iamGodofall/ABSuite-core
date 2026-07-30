@@ -1,4 +1,4 @@
-import { measureOperation, measureSuite, describeEnvironment, renderReport } from './measure';
+import { measureOperation, measureSuite, describeEnvironment, renderReport, compareReports, type BenchReport } from './measure';
 
 describe('measuring honestly', () => {
   test('times every iteration and discards exactly the stated warmup', async () => {
@@ -109,5 +109,110 @@ describe('measuring honestly', () => {
     expect(text).toContain('abc1234');
     // Anyone must be able to re-run it and disagree with the result.
     expect(text).toContain('pnpm bench:core');
+  });
+});
+
+describe('comparing a run against the last one', () => {
+  const env = (over: Partial<BenchReport['environment']> = {}) => ({
+    node: '22.22.2', v8: '12.4', platform: 'linux', arch: 'x64',
+    cpuModel: 'Xeon 2.80GHz', cpuCount: 4, memoryGb: 15.7,
+    measuredAt: '2026-07-29T00:00:00.000Z', ...over,
+  });
+
+  const measurement = (over: Record<string, unknown> = {}) => ({
+    operation: 'trace.record',
+    description: 'sign and store a record',
+    iterations: 500, warmupDiscarded: 25, concurrency: 1, failures: 0, successRate: 1,
+    opsPerSecond: 700, wallClockMs: 714,
+    latencyMs: { count: 500, min: 1, max: 3, mean: 1.4, stddev: 0.2, p50: 1.3, p90: 1.8, p95: 2, p99: 2.5 },
+    ...over,
+  }) as BenchReport['measurements'][number];
+
+  const report = (over: Partial<BenchReport> = {}): BenchReport => ({
+    schema: 'absuite.bench.v1',
+    environment: env(),
+    measurements: [measurement()],
+    totalDurationMs: 1000,
+    reproduce: 'pnpm bench:core',
+    ...over,
+  });
+
+  test('refuses to compare across machines', () => {
+    const other = report({ environment: env({ cpuModel: 'Apple M2', cpuCount: 10 }) });
+    const result = compareReports(report(), other);
+
+    // A laptop is not slower than a CI runner in any sense that means anything
+    // about the code. An alert that fires on hardware gets muted within a week.
+    expect(result.comparable).toBe(false);
+    if (!result.comparable) expect(result.reason).toMatch(/different machines/i);
+  });
+
+  test('refuses to compare across Node versions', () => {
+    const result = compareReports(report(), report({ environment: env({ node: '24.0.0' }) }));
+    expect(result.comparable).toBe(false);
+    if (!result.comparable) expect(result.reason).toMatch(/Node versions/i);
+  });
+
+  test('refuses to compare an operation whose work changed', () => {
+    // This is a real bug the tool produced: a 400-record chain measured against
+    // a 1,000-record baseline reported a 59% "improvement" that was entirely the
+    // smaller chain.
+    const before = report({ measurements: [measurement({ operation: 'chain.verify', description: 'walk a 1000-record chain' })] });
+    const after = report({
+      environment: env({ measuredAt: '2026-07-30T00:00:00.000Z' }),
+      measurements: [measurement({
+        operation: 'chain.verify',
+        description: 'walk a 400-record chain',
+        latencyMs: { count: 10, min: 60, max: 80, mean: 70, stddev: 5, p50: 70, p90: 78, p95: 79, p99: 80 },
+      })],
+    });
+
+    const result = compareReports(before, after);
+    expect(result.comparable).toBe(true);
+    if (result.comparable) {
+      expect(result.deltas).toHaveLength(0);
+      expect(result.incomparable[0]!.operation).toBe('chain.verify');
+      expect(result.regressions).toEqual([]);
+    }
+  });
+
+  test('a real slowdown is a regression; noise is not', () => {
+    const slower = report({
+      environment: env({ measuredAt: '2026-07-30T00:00:00.000Z' }),
+      measurements: [measurement({
+        latencyMs: { count: 500, min: 2, max: 5, mean: 2.8, stddev: 0.3, p50: 2.7, p90: 3.2, p95: 3.5, p99: 4 },
+        opsPerSecond: 350,
+      })],
+    });
+
+    const regressed = compareReports(report(), slower);
+    expect(regressed.comparable).toBe(true);
+    if (regressed.comparable) {
+      expect(regressed.regressions).toEqual(['trace.record']);
+      expect(regressed.deltas[0]!.verdict).toBe('slower');
+      expect(regressed.deltas[0]!.deltaPercent).toBeGreaterThan(90);
+    }
+
+    // A hair's difference well inside the spread is not a finding.
+    const jitter = report({
+      environment: env({ measuredAt: '2026-07-30T00:00:00.000Z' }),
+      measurements: [measurement({ latencyMs: { count: 500, min: 1, max: 3, mean: 1.401, stddev: 0.2, p50: 1.3, p90: 1.8, p95: 2, p99: 2.5 } })],
+    });
+    const quiet = compareReports(report(), jitter);
+    if (quiet.comparable) {
+      expect(quiet.regressions).toEqual([]);
+      expect(quiet.deltas[0]!.verdict).toBe('unchanged');
+    }
+  });
+
+  test('an operation that did not exist before is not compared to nothing', () => {
+    const withNew = report({
+      measurements: [measurement(), measurement({ operation: 'explain.render' })],
+    });
+    const result = compareReports(report(), withNew);
+    if (result.comparable) {
+      expect(result.onlyInCurrent).toEqual(['explain.render']);
+      expect(result.deltas.map(d => d.operation)).toEqual(['trace.record']);
+    }
   });
 });

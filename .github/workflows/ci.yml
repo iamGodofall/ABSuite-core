@@ -62,7 +62,7 @@ jobs:
 
       # Published performance figures must match the benchmark data in the repo.
       # Hand-edited numbers are how honest projects start lying by accident.
-      - name: Performance doc matches the measured data
+      - name: Published performance numbers match the measured data
         run: node scripts/gen-performance-doc.mjs --check
 
   test:

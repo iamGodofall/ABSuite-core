@@ -8,6 +8,7 @@ export {
   stddev,
   summarise,
   compareRuns,
+  compareSummaries,
   type LatencySummary,
 } from './stats';
 
@@ -38,6 +39,9 @@ export {
   measureSuite,
   describeEnvironment,
   renderReport,
+  compareReports,
+  type OperationDelta,
+  type ReportComparison,
   type MeasureSpec,
   type OperationMeasurement,
   type BenchReport,

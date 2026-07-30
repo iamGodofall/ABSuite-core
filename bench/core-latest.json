@@ -8,8 +8,8 @@
     "cpuModel": "Intel(R) Xeon(R) Processor @ 2.80GHz",
     "cpuCount": 4,
     "memoryGb": 15.7,
-    "commit": "c62a35b",
-    "measuredAt": "2026-07-30T00:59:05.068Z"
+    "commit": "7bfdc5f",
+    "measuredAt": "2026-07-30T07:46:12.807Z"
   },
   "measurements": [
     {
@@ -22,17 +22,17 @@
       "successRate": 1,
       "latencyMs": {
         "count": 2000,
-        "min": 0.88,
-        "max": 11.87,
-        "mean": 1.36,
-        "stddev": 0.6,
-        "p50": 1.21,
-        "p90": 2.05,
-        "p95": 2.36,
-        "p99": 3.47
+        "min": 0.91,
+        "max": 68.73,
+        "mean": 1.65,
+        "stddev": 2.9,
+        "p50": 1.27,
+        "p90": 1.95,
+        "p95": 2.48,
+        "p99": 6.53
       },
-      "opsPerSecond": 734.4,
-      "wallClockMs": 2723.42
+      "opsPerSecond": 606.4,
+      "wallClockMs": 3298.04
     },
     {
       "operation": "trace.verify",
@@ -45,16 +45,16 @@
       "latencyMs": {
         "count": 2000,
         "min": 0.14,
-        "max": 1.68,
-        "mean": 0.16,
-        "stddev": 0.06,
-        "p50": 0.15,
-        "p90": 0.19,
-        "p95": 0.21,
-        "p99": 0.27
+        "max": 1.9,
+        "mean": 0.19,
+        "stddev": 0.1,
+        "p50": 0.17,
+        "p90": 0.25,
+        "p95": 0.3,
+        "p99": 0.64
       },
-      "opsPerSecond": 6084.9,
-      "wallClockMs": 328.68
+      "opsPerSecond": 5215.9,
+      "wallClockMs": 383.44
     },
     {
       "operation": "chain.verify",
@@ -66,17 +66,17 @@
       "successRate": 1,
       "latencyMs": {
         "count": 10,
-        "min": 169.48,
-        "max": 189.46,
-        "mean": 177.52,
-        "stddev": 6.59,
-        "p50": 173.32,
-        "p90": 184.19,
-        "p95": 189.46,
-        "p99": 189.46
+        "min": 161.81,
+        "max": 201.9,
+        "mean": 175.32,
+        "stddev": 10.85,
+        "p50": 171.2,
+        "p90": 186.01,
+        "p95": 201.9,
+        "p99": 201.9
       },
-      "opsPerSecond": 5.6,
-      "wallClockMs": 1775.26
+      "opsPerSecond": 5.7,
+      "wallClockMs": 1753.23
     },
     {
       "operation": "capability.issue",
@@ -89,16 +89,16 @@
       "latencyMs": {
         "count": 2000,
         "min": 0.01,
-        "max": 4.1,
+        "max": 4.07,
         "mean": 0.02,
         "stddev": 0.09,
         "p50": 0.02,
         "p90": 0.02,
-        "p95": 0.02,
-        "p99": 0.06
+        "p95": 0.03,
+        "p99": 0.05
       },
-      "opsPerSecond": 51123.3,
-      "wallClockMs": 39.12
+      "opsPerSecond": 50633.6,
+      "wallClockMs": 39.5
     },
     {
       "operation": "capability.validate",
@@ -111,16 +111,16 @@
       "latencyMs": {
         "count": 2000,
         "min": 0.01,
-        "max": 1.64,
+        "max": 1.51,
         "mean": 0.02,
         "stddev": 0.04,
         "p50": 0.02,
         "p90": 0.03,
-        "p95": 0.06,
-        "p99": 0.1
+        "p95": 0.04,
+        "p99": 0.09
       },
-      "opsPerSecond": 40138,
-      "wallClockMs": 49.83
+      "opsPerSecond": 39508.3,
+      "wallClockMs": 50.62
     },
     {
       "operation": "explain.render",
@@ -133,18 +133,18 @@
       "latencyMs": {
         "count": 2000,
         "min": 0.15,
-        "max": 3.85,
-        "mean": 0.19,
-        "stddev": 0.1,
-        "p50": 0.18,
-        "p90": 0.25,
-        "p95": 0.3,
-        "p99": 0.37
+        "max": 4.11,
+        "mean": 0.18,
+        "stddev": 0.09,
+        "p50": 0.17,
+        "p90": 0.22,
+        "p95": 0.25,
+        "p99": 0.32
       },
-      "opsPerSecond": 5156.3,
-      "wallClockMs": 387.87
+      "opsPerSecond": 5458.2,
+      "wallClockMs": 366.42
     }
   ],
-  "totalDurationMs": 7238.95,
+  "totalDurationMs": 7750.25,
   "reproduce": "pnpm bench:core"
 }
