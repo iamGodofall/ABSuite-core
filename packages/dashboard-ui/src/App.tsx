@@ -1371,6 +1371,8 @@ type Trace = {
   outcome: 'success' | 'failure'; scope?: string[]; error?: string;
   startedAt: string; completedAt?: string; durationMs?: number;
   hash: string; signature?: string; prevHash: string; keyId?: string;
+  steps?: { seq: number; name: string; at: string; detail?: string }[];
+  inputHash?: string; outputHash?: string;
 };
 
 type Verdict = { valid: boolean; reason?: string; contentIntact: boolean; signatureValid: boolean | null };
@@ -1392,6 +1394,9 @@ const ProofTab = () => {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [tampered, setTampered] = useState(false);
+  const [replay, setReplay] = useState<{ inputMatches: boolean; outputMatches: boolean; deterministic: boolean } | null>(null);
+  const [replayInput, setReplayInput] = useState('');
+  const [replayOutput, setReplayOutput] = useState('');
 
   const load = async () => {
     setError('');
@@ -1460,6 +1465,55 @@ const ProofTab = () => {
     } finally { setBusy(false); }
   };
 
+  /**
+   * Replay: hand back the payloads you believe were used and find out whether
+   * they hash to what was recorded.
+   *
+   * This is the third pillar the README claims and it had no interface at all —
+   * the engine worked, the routes worked, and no human could reach it.
+   */
+  const runReplay = async () => {
+    if (!selected) return;
+    setBusy(true); setError(''); setReplay(null);
+    try {
+      // Parse the user's JSON first and on its own, so a malformed *response*
+      // is never reported as malformed *input*. A missing route returns the
+      // SPA's HTML, which also fails JSON.parse — and blaming the reader's
+      // payload for that sent them looking in exactly the wrong place.
+      let payload: { input?: unknown; output?: unknown };
+      try {
+        const parse = (raw: string) => { const v = raw.trim(); return v ? JSON.parse(v) : undefined; };
+        payload = { input: parse(replayInput), output: parse(replayOutput) };
+      } catch {
+        setError('That is not valid JSON. Check the input and output boxes.');
+        setBusy(false);
+        return;
+      }
+
+      const res = await fetch(`/executions/${encodeURIComponent(selected.id)}/replay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let data: Record<string, unknown>;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`Replay endpoint returned ${res.status} and not JSON. The dashboard may be out of date.`);
+      }
+
+      if (!res.ok) {
+        const err = data.error as { message?: string } | string | undefined;
+        throw new Error((typeof err === 'string' ? err : err?.message) ?? `Replay failed (${res.status})`);
+      }
+      setReplay(data as never);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally { setBusy(false); }
+  };
+
   /** Flip the outcome, exactly as someone covering up a failure would. */
   const tamper = () => {
     if (!selected) return;
@@ -1468,6 +1522,7 @@ const ProofTab = () => {
   };
 
   const reset = () => {
+    setReplay(null);
     const original = traces.find(t => t.id === selected?.id);
     if (original) { setSelected(original); setTampered(false); setVerdict(null); }
   };
@@ -1592,6 +1647,79 @@ const ProofTab = () => {
                   <dd className="text-text-muted font-mono break-all">{selected.hash.slice(0, 32)}…</dd>
                 </div>
               </dl>
+
+              {/* The forensic timeline. Every trace records steps[] and nothing
+                  had ever rendered them — the "see every step, in order, with
+                  timestamps" the campaign artwork promises was in the database
+                  and invisible. */}
+              {selected.steps && selected.steps.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-2">
+                    Timeline · {selected.steps.length} step(s)
+                  </div>
+                  <ol className="relative border-l border-border ml-1.5 space-y-2">
+                    {selected.steps.map(step => (
+                      <li key={step.seq} className="ml-4 relative">
+                        <span className="absolute -left-[21px] top-1.5 w-2 h-2 rounded-full bg-emerald-500/70" />
+                        <div className="text-xs font-mono text-text-primary">{step.name}</div>
+                        <div className="text-[10px] text-text-muted font-mono">
+                          {new Date(step.at).toLocaleTimeString()}{step.detail ? ` · ${step.detail}` : ''}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Replay. */}
+              <details className="mb-3 rounded-lg border border-border bg-bg-primary/40 p-3">
+                <summary className="text-xs font-semibold text-text-primary cursor-pointer">
+                  Replay this execution
+                </summary>
+                <p className="text-[11px] text-text-muted mt-2 mb-2">
+                  Payloads are hashed and never stored, so ABSuite cannot show you what
+                  ran. Paste what you believe was used and it will tell you whether it
+                  hashes to the record.
+                </p>
+                <textarea
+                  value={replayInput} onChange={e => setReplayInput(e.target.value)}
+                  spellCheck={false} placeholder='input, e.g. {"batch":"BATCH-8891","total":250000}'
+                  className="w-full h-16 text-[11px] font-mono p-2 rounded bg-bg-primary border border-border text-text-primary mb-2"
+                />
+                <textarea
+                  value={replayOutput} onChange={e => setReplayOutput(e.target.value)}
+                  spellCheck={false} placeholder='output, e.g. {"approved":true}'
+                  className="w-full h-12 text-[11px] font-mono p-2 rounded bg-bg-primary border border-border text-text-primary mb-2"
+                />
+                <button onClick={runReplay} disabled={busy}
+                  className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
+                  {busy ? 'Comparing…' : 'Compare against the record'}
+                </button>
+
+                {replay && (
+                  <div className={cn('mt-3 rounded-lg border p-3 text-xs',
+                    replay.deterministic ? 'border-emerald-500/40 bg-emerald-500/[0.06]' : 'border-amber-500/40 bg-amber-500/[0.06]')}>
+                    <div className={cn('font-bold mb-1.5', replay.deterministic ? 'text-emerald-400' : 'text-amber-400')}>
+                      {replay.deterministic ? 'Reproduced exactly' : 'Does not reproduce'}
+                    </div>
+                    <div className="space-y-0.5 font-mono text-[11px]">
+                      <div className={replay.inputMatches ? 'text-emerald-400' : 'text-amber-400'}>
+                        {replay.inputMatches ? '✓' : '✗'} input hash {replay.inputMatches ? 'matches' : 'differs'}
+                      </div>
+                      <div className={replay.outputMatches ? 'text-emerald-400' : 'text-amber-400'}>
+                        {replay.outputMatches ? '✓' : '✗'} output hash {replay.outputMatches ? 'matches' : 'differs'}
+                      </div>
+                    </div>
+                    {!replay.deterministic && (
+                      <p className="text-text-muted mt-2 leading-relaxed">
+                        A mismatch means the payload you supplied is not what was recorded.
+                        That is not proof of tampering — the record is still signed and chained —
+                        it means these are not the same inputs.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </details>
 
               {tampered && (
                 <div className="mb-3">

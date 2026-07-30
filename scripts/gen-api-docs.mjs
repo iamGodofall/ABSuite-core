@@ -59,8 +59,21 @@ function describeRoute(source, method, path) {
   if (at < 0) return null;
 
   const before = source.slice(Math.max(0, at - 700), at);
-  const doc = before.match(/\/\*\*([\s\S]*?)\*\/\s*$/);
+
+  // Anchor on the LAST comment block before the route, not the first one in the
+  // window. `/\/\*\*([\s\S]*?)\*\/\s*$/` looks non-greedy, but with the end
+  // anchored it matches from the earliest `/**` that can still reach a closing
+  // `*/` at the end — so a single-line JSDoc on a preceding route swallowed
+  // that route's entire body into the next route's description. The published
+  // API reference carried a paragraph of raw source as documentation.
+  //
+  // The greedy prefix forces the engine to find the closest `/**` instead.
+  const doc = before.match(/[\s\S]*\/\*\*([\s\S]*?)\*\/\s*$/);
   if (!doc) return null;
+
+  // A description should never contain code. If one does, the extraction was
+  // wrong and silence is better than publishing a lie about the API.
+  if (/app\.(get|post|put|patch|delete)\(|=>\s*\{|\breturn\b/.test(doc[1])) return null;
 
   const text = doc[1]
     .split('\n')

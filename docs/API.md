@@ -96,7 +96,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 
 **`GET /executions/public-key`** — The public half of the trace signing key. Deliberately unauthenticated: verification is meant to be possible by an auditor or customer who holds no ABSuite credentials at all.
 
-**`POST /executions/verify`** — Compare a re-run of an execution against its recorded hashes. */ app.post('/executions/:id/replay', authorise('execution:read'), (req, res) => { const trace = traces.get(String(req.params.id)); if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution'); const comparison = compareReplay(trace, { input: req.body?.input, output: req.body?.output }); return res.status(200).json({ id: trace.id, ...comparison }); }); /** Verify a single trace, or the whole chain. Unauthenticated by design: a customer or regulator must be able to check a trace they were handed without holding an ABSuite credential.
+**`POST /executions/verify`** — Verify a single trace, or the whole chain. Unauthenticated by design: a customer or regulator must be able to check a trace they were handed without holding an ABSuite credential.
 
 **`POST /issue`** — The dashboard issues tokens with an {actor, action, resource, expires} shape. Map it onto the capability model rather than making the dashboard speak two dialects.
 
@@ -212,7 +212,7 @@ Trust events and appeals, explainable scoring, output grounding checks, agent-ch
 
 **`GET /anomalies`** — Every structural anomaly across recent chains — cycles, runaways, stalls, disagreement.
 
-**`POST /arbitrate`** — Arbitrate. Agreement between participants of the same model family is discounted, and an irreversible dispute always escalates to a human. / app.post('/disputes/:disputeId/arbitrate', requireCapability('trust:arbitrate'), (req, res) => { try { return res.status(200).json(disputes.resolve(String(req.params.disputeId), { scorer })); } catch (error) { return fail(res, 404, 'NOT_FOUND', (error as Error).message); } }); /** Arbitrate without storing anything — for callers evaluating the thresholds.
+**`POST /arbitrate`** — Arbitrate without storing anything — for callers evaluating the thresholds.
 
 **`POST /contracts/:contractId/breach`** — Record a breach by either party. An operator breach is never charged to the agent's score — attributing a failure to the component that cannot fix it is the exact defect this framework exists to remove.
 

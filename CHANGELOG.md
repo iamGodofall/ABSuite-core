@@ -6,6 +6,47 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Added — the replay engine and the forensic timeline finally have an interface
+
+The README claims four pillars: attestation, enforcement, replay, independent
+verification. Three of them were reachable. **Replay had no interface at all** —
+the engine worked, the routes worked, `compareReplay` was correct, and no human
+could get to it. The same was true of the forensic timeline: every trace records
+`steps[]`, the campaign artwork is built around "see every step, in order, with
+timestamps", and nothing had ever rendered them.
+
+- **Timeline.** A selected record now shows its steps in order with timestamps
+  and detail — `load_batch → check_policy_limit → risk_score → approve →
+  execute_payment` — which is the picture the poster promises and the database
+  already held.
+- **Replay.** Paste the payloads you believe were used and the panel reports
+  whether they hash to the record: input match, output match, and whether it
+  reproduces. Because payloads are hashed and never stored, ABSuite genuinely
+  cannot show you what ran — it can only confirm or deny what you bring, and
+  the panel says so rather than implying otherwise.
+- A mismatch is explained rather than left to be misread: it means these are not
+  the same inputs, **not** that the record was tampered with. The record is
+  still signed and still chained.
+
+### Fixed — two defects found while wiring replay
+
+- **`POST /executions/:id/replay` was missing from the dashboard proxy.** Added
+  with the other execution routes.
+- **The replay panel blamed the user's JSON for a broken response.** A 404
+  returns the SPA's HTML, which also fails `JSON.parse`, and the handler
+  reported "That is not valid JSON" — sending the reader to check their payload
+  when the real fault was a missing route. User input and server response are
+  now parsed separately and reported separately.
+- **The API reference contained raw source code.** `scripts/gen-api-docs.mjs`
+  matched the *first* `/**` in its lookbehind window rather than the closest, so
+  a single-line JSDoc on one route swallowed that route's entire body into the
+  next route's description. `docs/API.md` — the page published to GitHub Pages —
+  carried a paragraph of TypeScript as the documentation for
+  `POST /executions/verify`. `pnpm docs:check` never caught it because it
+  compares generated output against committed output; both were corrupt in the
+  same way. The generator now anchors on the nearest comment and refuses any
+  description containing code.
+
 ### Changed — the dashboard leads with evidence, not infrastructure
 
 It opened on six service-health tiles: the same first screen as every other ops

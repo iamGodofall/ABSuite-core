@@ -383,6 +383,29 @@ app.post('/executions/verify', async (req, res) => {
   }
 });
 
+/**
+ * Replay: compare supplied payloads against the recorded hashes.
+ *
+ * Payloads are hashed and never stored, so this cannot show anyone what ran —
+ * it can only answer whether what you hand it hashes to the same thing.
+ */
+app.post('/executions/:id/replay', requireAdminAccess, async (req, res) => {
+  try {
+    const id = encodeURIComponent(String(req.params.id));
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/${id}/replay`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 /** Walk the whole chain and report the first record that fails. */
 app.get('/executions-verify-chain', requireAdminAccess, async (_req, res) => {
   try {
