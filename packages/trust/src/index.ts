@@ -40,6 +40,7 @@ export {
 
 export {
   verifyOutput,
+  determinationOf,
   segmentClaims,
   contentTerms,
   significantNumbers,

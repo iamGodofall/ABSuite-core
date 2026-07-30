@@ -1,3 +1,8 @@
+import {
+  finding as determination,
+  type Finding as Determination,
+} from '@absuitecore/capkit';
+
 /**
  * Evidence validation — claims, the evidence for them, and a status.
  *
@@ -86,6 +91,40 @@ export interface Finding {
  * likely to be a hallucination" does not.
  */
 export type ClaimStatus = 'SUPPORTED' | 'UNVERIFIED' | 'CONTRADICTED' | 'NOT_CHECKED';
+
+/**
+ * The same four states the rest of ABSuite speaks, mapped onto claim statuses.
+ *
+ * These names are not renamed: `@absuitecore/trust` is published and callers
+ * depend on them, and history surviving improvement applies to APIs as much as
+ * to traces. But a fifth private vocabulary for one idea is a fifth thing a
+ * reader has to learn, so the correspondence is stated in code rather than left
+ * to a paragraph somebody has to find.
+ *
+ * ABSENT does not arise here. The checker attempts every claim it segments, so
+ * a claim is never simply unasked — the closest case, no sources supplied, is
+ * an UNKNOWN with an obvious resolution.
+ */
+export function determinationOf(status: ClaimStatus): Determination {
+  switch (status) {
+    case 'SUPPORTED':
+      return determination('DEMONSTRATED', 'Every checkable part of this claim was found in the sources.');
+    case 'CONTRADICTED':
+      return determination('FAILED', 'The output disagrees with itself.');
+    case 'UNVERIFIED':
+      return determination(
+        'UNKNOWN',
+        'Something in this claim is not present in the sources. That is not a finding of falsehood.',
+        'Supply a source containing it, or remove the claim from the output.'
+      );
+    case 'NOT_CHECKED':
+      return determination(
+        'UNKNOWN',
+        'Grounding was not assessed for this claim.',
+        'Supply the sources this output was meant to be grounded in, then verify again.'
+      );
+  }
+}
 
 export interface ClaimAssessment {
   index: number;
@@ -619,7 +658,23 @@ export function renderReport(report: VerificationReport): string {
     lines.push('');
   }
 
+  // The strongest defensible claim first, then the counts.
+  //
+  // This used to open with "3 supported, 2 unverified" — a tally a reader turns
+  // into 60% before finishing the line, and a fraction is a percentage that has
+  // not been divided yet. Evidence composes pessimistically: the report is
+  // limited by its weakest claim, not by the average of them, and the sentence
+  // has to say that first or the number wins.
+  const overall = determinationOf(report.status);
+  const constrained = report.claims.filter(claim => claim.status !== 'SUPPORTED');
+
   lines.push(
+    `Strongest claim this report supports: ${overall.determination} — ${overall.statement}`,
+    ...(overall.resolvedBy ? [`Resolved by: ${overall.resolvedBy}`] : []),
+    ...(constrained.length > 0
+      ? [`Limited by ${constrained.length} of ${report.claimCount} claim(s): ${constrained.map(c => `#${c.index}`).join(', ')}.`]
+      : []),
+    '',
     `${report.summary.SUPPORTED} supported, ${report.summary.UNVERIFIED} unverified, ` +
     `${report.summary.CONTRADICTED} contradicted, ${report.summary.NOT_CHECKED} not checked.`,
     '',

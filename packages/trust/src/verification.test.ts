@@ -1,5 +1,6 @@
 import {
   verifyOutput,
+  determinationOf,
   segmentClaims,
   significantNumbers,
   quotedSpans,
@@ -276,5 +277,52 @@ describe('mapping findings to trust events', () => {
   test('a clean grounded check records a pass', () => {
     const report = verifyOutput('Costs were flat.', ['Operating costs were flat this quarter.']);
     expect(findingsToEventKinds(report)).toEqual(['verification_passed']);
+  });
+});
+
+describe('the evidence language, reconciled', () => {
+  test('every claim status maps onto the shared four states', () => {
+    expect(determinationOf('SUPPORTED').determination).toBe('DEMONSTRATED');
+    expect(determinationOf('CONTRADICTED').determination).toBe('FAILED');
+    expect(determinationOf('UNVERIFIED').determination).toBe('UNKNOWN');
+    expect(determinationOf('NOT_CHECKED').determination).toBe('UNKNOWN');
+  });
+
+  test('every unknown carries its path to resolution', () => {
+    // Same rule as everywhere else: an unknown nobody can act on gets read as
+    // a pass. UNVERIFIED and NOT_CHECKED need different routes out.
+    expect(determinationOf('UNVERIFIED').resolvedBy).toMatch(/supply a source|remove the claim/i);
+    expect(determinationOf('NOT_CHECKED').resolvedBy).toMatch(/supply the sources/i);
+    expect(determinationOf('SUPPORTED').resolvedBy).toBeUndefined();
+  });
+
+  test('UNVERIFIED is never worded as falsehood', () => {
+    // The oldest rule in this file: "not found in the sources" is not "false".
+    expect(determinationOf('UNVERIFIED').statement).toMatch(/not a finding of falsehood/i);
+    expect(determinationOf('UNVERIFIED').determination).not.toBe('FAILED');
+  });
+
+  test('the rendered report leads with the claim, not the tally', () => {
+    const report = verifyOutput('The revenue was $4.2 million in Q3.', ['Revenue reached $4.2 million in Q3.']);
+    const text = renderReport(report);
+
+    const claimLine = text.indexOf('Strongest claim this report supports');
+    const tallyLine = text.indexOf('supported,');
+
+    // A reader turns "3 supported, 2 unverified" into 60% before finishing the
+    // line. The defensible claim has to come first or the number wins.
+    expect(claimLine).toBeGreaterThan(-1);
+    expect(claimLine).toBeLessThan(tallyLine);
+  });
+
+  test('a report is limited by its weakest claim, not the average of them', () => {
+    const report = verifyOutput(
+      'Revenue reached $4.2 million. Margins improved to 61 percent.',
+      ['Revenue reached $4.2 million in Q3.']
+    );
+
+    // One claim grounded, one not. The report cannot claim more than the weaker.
+    expect(report.status).not.toBe('SUPPORTED');
+    expect(determinationOf(report.status).determination).not.toBe('DEMONSTRATED');
   });
 });

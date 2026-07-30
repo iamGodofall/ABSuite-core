@@ -526,9 +526,11 @@ tampering. Collapsing those into "invalid" turns every limitation of the verifie
 into an accusation against the evidence — and the accused record is usually the
 one that is right.
 
-### Nothing composes upward
+### Evidence composes pessimistically
 
-**The overall finding is never better than the weakest part of it.**
+**The overall finding is never better than the weakest part of it.** Claims
+shrink to fit uncertainty — not out of pessimism about the world, but because a
+claim wider than its evidence is not a claim, it is a hope.
 
 Four conditions demonstrated and one failure is not "mostly trustworthy" — it is
 a record with a failure in it. Trust does not average, and it does not
@@ -554,6 +556,21 @@ FAILED — so nothing can be claimed until it is checked — whereas an absence 
 known and bounded gap. Someone could argue the reverse. `constrainedBy` lists
 every condition that is not DEMONSTRATED precisely so that nobody has to accept
 the ordering to read the report.
+
+One vocabulary, in every package. `@absuitecore/trust` names claim statuses
+`SUPPORTED` / `UNVERIFIED` / `CONTRADICTED` / `NOT_CHECKED` — published names,
+and callers depend on them, so they stay. `determinationOf()` states the
+correspondence in code rather than leaving it in a paragraph nobody finds:
+
+| Claim status | | Carries |
+|---|---|---|
+| `SUPPORTED` | DEMONSTRATED | — |
+| `CONTRADICTED` | FAILED | — |
+| `UNVERIFIED` | UNKNOWN | *Supply a source containing it, or remove the claim* |
+| `NOT_CHECKED` | UNKNOWN | *Supply the sources this output was meant to be grounded in* |
+
+ABSENT does not arise there: the checker attempts every claim it segments, so a
+claim is never simply unasked.
 
 ---
 
@@ -667,7 +684,7 @@ checks are the part that is worth anything:
 | History must survive improvement | `frozen-chain.test.ts` verifies records signed in 2026 against their committed public key, forever |
 | Unknown is not the same as false | Four states, and the vocabulary contains no TRUE, FALSE or VALID |
 | Every unknown carries its path to resolution | `finding()` throws on an UNKNOWN with no resolution, or an ABSENT with no reason |
-| Nothing composes upward | The conditions report's overall state is the weakest condition, and names what constrains it |
+| Evidence composes pessimistically | Overall state is the weakest condition, never an average, and names what constrains it |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 | The interface only calls things that answer | `check:routes` fails if a client call has no server route |
 
