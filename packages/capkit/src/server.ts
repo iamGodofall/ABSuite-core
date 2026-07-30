@@ -662,17 +662,28 @@ app.get('/executions/attention', authorise('execution:read'), (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
   const items = traces.needingAttention(limit);
   const chain = traces.verifyChain(signingKey.publicKeyPem);
+  const held = traces.stats().total;
 
   res.status(200).json({
     items,
     count: items.length,
+    // A count with no denominator reads the same whether it is 3 of 10 or 3 of
+    // ten million, and a truncated list reads exactly like a complete one.
+    // Every number here states what it is a number *of*.
+    held,
+    limit,
+    truncated: items.length === limit,
     chain: {
       valid: chain.valid,
       ...(chain.brokenAt !== undefined ? { brokenAt: chain.brokenAt } : {}),
       ...(chain.reason ? { reason: chain.reason } : {}),
       ...(chain.contentIntact !== undefined ? { contentIntact: chain.contentIntact } : {}),
     },
-    note: 'These records are failed, unproven or carry no recorded authority. ABSuite states that; it does not declare an incident or recommend an action.',
+    note:
+      (items.length === limit
+        ? `Showing the ${limit} most recent of an unknown larger number — raise the limit to see the rest. `
+        : `All ${items.length} found among ${held} record(s) held. `) +
+      'These records are failed, unproven or carry no recorded authority. ABSuite states that; it does not declare an incident or recommend an action.',
   });
 });
 
@@ -737,10 +748,15 @@ app.get('/executions/unknowns', authorise('execution:read'), (req, res) => {
  */
 app.get('/executions/authority', authorise('execution:read'), (_req, res) => {
   const subjects = traces.authorityInventory();
+  const held = traces.stats().total;
   res.status(200).json({
     subjects,
     count: subjects.length,
-    note: 'Derived from executions that happened, not from tokens issued. A capability nobody used does not appear here.',
+    // Unlike the other listings this one is a complete scan, and saying so is
+    // the difference between "these are the subjects" and "these are some".
+    held,
+    complete: true,
+    note: `Derived from all ${held} execution(s) held — behaviour that happened, not tokens that were issued. A capability nobody used does not appear here.`,
   });
 });
 

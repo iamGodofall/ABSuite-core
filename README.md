@@ -203,6 +203,17 @@ something, and they are the part worth believing:
 
 A principle that cannot fail a build is a preference.
 
+**Every statement carries its context.** Verified against which key; unknown
+resolved by what; absent because of what; measured on which machine; counted out
+of how many, and whether the list was truncated. A claim without its conditions
+is not a smaller claim — it is a different one.
+
+**And there is no severity field anywhere.** Severity is context, and context
+belongs to whoever holds it. "HIGH: missing governance" — according to whom?
+Infrastructure that invents severity is making decisions on behalf of people who
+never delegated them. The system provides evidence, constraints, unknowns and
+their resolutions; priorities, values, policy and judgement are yours.
+
 ---
 
 ## Verify it yourself, right now

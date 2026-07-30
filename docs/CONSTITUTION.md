@@ -637,6 +637,33 @@ has always meant *not found in the sources*, never *false*.
 
 ---
 
+### Every statement carries its context
+
+A claim without its conditions is not a smaller claim; it is a different one.
+The same pattern recurs everywhere in this system, and it is the same rule each
+time:
+
+| Statement | Must also say |
+|---|---|
+| Verified | against which key |
+| Unknown | what would resolve it |
+| Absent | why the record is silent |
+| Unreadable | which canonical form, and that this is not tampering |
+| Measured | on which machine, over how many iterations |
+| Counted | out of how many, and whether the list was truncated |
+
+The last row was the most recent gap. `GET /executions/attention` returned
+"3 records need attention" — which reads identically whether it is 3 of 10 or
+3 of ten million, and a list capped at the limit read exactly like a complete
+one. Every listing now states its denominator and says when it was truncated;
+the complete scan says it is complete.
+
+Most systems answer questions. This one has to answer *under what conditions is
+this answer true*, which is a harder thing to do and the only thing worth
+trusting.
+
+---
+
 ### History must survive improvement
 
 Adding a field must never invalidate a record written before it existed. This is
@@ -724,6 +751,44 @@ the conditions check names our own missing Governance layer; the doctrine check
 fails our own build when a claim outruns the code — it caught two fabricated file
 paths in the commit that introduced it. A system that grants itself privileges it
 denies everyone else has already decided what it is.
+
+---
+
+## Where the machine stops and a person starts
+
+The loop does not close inside the software. It closes through a person, and the
+division of labour is the whole design:
+
+| The system provides | A person provides |
+|---|---|
+| Evidence | Priorities |
+| Constraints | Values |
+| Unknowns, with their resolutions | Policy |
+| What is unreadable, and why | Judgement |
+
+This is why there is no severity field anywhere. Severity is context, and
+context belongs to whoever holds it. "HIGH: missing governance" — according to
+whom? "LOW: missing output hash" — until that missing hash is the thing
+preventing a regulatory investigation ten years later. Infrastructure that
+invents severity is quietly making decisions on behalf of people who never
+delegated them, and it will be wrong in exactly the cases that matter most,
+because those are the cases its defaults were not written for.
+
+So the chain stops one step short, deliberately, every time:
+
+```text
+UNKNOWN → resolution → queue item → │ → human judgement → action
+                                    │
+                          the system stops here
+```
+
+**Careful intent produced the bug. Precise language caught it.** That sentence
+is the shortest account of why this document exists. The tally-as-score problem
+was written twice, in two packages, months apart, by someone actively applying
+the rule against it — and both times the rule as *language* found what the rule
+as *intention* had missed. Intent degrades: engineers change, teams grow, people
+forget. Language, made precise enough, becomes executable, and executable
+principles do not forget.
 
 ---
 

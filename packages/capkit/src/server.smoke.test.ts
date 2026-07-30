@@ -181,6 +181,47 @@ describe('the running CapKit server', () => {
     expect(JSON.stringify(body)).not.toContain('BATCH-1');
   });
 
+  /**
+   * Every count states what it is a count *of*.
+   *
+   * "3 records need attention" reads identically whether it is 3 of 10 or 3 of
+   * ten million, and a truncated list reads exactly like a complete one. The
+   * recurring pattern in this codebase — verified against what, unknown resolved
+   * by what, absent because of what — applies to quantities too.
+   */
+  test('every listing states its denominator, and says when it is truncated', async () => {
+    const token = await issue(['execution:record', 'execution:read']);
+    for (const action of ['a', 'b', 'c']) {
+      await post('/executions',
+        { subject: 'agent:counts', scope: [], module: 'm', action, input: { action }, outcome: 'failure', error: 'x' },
+        { authorization: `Bearer ${token}` });
+    }
+
+    const headers = { 'x-absuite-admin-key': ADMIN };
+
+    const attention = (await (await fetch(`${base}/executions/attention?limit=2`, { headers })).json()) as
+      { count: number; held: number; limit: number; truncated: boolean; note: string };
+    expect(attention.count).toBe(2);
+    expect(attention.held).toBeGreaterThanOrEqual(3);
+    // A capped list must never read as a complete one.
+    expect(attention.truncated).toBe(true);
+    expect(attention.note).toMatch(/most recent of an unknown larger number/i);
+
+    const full = (await (await fetch(`${base}/executions/attention?limit=500`, { headers })).json()) as
+      { truncated: boolean; note: string };
+    expect(full.truncated).toBe(false);
+    expect(full.note).toMatch(/record\(s\) held/i);
+
+    const authority = (await (await fetch(`${base}/executions/authority`, { headers })).json()) as
+      { held: number; complete: boolean };
+    expect(authority.complete).toBe(true);
+    expect(authority.held).toBeGreaterThanOrEqual(3);
+
+    const unknowns = (await (await fetch(`${base}/executions/unknowns`, { headers })).json()) as
+      { examined: number; held: number };
+    expect(unknowns.held).toBeGreaterThanOrEqual(unknowns.examined);
+  }, 20_000);
+
   test('the unknown queue groups gaps by the work that would close them', async () => {
     const token = await issue(['execution:record', 'execution:read']);
 

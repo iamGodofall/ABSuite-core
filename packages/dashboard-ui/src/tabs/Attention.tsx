@@ -30,6 +30,9 @@ interface Flagged {
 interface Payload {
   items: Flagged[];
   count: number;
+  held?: number;
+  limit?: number;
+  truncated?: boolean;
   chain: { valid: boolean; brokenAt?: number; reason?: string; contentIntact?: boolean | null; checkable?: boolean };
   note: string;
 }
@@ -106,8 +109,14 @@ export const AttentionPanel = () => {
 
       {data && data.items.length === 0 && (
         <p className="text-sm text-text-muted">
-          Nothing. Every record held is signed, scoped and successful — a measured result, not a
-          placeholder.
+          Nothing among {(data.held ?? 0).toLocaleString('en-US')} record(s) held. Every one is signed,
+          scoped and successful — a measured result, not a placeholder.
+        </p>
+      )}
+
+      {data && data.truncated && (
+        <p className="text-[11px] text-amber-400/90 mb-2">
+          Showing the {data.limit} most recent — there are more. A capped list is not a complete one.
         </p>
       )}
 
