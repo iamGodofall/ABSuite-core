@@ -350,6 +350,55 @@ navigation, ABSuite stops being a product and starts being a place.
 
 ---
 
+## Implementation order
+
+From the blueprint package, in the order it prioritises:
+
+1. React Three Fiber cube navigation — **not built.** The cube is CSS 3D.
+2. Layer orbit animation — built. Seven orbits, one per layer.
+3. Zoom transitions into records — built.
+4. Ask ABSuite command grammar — built, summoned by `/`.
+5. Live evidence stream — built.
+6. Service health integration — built.
+7. Record inspection mode — built.
+8. Keyboard navigation (`ESC` climbs, click descends) — built.
+
+Only the first is outstanding, and it is the one that needs a dependency the
+project does not currently carry.
+
+> **Do not build pages. Build rooms.**
+>
+> Observe, Verify, Explain, Govern, Arbitrate, Act and Learn are not menu items.
+> They are places in a single operational space. The user never leaves the
+> canvas; they descend into evidence and climb back out.
+
+> If a screenshot of the UI still looks like a website, keep deleting things
+> until it looks like an instrument panel from a control room. ABSuite is not
+> read. It is operated.
+
+### What the blueprint taught the checks
+
+The blueprint's own sample code was run through `check-no-fabrication`, and it
+**passed** — while containing `6/6 SERVICES ANSWERED`, `VERIFICATION → intact`
+and `POLICY → scoped` as hardcoded strings.
+
+Every rule up to that point looked for things that are obviously fictional: a
+constant named `DEMO_`, a call to `Math.random`. The blueprint exposed the
+subtler and more dangerous shape — a determination simply asserted as literal
+text, indistinguishable on screen from one that was measured.
+
+The `asserted-state` rule closes it. The test is interpolation: a JSX text node
+stating a determination with no expression behind it is stating it from nowhere.
+Its first run flagged this project's own code, where "signed and hash-chained"
+sat as a caption under a record count; that caption is now derived from the
+chain result instead.
+
+This is the reason the blueprint's code is a specification of intent rather
+than a drop-in: adopting `AppShell.tsx` and `EvidenceStream.tsx` verbatim would
+fail the build, on the principle the blueprint's own README states first.
+
+---
+
 ## How this document is enforced
 
 This is not aspiration filed away. Four things hold it in place:

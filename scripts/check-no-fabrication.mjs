@@ -99,6 +99,25 @@ const RULES = [
       /\b(?:not|no|never|without|refus\w*|nor)\b/i.test(matched) ||
       /\b(?:not|no|never|without|refus\w*|nor)\b[^.]{0,40}$/i.test(text.slice(Math.max(0, index - 60), index)),
   },
+  {
+    /**
+     * A state claim written as literal text, with nothing behind it.
+     *
+     * Found by running this check against a supplied UI blueprint, which it
+     * passed while containing `6/6 SERVICES ANSWERED`, `VERIFICATION → intact`
+     * and `POLICY → scoped` as hardcoded strings. Every earlier rule looks for
+     * things that are obviously fictional — a name containing DEMO, a random
+     * call. This is the subtler and more dangerous shape: a sentence that is
+     * simply asserted, indistinguishable on screen from one that was measured.
+     *
+     * The test is interpolation. A JSX text node that states a determination
+     * and contains no expression is stating it from nowhere. Anything derived
+     * carries a `{`, so honest code passes untouched.
+     */
+    id: 'asserted-state',
+    pattern: />[^<>{}\n]*\b(?:intact|scoped|demonstrated|healthy|verified|hash[ -]chained|services answered|\d+\/\d+\s+services)\b[^<>{}\n]*</gi,
+    why: 'A determination written as literal text with no expression behind it. On screen this is indistinguishable from a measured one, which is exactly what the critical rule forbids.',
+  },
 ];
 
 /**

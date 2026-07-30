@@ -853,7 +853,14 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
         <div className="rounded-xl border border-border bg-bg-secondary p-4">
           <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1">Records held</div>
           <div className="text-xl font-bold text-text-primary">{traces.length}</div>
-          <div className="text-xs text-text-muted mt-1">signed and hash-chained</div>
+          {/* Derived, not asserted. "Hash-chained" is a claim about whether the
+              links were checked on this request, not a property to be printed
+              under any number. */}
+          <div className="text-xs text-text-muted mt-1">
+            {chain === null ? 'signed · chain not yet checked'
+              : chain.valid ? `signed · ${chain.checked} link(s) verified`
+              : `signed · chain broken at #${chain.brokenAt}`}
+          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-bg-secondary p-4">
