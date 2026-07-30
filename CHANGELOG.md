@@ -6,6 +6,28 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Changed — the dashboard leads with evidence, not infrastructure
+
+It opened on six service-health tiles: the same first screen as every other ops
+console, and not the reason anyone would choose this one. The question ABSuite
+alone can answer — *what did the agent do, was it allowed, and has the record
+been altered?* — was four tabs away, behind a panel that had never worked.
+
+- **Evidence is the landing tab**, renamed from "Proof" and moved to the top of
+  the navigation. Service health became "System" and sits below it. Nothing was
+  removed; the ordering now matches what the product is for.
+- **The headline question is answered on arrival**, without a click. A status
+  strip reports chain integrity (intact, or broken at record *n*), how many
+  records are held, and which key signed them. The chain verifies itself on
+  load — making a reader press a button to learn whether their audit trail is
+  intact is the wrong default for a forensics console, because a silent chain
+  is exactly as informative as a broken one until somebody checks.
+- **The "Live mode enabled" banner is scoped to the tabs it describes.** It is a
+  statement about service health, and on the Evidence tab it pushed the answer
+  the reader came for below a line telling them something they had not asked.
+  Demo mode and real errors still announce themselves everywhere, because both
+  change what the numbers mean.
+
 ### Fixed — the Proof tab had never worked
 
 The screen this product exists for called four endpoints the dashboard server

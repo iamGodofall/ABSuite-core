@@ -1370,7 +1370,7 @@ type Trace = {
   id: string; subject: string; module: string; action: string;
   outcome: 'success' | 'failure'; scope?: string[]; error?: string;
   startedAt: string; completedAt?: string; durationMs?: number;
-  hash: string; signature?: string; prevHash: string;
+  hash: string; signature?: string; prevHash: string; keyId?: string;
 };
 
 type Verdict = { valid: boolean; reason?: string; contentIntact: boolean; signatureValid: boolean | null };
@@ -1425,7 +1425,14 @@ const ProofTab = () => {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void (async () => {
+      await load();
+      // Answer the headline question without being asked. A silent chain is
+      // exactly as informative as a broken one until somebody checks.
+      await verifyChain();
+    })();
+  }, []);
 
   const verify = async (trace: Trace) => {
     setBusy(true); setVerdict(null); setError('');
@@ -1465,8 +1472,41 @@ const ProofTab = () => {
     if (original) { setSelected(original); setTampered(false); setVerdict(null); }
   };
 
+  const keyId = traces[0]?.keyId;
+
   return (
     <div className="space-y-4">
+      {/* The headline answer, before any interaction. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className={cn(
+          'rounded-xl border p-4',
+          chain === null ? 'border-border bg-bg-secondary'
+            : chain.valid ? 'border-emerald-500/40 bg-emerald-500/[0.06]'
+            : 'border-red-500/40 bg-red-500/[0.06]'
+        )}>
+          <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1">Chain integrity</div>
+          <div className={cn('text-xl font-bold',
+            chain === null ? 'text-text-muted' : chain.valid ? 'text-emerald-400' : 'text-red-400')}>
+            {chain === null ? 'Checking…' : chain.valid ? 'Intact' : `Broken at #${chain.brokenAt}`}
+          </div>
+          <div className="text-xs text-text-muted mt-1">
+            {chain === null ? 'verifying every record' : `${chain.checked} record(s) verified`}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-bg-secondary p-4">
+          <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1">Records held</div>
+          <div className="text-xl font-bold text-text-primary">{traces.length}</div>
+          <div className="text-xs text-text-muted mt-1">signed and hash-chained</div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-bg-secondary p-4">
+          <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1">Signing key</div>
+          <div className="text-xl font-bold text-text-primary font-mono truncate">{keyId ?? '—'}</div>
+          <div className="text-xs text-text-muted mt-1">Ed25519 · public half below</div>
+        </div>
+      </div>
+
       <NoticeCard
         tone="info"
         title="Cryptographic proof of what your agents actually did"
@@ -1602,17 +1642,24 @@ const ProofTab = () => {
 // ─── Main App ────────────────────────────────────────────────────────────────
 
 const TAB_CONFIG: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'overview', label: 'Overview', icon: Home },
+  // Evidence first, deliberately.
+  //
+  // This opened on six service-health tiles — the same first screen as every
+  // other ops console, and not the reason anyone would choose this one. The
+  // question ABSuite alone can answer is "what did the agent do, was it
+  // allowed, and has the record been altered?", so that is what it opens on.
+  // Infrastructure health still matters; it is just not the headline.
+  { id: 'proof', label: 'Evidence', icon: Shield },
+  { id: 'overview', label: 'System', icon: Home },
   { id: 'services', label: 'Services', icon: Server },
   { id: 'ai-studio', label: 'AI Studio', icon: Bot },
   { id: 'benchmarks', label: 'Benchmarks', icon: Gauge },
   { id: 'connectors', label: 'Connectors', icon: Network },
-  { id: 'proof', label: 'Proof', icon: Shield },
   { id: 'settings', label: 'Settings', icon: Wrench },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [activeTab, setActiveTab] = useState<TabId>('proof');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1768,13 +1815,21 @@ export default function App() {
 
           {/* Content */}
           <main className="flex-1 overflow-y-auto p-5 dot-grid-bg">
-            <div className="mb-4">
-              {demoMode ? (
-                <NoticeCard tone="warn" title="Demo mode enabled" message="You are viewing showcase behavior in this same dashboard URI. Switch back to Live for the real suite state." />
-              ) : (
-                <NoticeCard tone={error ? 'error' : 'info'} title={error ? 'Live mode reports a real issue' : 'Live mode enabled'} message={error ? `${error} The dashboard is intentionally not showing fake fallback data.` : 'This dashboard is currently showing the real ABSuite service state.'} />
-              )}
-            </div>
+            {/* Demo mode is worth announcing anywhere, because it changes what the
+                numbers mean. "Live mode enabled" is a statement about service
+                health, so it belongs on the tabs about service health — on the
+                Evidence tab it pushed the answer the reader came for below a
+                banner telling them something they did not ask. An actual error
+                still surfaces everywhere. */}
+            {(demoMode || error || activeTab === 'overview' || activeTab === 'services') && (
+              <div className="mb-4">
+                {demoMode ? (
+                  <NoticeCard tone="warn" title="Demo mode enabled" message="You are viewing showcase behavior in this same dashboard URI. Switch back to Live for the real suite state." />
+                ) : (
+                  <NoticeCard tone={error ? 'error' : 'info'} title={error ? 'Live mode reports a real issue' : 'Live mode enabled'} message={error ? `${error} The dashboard is intentionally not showing fake fallback data.` : 'This dashboard is currently showing the real ABSuite service state.'} />
+                )}
+              </div>
+            )}
 
             <AnimatePresence mode="wait">
               <motion.div
