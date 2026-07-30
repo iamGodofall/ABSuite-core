@@ -20,6 +20,7 @@ import { ConstraintsPanel } from './tabs/Govern';
 import { GlobalView } from './tabs/GlobalView';
 import { AttentionPanel } from './tabs/Attention';
 import { AuthorityPanel } from './tabs/Authority';
+import { UnknownsPanel } from './tabs/Unknowns';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1634,6 +1635,7 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
           counted rather than estimated. */}
       {view === 'observe' && <GlobalView />}
       {view === 'observe' && <AttentionPanel />}
+      {view === 'observe' && <UnknownsPanel />}
 
       {view === 'observe' && (
         <NoticeCard

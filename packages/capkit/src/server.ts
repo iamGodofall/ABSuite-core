@@ -677,6 +677,58 @@ app.get('/executions/attention', authorise('execution:read'), (req, res) => {
 });
 
 /**
+ * Everything this instance could know and does not, grouped by what would fix it.
+ *
+ * An UNKNOWN is not a destination; it is a queue of work. Every unknown in the
+ * system already carries its own route out, and once you have thousands of
+ * records those routes collapse into a handful of distinct actions — supply the
+ * public key, record output hashes, attach a policy reference. This groups them
+ * and counts how many records each one would resolve.
+ *
+ * Counts, not priorities. Which of these matters is a judgement, and ordering
+ * them by importance would be ABSuite making it.
+ */
+app.get('/executions/unknowns', authorise('execution:read'), (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 1000);
+  const held = traces.stats().total;
+  const records = traces.list({ limit });
+
+  // Walked once for all of them rather than per record.
+  const chainValid = traces.verifyChain(signingKey.publicKeyPem).valid;
+
+  const byResolution = new Map<string, { conditions: Set<string>; records: string[] }>();
+
+  for (const trace of records) {
+    const report = trustConditions(trace, verifyTrace(trace, signingKey.publicKeyPem), chainValid);
+    for (const condition of report.conditions) {
+      if (condition.state !== 'UNKNOWN' || !condition.resolvedBy) continue;
+      const entry = byResolution.get(condition.resolvedBy) ?? { conditions: new Set(), records: [] };
+      entry.conditions.add(condition.condition);
+      if (entry.records.length < 5) entry.records.push(trace.id);
+      byResolution.set(condition.resolvedBy, entry);
+    }
+  }
+
+  const queue = [...byResolution.entries()]
+    .map(([resolution, entry]) => ({
+      resolution,
+      conditions: [...entry.conditions].sort(),
+      examples: entry.records,
+    }))
+    .sort((a, b) => a.resolution.localeCompare(b.resolution));
+
+  return res.status(200).json({
+    examined: records.length,
+    held,
+    queue,
+    note:
+      queue.length === 0
+        ? 'Nothing examined here is unknown for a reason this instance can act on.'
+        : 'Each entry is work that would turn an unknown into an answer. They are listed alphabetically, not ranked — which of them matters is your judgement, not ABSuite’s.',
+  });
+});
+
+/**
  * Authority actually exercised, per subject.
  *
  * Built from records of what happened rather than tokens that were issued: an

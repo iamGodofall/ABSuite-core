@@ -181,6 +181,40 @@ describe('the running CapKit server', () => {
     expect(JSON.stringify(body)).not.toContain('BATCH-1');
   });
 
+  test('the unknown queue groups gaps by the work that would close them', async () => {
+    const token = await issue(['execution:record', 'execution:read']);
+
+    // Two records with different gaps: one missing an output hash, one with no
+    // policy reference and no output hash.
+    await post('/executions',
+      { subject: 'agent:a', scope: ['x:y'], jti: 'tok_1', module: 'm', action: 'no-output', input: { a: 1 }, outcome: 'success' },
+      { authorization: `Bearer ${token}` });
+    await post('/executions',
+      { subject: 'agent:b', scope: ['x:y'], jti: 'tok_2', module: 'm', action: 'also-no-output', input: { b: 2 }, outcome: 'success' },
+      { authorization: `Bearer ${token}` });
+
+    const res = await fetch(`${base}/executions/unknowns`, { headers: { 'x-absuite-admin-key': ADMIN } });
+    const body = (await res.json()) as {
+      examined: number;
+      queue: { resolution: string; conditions: string[]; examples: string[] }[];
+      note: string;
+    };
+
+    expect(res.status).toBe(200);
+    expect(body.examined).toBeGreaterThanOrEqual(2);
+
+    // An unknown is a queue of work, and identical gaps collapse into one entry
+    // rather than being reported once per record.
+    const outputHashWork = body.queue.find(item => /output hash/i.test(item.resolution));
+    expect(outputHashWork).toBeDefined();
+    expect(outputHashWork!.conditions).toContain('Evidence');
+    expect(outputHashWork!.examples.length).toBeGreaterThan(1);
+
+    // Listed, never ranked: which gap matters is not ABSuite's call.
+    expect(body.note).toMatch(/not ranked/i);
+    expect(JSON.stringify(body)).not.toMatch(/priority|severity|score/i);
+  });
+
   /**
    * Every route the API reference documents for CapKit must actually answer.
    *

@@ -81,6 +81,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | GET | `/executions/authority` | `execution:read` | — |
 | GET | `/executions/public-key` | _public_ | — |
 | GET | `/executions/stats` | `execution:read` | — |
+| GET | `/executions/unknowns` | `execution:read` | — |
 | POST | `/executions/verify` | _public_ | — |
 | GET | `/health` | _public_ | — |
 | POST | `/issue` | `auth:token:create` | — |
@@ -108,6 +109,8 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`GET /executions/public-key`** — The public half of the trace signing key. Deliberately unauthenticated: verification is meant to be possible by an auditor or customer who holds no ABSuite credentials at all.
 
 **`GET /executions/stats`** — Aggregate counts across everything recorded, plus a live chain verification. This is what a control plane opens on, so it is also the easiest screen in the product to lie on. Every field is a count of records that exist; the verification result comes from actually walking the chain on this request rather than from a cached "healthy". `unverifiable` names what we deliberately do not track, so an absent number reads as absent rather than as zero.
+
+**`GET /executions/unknowns`** — Everything this instance could know and does not, grouped by what would fix it. An UNKNOWN is not a destination; it is a queue of work. Every unknown in the system already carries its own route out, and once you have thousands of records those routes collapse into a handful of distinct actions — supply the public key, record output hashes, attach a policy reference. This groups them and counts how many records each one would resolve. Counts, not priorities. Which of these matters is a judgement, and ordering them by importance would be ABSuite making it.
 
 **`POST /executions/verify`** — Verify a single trace, or the whole chain. Unauthenticated by design: a customer or regulator must be able to check a trace they were handed without holding an ABSuite credential.
 
@@ -265,4 +268,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_102 HTTP endpoints across 5 services. Generated from source._
+_103 HTTP endpoints across 5 services. Generated from source._

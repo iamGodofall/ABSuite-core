@@ -599,6 +599,18 @@ Saying what would settle a question is not the same as saying what someone
 should do about the answer. The first is help; the second is the judgement this
 system refuses to make.
 
+**An unknown is not a destination; it is a queue of work.** Because every
+unknown carries its own route out, they collapse across a whole log into a
+handful of distinct actions — `GET /executions/unknowns` groups them and names
+the records each would resolve:
+
+> • Record an output hash so a replay can confirm the result, not only the input.
+>   *affects: Evidence · examined 8 of 8 records*
+
+Listed alphabetically, never ranked. Which gap matters is a judgement, and
+ordering them by importance would be ABSuite making it — the same refusal as
+declining to score anything else.
+
 **What this found in our own code.** `verifyTrace()` called without a public key
 returns `valid: true`. That is technically correct — the content matches its
 hash, which is all it was asked — and it has been readable as "this record is
