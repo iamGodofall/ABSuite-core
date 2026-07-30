@@ -26,6 +26,7 @@ import { RecordDetail } from './tabs/RecordDetail';
 import { Operations } from './tabs/Operations';
 import { ChainView } from './tabs/ChainView';
 import { AskBar } from './tabs/AskBar';
+import { Agents } from './tabs/Agents';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -2220,8 +2221,9 @@ const LearnTab = ({ demoMode }: { demoMode: boolean }) => (
 );
 
 /** Layer 4 — the rules, the refusals, and the tokens that carry authority. */
-const GovernTab = ({ demoMode }: { demoMode: boolean }) => (
+const GovernTab = ({ demoMode, onOpenRecord }: { demoMode: boolean; onOpenRecord?: (id: string) => void }) => (
   <div className="space-y-6">
+    <Agents onOpenRecord={onOpenRecord} />
     <AuthorityPanel />
     <ConstraintsPanel />
     <AIStudioTab demoMode={demoMode} />
@@ -2323,7 +2325,7 @@ export default function App() {
       case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
       case 'verify': return <ProofTab view="verify" onOpenRecord={setOpenRecordId} />;
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
-      case 'govern': return <GovernTab demoMode={demoMode} />;
+      case 'govern': return <GovernTab demoMode={demoMode} onOpenRecord={setOpenRecordId} />;
       case 'arbitrate': return <MonitoringTab />;
       case 'act': return <ActTab services={services} demoMode={demoMode} onServiceAction={handleServiceAction} />;
       case 'learn': return <LearnTab demoMode={demoMode} />;
@@ -2392,6 +2394,17 @@ export default function App() {
               </React.Fragment>
             ))}
           </nav>
+
+          {!sidebarCollapsed && (
+            <div className="px-4 py-3 mx-3 mb-2 rounded-xl border border-border/60 bg-bg-primary/40">
+              <p className="text-[11px] text-text-muted leading-relaxed italic">
+                “Tell me what happened. Prove it. Tell me whether I should worry.”
+              </p>
+              <p className="text-[10px] text-text-muted/60 mt-1.5">
+                The three questions. ABSuite answers the first two and shows you what the third rests on.
+              </p>
+            </div>
+          )}
 
           {/* Collapse Toggle */}
           <div className="p-3 border-t border-border/40">
