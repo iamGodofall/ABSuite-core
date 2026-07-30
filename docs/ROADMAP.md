@@ -141,6 +141,36 @@ If a person can watch that and say *"oh — this is an evidence layer for
 automated systems"*, the interface is doing its job. If they cannot, nothing
 else on this roadmap matters yet.
 
+### Dashboard audit — findings from a live snapshot pass
+
+Taken against the running suite, not from memory. In severity order:
+
+1. **The notification bell shows fabricated events.** Three notifications are
+   hardcoded in component state: *"Dashboard connected to ABSuite services"*,
+   *"QuickBench health check passed"*, *"GitHub connector active"*. The second
+   is a claim that a check ran and passed. It may never have run. This is
+   invented evidence, in the interface of a product whose root principle is that
+   nothing may look more complete or more certain than it is. **Delete it or wire
+   it to real events. Nothing else on this list matters as much.**
+2. **DEMO mode ships fabricated numbers.** `DEMO_BENCHMARK_HISTORY` is
+   hand-written latency and throughput data. It is labelled, and the banner is
+   honest — but a trust product shipping a mode that displays invented
+   measurements is a standing tension with the Constitution. Either remove it, or
+   make it structurally impossible to mistake for real (persistent watermark,
+   different chrome, values obviously synthetic).
+3. **Replay is invisible.** The third pillar the README claims is inside a
+   collapsed `<details>` that only exists after a record is selected. A stranger
+   never sees it. It should be a visible affordance on the Verify layer.
+4. **The Verify screen is half empty** until something is clicked — a blank
+   right column facing a list. The first screen of a layer should show its answer
+   before any interaction, the way Observe does.
+5. **The search box does nothing.** A control that looks capable and is not is
+   the same failure as a number that looks measured and is not.
+
+There is also no single overview: the global view lives inside Observe, and
+System shows service health. A stranger has no screen that shows everything at
+once — which is the first thing the sixty-second test needs.
+
 **Order of work:** dashboard experience, onboarding, the demo scenario above,
 then finishing layers 1–6. Layer 7 is a design exercise before it is a build
 one. Layer 8 is frozen — see the Constitution for why it is not a thing that
