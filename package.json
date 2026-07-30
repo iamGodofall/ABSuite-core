@@ -27,7 +27,8 @@
     "test:packages": "pnpm -r test",
     "check:routes": "node scripts/check-dashboard-routes.mjs",
     "check:constraints": "node scripts/check-constraints.mjs",
-    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints",
+    "check:doctrine": "node scripts/check-doctrine.mjs",
+    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine",
     "check:live": "node scripts/check-live-routes.mjs",
     "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",
     "bench:doc": "node scripts/gen-performance-doc.mjs"

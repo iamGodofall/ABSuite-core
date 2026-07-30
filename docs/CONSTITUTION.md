@@ -181,20 +181,41 @@ according to its nature** — some layers touch two stages, some touch all seven
 
 | Layer | Observe | Verify | Explain | Govern | Arbitrate | Act | Learn |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Identity | ● | ● | | | | | |
+| Identity | ◐ | ◐ | | | | | |
 | Capability | ● | ● | ● | | | | |
 | Evidence | ● | ● | ● | | | | |
 | Trust | | ● | ● | | ● | | ● |
-| Governance | | | | ● | ● | | |
-| Autonomy | | | | | | ● | ● |
-| Collective Intelligence | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Governance | | | | ◐ | ● | | |
+| Autonomy | | | | | | ◐ | ● |
+| Collective Intelligence | ◐ | ◐ | ◐ | ○ | ● | ◐ | ○ |
 | Civilization | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 
-● participates today · ○ would participate, at a layer not yet built
+**●** built and running · **◐** partly built · **○** planned · blank: not this
+layer's business
 
-The circles matter as much as the dots. The upper two rows touch every stage by
-their nature, and neither layer exists — filling them with the same mark as the
-built rows would turn an architecture into an advertisement.
+Three states rather than two, because two forced a false choice. Collective
+Intelligence is the clearest case: correlation-discounted arbitration between
+disagreeing agents is *built and running today*, which is why that cell is a
+filled dot — but the property that actually defines the layer, **independent
+deployments verifying each other's records without merging them**, does not
+exist in any form. Marking the whole row planned would understate what runs;
+marking it built would be a lie about federation. The row is mixed because the
+layer is mixed, and saying so is more useful than either tidy answer.
+
+Civilization stays entirely planned. Not the question — the question is live
+already, at every scale from one agent upward — but nothing in this repository
+operates at that scale, and the difference between *the question is real* and
+*we have built the answer* is the whole distinction this document exists to
+protect.
+
+**These marks are doctrine, not telemetry.** "Capability participates in
+Explain" is an architectural opinion, arrived at by argument, and someone could
+reasonably disagree. "trace.verify +5.56% mean latency" is a measurement,
+arrived at by running something, and disagreement means re-running it. The two
+kinds of claim must never be printed in the same voice. The layer table below
+carries a build-status column with a file or route beside every claim, and
+`pnpm check:doctrine` fails if any of those paths stops existing — so the
+boundary between aspiration and implementation is itself drift-checked.
 
 The two models also evolve independently, which is the practical reason to keep
 them apart. The loop may one day gain stages — simulate, negotiate, coordinate —
@@ -218,6 +239,35 @@ not match its architecture is telling two different stories.
 | 5 | **Arbitrate** | Resolve disagreement between agents with correlation discounting and stated evidence weight |
 | 6 | **Act** | Execute — MCP, edge execution, connectors — only under a capability that was granted |
 | 7 | **Learn** | Measure the system against itself: baselines, regression detection, and numbers that came from a benchmark |
+
+It is a loop, not a pipeline, and the difference is the whole point:
+
+```text
+                    Observe
+                   ↗       ↘
+             Learn           Verify
+               ↑               ↓
+              Act            Explain
+               ↑               ↓
+          Arbitrate  ←──────  Govern
+```
+
+The clearest demonstration is the benchmark, because there the system runs the
+loop on itself:
+
+| Stage | What the benchmark does |
+|---|---|
+| Observe | Time every iteration of the real signing and verification paths |
+| Verify | Confirm the two runs are comparable — same machine, same runtime, same workload |
+| Explain | State the change with the field it came from: mean latency, iteration count, machine |
+| Govern | Refuse comparisons that are not permitted, rather than producing a number anyway |
+| Arbitrate | Welch's t-test decides signal from noise; a change inside the spread is called noise |
+| Act | Write the result, fail the build on regression when asked to |
+| Learn | The run becomes the baseline the next one is judged against |
+
+Then it observes again. That is not a description of the product; it is the
+product running on itself, which is the only demonstration this project considers
+worth much.
 
 **Learn returns to Observe, or it is not a loop.** A measurement that terminates
 in a dashboard tile has taught nobody anything. Every benchmark run is compared
@@ -251,20 +301,27 @@ The black box is the first capability people understand immediately, and it is
 the front door — one package, sixty seconds, no account. It is not the whole
 building. What it grows into, in order, each layer resting on the one below:
 
-| | | | |
-|---|---|---|---|
-| 1 | **Identity** | Every agent, model and human has one that survives restarts | Partly built |
-| 2 | **Capability** | Authority is granted narrowly, expires, and is revocable centrally | Built |
-| 3 | **Evidence** | Claims are checked against sources and reported as supported, unverified or contradicted | Built |
-| 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built |
-| 5 | **Governance** | Policies, obligations, approvals and the workflows humans use to run all of it | Partly built |
-| 6 | **Autonomy** | ABSuite's own agents watch the record continuously and raise what a person should see | Partly built |
-| 7 | **Collective Intelligence** | Independent deployments verify each other's records without merging them | Not built |
-| 8 | **Civilization** | Millions of agents, autonomous economies, planetary-scale accountability | Not built |
+| | Layer | | Status | Evidence |
+|---|---|---|---|---|
+| 1 | **Identity** | Every agent, model and human has one that survives restarts | Partly built | `packages/capkit/src/keyring.ts` |
+| 2 | **Capability** | Authority is granted narrowly, expires, and is revocable centrally | Built | `packages/capkit/src/capability.ts` |
+| 3 | **Evidence** | Claims are checked against sources and reported as supported, unverified or contradicted | Built | `packages/trust/src/verification.ts` |
+| 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built | `packages/trust/src/scoring.ts` |
+| 5 | **Governance** | Policies, obligations, approvals and the workflows humans use to run all of it | Partly built | `packages/capkit/src/ai-policy-generator.ts` |
+| 6 | **Autonomy** | ABSuite's own agents watch the record continuously and raise what a person should see | Partly built | `packages/trust/src/monitoring.ts` |
+| 7 | **Collective Intelligence** | Independent deployments verify each other's records without merging them | Not built | — |
+| 8 | **Civilization** | Millions of agents, autonomous economies, planetary-scale accountability | Not built | — |
 
-The last column is not decoration. A roadmap that does not mark what is shipped
-is a wish list wearing an architecture diagram, and this project does not get to
-publish one of those.
+The last two columns are not decoration. A roadmap that does not mark what is
+shipped is a wish list wearing an architecture diagram, and this project does not
+get to publish one of those. Every layer claimed as built or partly built names a
+file you can open; `pnpm check:doctrine` fails the build if one of those files
+stops existing, and fails equally if a layer marked *not built* starts claiming
+evidence — a promotion has to be a deliberate act, not a drift.
+
+Layer 7 is marked not built on the strength of its own definition. Multi-agent
+arbitration runs today and is real; *federated verification between independent
+deployments* is what the layer means, and none of it exists.
 
 **Layer 8 is a claim about a question, not about us.** At civilisation scale
 somebody has to be able to answer *who did what, under whose authority, using
@@ -310,6 +367,62 @@ it, thousands of contributors, none of whom need permission.
 Not guaranteed. **Plausible.** That distinction is itself constitutional: this
 document describes a direction, not a prediction, and a project that cannot tell
 those apart has already started lying to itself.
+
+---
+
+## What trust is made of
+
+Trust is not a thing ABSuite has. It is what is left over once five other things
+are answerable:
+
+```text
+TRUST = IDENTITY      who?
+      + CAPABILITY    allowed?
+      + EVIDENCE      what actually happened?
+      + GOVERNANCE    should it have?
+      + TIME          when, in what order, and what came before?
+```
+
+Time is the one people leave out, and it is the one that makes the rest hold:
+identity without history is an assertion, evidence without ordering cannot be
+replayed, and a capability that cannot be shown to have been valid *at the moment
+it was used* proves nothing afterwards. The hash chain is how time enters the
+calculus — not as a timestamp, which anyone can write, but as an order no one can
+rewrite.
+
+And the runtime is the loop applied to that state, over and over:
+
+```text
+Trust(t+1) = Learn(Act(Arbitrate(Govern(Explain(Verify(Observe(t)))))))
+```
+
+**This is a definition, not an output.** ABSuite does not compute the left-hand
+side and hand you a number. It never will: a trust score is a judgement wearing
+a decimal point, and this document already refuses to produce one — counts,
+never scores, and never about people at all. The equation says what trust is
+*composed of*, so that a person can assemble it and disagree with the result.
+The moment ABSuite evaluates it for you, it has become the thing it was built to
+replace.
+
+---
+
+**Claims are architecture. Checks are implementation.**
+
+Both models above are claims. Everything that enforces them is a check, and the
+checks are the part that is worth anything:
+
+| Claim | The check that makes it true |
+|---|---|
+| No number is published that a measurement did not produce | `gen-performance-doc.mjs --check` fails CI on drift between the benchmark data, the doc and the README |
+| A comparison across machines or workloads is meaningless | `compareReports()` refuses it and says why, rather than producing a number |
+| These seven refusals are behaviour, not marketing | `check:constraints` fails if the test enforcing any refusal is renamed or deleted |
+| The layer table distinguishes built from planned | `check:doctrine` fails if a built layer's evidence vanishes, or a planned one starts claiming some |
+| Every documented route exists | The CapKit smoke suite asks the running server for each one |
+| The interface only calls things that answer | `check:routes` fails if a client call has no server route |
+
+A principle that cannot fail a build is a preference. This table is the
+difference between a project that says these things and a project that does
+them, and it is the only reason any of the prose above should be believed.
 
 ---
 

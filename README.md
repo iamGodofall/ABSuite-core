@@ -135,12 +135,27 @@ Whether ABSuite is what answers it is not something a README gets to assert.
 The two models are never zipped together. A building and a heartbeat don't need
 the same number of floors: Governance is a layer, Govern is an operation; Trust
 is a property, Arbitrate is an operation. **Every layer participates in the loop
-according to its nature** — the matrix, including which cells are real today, is
-in [the Constitution](./docs/CONSTITUTION.md).
+according to its nature** — the matrix, in three states (built, partly built,
+planned), is in [the Constitution](./docs/CONSTITUTION.md).
 
 Keeping them separate is also what lets them evolve apart. The loop could gain
 stages — simulate, negotiate, coordinate — without a layer changing; Civilization
 could split into planetary and beyond without touching the loop.
+
+### Claims are architecture. Checks are implementation.
+
+Everything above is a claim. These are the checks that make the claims cost
+something, and they are the part worth believing:
+
+| Claim | The check |
+|---|---|
+| No number is published that a measurement did not produce | CI fails if the benchmark data, `docs/PERFORMANCE.md` and the table above disagree |
+| A comparison across machines or workloads is meaningless | `compareReports()` refuses it and says why, instead of producing a number |
+| The seven refusals are behaviour, not marketing | `pnpm check:constraints` fails if the test behind any refusal is renamed |
+| Built and planned are different words | `pnpm check:doctrine` fails if a layer claimed as built stops naming a file that exists |
+| Every documented route exists | The CapKit smoke suite asks the running server for each one |
+
+A principle that cannot fail a build is a preference.
 
 ---
 

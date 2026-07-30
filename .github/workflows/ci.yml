@@ -65,6 +65,11 @@ jobs:
       - name: Published performance numbers match the measured data
         run: node scripts/gen-performance-doc.mjs --check
 
+      # The layer table is where a project quietly promotes a plan to a feature,
+      # one honest-looking edit at a time. Prose does not fail a build; this does.
+      - name: Every layer claimed as built names something that exists
+        run: pnpm check:doctrine
+
   test:
     name: Test
     runs-on: ubuntu-latest
