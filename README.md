@@ -1,16 +1,26 @@
 # ABSuite
 
-> **The black box for AI systems.** A flight recorder — not an opaque model.
+> **The trust layer for autonomous systems.**
+>
+> It observes, verifies, governs, and explains intelligence.
+>
+> **ABSuite does not tell you what to believe. It tells you what can be proven.**
 
-The trust layer for autonomous systems: it observes everything, proves what
-happened, and explains it to whoever has the right to ask. ABSuite is not the
-intelligence — it is the witness.
+Every verb above is backed by code, tests and doctrine — not by a plan.
+`observe` is a signed, hash-chained execution record. `verify` is Ed25519 against
+a public key that cannot forge. `govern` is the rule that permitted an action,
+signed alongside it. `explain` is derived from those fields deterministically, by
+no language model at all.
 
-**ABSuite does not tell you what to believe. It tells you what can be proven.**
+**Nothing may look more complete, more certain, or more authoritative than it
+actually is.** That is the root every other principle here derives from, and it
+applies to this page as much as to a record.
 
 **Observation is automatic. Action is granted.** Nobody switches trust on; the
 moment a human has to remember to enable it, it has already failed. Humans
 decide what an AI may do. ABSuite makes sure nobody can forget what it did.
+
+ABSuite is not the intelligence — it is the witness. *The future is accountable.*
 
 ```bash
 npm install @absuitecore/capkit
@@ -458,6 +468,23 @@ into something friendlier. Full method and caveats:
 
 There is no performance claim anywhere in this repository that did not come out
 of that command.
+
+---
+
+## Where the name came from
+
+ABSuite began as a black box recorder for AI — a flight recorder, not an opaque
+model. That framing got it in the door and it is still the fastest way to explain
+the first capability to someone new.
+
+It is no longer what the project is. A recorder records; this observes, verifies,
+explains, governs, arbitrates, acts and learns, and the recorder is one component
+of seven. The audit log, the tracing, the monitoring — all subsystems now. What
+grew around them is closer to evidence infrastructure: a system whose job is to
+say what can be proven and, just as loudly, what cannot.
+
+The shift in one line — before: *we record what happened*. Now: *we tell you what
+can be proven*.
 
 ---
 
