@@ -24,6 +24,7 @@ import { UnknownsPanel } from './tabs/Unknowns';
 import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
 import { Operations } from './tabs/Operations';
+import { ChainView } from './tabs/ChainView';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1665,6 +1666,8 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
           message="Every execution an instrumented agent performs is captured here without anyone deciding to capture it — the subject, the authority it held, the steps it took and the hashes of what it processed. Watching costs nothing and asks no permission; doing something about it does."
         />
       )}
+
+      {view === 'verify' && <ChainView onOpenRecord={onOpenRecord} />}
 
       {view === 'verify' && (
         <NoticeCard
