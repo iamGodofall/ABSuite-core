@@ -367,6 +367,68 @@ app.get('/executions/stats', requireAdminAccess, async (req, res) => {
   }
 });
 
+/**
+ * ABSuite, reporting on ABSuite.
+ *
+ * The eight architectural layers and how far each one is actually built, read
+ * from the Constitution at request time rather than typed into this file. The
+ * document is the source; `check:doctrine` already fails the build if a layer
+ * claims to exist without naming a file that does.
+ *
+ * So the console cannot flatter the project: to make this panel say "built" you
+ * have to make the claim true in the document, and the document is checked
+ * against the filesystem in CI. The product applies its own standard to itself,
+ * which is the only way it has any standing to apply it to anyone else.
+ */
+app.get('/system/layers', (_req, res) => {
+  const candidates = [
+    path.resolve(process.cwd(), 'docs/CONSTITUTION.md'),
+    path.resolve(process.cwd(), '..', '..', 'docs/CONSTITUTION.md'),
+    path.resolve(process.cwd(), '..', 'docs/CONSTITUTION.md'),
+  ];
+  const found = candidates.find(candidate => fs.existsSync(candidate));
+
+  if (!found) {
+    // No document, no claim. Inventing a layer table here would be the exact
+    // failure this endpoint exists to make impossible.
+    return res.status(200).json({
+      available: false,
+      reason: 'docs/CONSTITUTION.md was not found from this working directory, so the layer states cannot be stated.',
+    });
+  }
+
+  try {
+    const text = fs.readFileSync(found, 'utf8');
+    const rows = [
+      ...text.matchAll(
+        /^\|\s*(\d)\s*\|\s*\*\*([^*]+)\*\*\s*\|([^|]*)\|\s*(Built|Partly built|Not built)\s*\|\s*([^|]*?)\s*\|$/gm
+      ),
+    ].map(match => ({
+      number: Number(match[1]),
+      layer: match[2].trim(),
+      description: match[3].trim(),
+      status: match[4].trim(),
+      evidence: match[5].trim().replace(/^`|`$/g, ''),
+    }));
+
+    if (rows.length !== 8) {
+      return res.status(200).json({
+        available: false,
+        reason: `Expected 8 architectural layers in the Constitution, found ${rows.length}. The table changed shape and this cannot be read honestly.`,
+      });
+    }
+
+    return res.status(200).json({
+      available: true,
+      layers: rows,
+      source: 'docs/CONSTITUTION.md',
+      note: 'Read from the Constitution at request time. A layer cannot be promoted here without changing the document, and check:doctrine fails the build if a promoted layer names no file that exists.',
+    });
+  } catch (error) {
+    return res.status(200).json({ available: false, reason: (error as Error).message });
+  }
+});
+
 /** Records that failed, are unsigned, or carry no recorded authority. */
 app.get('/executions/attention', requireAdminAccess, async (req, res) => {
   try {

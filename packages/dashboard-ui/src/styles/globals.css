@@ -14,16 +14,16 @@
        the blue secondary that used to live here read as a generic admin
        template; the ground is now the same #040706 as the verifier and the
        landing page, so the three surfaces look like one product. */
-    --bg-primary: 160 26% 2%;     /* #040706 — near-black, green-tinted */
-    --bg-secondary: 158 18% 5%;   /* #0A100E — panel */
+    --bg-primary: 213 33% 3%;     /* #05070A — the operations ground */
+    --bg-secondary: 213 21% 7%;   /* #0D1117 — surface */
     --bg-tertiary: 158 16% 8%;    /* #101A16 — raised */
     --border-color: 158 30% 14%;  /* emerald-tinted hairline */
     --text-primary: 158 30% 94%;  /* #E8F5F0 */
     --text-muted: 158 10% 53%;    /* #7C9389 */
-    --accent-primary: 158 82% 55%;   /* #2DE9A5 — the brand emerald */
+    --accent-primary: 153 100% 50%;  /* #00FF88 — signal green */
     /* Secondary is a deeper teal, not blue. A blue "Restart" button next to an
        emerald "Start" implied a distinction that does not exist. */
-    --accent-secondary: 168 62% 42%;
+    --accent-secondary: 191 100% 50%;  /* #00D9FF — the cold second signal */
     /* Amber stays, used only for genuinely indeterminate state. Collapsing
        "unknown" into either emerald or red would assert something unknown. */
     --accent-warning: 40 88% 55%;
@@ -520,4 +520,75 @@
 
 .spinner {
   animation: spin 1s linear infinite;
+}
+
+/* ── Trust Operations Center ────────────────────────────────────────────────
+   Motion here communicates state, never decoration. Every animation below is
+   attached to something the system actually knows: a service that is up, a
+   verification that ran, a record that arrived. Nothing loops for atmosphere.
+   ------------------------------------------------------------------------- */
+
+/* The cube. Not a logo — the visual representation of trust, and it only turns
+   while the socket is connected, so a dead connection is visible as stillness. */
+@keyframes ops-cube-turn {
+  from { transform: rotateX(-22deg) rotateY(0deg); }
+  to   { transform: rotateX(-22deg) rotateY(360deg); }
+}
+
+.ops-cube-scene { perspective: 900px; }
+
+.ops-cube {
+  position: relative;
+  transform-style: preserve-3d;
+  animation: ops-cube-turn 28s linear infinite;
+}
+
+.ops-cube.is-still { animation-play-state: paused; }
+
+.ops-cube-face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid hsl(var(--accent-primary) / 0.35);
+  background: linear-gradient(140deg, hsl(var(--accent-primary) / 0.05), transparent 60%);
+  box-shadow: inset 0 0 30px hsl(var(--accent-primary) / 0.08);
+}
+
+/* Rings: one per verification pass. Slow and wide, so the eye reads structure
+   rather than activity. */
+@keyframes ops-ring-drift {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.ops-ring {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid hsl(var(--accent-secondary) / 0.14);
+  animation: ops-ring-drift 60s linear infinite;
+}
+.ops-ring.reverse { animation-direction: reverse; border-color: hsl(var(--accent-primary) / 0.12); }
+
+/* A record arriving: a brief convergence, then gone. Fires once per record. */
+@keyframes ops-arrive {
+  0%   { opacity: 0; transform: scale(0.4); }
+  40%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+.ops-arrive { animation: ops-arrive 1.5s ease-out forwards; }
+
+/* State language, applied to layer nodes.
+   DEMONSTRATED illuminates steadily. UNKNOWN pulses amber — unresolved, not
+   wrong. ABSENT dims. FAILED holds strong contrast without blinking, because a
+   failure that flashes gets muted like any other alarm. */
+@keyframes ops-steady { 0%, 100% { opacity: 0.92; } 50% { opacity: 1; } }
+@keyframes ops-unresolved { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.95; } }
+
+.ops-state-demonstrated { animation: ops-steady 5s ease-in-out infinite; }
+.ops-state-unknown { animation: ops-unresolved 2.6s ease-in-out infinite; }
+.ops-state-absent { opacity: 0.35; }
+.ops-state-failed { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-cube, .ops-ring, .ops-arrive,
+  .ops-state-demonstrated, .ops-state-unknown { animation: none; }
 }

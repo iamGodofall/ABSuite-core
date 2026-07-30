@@ -23,6 +23,7 @@ import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
 import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
+import { Operations } from './tabs/Operations';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -47,6 +48,7 @@ import './styles/globals.css';
  * underneath one of those seven words.
  */
 type TabId =
+  | 'operations'
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
   | 'system' | 'settings';
 
@@ -2173,6 +2175,8 @@ const TAB_CONFIG: {
   // The seven layers, in the order trust is built. Each label is a verb,
   // because each one is something the system does — and the question beneath it
   // is the one a person actually arrived with.
+  // Not a layer. The room the layers are in.
+  { id: 'operations', label: 'Operations', question: 'Everything, at once',                icon: Hexagon },
   { id: 'observe',   layer: 1, label: 'Observe',   question: 'What did the agents do?',            icon: Eye },
   { id: 'verify',    layer: 2, label: 'Verify',    question: 'Has any of it been altered?',        icon: Shield },
   { id: 'explain',   layer: 3, label: 'Explain',   question: 'What does this record mean?',        icon: MessageSquare },
@@ -2221,7 +2225,7 @@ const GovernTab = ({ demoMode }: { demoMode: boolean }) => (
 );
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('observe');
+  const [activeTab, setActiveTab] = useState<TabId>('operations');
   /**
    * The record being examined, if any.
    *
@@ -2301,6 +2305,17 @@ export default function App() {
       return <RecordDetail id={openRecordId} onClose={() => setOpenRecordId(null)} />;
     }
     switch (activeTab) {
+      case 'operations': return (
+        <Operations
+          live={liveExecutions}
+          arrivedIds={arrivedIds}
+          connected={connected}
+          servicesUp={services.filter(s => s.status === 'up').length}
+          servicesTotal={services.length}
+          onOpenRecord={setOpenRecordId}
+          onOpenLayer={layer => setActiveTab(layer as TabId)}
+        />
+      );
       case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
       case 'verify': return <ProofTab view="verify" onOpenRecord={setOpenRecordId} />;
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
@@ -2331,13 +2346,14 @@ export default function App() {
 
           {/* Nav — the stack, in order. */}
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-            {!sidebarCollapsed && (
-              <div className="px-3 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
-                The stack
-              </div>
-            )}
             {TAB_CONFIG.map(({ id, label, layer, question, icon: Icon }) => (
               <React.Fragment key={id}>
+                {/* Operations is the room; the seven are the stack inside it. */}
+                {layer === 1 && !sidebarCollapsed && (
+                  <div className="px-3 pt-3 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
+                    The stack
+                  </div>
+                )}
                 {/* The seven layers are the product; the last two are plumbing. */}
                 {layer === undefined && id === 'system' && (
                   <div className={cn('pt-3 mt-2 border-t border-border/40', sidebarCollapsed && 'mx-2')}>
@@ -2447,10 +2463,16 @@ export default function App() {
             {(() => {
               const current = TAB_CONFIG.find(tab => tab.id === activeTab);
               if (!current) return null;
+              // Operations states its own identity in the centre of the room.
+              if (current.id === 'operations' && !openRecordId) return null;
               return (
                 <div className="mb-5">
                   <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-500/70 mb-1">
-                    {current.layer !== undefined ? `Layer ${current.layer} of 7` : 'Underneath the stack'}
+                    {current.layer !== undefined
+                      ? `Layer ${current.layer} of 7`
+                      : current.id === 'operations'
+                        ? 'Trust Operations Center'
+                        : 'Underneath the stack'}
                   </div>
                   <h1 className="text-2xl font-bold text-text-primary leading-tight">{current.label}</h1>
                   <p className="text-sm text-text-muted mt-0.5">{current.question}</p>
