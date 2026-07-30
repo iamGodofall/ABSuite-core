@@ -29,6 +29,7 @@ import { AskBar } from './tabs/AskBar';
 import { Agents } from './tabs/Agents';
 import { ActLayer } from './tabs/ActLayer';
 import { LearnLayer } from './tabs/LearnLayer';
+import { ArbitrateLayer } from './tabs/ArbitrateLayer';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -2307,7 +2308,7 @@ export default function App() {
       case 'verify': return <ProofTab view="verify" onOpenRecord={setOpenRecordId} />;
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
       case 'govern': return <GovernTab onOpenRecord={setOpenRecordId} />;
-      case 'arbitrate': return <MonitoringTab />;
+      case 'arbitrate': return <ArbitrateLayer />;
       case 'act': return <ActTab services={services} onServiceAction={handleServiceAction} />;
       case 'learn': return <LearnTab />;
       case 'system': return <OverviewTab services={services} error={error} onServiceAction={handleServiceAction} />;
