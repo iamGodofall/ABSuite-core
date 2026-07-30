@@ -128,6 +128,9 @@ const MIGRATIONS: string[] = [
 const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
   // Which rule permitted an action, as opposed to which capability carried it.
   ['executions', 'governance', 'TEXT'],
+  // Null means canonical form v1. Added ahead of any v2 so that changing the
+  // canonical form is a code change, not a schema migration during an upgrade.
+  ['executions', 'canonical_version', 'INTEGER'],
 ];
 
 export class Storage {

@@ -416,7 +416,7 @@ of that command.
 ## Status
 
 ```text
-469 tests                    102 API endpoints
+473 tests                    102 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```

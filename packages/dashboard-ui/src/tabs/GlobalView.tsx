@@ -28,7 +28,7 @@ interface Stats {
   oldest?: string;
   newest?: string;
   withoutScope: number;
-  chain: { valid: boolean; checked: number; brokenAt?: number; reason?: string; contentIntact?: boolean; headHash: string };
+  chain: { valid: boolean; checked: number; brokenAt?: number; reason?: string; contentIntact?: boolean | null; checkable?: boolean; headHash: string };
   unverifiable: { field: string; because: string }[];
 }
 
@@ -122,18 +122,22 @@ export const GlobalView = () => {
             intrusion. Calling both "Broken" trains people to ignore the word. */}
         <Tile
           label="Chain"
-          tone={stats.total === 0 ? 'plain' : stats.chain.valid ? 'good' : stats.chain.contentIntact ? 'warn' : 'bad'}
+          tone={stats.total === 0 ? 'plain' : stats.chain.valid ? 'good'
+            : stats.chain.checkable === false || stats.chain.contentIntact ? 'warn' : 'bad'}
           value={stats.total === 0 ? '—'
             : stats.chain.valid ? 'Intact'
+            : stats.chain.checkable === false ? 'Unreadable here'
             : stats.chain.contentIntact ? 'Key mismatch'
             : `Broken at #${stats.chain.brokenAt}`}
           sub={stats.total === 0
             ? 'no records to verify'
             : stats.chain.valid
               ? `${stats.chain.checked.toLocaleString('en-US')} record(s) verified just now`
-              : stats.chain.contentIntact
-                ? `Record #${stats.chain.brokenAt} was not edited — it was signed by a different key.`
-                : stats.chain.reason ?? 'verification failed'}
+              : stats.chain.checkable === false
+                ? `Record #${stats.chain.brokenAt} was written in a newer format. Upgrade to check it — this is not tampering.`
+                : stats.chain.contentIntact
+                  ? `Record #${stats.chain.brokenAt} was not edited — it was signed by a different key.`
+                  : stats.chain.reason ?? 'verification failed'}
         />
         <Tile
           label="Verification rate"

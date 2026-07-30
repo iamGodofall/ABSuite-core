@@ -1395,7 +1395,7 @@ type Trace = {
   inputHash?: string; outputHash?: string;
 };
 
-type Verdict = { valid: boolean; reason?: string; contentIntact: boolean; signatureValid: boolean | null };
+type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null; signatureValid: boolean | null; checkable?: boolean };
 
 /**
  * The regulator-facing view.
@@ -1909,13 +1909,22 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
 
               {verdict && (
                 <div className={cn('mt-4 rounded-lg border p-3',
-                  verdict.valid ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-red-500/50 bg-red-500/5')}>
-                  <p className={cn('text-sm font-semibold mb-2', verdict.valid ? 'text-emerald-500' : 'text-red-500')}>
-                    {verdict.valid ? 'Genuine and unaltered' : 'Verification failed'}
+                  verdict.valid ? 'border-emerald-500/50 bg-emerald-500/5'
+                    : verdict.checkable === false ? 'border-amber-500/50 bg-amber-500/5'
+                    : 'border-red-500/50 bg-red-500/5')}>
+                  <p className={cn('text-sm font-semibold mb-2',
+                    verdict.valid ? 'text-emerald-500' : verdict.checkable === false ? 'text-amber-500' : 'text-red-500')}>
+                    {verdict.valid ? 'Genuine and unaltered'
+                      : verdict.checkable === false ? 'Cannot be checked by this build'
+                      : 'Verification failed'}
                   </p>
                   <ul className="text-xs space-y-1">
-                    <li className={verdict.contentIntact ? 'text-emerald-500' : 'text-red-500'}>
-                      {verdict.contentIntact ? '✓' : '✗'} Content {verdict.contentIntact ? 'matches its hash' : 'does NOT match its hash'}
+                    {/* null means we could not check, which must not be shown
+                        as a failed check — see TraceVerdict.contentIntact. */}
+                    <li className={verdict.contentIntact === null ? 'text-amber-500' : verdict.contentIntact ? 'text-emerald-500' : 'text-red-500'}>
+                      {verdict.contentIntact === null ? '–' : verdict.contentIntact ? '✓' : '✗'} Content{' '}
+                      {verdict.contentIntact === null ? 'could not be checked by this build'
+                        : verdict.contentIntact ? 'matches its hash' : 'does NOT match its hash'}
                     </li>
                     <li className={verdict.signatureValid === false ? 'text-red-500' : 'text-emerald-500'}>
                       {verdict.signatureValid === null ? '–' : verdict.signatureValid ? '✓' : '✗'} Signature{' '}

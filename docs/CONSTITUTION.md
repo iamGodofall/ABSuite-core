@@ -517,6 +517,29 @@ Verified by making the exact mistake it guards against: appending a null
 governance placeholder for consistency turned three historical records
 invalid immediately.
 
+**And versions are how history keeps surviving.** Freezing v1 cannot mean the
+form never changes — it means a change never orphans what came before. Records
+carry the canonical form they were written with (absence means v1, so nothing
+written before versioning existed moved a byte), the verifier dispatches on it,
+and no supported version is ever dropped. A deployment writing v3 in 2031 must
+still verify a record signed in 2026, or the evidence expired and was therefore
+never evidence.
+
+The subtle half is the other direction: a *2026 build meeting a 2031 record*. It
+must not report tampering, because it has not detected any — it simply cannot
+read the record. Verdicts carry `checkable: false` for exactly this, chain
+verification stops without calling the chain broken, and the conditions endpoint
+returns a single honest line instead of five findings against a record whose only
+problem is our age:
+
+> This record cannot be read by this build, so nothing about it has been
+> demonstrated or disproven. Upgrade and ask again.
+
+"I could not check this" and "this failed the check" are different statements.
+Collapsing them is how an old verifier ends up accusing a good record — the same
+false-accusation failure as calling a rotated signing key tampering, and it would
+be far more damaging here.
+
 ---
 
 **Claims are architecture. Checks are implementation.**

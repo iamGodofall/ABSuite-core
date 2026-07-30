@@ -10,6 +10,9 @@ import {
   replayManifest,
   compareReplay,
   GENESIS_HASH,
+  CANONICAL_VERSION,
+  SUPPORTED_CANONICAL_VERSIONS,
+  canonicalVersionOf,
   type ExecutionTrace,
 } from './trace';
 
@@ -489,6 +492,69 @@ describe('aggregate counts for a control plane', () => {
     expect(stats.subjects).toBe(0);
     expect(stats.oldest).toBeUndefined();
     expect(stats.newest).toBeUndefined();
+  });
+});
+
+describe('a canonical form is a contract with history', () => {
+  const v1Record = () => {
+    const key = new SigningKey();
+    const traces = new TraceStore(new Storage(':memory:'), key);
+    const trace = traces.record({
+      subject: 'agent:a', scope: ['x'], module: 'm', action: 'y', input: 1, outcome: 'success',
+    });
+    return { key, trace };
+  };
+
+  test('v1 records carry no version marker, so they hash as they always did', () => {
+    const { trace } = v1Record();
+
+    // Absence *is* v1. Writing "canonicalVersion: 1" onto every record would
+    // change the canonical form of the entire historical archive.
+    expect(trace.canonicalVersion).toBeUndefined();
+    expect(canonicalVersionOf(trace)).toBe(1);
+    expect(JSON.parse(canonicalTrace({ ...trace, hash: undefined, signature: undefined } as never))).toHaveLength(16);
+  });
+
+  test('a record from the future is refused, not accused', () => {
+    const { key, trace } = v1Record();
+    // Exactly what an ABSuite from 2031 would hand to this build.
+    const fromTheFuture = { ...trace, canonicalVersion: 3 };
+
+    const verdict = verifyTrace(fromTheFuture, key.publicKeyPem);
+
+    expect(verdict.valid).toBe(false);
+    // The distinction that matters: we could not check it, which is not the
+    // same as it having failed a check. An old verifier calling a good record
+    // tampered is a false accusation, and a loud one.
+    expect(verdict.checkable).toBe(false);
+    expect(verdict.reason).toMatch(/not evidence of tampering/i);
+    expect(verdict.reason).toMatch(/v3/);
+    expect(verdict.signatureValid).toBeNull();
+  });
+
+  test('the supported versions never shrink', () => {
+    // Dropping a version orphans every record ever written with it. This test
+    // exists so that removing one is a deliberate act with an argument attached.
+    expect(SUPPORTED_CANONICAL_VERSIONS).toContain(1);
+    expect(SUPPORTED_CANONICAL_VERSIONS).toContain(CANONICAL_VERSION);
+  });
+
+  test('a chain stops at an unreadable record without calling it broken', () => {
+    const key = new SigningKey();
+    const storage = new Storage(':memory:');
+    const traces = new TraceStore(storage, key);
+    traces.record({ subject: 'a', scope: ['x'], module: 'm', action: 'first', input: 1, outcome: 'success' });
+    const second = traces.record({ subject: 'a', scope: ['x'], module: 'm', action: 'second', input: 2, outcome: 'success' });
+
+    storage.run('UPDATE executions SET canonical_version = 4 WHERE id = ?', second.id);
+
+    const result = traces.verifyChain(key.publicKeyPem);
+    expect(result.valid).toBe(false);
+    expect(result.checkable).toBe(false);
+    expect(result.reason).toMatch(/too old to read/i);
+    // "Upgrade to verify the rest" and "your log was tampered with" must never
+    // arrive in the same words.
+    expect(result.reason).not.toMatch(/tampered with/i);
   });
 });
 

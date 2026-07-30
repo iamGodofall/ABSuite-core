@@ -51,6 +51,26 @@ export function trustConditions(
   verdict?: TraceVerdict,
   chainIntact?: boolean
 ): ConditionsReport {
+  // A record this build cannot read tells us nothing about any condition.
+  // Reporting five absences would read as five findings against the record,
+  // when the only finding is against us.
+  if (verdict?.checkable === false) {
+    return {
+      conditions: [
+        {
+          condition: 'All',
+          answers: 'Anything at all?',
+          state: 'unproven',
+          finding: `${verdict.reason ?? 'This record was written in a canonical form this build does not know.'} No condition can be assessed until this build can read it.`,
+          from: 'canonicalVersion',
+        },
+      ],
+      conclusion:
+        'This record cannot be read by this build, so nothing about it has been demonstrated or disproven. Upgrade and ask again.',
+      allDemonstrated: false,
+    };
+  }
+
   const conditions: TrustCondition[] = [];
 
   // ── Identity: who? ────────────────────────────────────────────────────────

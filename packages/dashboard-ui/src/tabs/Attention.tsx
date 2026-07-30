@@ -30,7 +30,7 @@ interface Flagged {
 interface Payload {
   items: Flagged[];
   count: number;
-  chain: { valid: boolean; brokenAt?: number; reason?: string; contentIntact?: boolean };
+  chain: { valid: boolean; brokenAt?: number; reason?: string; contentIntact?: boolean | null; checkable?: boolean };
   note: string;
 }
 
@@ -90,11 +90,15 @@ export const AttentionPanel = () => {
 
       {data && !data.chain.valid && (
         <div className={cn('rounded-lg border p-3 mb-3',
-          data.chain.contentIntact ? 'border-amber-500/40 bg-amber-500/[0.06]' : 'border-red-500/40 bg-red-500/[0.06]')}>
-          <div className={cn('text-xs font-semibold', data.chain.contentIntact ? 'text-amber-400' : 'text-red-400')}>
-            {data.chain.contentIntact
-              ? `Record #${data.chain.brokenAt} was not edited — it was signed by a different key.`
-              : `The chain does not verify at record #${data.chain.brokenAt}.`}
+          data.chain.checkable === false || data.chain.contentIntact
+            ? 'border-amber-500/40 bg-amber-500/[0.06]' : 'border-red-500/40 bg-red-500/[0.06]')}>
+          <div className={cn('text-xs font-semibold',
+            data.chain.checkable === false || data.chain.contentIntact ? 'text-amber-400' : 'text-red-400')}>
+            {data.chain.checkable === false
+              ? `Record #${data.chain.brokenAt} was written in a newer format than this build reads. Not tampering — upgrade to check it.`
+              : data.chain.contentIntact
+                ? `Record #${data.chain.brokenAt} was not edited — it was signed by a different key.`
+                : `The chain does not verify at record #${data.chain.brokenAt}.`}
           </div>
           {data.chain.reason && <p className="text-[11px] text-text-muted mt-1 leading-snug">{data.chain.reason}</p>}
         </div>

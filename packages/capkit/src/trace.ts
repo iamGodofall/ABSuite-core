@@ -76,6 +76,13 @@ export interface ExecutionTrace {
   steps: ExecutionStep[];
   /** The rule that permitted this, when the caller recorded one. */
   governance?: GovernanceRecord;
+  /**
+   * Canonical form this record was written with. Absent means v1.
+   *
+   * Never written for v1, so records that predate versioning hash exactly as
+   * they always did.
+   */
+  canonicalVersion?: number;
   /** Hash of the preceding trace, linking the log into a chain. */
   prevHash: string;
   hash: string;
@@ -107,12 +114,66 @@ function canonicalReplacer(_key: string, value: unknown): unknown {
 }
 
 /**
+ * The canonical form this build writes.
+ *
+ * A canonical form is a contract with history, not an implementation detail.
+ * The moment anyone records evidence with it, every future version of ABSuite
+ * owes those records a verification — because evidence that expires when the
+ * software changes was never evidence.
+ *
+ * So versions are additive and permanent. v1 is frozen: the sixteen fields
+ * below, plus governance appended only when present. Nothing may be reordered,
+ * removed or defaulted into it, ever.
+ */
+export const CANONICAL_VERSION = 1;
+
+/** Every form this build can verify. Old versions are never dropped. */
+export const SUPPORTED_CANONICAL_VERSIONS: readonly number[] = [1];
+
+/**
+ * Which canonical form a record was written with.
+ *
+ * v1 records carry no marker — absence *is* v1, which is what lets records
+ * written before versioning existed stay byte-identical. From v2 onward the
+ * version number must be the first element of the canonical form itself, so it
+ * is signed: an unsigned version marker would let anyone change how a record is
+ * verified by editing one number.
+ */
+export function canonicalVersionOf(trace: { canonicalVersion?: number }): number {
+  return trace.canonicalVersion ?? 1;
+}
+
+/** Thrown when asked to canonicalise a form this build does not know. */
+export class UnsupportedCanonicalVersion extends Error {
+  constructor(readonly version: number) {
+    super(
+      `This build writes canonical form v${CANONICAL_VERSION} and can verify ` +
+        `v${SUPPORTED_CANONICAL_VERSIONS.join(', v')}. It cannot check a record written as v${version}.`
+    );
+    this.name = 'UnsupportedCanonicalVersion';
+  }
+}
+
+/**
  * Canonical form of a trace, in a fixed field order.
  *
  * `hash` and `signature` are excluded — they are derived from this, so
  * including them would be circular.
+ *
+ * Dispatches on the record's own version. A record from the future is refused
+ * rather than canonicalised with the wrong rules, because verifying it under v1
+ * would produce a hash mismatch and report a perfectly good record as tampered.
  */
 export function canonicalTrace(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string {
+  const version = canonicalVersionOf(trace);
+  if (!SUPPORTED_CANONICAL_VERSIONS.includes(version)) {
+    throw new UnsupportedCanonicalVersion(version);
+  }
+  return canonicalV1(trace);
+}
+
+/** v1 — frozen January 2026. Never edit this function. */
+function canonicalV1(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string {
   const fields: unknown[] = [
     trace.id,
     trace.tenantId ?? null,
@@ -230,8 +291,24 @@ export function verifySignature(hashHex: string, signatureBase64: string, public
 export interface TraceVerdict {
   valid: boolean;
   reason?: string;
-  contentIntact: boolean;
+  /**
+   * `null` when the content could not be checked at all — same convention as
+   * `signatureValid`. `false` is a claim that the content does not match its
+   * hash, and making that claim without having checked is exactly the false
+   * accusation this verdict exists to avoid.
+   */
+  contentIntact: boolean | null;
   signatureValid: boolean | null;
+  /**
+   * False when this build cannot check the record at all — a canonical form it
+   * does not know.
+   *
+   * "I could not check this" and "this failed the check" are different
+   * statements, and collapsing them is how an old verifier meeting a newer
+   * record ends up accusing it of tampering. The only correct response to a
+   * record from the future is to say so and upgrade.
+   */
+  checkable?: boolean;
 }
 
 /**
@@ -243,7 +320,23 @@ export interface TraceVerdict {
  */
 export function verifyTrace(trace: ExecutionTrace, publicKeyPem?: string): TraceVerdict {
   const { hash, signature, ...unhashed } = trace;
-  const recomputed = hashTrace(unhashed);
+
+  let recomputed: string;
+  try {
+    recomputed = hashTrace(unhashed);
+  } catch (error) {
+    if (error instanceof UnsupportedCanonicalVersion) {
+      // Not tampering. Not valid either. A third answer, and the only honest one.
+      return {
+        valid: false,
+        checkable: false,
+        reason: `${error.message} This is not evidence of tampering — it is a record this build is too old to read.`,
+        contentIntact: null,
+        signatureValid: null,
+      };
+    }
+    throw error;
+  }
   const contentIntact = recomputed === hash;
 
   if (!contentIntact) {
@@ -381,6 +474,9 @@ export class TraceStore {
         // everything else. A policy reference nobody could verify would be a
         // claim about authority with no more standing than a log line.
         ...(input.governance ? { governance: input.governance } : {}),
+        // Deliberately omitted at v1: absence is v1, which keeps every record
+        // written before versioning existed byte-identical.
+        ...(CANONICAL_VERSION > 1 ? { canonicalVersion: CANONICAL_VERSION } : {}),
         prevHash,
       };
 
@@ -395,14 +491,14 @@ export class TraceStore {
       };
 
       this.storage.run(
-        `INSERT INTO executions (id, seq, tenant_id, subject, jti, scope, module, action, input_hash, output_hash, outcome, error, started_at, completed_at, duration_ms, steps, governance, prev_hash, hash, signature, key_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO executions (id, seq, tenant_id, subject, jti, scope, module, action, input_hash, output_hash, outcome, error, started_at, completed_at, duration_ms, steps, governance, canonical_version, prev_hash, hash, signature, key_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         trace.id, seq + 1, trace.tenantId ?? null, trace.subject, trace.jti ?? null,
         JSON.stringify(trace.scope), trace.module, trace.action, trace.inputHash,
         trace.outputHash ?? null, trace.outcome, trace.error ?? null,
         trace.startedAt, trace.completedAt ?? null, trace.durationMs ?? null,
         JSON.stringify(trace.steps), trace.governance ? JSON.stringify(trace.governance) : null,
-        trace.prevHash, trace.hash,
+        trace.canonicalVersion ?? null, trace.prevHash, trace.hash,
         trace.signature ?? null, trace.keyId ?? null
       );
 
@@ -600,14 +696,17 @@ export class TraceStore {
     brokenAt?: number;
     brokenId?: string;
     reason?: string;
+    /** False when the walk stopped at a record this build cannot read. */
+    checkable?: boolean;
     /**
-     * Whether the offending record's content still matches its hash.
+     * Whether the offending record's content still matches its hash. `null`
+     * when it could not be checked.
      *
      * `true` with `valid: false` means nothing was edited and the signature was
      * checked against the wrong key — a rotation, not an intrusion. A reader who
      * cannot tell those apart eventually treats both as noise.
      */
-    contentIntact?: boolean;
+    contentIntact?: boolean | null;
     headHash: string;
   } {
     const rows = this.storage.all<Record<string, unknown>>('SELECT * FROM executions ORDER BY seq ASC');
@@ -630,6 +729,10 @@ export class TraceStore {
           brokenId: trace.id,
           reason: verdict.reason ?? 'Verification failed',
           contentIntact: verdict.contentIntact,
+          // A record this build cannot read stops the walk without accusing it.
+          // "Upgrade to verify the rest" and "your log was tampered with" must
+          // never arrive in the same words.
+          ...(verdict.checkable === false ? { checkable: false } : {}),
           headHash: this.headHash,
         };
       }
@@ -659,6 +762,7 @@ function rowToTrace(row: Record<string, unknown>): ExecutionTrace {
     ...(row.duration_ms !== null && row.duration_ms !== undefined ? { durationMs: Number(row.duration_ms) } : {}),
     steps: safeParse<ExecutionStep[]>(row.steps, []),
     ...(row.governance ? { governance: safeParse<GovernanceRecord>(row.governance, undefined as never) } : {}),
+    ...(row.canonical_version ? { canonicalVersion: Number(row.canonical_version) } : {}),
     prevHash: String(row.prev_hash),
     hash: String(row.hash),
     ...(row.signature ? { signature: String(row.signature) } : {}),

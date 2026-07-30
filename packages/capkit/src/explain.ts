@@ -154,7 +154,17 @@ export function explainTrace(trace: ExecutionTrace, verdict?: TraceVerdict): Tra
   });
 
   // Integrity last, because it qualifies everything above it.
-  if (!verdict) {
+  if (verdict && verdict.checkable === false) {
+    // A record written in a newer canonical form. Saying "altered" here would
+    // accuse a perfectly good record of tampering because we are out of date.
+    warrantsReview = true;
+    findings.push({
+      question: 'Has the record been altered?',
+      answer: `Cannot be checked by this build. ${verdict.reason ?? ''} Nothing above is disproven — it is unread.`.trim(),
+      from: 'canonicalVersion',
+      status: 'unknown',
+    });
+  } else if (!verdict) {
     warrantsReview = true;
     findings.push({
       question: 'Has the record been altered?',
