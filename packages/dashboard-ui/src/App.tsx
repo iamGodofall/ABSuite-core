@@ -36,6 +36,8 @@ import { ActLayer } from './tabs/ActLayer';
 import { LearnLayer } from './tabs/LearnLayer';
 import { ArbitrateLayer } from './tabs/ArbitrateLayer';
 import { MachineRoom } from './tabs/MachineRoom';
+import { Audit } from './tabs/Audit';
+import { Obligations } from './tabs/Obligations';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1293,6 +1295,7 @@ const GovernTab = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }) =>
   <div className="space-y-6">
     <Agents onOpenRecord={onOpenRecord} />
     <AuthorityPanel />
+    <Obligations />
     <ConstraintsPanel />
     <AIStudioTab />
   </div>
@@ -1385,7 +1388,12 @@ export default function App() {
         />
       );
       case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
-      case 'verify': return <ProofTab view="verify" onOpenRecord={setOpenRecordId} />;
+      case 'verify': return (
+        <div className="space-y-6">
+          <ProofTab view="verify" onOpenRecord={setOpenRecordId} />
+          <Audit />
+        </div>
+      );
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
       case 'govern': return <GovernTab onOpenRecord={setOpenRecordId} />;
       case 'arbitrate': return <ArbitrateLayer />;
