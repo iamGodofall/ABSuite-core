@@ -27,6 +27,7 @@ import { Operations } from './tabs/Operations';
 import { ChainView } from './tabs/ChainView';
 import { AskBar } from './tabs/AskBar';
 import { Agents } from './tabs/Agents';
+import { ActLayer } from './tabs/ActLayer';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -2201,10 +2202,13 @@ const ActTab = ({ services, demoMode, onServiceAction }: {
   onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void;
 }) => (
   <div className="space-y-6">
-    <NoticeCard tone="info"
-      title="Observation is automatic. Action is granted."
-      message="Nothing here runs because ABSuite decided it should. Every execution surface below acts only under a capability that was issued to it, and every action it takes lands in Observe as a signed record." />
-    <ServicesTab services={services} onServiceAction={onServiceAction} />
+    {/* Work in flight first. Whether a container is up is infrastructure; what
+        is running is the layer. */}
+    <ActLayer />
+    <div>
+      <h3 className="text-sm font-semibold text-text-primary mb-3">The surfaces underneath</h3>
+      <ServicesTab services={services} onServiceAction={onServiceAction} />
+    </div>
     <ConnectorsTab demoMode={demoMode} />
   </div>
 );

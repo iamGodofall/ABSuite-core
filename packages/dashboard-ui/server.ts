@@ -443,6 +443,46 @@ app.get('/executions/attention', requireAdminAccess, async (req, res) => {
   }
 });
 
+/**
+ * The Act layer's actual work: the queue and the schedule.
+ *
+ * This layer showed service tiles — a deployment detail — where it should have
+ * shown what is running. Edge-Run holds both, and neither had a route here.
+ */
+app.get('/edge/queue', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS['edge-run']}/queue`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Edge-Run is unreachable' });
+  }
+});
+
+app.get('/edge/schedule', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS['edge-run']}/schedule`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Edge-Run is unreachable' });
+  }
+});
+
+/** The connector registry — what this instance can reach at all. */
+app.get('/edge/connectors', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS['connector-starter']}/connectors`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Connector-Starter is unreachable' });
+  }
+});
+
 /** Everything this instance could know and does not, grouped by the fix. */
 app.get('/executions/unknowns', requireAdminAccess, async (req, res) => {
   try {
