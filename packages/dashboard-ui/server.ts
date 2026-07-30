@@ -443,6 +443,18 @@ app.get('/executions/attention', requireAdminAccess, async (req, res) => {
   }
 });
 
+/** Agent-to-agent chains — the AI-watching-AI story, which had no picture. */
+app.get('/trust/chains', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.trust}/chains`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Trust is unreachable' });
+  }
+});
+
 /**
  * The Act layer's actual work: the queue and the schedule.
  *

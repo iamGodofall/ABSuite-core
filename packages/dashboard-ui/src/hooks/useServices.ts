@@ -98,7 +98,7 @@ const DEFAULT_SERVICES: Service[] = [
 
 export function useServices() {
   const [services, setServices] = useState<Service[]>([]);
-  const [demoMode, setDemoMode] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -106,13 +106,6 @@ export function useServices() {
 
 
   const refreshServices = useCallback(async () => {
-    if (demoMode) {
-      setServices(DEFAULT_SERVICES);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
     setLoading(true);
     try {
       const response = await fetch('/status');
@@ -197,11 +190,10 @@ export function useServices() {
     } finally {
       setLoading(false);
     }
-  }, [demoMode]);
+  }, []);
 
 
   const startService = useCallback(async (serviceName: string) => {
-    if (demoMode) return;
     try {
       setServices(prev => prev.map(s => s.id === serviceName ? { ...s, status: 'starting' as const } : s));
       const response = await fetch(`/start/${serviceName}`, { method: 'POST', headers: getAdminHeaders() });
@@ -212,10 +204,9 @@ export function useServices() {
       setServices(prev => prev.map(s => s.id === serviceName ? { ...s, status: 'failed' as const } : s));
       setError(`Start ${serviceName}: ${err.message}`);
     }
-  }, [demoMode]);
+  }, []);
 
   const stopService = useCallback(async (serviceName: string) => {
-    if (demoMode) return;
     try {
       setServices(prev => prev.map(s => s.id === serviceName ? { ...s, status: 'stopping' as const } : s));
       const response = await fetch(`/stop/${serviceName}`, { method: 'POST', headers: getAdminHeaders() });
@@ -226,43 +217,22 @@ export function useServices() {
       setServices(prev => prev.map(s => s.id === serviceName ? { ...s, status: 'failed' as const } : s));
       setError(`Stop ${serviceName}: ${err.message}`);
     }
-  }, [demoMode]);
+  }, []);
 
   const restartService = useCallback(async (serviceName: string) => {
-    if (demoMode) return;
     await stopService(serviceName);
     setTimeout(() => startService(serviceName), 1500);
-  }, [stopService, startService, demoMode]);
+  }, [stopService, startService]);
 
-
-  // Toggle demo/live mode
-  const toggleDemoMode = useCallback(() => {
-    const newMode = !demoMode;
-    setDemoMode(newMode);
-    localStorage.setItem('dashboardDemoMode', newMode.toString());
-    if (newMode) {
-      setError(null);
-    }
-  }, [demoMode]);
-
-  // Load mode from storage
-  useEffect(() => {
-    const saved = localStorage.getItem('dashboardDemoMode');
-    if (saved === 'true') {
-      setDemoMode(true);
-    }
-  }, []);
 
   useEffect(() => {
     refreshServices();
-    const interval = setInterval(refreshServices, demoMode ? 10000 : 3000);
+    const interval = setInterval(refreshServices, 3000);
     return () => clearInterval(interval);
-  }, [refreshServices, demoMode]);
+  }, [refreshServices]);
 
   return {
     services,
-    demoMode,
-    toggleDemoMode,
     loading,
     error,
     refreshServices,

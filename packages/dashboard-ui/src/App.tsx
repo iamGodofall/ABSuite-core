@@ -28,6 +28,7 @@ import { ChainView } from './tabs/ChainView';
 import { AskBar } from './tabs/AskBar';
 import { Agents } from './tabs/Agents';
 import { ActLayer } from './tabs/ActLayer';
+import { LearnLayer } from './tabs/LearnLayer';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -65,11 +66,6 @@ const getAdminHeaders = (): HeadersInit => {
   const adminKey = window.localStorage.getItem('absuiteAdminApiKey')?.trim();
   return adminKey ? { 'x-absuite-admin-key': adminKey } : {};
 };
-
-const DEMO_BENCHMARK_HISTORY: BenchmarkResult[] = [
-  { id: 'demo-1', service: 'capkit', type: 'latency', p50: 118, p95: 312, p99: 845, rps: 423, status: 'complete', timestamp: new Date(Date.now() - 3600000).toLocaleTimeString() },
-  { id: 'demo-2', service: 'edge-run', type: 'throughput', p50: 89, p95: 201, p99: 567, rps: 891, status: 'complete', timestamp: new Date(Date.now() - 7200000).toLocaleTimeString() },
-];
 
 // ─── Utility Components ─────────────────────────────────────────────────────
 
@@ -182,7 +178,7 @@ const NoticeCard = ({ tone = 'info', title, message }: { tone?: 'info' | 'warn' 
 
 // ─── Overview Tab ────────────────────────────────────────────────────────────
 
-const OverviewTab = ({ services, demoMode, error, onServiceAction }: { services: Service[]; demoMode: boolean; error: string | null; onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void }) => {
+const OverviewTab = ({ services, error, onServiceAction }: { services: Service[]; error: string | null; onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
 
@@ -192,7 +188,7 @@ const OverviewTab = ({ services, demoMode, error, onServiceAction }: { services:
   const avgMem = services.length ? Math.round(services.reduce((a, s) => a + (s.metrics?.memory ?? 0), 0) / services.length) : 0;
 
   useEffect(() => {
-    if (demoMode) {
+    if (false) {
       const initial: LogEntry[] = Array.from({ length: 5 }, (_, i) => ({
         time: new Date(Date.now() - i * 45000).toLocaleTimeString(),
         level: 'info',
@@ -245,7 +241,7 @@ const OverviewTab = ({ services, demoMode, error, onServiceAction }: { services:
     }
 
     setLogs(liveLogs.slice(0, 20));
-  }, [demoMode, services, error]);
+  }, [services, error]);
 
   const handleAction = async (id: string, action: 'start' | 'stop' | 'restart') => {
     setActionLoading(prev => ({ ...prev, [id]: true }));
@@ -258,9 +254,7 @@ const OverviewTab = ({ services, demoMode, error, onServiceAction }: { services:
       {/* Only the demo-mode notice belongs here. The live-mode notice is rendered
           once by the Overview tab; showing it again produced two stacked banners
           telling the reader the same thing in different words. */}
-      {demoMode && (
-        <NoticeCard tone="warn" title="Demo mode is active" message="This tab is using showcase activity data. Switch back to Live to monitor the real suite." />
-      )}
+      
 
       {/* Stats Bar */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -462,7 +456,7 @@ const ServicesTab = ({ services, onServiceAction }: { services: Service[]; onSer
 
 // ─── AI Studio Tab ───────────────────────────────────────────────────────────
 
-const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
+const AIStudioTab = () => {
   const [provider, setProvider] = useState('ollama');
   const [tokenName, setTokenName] = useState('');
   const [tokenPerms, setTokenPerms] = useState('read,execute');
@@ -483,7 +477,7 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
   useEffect(() => {
     let active = true;
     const fallbackProviders: ProviderOption[] = [
-      { name: 'ollama', label: 'Ollama', type: 'local', available: demoMode, configured: true, defaultModel: 'llama3.2', description: 'Sovereign local inference via Ollama.' },
+      { name: 'ollama', label: 'Ollama', type: 'local', available: false, configured: true, defaultModel: 'llama3.2', description: 'Sovereign local inference via Ollama.' },
       { name: 'lmstudio', label: 'LM Studio', type: 'local', available: false, configured: true, defaultModel: 'local-model', description: 'OpenAI-compatible local desktop inference.' },
       { name: 'github-models', label: 'GitHub Models', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'GitHub-hosted model access.' },
       { name: 'openrouter', label: 'OpenRouter', type: 'cloud', available: false, configured: false, defaultModel: 'openai/gpt-4o-mini', description: 'One API for many hosted models.' },
@@ -504,13 +498,13 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
         const liveProviders: ProviderOption[] = Array.isArray(data.providers)
           ? (data.providers as ProviderOption[])
           : [];
-        const nextProviders: ProviderOption[] = demoMode
+        const nextProviders: ProviderOption[] = false
           ? (liveProviders.length > 0 ? liveProviders : fallbackProviders)
           : liveProviders;
 
         setProviders(nextProviders);
         setRecommendedProvider(data.recommended ?? 'none');
-        setProvidersError(!demoMode && liveProviders.length === 0 ? 'No live AI providers were reported by CapKit.' : '');
+        setProvidersError(liveProviders.length === 0 ? 'No live AI providers were reported by CapKit.' : '');
 
         if (nextProviders.length > 0 && !nextProviders.some(option => option.name === provider)) {
           const preferredProvider = data.recommended && data.recommended !== 'none'
@@ -523,8 +517,8 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
         }
       } catch (err) {
         if (!active) return;
-        setProviders(demoMode ? fallbackProviders : []);
-        setRecommendedProvider(demoMode ? 'ollama' : 'none');
+        setProviders([]);
+        setRecommendedProvider('none');
         setProvidersError((err as Error).message);
       }
     };
@@ -533,7 +527,7 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
     return () => {
       active = false;
     };
-  }, [demoMode, provider]);
+  }, [provider]);
 
   const generateToken = async () => {
     if (!tokenName) return;
@@ -549,7 +543,7 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
       setTokenResult(generatedToken);
       setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
     } catch (err) {
-      if (demoMode) {
+      if (false) {
         setTokenResult(`ck_demo_${Math.random().toString(36).slice(2, 18)}...`);
         setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
       } else {
@@ -574,7 +568,7 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
       setPolicyResult(data.policy ?? data.improvedPolicy ?? '');
       setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
     } catch (err) {
-      if (demoMode) {
+      if (false) {
         setPolicyResult(`Generated demo policy for: ${policyDesc.slice(0, 40)}...\n\n- Access Level: Medium\n- Rate Limiting: 100 req/min\n- Content Filter: Strict\n- Audit: Enabled`);
         setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
       } else {
@@ -593,11 +587,7 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
         <h2 className="text-xl font-bold text-text-primary">AI Studio</h2>
       </div>
 
-      {demoMode ? (
-        <NoticeCard tone="warn" title="Demo mode is active" message="AI Studio will use showcase examples if the live providers are unavailable." />
-      ) : (
-        <NoticeCard tone="info" title="Live mode is active" message="This panel only shows real CapKit and provider responses. If a provider is unavailable, the actual error will be shown." />
-      )}
+      {<NoticeCard tone="info" title="Live mode is active" message="This panel only shows real CapKit and provider responses. If a provider is unavailable, the actual error will be shown." />}
 
       {/* Provider Selector */}
       <div className="glass-card p-5">
@@ -612,8 +602,8 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
             </span>
           )}
         </div>
-        {providersError && <div className="mb-3"><NoticeCard tone={demoMode ? 'warn' : 'error'} title="Provider discovery issue" message={providersError} /></div>}
-        {!providersError && !demoMode && providers.length === 0 && (
+        {providersError && <div className="mb-3"><NoticeCard tone="error" title="Provider discovery issue" message={providersError} /></div>}
+        {!providersError && providers.length === 0 && (
           <div className="mb-3">
             <NoticeCard tone="error" title="No live providers available" message="CapKit did not report any reachable AI providers. Start or configure one to use AI Studio in live mode." />
           </div>
@@ -728,23 +718,23 @@ const AIStudioTab = ({ demoMode }: { demoMode: boolean }) => {
 
 // ─── Benchmarks Tab ─────────────────────────────────────────────────────────
 
-const BenchmarksTab = ({ demoMode }: { demoMode: boolean }) => {
+const BenchmarksTab = () => {
   const [service, setService] = useState('capkit');
   const [benchType, setBenchType] = useState('latency');
   const [requests, setRequests] = useState('100');
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BenchmarkResult | null>(null);
-  const [history, setHistory] = useState<BenchmarkResult[]>(demoMode ? DEMO_BENCHMARK_HISTORY : []);
+  const [history, setHistory] = useState<BenchmarkResult[]>([]);
   const [runError, setRunError] = useState('');
 
   useEffect(() => {
-    if (demoMode) {
-      setHistory(prev => prev.length > 0 ? prev : DEMO_BENCHMARK_HISTORY);
+    if (false) {
+      // Nothing to fall back to: a benchmark that has not run has no history.
       return;
     }
 
     setHistory(prev => prev.filter(entry => !entry.id.startsWith('demo-')));
-  }, [demoMode]);
+  }, []);
 
   const runBenchmark = async () => {
     setRunning(true);
@@ -771,7 +761,7 @@ const BenchmarksTab = ({ demoMode }: { demoMode: boolean }) => {
       setResult(benchmarkResult);
       setHistory(prev => [benchmarkResult, ...prev.slice(0, 9)]);
     } catch (err) {
-      if (demoMode) {
+      if (false) {
         const demoResult: BenchmarkResult = {
           id: `demo-${Math.random().toString()}`,
           service,
@@ -802,11 +792,7 @@ const BenchmarksTab = ({ demoMode }: { demoMode: boolean }) => {
         <h2 className="text-xl font-bold text-text-primary">Benchmarks</h2>
       </div>
 
-      {demoMode ? (
-        <NoticeCard tone="warn" title="Demo mode is active" message="Benchmark history may include showcase runs when the real services are not available." />
-      ) : (
-        <NoticeCard tone={runError ? 'error' : 'info'} title={runError ? 'Live benchmark failed' : 'Live benchmark mode'} message={runError || 'Benchmark runs measure the real target service health endpoint and report actual timing.'} />
-      )}
+      {<NoticeCard tone={runError ? 'error' : 'info'} title={runError ? 'Live benchmark failed' : 'Live benchmark mode'} message={runError || 'Benchmark runs measure the real target service health endpoint and report actual timing.'} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Run Config */}
@@ -939,7 +925,7 @@ const BenchmarksTab = ({ demoMode }: { demoMode: boolean }) => {
 
 // ─── Connectors Tab ───────────────────────────────────────────────────────────
 
-const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
+const ConnectorsTab = () => {
   const [connectors, setConnectors] = useState([
     { id: 'github', name: 'GitHub', icon: <Github className="w-6 h-6" />, enabled: true, description: 'Code repositories, PRs, and CI/CD workflows' },
     { id: 'slack', name: 'Slack', icon: <Slack className="w-6 h-6" />, enabled: true, description: 'Team messaging and notifications' },
@@ -959,7 +945,7 @@ const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
   const [agentError, setAgentError] = useState('');
 
   const toggle = (id: string) => {
-    if (!demoMode) {
+    if (true) {
       setConnectorStatusTone('warn');
       setConnectorStatusMessage('Connector enable/disable is not persisted yet in Live mode. Use Test Connection for the real status.');
       return;
@@ -979,7 +965,7 @@ const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
       setConnectorStatusTone(data.configured ? 'info' : 'warn');
       setConnectorStatusMessage(data.message ?? `${id} connection looks healthy.`);
     } catch (err) {
-      if (demoMode) {
+      if (false) {
         setConnectorStatusTone('warn');
         setConnectorStatusMessage(`${id} is using demo connectivity feedback right now.`);
       } else {
@@ -1001,7 +987,7 @@ const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
 
       setAgentResult(data.config ?? '');
     } catch (err) {
-      if (demoMode) {
+      if (false) {
         setAgentResult(`# AI Agent Configuration\nname: my-agent\nmodel: ${agentModel}\ndescription: "${agentPrompt.slice(0, 50)}..."\n\ncapabilities:\n  - read\n  - execute\n\nendpoints:\n  - ${agentPrompt.slice(0, 30).replace(/\s/g, '-').toLowerCase()}`);
       } else {
         setAgentResult('');
@@ -1022,11 +1008,7 @@ const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
         </button>
       </div>
 
-      {demoMode ? (
-        <NoticeCard tone="warn" title="Demo mode is active" message="Connector toggles and generated agent content may use showcase-only behavior." />
-      ) : (
-        <NoticeCard tone="info" title="Live connector mode" message="Connector tests show the real environment configuration. Unwired features will tell you they are not configured yet." />
-      )}
+      {<NoticeCard tone="info" title="Live connector mode" message="Connector tests show the real environment configuration. Unwired features will tell you they are not configured yet." />}
 
       {/* Connector Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -1154,7 +1136,7 @@ const ConnectorsTab = ({ demoMode }: { demoMode: boolean }) => {
 
 // ─── Settings Tab ────────────────────────────────────────────────────────────
 
-const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: boolean }) => {
+const SettingsTab = ({ services }: { services: Service[] }) => {
   const [dbStatus, setDbStatus] = useState<Service['status']>('unknown');
   const [notifs, setNotifs] = useState({ email: true, slack: false, alerts: true });
   const [adminApiKey, setAdminApiKey] = useState('');
@@ -1172,7 +1154,7 @@ const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: bo
     let active = true;
 
     const syncDbStatus = async () => {
-      if (demoMode) {
+      if (false) {
         setDbStatus('unknown');
         return;
       }
@@ -1200,7 +1182,7 @@ const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: bo
     return () => {
       active = false;
     };
-  }, [demoMode, services]);
+  }, [services]);
 
   const endpoints = [
     ...services.map(service => ({
@@ -1223,8 +1205,8 @@ const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: bo
       setEndpointMessageTone('info');
       setEndpointMessage(`${healthUrl} responded with HTTP ${data.status}.`);
     } catch (err) {
-      setEndpointMessageTone(demoMode ? 'warn' : 'error');
-      setEndpointMessage(demoMode ? 'Demo mode does not guarantee a live endpoint response.' : (err as Error).message);
+      setEndpointMessageTone('error');
+      setEndpointMessage((err as Error).message);
     }
   };
 
@@ -1260,11 +1242,7 @@ const SettingsTab = ({ services, demoMode }: { services: Service[]; demoMode: bo
         <h2 className="text-xl font-bold text-text-primary">Settings</h2>
       </div>
 
-      {demoMode ? (
-        <NoticeCard tone="warn" title="Demo mode is active" message="Endpoint checks may be unavailable or simulated for presentation purposes." />
-      ) : (
-        <NoticeCard tone="info" title="Live settings mode" message="Endpoint statuses in this panel reflect the actual running suite. Tests call the real health endpoints through the dashboard backend." />
-      )}
+      {<NoticeCard tone="info" title="Live settings mode" message="Endpoint statuses in this panel reflect the actual running suite. Tests call the real health endpoints through the dashboard backend." />}
 
       {/* Service Endpoints */}
       <div className="glass-card overflow-hidden">
@@ -2196,9 +2174,8 @@ const TAB_CONFIG: {
 ];
 
 /** Everything the Act layer can reach, and whether it is up. */
-const ActTab = ({ services, demoMode, onServiceAction }: {
+const ActTab = ({ services, onServiceAction }: {
   services: Service[];
-  demoMode: boolean;
   onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void;
 }) => (
   <div className="space-y-6">
@@ -2209,28 +2186,28 @@ const ActTab = ({ services, demoMode, onServiceAction }: {
       <h3 className="text-sm font-semibold text-text-primary mb-3">The surfaces underneath</h3>
       <ServicesTab services={services} onServiceAction={onServiceAction} />
     </div>
-    <ConnectorsTab demoMode={demoMode} />
+    <ConnectorsTab />
   </div>
 );
 
 /** Layer 7 — what the system measures about itself, and about models. */
-const LearnTab = ({ demoMode }: { demoMode: boolean }) => (
+const LearnTab = () => (
   <div className="space-y-6">
-    <PerformanceTab />
+    <LearnLayer />
     <div>
       <h3 className="text-sm font-semibold text-text-primary mb-3">Benchmark a model</h3>
-      <BenchmarksTab demoMode={demoMode} />
+      <BenchmarksTab />
     </div>
   </div>
 );
 
 /** Layer 4 — the rules, the refusals, and the tokens that carry authority. */
-const GovernTab = ({ demoMode, onOpenRecord }: { demoMode: boolean; onOpenRecord?: (id: string) => void }) => (
+const GovernTab = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }) => (
   <div className="space-y-6">
     <Agents onOpenRecord={onOpenRecord} />
     <AuthorityPanel />
     <ConstraintsPanel />
-    <AIStudioTab demoMode={demoMode} />
+    <AIStudioTab />
   </div>
 );
 
@@ -2263,7 +2240,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<Array<{ id: string; message: string; time: string; read: boolean; type: 'info' | 'success' | 'warn' }>>([]);
   const unreadCount = notifications.filter(n => !n.read).length;
   const { theme } = useTheme();
-  const { services, demoMode, toggleDemoMode, loading, error, startService, stopService, restartService } = useServices();
+  const { services, loading, error, startService, stopService, restartService } = useServices();
 
   // Close notification panel on outside click
   useEffect(() => {
@@ -2329,12 +2306,12 @@ export default function App() {
       case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
       case 'verify': return <ProofTab view="verify" onOpenRecord={setOpenRecordId} />;
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
-      case 'govern': return <GovernTab demoMode={demoMode} onOpenRecord={setOpenRecordId} />;
+      case 'govern': return <GovernTab onOpenRecord={setOpenRecordId} />;
       case 'arbitrate': return <MonitoringTab />;
-      case 'act': return <ActTab services={services} demoMode={demoMode} onServiceAction={handleServiceAction} />;
-      case 'learn': return <LearnTab demoMode={demoMode} />;
-      case 'system': return <OverviewTab services={services} demoMode={demoMode} error={error} onServiceAction={handleServiceAction} />;
-      case 'settings': return <SettingsTab services={services} demoMode={demoMode} />;
+      case 'act': return <ActTab services={services} onServiceAction={handleServiceAction} />;
+      case 'learn': return <LearnTab />;
+      case 'system': return <OverviewTab services={services} error={error} onServiceAction={handleServiceAction} />;
+      case 'settings': return <SettingsTab services={services} />;
     }
   };
 
@@ -2445,16 +2422,6 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3 ml-auto">
-              <button
-                type="button"
-                onClick={toggleDemoMode}
-                aria-label={demoMode ? 'Switch to live mode' : 'Switch to demo mode'}
-                title={demoMode ? 'Switch to live mode' : 'Switch to demo mode'}
-                className="flex items-center gap-1 rounded-xl border border-border bg-bg-primary/80 p-1 text-[11px] font-semibold"
-              >
-                <span className={cn('rounded-lg px-2.5 py-1 transition-all', !demoMode ? 'bg-emerald-500 text-bg-primary' : 'text-text-muted')}>LIVE</span>
-                <span className={cn('rounded-lg px-2.5 py-1 transition-all', demoMode ? 'bg-amber-500 text-bg-primary' : 'text-text-muted')}>DEMO</span>
-              </button>
 
               {/* Connection Status */}
               <div className="flex items-center gap-2 min-w-[120px]">
@@ -2508,13 +2475,9 @@ export default function App() {
                 Evidence tab it pushed the answer the reader came for below a
                 banner telling them something they did not ask. An actual error
                 still surfaces everywhere. */}
-            {(demoMode || error || activeTab === 'system' || activeTab === 'act') && (
+            {(error || activeTab === 'system' || activeTab === 'act') && (
               <div className="mb-4">
-                {demoMode ? (
-                  <NoticeCard tone="warn" title="Demo mode enabled" message="You are viewing showcase behavior in this same dashboard URI. Switch back to Live for the real suite state." />
-                ) : (
-                  <NoticeCard tone={error ? 'error' : 'info'} title={error ? 'Live mode reports a real issue' : 'Live mode enabled'} message={error ? `${error} The dashboard is intentionally not showing fake fallback data.` : 'This dashboard is currently showing the real ABSuite service state.'} />
-                )}
+                <NoticeCard tone={error ? 'error' : 'info'} title={error ? 'Live mode reports a real issue' : 'Live mode enabled'} message={error ? `${error} The dashboard is intentionally not showing fake fallback data.` : 'This dashboard is currently showing the real ABSuite service state.'} />
               </div>
             )}
 
