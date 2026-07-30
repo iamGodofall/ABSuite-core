@@ -132,6 +132,36 @@ describe('explaining a record without a language model', () => {
     expect(renderExplanation(out)).toMatch(/cannot be stated from the record/i);
   });
 
+  test('names the governing rule without claiming the decision was right', () => {
+    const { traces, key } = fresh();
+    const trace = sample(traces, {
+      governance: {
+        policyRef: 'finance.refunds.max-10000',
+        policyVersion: '2.1.4',
+        decision: 'PERMITTED',
+        evidence: ['refund < $10,000', 'customer_age > 30d'],
+      },
+    });
+    const text = renderExplanation(explainTrace(trace, verifyTrace(trace, key.publicKeyPem)));
+
+    expect(text).toContain('finance.refunds.max-10000');
+    expect(text).toContain('2.1.4');
+    expect(text).toContain('refund < $10,000');
+    // The whole distinction: which rule permitted it, never that permitting it
+    // was correct. Whether the rule should have existed is a human question.
+    expect(text).toContain('not a statement that the decision was correct');
+    expect(text).not.toMatch(/\b(correct decision|was justified|appropriate)\b/i);
+  });
+
+  test('an absent governing rule is stated as absent, not as unrestricted', () => {
+    const { traces, key } = fresh();
+    const trace = sample(traces);
+    const text = renderExplanation(explainTrace(trace, verifyTrace(trace, key.publicKeyPem)));
+
+    expect(text).toContain('Why was it permitted?');
+    expect(text).toMatch(/No governing rule was recorded/i);
+  });
+
   test('the conclusion never tells anyone what to do', () => {
     const { traces, key } = fresh();
     for (const over of [{}, { outcome: 'failure' as const }]) {

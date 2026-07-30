@@ -19,7 +19,7 @@ import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
 import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './billing';
 import { createServiceMetrics } from './metrics';
-import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload } from './trace';
+import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, type GovernanceRecord } from './trace';
 import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
@@ -543,13 +543,34 @@ app.get('/executions/public-key', (_req, res) => {
 });
 
 app.post('/executions', authorise('execution:record'), (req, res) => {
-  const { subject, jti, scope, module, action, input, output, outcome, error, startedAt, completedAt, durationMs, steps } = req.body ?? {};
+  const { subject, jti, scope, module, action, input, output, outcome, error, startedAt, completedAt, durationMs, steps, governance } = req.body ?? {};
 
   if (!subject || !module || !action || !outcome) {
     return fail(res, 400, 'INVALID_REQUEST', 'subject, module, action and outcome are required');
   }
   if (!['success', 'failure'].includes(String(outcome))) {
     return fail(res, 400, 'INVALID_REQUEST', 'outcome must be success or failure');
+  }
+
+  // The governing rule, when the caller evaluated one. Validated rather than
+  // trusted: a half-filled policy reference is worse than none, because it looks
+  // like an answer to "under what rule?" without being one.
+  let governanceRecord: GovernanceRecord | undefined;
+  if (governance !== undefined && governance !== null) {
+    const { policyRef, policyVersion, decision, evidence, evaluatedBy } = governance as Record<string, unknown>;
+    if (!policyRef || !policyVersion || !decision) {
+      return fail(res, 400, 'INVALID_REQUEST', 'governance requires policyRef, policyVersion and decision');
+    }
+    if (!['PERMITTED', 'DENIED', 'REQUIRES_APPROVAL'].includes(String(decision))) {
+      return fail(res, 400, 'INVALID_REQUEST', 'governance.decision must be PERMITTED, DENIED or REQUIRES_APPROVAL');
+    }
+    governanceRecord = {
+      policyRef: String(policyRef),
+      policyVersion: String(policyVersion),
+      decision: String(decision) as GovernanceRecord['decision'],
+      evidence: Array.isArray(evidence) ? evidence.map(String) : [],
+      ...(evaluatedBy ? { evaluatedBy: String(evaluatedBy) } : {}),
+    };
   }
 
   const tenant = (req as TenantRequest).tenant;
@@ -572,6 +593,7 @@ app.post('/executions', authorise('execution:record'), (req, res) => {
     ...(completedAt ? { completedAt: String(completedAt) } : {}),
     ...(durationMs !== undefined ? { durationMs: Number(durationMs) } : {}),
     steps: Array.isArray(steps) ? steps : [],
+    ...(governanceRecord ? { governance: governanceRecord } : {}),
   });
 
   metrics.increment('absuite_executions_total', { outcome: trace.outcome, module: trace.module });

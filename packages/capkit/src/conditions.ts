@@ -103,19 +103,27 @@ export function trustConditions(
 
   // ── Governance: should it have? ───────────────────────────────────────────
   //
-  // This one is honest about a gap rather than papering over it. A trace records
-  // the *capability* that permitted an action, which is not the same as the
-  // policy that decided it should be permitted. Until executions carry a policy
-  // reference, this condition cannot be demonstrated from a record, and saying
-  // so is more useful than quietly treating scope as governance.
+  // A capability answers "was this allowed?". The governing rule answers "under
+  // what rule?" — and that is as far as a record can go. Even with a policy
+  // recorded, ABSuite never says the decision was correct: it names the rule
+  // that produced it, so a person can ask whether that rule should have existed.
+  const governance = trace.governance;
   conditions.push({
     condition: 'Governance',
-    answers: 'Should it have?',
-    state: 'absent',
-    finding:
-      'Not recorded. A trace states the authority an action held, not the rule that decided it should hold it. ' +
-      'Whether this action should have been permitted cannot be answered from this record — only whether it was.',
-    from: 'nothing on the execution record carries a policy reference',
+    answers: 'Under what rule?',
+    state: !governance ? 'absent' : verdict?.contentIntact ? 'demonstrated' : 'unproven',
+    finding: !governance
+      ? 'Not recorded. A trace states the authority an action held, not the rule that decided it should hold it. ' +
+        'Under what rule this was permitted cannot be answered from this record — only whether it was.'
+      : !verdict
+        ? `Policy ${governance.policyRef} (v${governance.policyVersion}) is recorded as ${governance.decision}, but the record has not been verified, so that claim is unchecked.`
+        : !verdict.contentIntact
+          ? `Policy ${governance.policyRef} is recorded, but the content does not match its hash, so the policy reference is as unproven as everything else on it.`
+          : `Permitted under policy ${governance.policyRef} (v${governance.policyVersion}), which evaluated to ${governance.decision}` +
+            `${governance.evaluatedBy ? ` by ${governance.evaluatedBy}` : ''}. ` +
+            `Conditions checked: ${governance.evidence.join('; ')}. ` +
+            'This states which rule permitted the action. Whether that rule should have existed is a judgement, and it is not ABSuite\'s.',
+    from: 'governance.policyRef, policyVersion, decision, evidence',
   });
 
   // ── Time: when, and in what order? ────────────────────────────────────────

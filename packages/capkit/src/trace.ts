@@ -32,6 +32,30 @@ export interface ExecutionStep {
   detail?: string;
 }
 
+/**
+ * Which rule permitted an action — as distinct from which capability carried it.
+ *
+ * A scope answers "was this allowed?". It cannot answer "should it have been?",
+ * because a capability is the *result* of a governing decision, not the decision
+ * itself. Recording the rule, its version and the specific conditions that were
+ * checked is what closes that gap.
+ *
+ * ABSuite records the decision. It does not make it, and it never asserts the
+ * decision was correct — only which rule produced it, so that a person can ask
+ * whether that rule should have existed.
+ */
+export interface GovernanceRecord {
+  /** Stable identifier of the rule, e.g. "finance.refunds.max-10000". */
+  policyRef: string;
+  /** The exact version evaluated. A rule without a version cannot be replayed. */
+  policyVersion: string;
+  decision: 'PERMITTED' | 'DENIED' | 'REQUIRES_APPROVAL';
+  /** The specific conditions checked, in the evaluator's own words. */
+  evidence: string[];
+  /** Who or what evaluated the rule, when it is not ABSuite. */
+  evaluatedBy?: string;
+}
+
 export interface ExecutionTrace {
   id: string;
   tenantId?: string;
@@ -50,6 +74,8 @@ export interface ExecutionTrace {
   completedAt?: string;
   durationMs?: number;
   steps: ExecutionStep[];
+  /** The rule that permitted this, when the caller recorded one. */
+  governance?: GovernanceRecord;
   /** Hash of the preceding trace, linking the log into a chain. */
   prevHash: string;
   hash: string;
@@ -87,7 +113,7 @@ function canonicalReplacer(_key: string, value: unknown): unknown {
  * including them would be circular.
  */
 export function canonicalTrace(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string {
-  return JSON.stringify([
+  const fields: unknown[] = [
     trace.id,
     trace.tenantId ?? null,
     trace.subject,
@@ -104,7 +130,28 @@ export function canonicalTrace(trace: Omit<ExecutionTrace, 'hash' | 'signature'>
     trace.durationMs ?? null,
     trace.steps.map(step => [step.seq, step.name, step.at, step.detail ?? null]),
     trace.prevHash,
-  ]);
+  ];
+
+  // Governance is appended only when it exists, which is what makes this change
+  // safe to ship against chains that already have records in them. A `null`
+  // placeholder would alter the canonical form of every trace ever written and
+  // break verification for all of them — the whole log would report as tampered
+  // because we added a field.
+  //
+  // Stripping governance from a record that has it still fails: the array loses
+  // an element, the canonical string changes, the hash no longer matches. The
+  // two lengths cannot collide, so this is unambiguous in both directions.
+  if (trace.governance) {
+    fields.push([
+      trace.governance.policyRef,
+      trace.governance.policyVersion,
+      trace.governance.decision,
+      [...trace.governance.evidence],
+      trace.governance.evaluatedBy ?? null,
+    ]);
+  }
+
+  return JSON.stringify(fields);
 }
 
 export function hashTrace(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string {
@@ -330,6 +377,10 @@ export class TraceStore {
         ...(input.completedAt ? { completedAt: input.completedAt } : {}),
         ...(durationMs !== undefined ? { durationMs } : {}),
         steps: input.steps ?? [],
+        // Included before hashing, so the governing rule is signed along with
+        // everything else. A policy reference nobody could verify would be a
+        // claim about authority with no more standing than a log line.
+        ...(input.governance ? { governance: input.governance } : {}),
         prevHash,
       };
 
@@ -344,13 +395,14 @@ export class TraceStore {
       };
 
       this.storage.run(
-        `INSERT INTO executions (id, seq, tenant_id, subject, jti, scope, module, action, input_hash, output_hash, outcome, error, started_at, completed_at, duration_ms, steps, prev_hash, hash, signature, key_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO executions (id, seq, tenant_id, subject, jti, scope, module, action, input_hash, output_hash, outcome, error, started_at, completed_at, duration_ms, steps, governance, prev_hash, hash, signature, key_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         trace.id, seq + 1, trace.tenantId ?? null, trace.subject, trace.jti ?? null,
         JSON.stringify(trace.scope), trace.module, trace.action, trace.inputHash,
         trace.outputHash ?? null, trace.outcome, trace.error ?? null,
         trace.startedAt, trace.completedAt ?? null, trace.durationMs ?? null,
-        JSON.stringify(trace.steps), trace.prevHash, trace.hash,
+        JSON.stringify(trace.steps), trace.governance ? JSON.stringify(trace.governance) : null,
+        trace.prevHash, trace.hash,
         trace.signature ?? null, trace.keyId ?? null
       );
 
@@ -606,6 +658,7 @@ function rowToTrace(row: Record<string, unknown>): ExecutionTrace {
     ...(row.completed_at ? { completedAt: String(row.completed_at) } : {}),
     ...(row.duration_ms !== null && row.duration_ms !== undefined ? { durationMs: Number(row.duration_ms) } : {}),
     steps: safeParse<ExecutionStep[]>(row.steps, []),
+    ...(row.governance ? { governance: safeParse<GovernanceRecord>(row.governance, undefined as never) } : {}),
     prevHash: String(row.prev_hash),
     hash: String(row.hash),
     ...(row.signature ? { signature: String(row.signature) } : {}),

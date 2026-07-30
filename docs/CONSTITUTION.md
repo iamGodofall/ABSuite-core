@@ -434,13 +434,39 @@ The refusal is a test, not a paragraph: *"never produces a score, a percentage o
 a grade"* fails the build if a percentage, the word *score*, *grade*, *rating* or
 *confidence* ever appears in that output.
 
-**What this reveals about us.** Run it today and Governance comes back *absent*,
-on every record. A trace states the authority an action held; it does not carry
-the rule that decided the authority should have been granted. So the honest
-answer to "should it have?" is that the record cannot say — which is exactly why
-Governance is marked *partly built* in the layer table above. The tool applied to
-its own output names our largest gap, in public, without being asked. That is the
-point of building it this way.
+**This is how the roadmap gets chosen.** The first time this ran, Governance came
+back *absent* on every record — a trace stated the authority an action held and
+carried nothing about the rule that decided the authority should be granted. The
+tool applied to its own output named our largest gap in public, without being
+asked, and that named the next piece of work.
+
+Executions now carry an optional governing record: `policyRef`, `policyVersion`,
+`decision`, the specific `evidence` conditions checked, and who evaluated them.
+It is inside the signed canonical form, so deleting the policy from a record
+breaks verification exactly as editing the outcome does — a policy reference
+nobody could verify would be a claim about authority with no more standing than a
+log line.
+
+The question the layer answers changed with it, and the wording matters:
+Governance answers **"under what rule?"**, not "should it have?". Naming the rule
+that permitted an action is the furthest a record can go. Whether that rule
+should have existed is a human question, and the explanation says so in the same
+sentence that names the policy:
+
+> Policy finance.refunds.max-10000 (v2.1.4) evaluated to PERMITTED, decided by
+> policy-engine-1. The conditions checked were: refund < $10,000;
+> customer_age > 30d; approval_872. **This is the rule that permitted the action,
+> not a statement that the decision was correct.**
+
+An ungoverned record still reports Governance as absent. It is not backfilled,
+assumed, or inferred from scope, because a capability is the *result* of a
+governing decision and not the decision itself.
+
+**And the layer stays partly built.** Recording a policy reference is not policy
+evaluation, versioned policy documents, approval workflows, or governance replay.
+One condition can now be demonstrated where it could not before; the layer is not
+finished, and promoting it here because a field exists would be exactly the
+quiet self-promotion `check:doctrine` was written to prevent.
 
 ---
 

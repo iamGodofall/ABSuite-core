@@ -117,6 +117,19 @@ const MIGRATIONS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_executions_tenant ON executions (tenant_id, started_at)`,
 ];
 
+/**
+ * Columns added after the tables above already existed in the wild.
+ *
+ * Kept separate from MIGRATIONS because `CREATE TABLE IF NOT EXISTS` silently
+ * does nothing when a table exists with an older shape — which means a schema
+ * change written there would apply to new deployments and skip every existing
+ * one, and nobody would notice until a query returned null forever.
+ */
+const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
+  // Which rule permitted an action, as opposed to which capability carried it.
+  ['executions', 'governance', 'TEXT'],
+];
+
 export class Storage {
   private readonly db: DatabaseSync;
   readonly path: string;
@@ -165,6 +178,29 @@ export class Storage {
   private migrate(): void {
     for (const statement of MIGRATIONS) {
       this.db.exec(statement);
+    }
+    for (const [table, column, definition] of ADDED_COLUMNS) {
+      this.addColumn(table, column, definition);
+    }
+  }
+
+  /**
+   * Add a column to an existing table, once.
+   *
+   * SQLite has no `ADD COLUMN IF NOT EXISTS`, and every ABSuite service opens
+   * this file at the same moment — so this checks first and still tolerates
+   * losing the race, because two processes adding the same column is a
+   * duplicate-column error, not a corruption. A migration that crashes a
+   * service on a harmless collision is worse than the collision.
+   */
+  private addColumn(table: string, column: string, definition: string): void {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (columns.some(existing => existing.name === column)) return;
+
+    try {
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    } catch {
+      // Another process added it between the check and the write.
     }
   }
 

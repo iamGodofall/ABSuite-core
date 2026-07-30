@@ -91,6 +91,31 @@ export function explainTrace(trace: ExecutionTrace, verdict?: TraceVerdict): Tra
   });
   if (scopes.length === 0) warrantsReview = true;
 
+  // Under what rule — distinct from under what authority, and the distinction is
+  // the whole reason this field exists.
+  if (trace.governance) {
+    const governance = trace.governance;
+    findings.push({
+      question: 'Why was it permitted?',
+      answer:
+        `Policy ${governance.policyRef} (v${governance.policyVersion}) evaluated to ${governance.decision}` +
+        `${governance.evaluatedBy ? `, decided by ${governance.evaluatedBy}` : ''}. ` +
+        `The conditions checked were: ${governance.evidence.join('; ')}. ` +
+        'This is the rule that permitted the action, not a statement that the decision was correct.',
+      from: 'governance.policyRef, policyVersion, decision, evidence',
+      status: governance.decision === 'PERMITTED' ? 'ok' : 'attention',
+    });
+    if (governance.decision !== 'PERMITTED') warrantsReview = true;
+  } else {
+    findings.push({
+      question: 'Why was it permitted?',
+      answer:
+        'No governing rule was recorded. The record shows the authority this action held, not the rule that decided it should hold it.',
+      from: 'governance (absent)',
+      status: 'unknown',
+    });
+  }
+
   if (trace.outcome === 'failure') {
     warrantsReview = true;
     findings.push({

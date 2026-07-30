@@ -492,6 +492,93 @@ describe('aggregate counts for a control plane', () => {
   });
 });
 
+describe('recording the rule that permitted an action', () => {
+  const policy = {
+    policyRef: 'finance.refunds.max-10000',
+    policyVersion: '2.1.4',
+    decision: 'PERMITTED' as const,
+    evidence: ['refund < $10,000', 'customer_age > 30d', 'approval_872'],
+  };
+
+  test('a record without governance hashes exactly as it always did', () => {
+    // The migration must not rewrite history. Appending a null placeholder to
+    // the canonical form would change the hash of every trace ever written and
+    // report the entire log as tampered because we added a field.
+    const withoutGovernance = {
+      id: 'exec_1', subject: 'a', scope: ['x'], module: 'm', action: 'y',
+      inputHash: 'h', outcome: 'success' as const, startedAt: '2026-01-01T00:00:00.000Z',
+      steps: [], prevHash: GENESIS_HASH,
+    };
+
+    // The canonical form of a governance-free trace is exactly sixteen fields,
+    // as it was before this field existed.
+    expect(JSON.parse(canonicalTrace(withoutGovernance))).toHaveLength(16);
+    expect(JSON.parse(canonicalTrace({ ...withoutGovernance, governance: policy }))).toHaveLength(17);
+  });
+
+  test('the policy is signed, so stripping it fails verification', () => {
+    const key = new SigningKey();
+    const traces = new TraceStore(new Storage(':memory:'), key);
+    const trace = traces.record({
+      subject: 'agent:finance', scope: ['refund:process'], module: 'payments',
+      action: 'process_refund', input: { amount: 500 }, outcome: 'success',
+      governance: policy,
+    } as never);
+
+    expect(verifyTrace(trace, key.publicKeyPem).valid).toBe(true);
+
+    // Removing the governing rule is exactly what someone would do to hide that
+    // an action was permitted by a policy they later deleted.
+    const { governance, ...stripped } = trace;
+    expect(governance).toBeDefined();
+    const verdict = verifyTrace(stripped as never, key.publicKeyPem);
+    expect(verdict.valid).toBe(false);
+    expect(verdict.contentIntact).toBe(false);
+  });
+
+  test('editing the policy version fails verification', () => {
+    const key = new SigningKey();
+    const traces = new TraceStore(new Storage(':memory:'), key);
+    const trace = traces.record({
+      subject: 'a', scope: ['x'], module: 'm', action: 'y', input: 1, outcome: 'success',
+      governance: policy,
+    } as never);
+
+    const edited = { ...trace, governance: { ...policy, policyVersion: '9.9.9' } };
+    expect(verifyTrace(edited, key.publicKeyPem).contentIntact).toBe(false);
+  });
+
+  test('survives a round trip through storage', () => {
+    const key = new SigningKey();
+    const storage = new Storage(':memory:');
+    const traces = new TraceStore(storage, key);
+    const written = traces.record({
+      subject: 'a', scope: ['x'], module: 'm', action: 'y', input: 1, outcome: 'success',
+      governance: { ...policy, evaluatedBy: 'policy-engine-1' },
+    } as never);
+
+    const read = traces.get(written.id)!;
+    expect(read.governance).toEqual({ ...policy, evaluatedBy: 'policy-engine-1' });
+    expect(verifyTrace(read, key.publicKeyPem).valid).toBe(true);
+    expect(traces.verifyChain(key.publicKeyPem).valid).toBe(true);
+  });
+
+  test('a chain mixing governed and ungoverned records still verifies', () => {
+    const key = new SigningKey();
+    const traces = new TraceStore(new Storage(':memory:'), key);
+
+    // Exactly the shape of a real upgrade: old records have no policy, new ones
+    // do, and the chain has to hold across the boundary.
+    traces.record({ subject: 'a', scope: ['x'], module: 'm', action: 'old', input: 1, outcome: 'success' });
+    traces.record({ subject: 'a', scope: ['x'], module: 'm', action: 'new', input: 2, outcome: 'success', governance: policy } as never);
+    traces.record({ subject: 'a', scope: ['x'], module: 'm', action: 'old-again', input: 3, outcome: 'success' });
+
+    const result = traces.verifyChain(key.publicKeyPem);
+    expect(result.valid).toBe(true);
+    expect(result.checked).toBe(3);
+  });
+});
+
 describe('what a person should look at', () => {
   const seeded = () => {
     const traces = new TraceStore(new Storage(':memory:'), new SigningKey());
