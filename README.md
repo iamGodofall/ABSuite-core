@@ -2,8 +2,13 @@
 
 > **The black box for AI systems.** A flight recorder — not an opaque model.
 
-ABSuite records what your AI systems did, proves it cryptographically, and tells
-you whether the evidence supports what they claimed.
+The trust layer for autonomous systems: it observes everything, proves what
+happened, and explains it to whoever has the right to ask. ABSuite is not the
+intelligence — it is the witness.
+
+**Observation is automatic. Action is granted.** Nobody switches trust on; the
+moment a human has to remember to enable it, it has already failed. Humans
+decide what an AI may do. ABSuite makes sure nobody can forget what it did.
 
 ```bash
 npm install @absuitecore/capkit
@@ -189,6 +194,15 @@ witnesses share a model family does not win.
 
 **No hidden verification.** The verification path is free, offline-capable and
 permanently open. A proof you must pay to check is not a proof.
+
+**No deciding what should happen.** ABSuite is the witness — present at every
+action, party to none of them. It decides what a human should *look at*; it does
+not decide what should be *done*. A witness that decides outcomes is a party to
+the events, and then the question is who witnesses the witness.
+
+**No learning what to distrust.** It may improve how it works. It may not learn
+who to suspect. Every conclusion has to be re-derivable from stored records by
+someone who does not trust ABSuite, and a learned weight is not re-derivable.
 
 The reasoning is in [`PRINCIPLES.md`](./PRINCIPLES.md) and
 [`docs/CONSTITUTION.md`](./docs/CONSTITUTION.md).
