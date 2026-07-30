@@ -267,6 +267,41 @@ describe('the running CapKit server', () => {
     expect(unknowns.held).toBeGreaterThanOrEqual(unknowns.examined);
   }, 20_000);
 
+  test('the audit log keeps refusals, and its chain verifies over them', async () => {
+    // A request with no token. This must be recorded, not dropped: a log that
+    // only holds what was permitted is a log of half the decisions, and the
+    // Verify screen states plainly that refusals are kept.
+    const refused = await fetch(`${base}/executions`);
+    expect(refused.status).toBe(401);
+
+    const headers = { 'x-absuite-admin-key': ADMIN };
+    const log = (await (await fetch(`${base}/audit?limit=200`, { headers })).json()) as {
+      entries: { action: string; result: 'allow' | 'deny'; reason?: string; hash?: string; prevHash?: string }[];
+      total: number;
+    };
+
+    const denial = log.entries.find(entry => entry.result === 'deny');
+    expect(denial).toBeDefined();
+    expect(denial!.reason).toBeTruthy();
+
+    // Every entry carries its own hash and the predecessor it was sealed
+    // against, so a reader can recompute the chain rather than take it on faith.
+    expect(denial!.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(denial!.prevHash).toMatch(/^[0-9a-f]{64}$/);
+
+    const integrity = (await (await fetch(`${base}/audit/verify`, { headers })).json()) as
+      { valid: boolean; checked: number; brokenAt?: number; headHash: string };
+
+    expect(integrity.valid).toBe(true);
+    expect(integrity.checked).toBeGreaterThanOrEqual(log.entries.length);
+    expect(integrity.headHash).toMatch(/^[0-9a-f]{64}$/);
+
+    // The verdict says how many links were checked. "Valid" with no count is a
+    // claim about nothing, and the panel that renders this refuses to draw a
+    // green state without one.
+    expect(integrity.checked).toBeGreaterThan(0);
+  }, 20_000);
+
   test('the unknown queue groups gaps by the work that would close them', async () => {
     const token = await issue(['execution:record', 'execution:read']);
 

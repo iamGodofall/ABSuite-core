@@ -170,7 +170,7 @@ export const Operations = ({ live, arrivedIds, connected, servicesUp, servicesTo
           Trust Operations Center
         </div>
         <h1 className="text-3xl font-bold text-text-primary mt-1.5">ABSuite</h1>
-        <p className="text-xs text-text-muted mt-1 italic">The future is accountable.</p>
+        <p className="text-xs text-text-muted mt-1 italic">The Future Is Accountable.</p>
       </div>
 
       {error && (

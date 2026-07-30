@@ -247,7 +247,10 @@ function buildAgentConfig(prompt: string, model: string): string {
 }
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy', service: 'dashboard', timestamp: new Date().toISOString() });
+  // `service` names the process in the orchestrator's service map, which is
+  // still 'dashboard'; `role` says what it actually is. Renaming the key would
+  // break /status, /start/:id and every caller keyed on it.
+  res.status(200).json({ status: 'healthy', service: 'dashboard', role: 'trust-operations-center', timestamp: new Date().toISOString() });
 });
 
 app.get('/status', async (req, res) => {
@@ -440,6 +443,87 @@ app.get('/executions/attention', requireAdminAccess, async (req, res) => {
     return res.status(response.status).json(data);
   } catch {
     return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/**
+ * The console's own audit trail, and its integrity.
+ *
+ * CapKit has hash-chained every authorisation decision since the first commit —
+ * who asked, for what, allowed or denied, each entry sealed against the one
+ * before it. None of it was reachable from here. A console that shows you a
+ * tamper-evident log of what the agents did, while keeping no visible record of
+ * who has been reading it, is asking for a trust it does not extend.
+ *
+ * Two routes, because two different questions: what is in the log, and whether
+ * the log has been altered.
+ */
+app.get('/audit', requireAdminAccess, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const params = new URLSearchParams({ limit: String(limit) });
+    for (const key of ['subject', 'action', 'result'] as const) {
+      const value = req.query[key];
+      if (typeof value === 'string' && value.trim()) params.set(key, value.trim());
+    }
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/audit?${params.toString()}`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+app.get('/audit/verify', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/audit/verify`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/**
+ * Trust's live obligations, contracts and disputes.
+ *
+ * These exist and are exercised by tests, and a reader had no way to see any of
+ * them. Obligations in particular are the one place the system says what it
+ * owes rather than what it observed.
+ */
+app.get('/trust/obligations', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.trust}/obligations`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Trust is unreachable' });
+  }
+});
+
+app.get('/trust/contracts', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.trust}/contracts`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Trust is unreachable' });
+  }
+});
+
+app.get('/trust/disputes', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.trust}/disputes`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Trust is unreachable' });
   }
 });
 

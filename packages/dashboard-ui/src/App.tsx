@@ -1,18 +1,24 @@
-/** 
- * ABSuite Dashboard v3.0 - Premium Command Center
- * Hyper-modern, fully functional, production-grade UI
+/**
+ * ABSuite — Trust Operations Center.
+ *
+ * Not a dashboard. A dashboard answers "what happened, how many, is the service
+ * up"; those are questions about infrastructure. This oversees autonomous
+ * systems: what they did, whether it can be proven, under what rule, and what
+ * remains unknown.
+ *
+ * The distinction is not branding. It decides what gets the top of the screen.
+ * A dashboard leads with service health, because that is what its operator
+ * came for. An operations center leads with the record — the service tiles are
+ * furniture, and they live at the bottom of a layer called Act.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import {
-  Home, Bot, Menu, Zap, Shield, Activity,
-  Play, StopCircle, RefreshCw, Bell, Search, ChevronLeft, ChevronRight,
-  Server, Cpu, HardDrive, Slack, MessageSquare, Github,
-  FolderKanban, ActivitySquare, Plus, Copy, Check,
-  AlertCircle, CheckCircle2, XCircle, X, Loader2, TrendingUp, TrendingDown,
-  Download, Upload, Eye, Hexagon, Network, Gauge, Wrench
+  Bot, Menu, Zap, Shield, Bell, ChevronLeft, ChevronRight,
+  Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
+  Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
+  Layers, Scale, HelpCircle
 } from 'lucide-react';
 import { useServices, Service } from './hooks/useServices';
 import { PerformanceTab } from './tabs/Performance';
@@ -30,6 +36,9 @@ import { Agents } from './tabs/Agents';
 import { ActLayer } from './tabs/ActLayer';
 import { LearnLayer } from './tabs/LearnLayer';
 import { ArbitrateLayer } from './tabs/ArbitrateLayer';
+import { MachineRoom } from './tabs/MachineRoom';
+import { Audit } from './tabs/Audit';
+import { Obligations } from './tabs/Obligations';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -55,11 +64,12 @@ import './styles/globals.css';
  */
 type TabId =
   | 'operations'
+  // The seven-stage loop.
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
+  // The four standing views. Not stages — the things the stages act on.
+  | 'evidence' | 'policies' | 'agents' | 'unknowns'
   | 'system' | 'settings';
 
-interface LogEntry { time: string; level: 'info' | 'warn' | 'error'; message: string; }
-interface BenchmarkResult { id: string; service: string; type: string; p50: number; p95: number; p99: number; rps: number; status: string; timestamp: string; }
 interface RecentGeneration { id: string; type: 'token' | 'policy'; provider: string; preview: string; timestamp: string; }
 
 const getAdminHeaders = (): HeadersInit => {
@@ -70,6 +80,7 @@ const getAdminHeaders = (): HeadersInit => {
 
 // ─── Utility Components ─────────────────────────────────────────────────────
 
+/** Status as a colour. Amber is "not checked", not "degraded". */
 const StatusDot = ({ status }: { status: Service['status'] }) => {
   const colors: Record<Service['status'], string> = {
     up: 'bg-emerald-500 status-dot-up',
@@ -77,11 +88,10 @@ const StatusDot = ({ status }: { status: Service['status'] }) => {
     unknown: 'bg-amber-500 status-dot-unknown',
     starting: 'bg-teal-300 status-dot-starting animate-pulse',
     stopping: 'bg-yellow-400 status-dot-stopping',
-    failed: 'bg-red-400 status-dot-failed'
+    failed: 'bg-red-400 status-dot-failed',
   };
   return <span className={cn('w-2.5 h-2.5 rounded-full inline-block', colors[status])} />;
 };
-
 
 const CopyBlock = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false);
@@ -102,61 +112,6 @@ const CopyBlock = ({ text }: { text: string }) => {
   );
 };
 
-const ProgressBar = ({ value, label, color = 'emerald' }: { value: number; label: string; color?: string }) => {
-  const colorMap: Record<string, string> = { emerald: 'bg-emerald-500', blue: 'bg-teal-500', amber: 'bg-amber-500', red: 'bg-red-500' };
-  return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-sm">
-        <span className="text-text-secondary">{label}</span>
-        <span className="text-text-primary font-mono">{value}%</span>
-      </div>
-      <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${value}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          className={cn('h-full rounded-full progress-bar-animated', colorMap[color])}
-        />
-      </div>
-    </div>
-  );
-};
-
-const MetricCard = ({ title, value, unit, icon: Icon, trend, sub }: { title: string; value: string | number; unit?: string; icon: React.ComponentType<{ className?: string }>; trend?: 'up' | 'down'; sub?: string }) => (
-  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5 metric-card">
-    <div className="flex items-start justify-between mb-3">
-      <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-        <Icon className="w-5 h-5 text-emerald-400" />
-      </div>
-      {trend && (trend === 'up' ? <TrendingUp className="w-4 h-4 text-emerald-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />)}
-    </div>
-    <div className="text-3xl font-bold text-text-primary font-mono">{value}<span className="text-base text-text-muted ml-1">{unit}</span></div>
-    <div className="text-sm text-text-muted mt-1">{title}</div>
-    {sub && <div className="text-xs text-text-muted/60 mt-0.5">{sub}</div>}
-  </motion.div>
-);
-
-const ServiceActionBtn = ({ icon: Icon, label, variant, onClick, loading }: { icon: React.ComponentType<{ className?: string }>; label: string; variant: 'start' | 'stop' | 'restart'; onClick: () => void; loading?: boolean }) => {
-  const styles = {
-    start: 'text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/50',
-    stop: 'text-red-400 hover:bg-red-500/10 border-red-500/30 hover:border-red-500/50',
-    restart: 'text-teal-300 hover:bg-teal-500/10 border-teal-500/30 hover:border-teal-500/50',
-  };
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className={cn(
-        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200',
-        styles[variant], loading && 'opacity-50 cursor-not-allowed'
-      )}
-    >
-      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
-      {label}
-    </button>
-  );
-};
-
 const NoticeCard = ({ tone = 'info', title, message }: { tone?: 'info' | 'warn' | 'error'; title: string; message: string }) => {
   const toneStyles = {
     info: 'border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-100',
@@ -171,284 +126,6 @@ const NoticeCard = ({ tone = 'info', title, message }: { tone?: 'info' | 'warn' 
         <div>
           <div className="text-sm font-semibold">{title}</div>
           <p className="mt-1 text-sm opacity-90">{message}</p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Overview Tab ────────────────────────────────────────────────────────────
-
-const OverviewTab = ({ services, error, onServiceAction }: { services: Service[]; error: string | null; onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void }) => {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-
-  const upCount = services.filter(s => s.status === 'up').length;
-  const downCount = services.filter(s => s.status === 'down' || s.status === 'failed').length;
-  const avgCpu = services.length ? Math.round(services.reduce((a, s) => a + (s.metrics?.cpu ?? 0), 0) / services.length) : 0;
-  const avgMem = services.length ? Math.round(services.reduce((a, s) => a + (s.metrics?.memory ?? 0), 0) / services.length) : 0;
-
-  useEffect(() => {
-    if (false) {
-      const initial: LogEntry[] = Array.from({ length: 5 }, (_, i) => ({
-        time: new Date(Date.now() - i * 45000).toLocaleTimeString(),
-        level: 'info',
-        message: 'Demo event stream active — showcase telemetry is being simulated.',
-      }));
-      setLogs(initial);
-      const interval = setInterval(() => {
-        const messages = [
-          'Demo: Heartbeat received from all registered services',
-          'Demo: Security scan completed — no threats detected',
-          'Demo: Benchmark results archived successfully',
-          'Demo: Connector status updated for GitHub integration',
-        ];
-        setLogs(prev => [{ time: new Date().toLocaleTimeString(), level: 'info' as const, message: messages[Math.floor(Math.random() * messages.length)]! }, ...prev.slice(0, 19)]);
-      }, 4000);
-      return () => clearInterval(interval);
-    }
-
-    const liveLogs: LogEntry[] = [];
-    if (error) {
-      liveLogs.push({
-        time: new Date().toLocaleTimeString(),
-        level: 'error',
-        message: error,
-      });
-    }
-
-    if (services.length === 0) {
-      liveLogs.push({
-        time: new Date().toLocaleTimeString(),
-        level: 'warn',
-        message: 'No live service telemetry is available yet.',
-      });
-    } else {
-      liveLogs.push(...services.map(service => {
-        const level: LogEntry['level'] = service.status === 'up'
-          ? 'info'
-          : service.status === 'starting' || service.status === 'stopping' || service.status === 'unknown'
-            ? 'warn'
-            : 'error';
-
-        return {
-          time: service.lastCheck.toLocaleTimeString(),
-          level,
-          message: service.status === 'up'
-            ? `${service.name} is responding on :${service.port}.`
-            : `${service.name} is currently ${service.status} on :${service.port}.`,
-        };
-      }));
-    }
-
-    setLogs(liveLogs.slice(0, 20));
-  }, [services, error]);
-
-  const handleAction = async (id: string, action: 'start' | 'stop' | 'restart') => {
-    setActionLoading(prev => ({ ...prev, [id]: true }));
-    await onServiceAction(id, action);
-    setTimeout(() => setActionLoading(prev => ({ ...prev, [id]: false })), 1500);
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Only the demo-mode notice belongs here. The live-mode notice is rendered
-          once by the Overview tab; showing it again produced two stacked banners
-          telling the reader the same thing in different words. */}
-      
-
-      {/* Stats Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Services Up" value={upCount} icon={CheckCircle2} trend="up" sub={`${downCount} down`} />
-        <MetricCard title="Services Down" value={downCount} icon={XCircle} trend={downCount > 0 ? 'down' : undefined} sub={downCount === 0 ? 'all operational' : 'need attention'} />
-        <MetricCard title="Avg CPU" value={avgCpu} unit="%" icon={Cpu} sub="across all services" />
-        <MetricCard title="Avg Memory" value={avgMem} unit="%" icon={HardDrive} sub="across all services" />
-      </div>
-
-      {/* Service Grid */}
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <Server className="w-5 h-5 text-emerald-400" />
-          Services
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {services.map((svc, i) => (
-            <motion.div
-              key={svc.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className={cn('glass-card p-5 service-card', svc.status === 'up' ? 'status-up' : svc.status === 'down' ? 'status-down' : 'status-unknown')}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                  <StatusDot status={svc.status} />
-                  <span className="font-semibold text-text-primary">{svc.name}</span>
-                </div>
-                <span className="text-xs font-mono text-text-muted">:{svc.port}</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {svc.features.map(f => (
-                  <span key={f} className="px-2 py-0.5 rounded-full text-xs bg-bg-tertiary text-text-muted border border-border">{f}</span>
-                ))}
-              </div>
-              {svc.metrics && (
-                <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-                  <div className="bg-bg-primary/50 rounded-lg p-2">
-                    <div className="text-xs text-text-muted">CPU</div>
-                    <div className="text-sm font-mono text-text-primary">{svc.metrics.cpu}%</div>
-                  </div>
-                  <div className="bg-bg-primary/50 rounded-lg p-2">
-                    <div className="text-xs text-text-muted">MEM</div>
-                    <div className="text-sm font-mono text-text-primary">{svc.metrics.memory}%</div>
-                  </div>
-                  <div className="bg-bg-primary/50 rounded-lg p-2">
-                    <div className="text-xs text-text-muted">UP</div>
-                    <div className="text-sm font-mono text-text-primary">{svc.health.uptime}%</div>
-                  </div>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <ServiceActionBtn icon={Play} label="Start" variant="start" onClick={() => handleAction(svc.id, 'start')} loading={actionLoading[svc.id]} />
-                <ServiceActionBtn icon={StopCircle} label="Stop" variant="stop" onClick={() => handleAction(svc.id, 'stop')} loading={actionLoading[svc.id]} />
-                <ServiceActionBtn icon={RefreshCw} label="Restart" variant="restart" onClick={() => handleAction(svc.id, 'restart')} loading={actionLoading[svc.id]} />
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* Activity Feed */}
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-emerald-400" />
-          Activity Feed
-        </h2>
-        <div className="glass-card p-4 space-y-1 max-h-64 overflow-y-auto">
-          {logs.map((log, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.03 }}
-              className="log-line flex items-start gap-3 py-2 px-1 border-b border-border/30 last:border-0"
-            >
-              <span className="text-xs font-mono text-text-muted mt-0.5 shrink-0">{log.time}</span>
-              <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium shrink-0', log.level === 'info' ? 'bg-emerald-500/10 text-emerald-400' : log.level === 'warn' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400')}>{log.level.toUpperCase()}</span>
-              <span className="text-sm text-text-secondary">{log.message}</span>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Services Tab ────────────────────────────────────────────────────────────
-
-const ServicesTab = ({ services, onServiceAction }: { services: Service[]; onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void }) => {
-  const [selected, setSelected] = useState(services[0]?.id ?? '');
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
-  const svc = services.find(s => s.id === selected) ?? services[0];
-
-  useEffect(() => {
-    const serviceId = svc?.id;
-    if (!serviceId) return;
-
-    setLoadingLogs(true);
-    fetch(`/logs/${serviceId}`, { headers: getAdminHeaders() }).then(r => r.json()).then(data => {
-      setLogs(data.logs ?? []);
-      setLoadingLogs(false);
-    }).catch(() => { setLogs([]); setLoadingLogs(false); });
-  }, [svc?.id]);
-
-  if (!svc) return <div className="text-text-muted">No services available</div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <h2 className="text-xl font-bold text-text-primary">Service Inspector</h2>
-        <div className="flex gap-2 ml-auto">
-          {services.map(s => (
-            <button key={s.id} onClick={() => setSelected(s.id)} className={cn('px-3 py-1.5 rounded-lg text-sm font-medium transition-all', s.id === selected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-bg-tertiary text-text-muted hover:text-text-primary')}>{s.name}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Service Info */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <StatusDot status={svc.status} />
-              <h3 className="text-xl font-bold text-text-primary">{svc.name}</h3>
-              <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium', svc.status === 'up' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : svc.status === 'down' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20')}>{svc.status.toUpperCase()}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-bg-primary/60 rounded-xl p-4">
-                <div className="text-xs text-text-muted mb-1">Port</div>
-                <div className="text-lg font-mono text-text-primary">:{svc.port}</div>
-              </div>
-              <div className="bg-bg-primary/60 rounded-xl p-4">
-                <div className="text-xs text-text-muted mb-1">Version</div>
-                <div className="text-lg font-mono text-text-primary">v{__APP_VERSION__}</div>
-              </div>
-            </div>
-            <div className="mb-6">
-              <div className="text-sm text-text-muted mb-2">Features</div>
-              <div className="flex flex-wrap gap-2">
-                {svc.features.map(f => <span key={f} className="px-3 py-1 rounded-lg text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{f}</span>)}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => onServiceAction(svc.id, 'start')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all text-sm font-medium">
-                <Play className="w-4 h-4" /> Start
-              </button>
-              <button onClick={() => onServiceAction(svc.id, 'stop')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-all text-sm font-medium">
-                <StopCircle className="w-4 h-4" /> Stop
-              </button>
-              <button onClick={() => onServiceAction(svc.id, 'restart')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20 transition-all text-sm font-medium">
-                <RefreshCw className="w-4 h-4" /> Restart
-              </button>
-            </div>
-          </div>
-
-          {svc.metrics && (
-            <div className="glass-card p-6">
-              <h4 className="text-sm font-semibold text-text-muted mb-4 uppercase tracking-wider">Health Metrics</h4>
-              <div className="space-y-4">
-                <ProgressBar value={svc.metrics.cpu} label="CPU Usage" color="emerald" />
-                <ProgressBar value={svc.metrics.memory} label="Memory Usage" color={svc.metrics.memory > 80 ? 'red' : svc.metrics.memory > 60 ? 'amber' : 'emerald'} />
-                <ProgressBar value={svc.health.uptime} label="Uptime" color="blue" />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Logs */}
-        <div className="space-y-4">
-          <div className="glass-card p-4 flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wider">Recent Logs</h4>
-            <Eye className="w-4 h-4 text-text-muted" />
-          </div>
-          <div className="glass-card p-4 space-y-1 max-h-96 overflow-y-auto">
-            {loadingLogs ? (
-              <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-emerald-400" /></div>
-            ) : logs.length === 0 ? (
-              <div className="text-center py-8 text-text-muted text-sm">No logs available</div>
-            ) : (
-              logs.map((log, i) => (
-                <div key={i} className="flex flex-col gap-0.5 py-2 border-b border-border/30 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-text-muted">{log.time}</span>
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded', log.level === 'info' ? 'bg-emerald-500/10 text-emerald-400' : log.level === 'warn' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400')}>{log.level.toUpperCase()}</span>
-                  </div>
-                  <span className="text-xs text-text-secondary">{log.message}</span>
-                </div>
-              ))
-            )}
-          </div>
         </div>
       </div>
     </div>
@@ -477,16 +154,6 @@ const AIStudioTab = () => {
   const [recommendedProvider, setRecommendedProvider] = useState('none');
   useEffect(() => {
     let active = true;
-    const fallbackProviders: ProviderOption[] = [
-      { name: 'ollama', label: 'Ollama', type: 'local', available: false, configured: true, defaultModel: 'llama3.2', description: 'Sovereign local inference via Ollama.' },
-      { name: 'lmstudio', label: 'LM Studio', type: 'local', available: false, configured: true, defaultModel: 'local-model', description: 'OpenAI-compatible local desktop inference.' },
-      { name: 'github-models', label: 'GitHub Models', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'GitHub-hosted model access.' },
-      { name: 'openrouter', label: 'OpenRouter', type: 'cloud', available: false, configured: false, defaultModel: 'openai/gpt-4o-mini', description: 'One API for many hosted models.' },
-      { name: 'groq', label: 'Groq', type: 'cloud', available: false, configured: false, defaultModel: 'llama-3.3-70b-versatile', description: 'Fast low-latency inference.' },
-      { name: 'openai', label: 'OpenAI', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'OpenAI GPT models.' },
-      { name: 'anthropic', label: 'Anthropic', type: 'cloud', available: false, configured: false, defaultModel: 'claude-3-5-sonnet-20241022', description: 'Anthropic Claude models.' },
-      { name: 'azure-openai', label: 'Azure OpenAI', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'Enterprise-hosted OpenAI deployments.' },
-    ];
 
     const loadProviders = async () => {
       try {
@@ -499,9 +166,11 @@ const AIStudioTab = () => {
         const liveProviders: ProviderOption[] = Array.isArray(data.providers)
           ? (data.providers as ProviderOption[])
           : [];
-        const nextProviders: ProviderOption[] = false
-          ? (liveProviders.length > 0 ? liveProviders : fallbackProviders)
-          : liveProviders;
+        // Whatever CapKit reports, and nothing else. A hardcoded fallback list
+        // of eight providers used to sit here behind a dead condition; it would
+        // have drawn Ollama, Groq and Anthropic as known-about on an instance
+        // that had never reached any of them.
+        const nextProviders = liveProviders;
 
         setProviders(nextProviders);
         setRecommendedProvider(data.recommended ?? 'none');
@@ -542,15 +211,13 @@ const AIStudioTab = () => {
 
       const generatedToken = data.token ?? JSON.stringify(data.capability ?? data, null, 2);
       setTokenResult(generatedToken);
-      setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
+      setRecentGens(prev => [{ id: crypto.randomUUID(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
     } catch (err) {
-      if (false) {
-        setTokenResult(`ck_demo_${Math.random().toString(36).slice(2, 18)}...`);
-        setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
-      } else {
-        setTokenResult('');
-        setTokenError((err as Error).message);
-      }
+      // A failed issue shows the failure. There was a dead branch here that
+      // printed `ck_demo_<random>` on error — a fabricated credential that
+      // looked real, one flipped condition away from shipping.
+      setTokenResult('');
+      setTokenError((err as Error).message);
     } finally {
       setTokenLoading(false);
     }
@@ -567,15 +234,10 @@ const AIStudioTab = () => {
       if (!res.ok) throw new Error(data.message ?? data.error ?? 'Policy generation failed');
 
       setPolicyResult(data.policy ?? data.improvedPolicy ?? '');
-      setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
+      setRecentGens(prev => [{ id: crypto.randomUUID(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
     } catch (err) {
-      if (false) {
-        setPolicyResult(`Generated demo policy for: ${policyDesc.slice(0, 40)}...\n\n- Access Level: Medium\n- Rate Limiting: 100 req/min\n- Content Filter: Strict\n- Audit: Enabled`);
-        setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
-      } else {
-        setPolicyResult('');
-        setPolicyError((err as Error).message);
-      }
+      setPolicyResult('');
+      setPolicyError((err as Error).message);
     } finally {
       setPolicyLoading(false);
     }
@@ -717,424 +379,6 @@ const AIStudioTab = () => {
   );
 };
 
-// ─── Benchmarks Tab ─────────────────────────────────────────────────────────
-
-const BenchmarksTab = () => {
-  const [service, setService] = useState('capkit');
-  const [benchType, setBenchType] = useState('latency');
-  const [requests, setRequests] = useState('100');
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<BenchmarkResult | null>(null);
-  const [history, setHistory] = useState<BenchmarkResult[]>([]);
-  const [runError, setRunError] = useState('');
-
-  useEffect(() => {
-    if (false) {
-      // Nothing to fall back to: a benchmark that has not run has no history.
-      return;
-    }
-
-    setHistory(prev => prev.filter(entry => !entry.id.startsWith('demo-')));
-  }, []);
-
-  const runBenchmark = async () => {
-    setRunning(true);
-    setResult(null);
-    setRunError('');
-
-    try {
-      const res = await fetch('/benchmark/run', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAdminHeaders() }, body: JSON.stringify({ service, type: benchType, requests: parseInt(requests, 10) }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Benchmark run failed');
-
-      const benchmarkResult: BenchmarkResult = {
-        id: Math.random().toString(),
-        service,
-        type: benchType,
-        p50: data.latency_p50 ?? 0,
-        p95: data.latency_p95 ?? 0,
-        p99: data.latency_p99 ?? 0,
-        rps: data.rps ?? 0,
-        status: 'complete',
-        timestamp: new Date().toLocaleTimeString(),
-      };
-
-      setResult(benchmarkResult);
-      setHistory(prev => [benchmarkResult, ...prev.slice(0, 9)]);
-    } catch (err) {
-      if (false) {
-        const demoResult: BenchmarkResult = {
-          id: `demo-${Math.random().toString()}`,
-          service,
-          type: benchType,
-          p50: Math.round(80 + Math.random() * 80),
-          p95: Math.round(200 + Math.random() * 200),
-          p99: Math.round(500 + Math.random() * 500),
-          rps: Math.round(300 + Math.random() * 400),
-          status: 'complete',
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        setResult(demoResult);
-        setHistory(prev => [demoResult, ...prev.slice(0, 9)]);
-      } else {
-        setRunError((err as Error).message);
-      }
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const chartData = history.slice(0, 6).reverse().map(h => ({ name: h.service.slice(0, 6), p50: h.p50, p99: h.p99, rps: h.rps / 10 }));
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <Gauge className="w-6 h-6 text-emerald-400" />
-        <h2 className="text-xl font-bold text-text-primary">Benchmarks</h2>
-      </div>
-
-      {<NoticeCard tone={runError ? 'error' : 'info'} title={runError ? 'Live benchmark failed' : 'Live benchmark mode'} message={runError || 'Benchmark runs measure the real target service health endpoint and report actual timing.'} />}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Run Config */}
-        <div className="glass-card p-5">
-          <h3 className="text-lg font-semibold text-text-primary mb-4">Run Benchmark</h3>
-          <div className="space-y-3 mb-4">
-            <label htmlFor="bench-service" className="block">
-              <span className="sr-only">Benchmark Service</span>
-              <select id="bench-service" value={service} onChange={e => setService(e.target.value)} className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-emerald-500/50 transition-all">
-                <option value="capkit">CapKit (Security)</option>
-                <option value="edge-run">Edge-Run (Scheduling)</option>
-                <option value="quickbench">QuickBench (Benchmarking)</option>
-                <option value="connector-starter">Connector Starter</option>
-              </select>
-            </label>
-              <label htmlFor="bench-type" className="block">
-                <span className="sr-only">Benchmark Type</span>
-                <select id="bench-type" value={benchType} onChange={e => setBenchType(e.target.value)} className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-emerald-500/50 transition-all">
-                  <option value="latency">Latency Test</option>
-                  <option value="throughput">Throughput Test</option>
-                  <option value="stress">Stress Test</option>
-                </select>
-              </label>
-            <label htmlFor="bench-requests" className="block">
-              <span className="sr-only">Number of Requests</span>
-              <input id="bench-requests" type="number" value={requests} onChange={e => setRequests(e.target.value)} placeholder="100" className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-emerald-500/50 transition-all" />
-            </label>
-          </div>
-          <button onClick={runBenchmark} disabled={running} className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-            {running ? <><Loader2 className="w-4 h-4 animate-spin" /> Running...</> : <><Gauge className="w-4 h-4" /> Start Benchmark</>}
-          </button>
-        </div>
-
-        {/* Result */}
-        <div className="lg:col-span-2 space-y-4">
-          {result ? (
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-text-primary">Results — {result.service}</h3>
-                <span className="px-3 py-1 rounded-full text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">{result.status.toUpperCase()}</span>
-              </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {[
-                  { label: 'p50 Latency', value: `${result.p50}ms`, color: 'text-emerald-400' },
-                  { label: 'p95 Latency', value: `${result.p95}ms`, color: 'text-teal-400' },
-                  { label: 'p99 Latency', value: `${result.p99}ms`, color: 'text-amber-400' },
-                  { label: 'Throughput', value: `${result.rps} rps`, color: 'text-cyan-400' },
-                ].map(m => (
-                  <div key={m.label} className="bg-bg-primary/60 rounded-xl p-4 text-center">
-                    <div className="text-xs text-text-muted mb-1">{m.label}</div>
-                    <div className={`text-2xl font-bold font-mono ${m.color}`}>{m.value}</div>
-                  </div>
-                ))}
-              </div>
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={[{ name: 'p50', value: result.p50 }, { name: 'p95', value: result.p95 }, { name: 'p99', value: result.p99 }]}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#262629" />
-                  <XAxis dataKey="name" tick={{ fill: '#71717a', fontSize: 12 }} />
-                  <YAxis tick={{ fill: '#71717a', fontSize: 12 }} />
-                  <Tooltip contentStyle={{ background: '#111113', border: '1px solid #262629', borderRadius: '0.75rem' }} />
-                  <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="glass-card p-6 flex flex-col items-center justify-center h-64 text-center">
-              <Gauge className="w-12 h-12 text-text-muted/30 mb-3" />
-              <p className="text-text-muted">Configure and run a benchmark to see results</p>
-            </div>
-          )}
-
-          {/* Historical Chart */}
-          {chartData.length > 1 && (
-            <div className="glass-card p-6">
-              <h4 className="text-sm font-semibold text-text-muted mb-4 uppercase tracking-wider">Historical Performance</h4>
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#262629" />
-                  <XAxis dataKey="name" tick={{ fill: '#71717a', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#71717a', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#111113', border: '1px solid #262629', borderRadius: '0.75rem' }} />
-                  <Bar dataKey="p50" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="p99" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* History Table */}
-      {history.length > 0 && (
-        <div className="glass-card overflow-hidden">
-          <div className="p-5 border-b border-border">
-            <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wider">Past Runs</h4>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-bg-primary/50">
-                <tr className="text-left text-xs text-text-muted uppercase tracking-wider">
-                  <th className="px-5 py-3 font-medium">Service</th>
-                  <th className="px-5 py-3 font-medium">Type</th>
-                  <th className="px-5 py-3 font-medium">p50</th>
-                  <th className="px-5 py-3 font-medium">p95</th>
-                  <th className="px-5 py-3 font-medium">p99</th>
-                  <th className="px-5 py-3 font-medium">RPS</th>
-                  <th className="px-5 py-3 font-medium">Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((h, i) => (
-                  <tr key={h.id} className={cn('border-t border-border/50 hover:bg-bg-primary/30 transition-colors', i === 0 && 'bg-emerald-500/5')}>
-                    <td className="px-5 py-3 font-medium text-text-primary">{h.service}</td>
-                    <td className="px-5 py-3 text-text-secondary capitalize">{h.type}</td>
-                    <td className="px-5 py-3 font-mono text-emerald-400">{h.p50}ms</td>
-                    <td className="px-5 py-3 font-mono text-teal-400">{h.p95}ms</td>
-                    <td className="px-5 py-3 font-mono text-amber-400">{h.p99}ms</td>
-                    <td className="px-5 py-3 font-mono text-cyan-400">{h.rps}</td>
-                    <td className="px-5 py-3 text-text-muted">{h.timestamp}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ─── Connectors Tab ───────────────────────────────────────────────────────────
-
-const ConnectorsTab = () => {
-  const [connectors, setConnectors] = useState([
-    { id: 'github', name: 'GitHub', icon: <Github className="w-6 h-6" />, enabled: true, description: 'Code repositories, PRs, and CI/CD workflows' },
-    { id: 'slack', name: 'Slack', icon: <Slack className="w-6 h-6" />, enabled: true, description: 'Team messaging and notifications' },
-    { id: 'discord', name: 'Discord', icon: <MessageSquare className="w-6 h-6" />, enabled: false, description: 'Community server management' },
-    { id: 'jira', name: 'Jira', icon: <FolderKanban className="w-6 h-6" />, enabled: false, description: 'Project tracking and issue management' },
-    { id: 'notion', name: 'Notion', icon: <FolderKanban className="w-6 h-6" />, enabled: false, description: 'Documentation and knowledge base' },
-    { id: 'linear', name: 'Linear', icon: <ActivitySquare className="w-6 h-6" />, enabled: false, description: 'Streamlined issue tracking' },
-  ]);
-  const [showWizard, setShowWizard] = useState(false);
-  const [wizardStep, setWizardStep] = useState(1);
-  const [agentPrompt, setAgentPrompt] = useState('');
-  const [agentModel, setAgentModel] = useState('gpt-4o');
-  const [agentResult, setAgentResult] = useState('');
-  const [agentLoading, setAgentLoading] = useState(false);
-  const [connectorStatusMessage, setConnectorStatusMessage] = useState('');
-  const [connectorStatusTone, setConnectorStatusTone] = useState<'info' | 'warn' | 'error'>('info');
-  const [agentError, setAgentError] = useState('');
-
-  const toggle = (id: string) => {
-    if (true) {
-      setConnectorStatusTone('warn');
-      setConnectorStatusMessage('Connector enable/disable is not persisted yet in Live mode. Use Test Connection for the real status.');
-      return;
-    }
-
-    setConnectors(prev => prev.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c));
-  };
-
-  const testConnector = async (id: string) => {
-    setConnectorStatusMessage('');
-
-    try {
-      const res = await fetch('/connectors/test', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAdminHeaders() }, body: JSON.stringify({ connectorId: id }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Connector test failed');
-
-      setConnectorStatusTone(data.configured ? 'info' : 'warn');
-      setConnectorStatusMessage(data.message ?? `${id} connection looks healthy.`);
-    } catch (err) {
-      if (false) {
-        setConnectorStatusTone('warn');
-        setConnectorStatusMessage(`${id} is using demo connectivity feedback right now.`);
-      } else {
-        setConnectorStatusTone('error');
-        setConnectorStatusMessage((err as Error).message);
-      }
-    }
-  };
-
-  const generateAgent = async () => {
-    if (!agentPrompt) return;
-    setAgentLoading(true);
-    setAgentError('');
-
-    try {
-      const res = await fetch('/connector-starter/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: agentPrompt, model: agentModel }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? data.error ?? 'Agent generation failed');
-
-      setAgentResult(data.config ?? '');
-    } catch (err) {
-      if (false) {
-        setAgentResult(`# AI Agent Configuration\nname: my-agent\nmodel: ${agentModel}\ndescription: "${agentPrompt.slice(0, 50)}..."\n\ncapabilities:\n  - read\n  - execute\n\nendpoints:\n  - ${agentPrompt.slice(0, 30).replace(/\s/g, '-').toLowerCase()}`);
-      } else {
-        setAgentResult('');
-        setAgentError((err as Error).message);
-      }
-    } finally {
-      setAgentLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Network className="w-6 h-6 text-emerald-400" />
-        <h2 className="text-xl font-bold text-text-primary">Connectors</h2>
-        <button onClick={() => setShowWizard(true)} className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all text-sm font-medium">
-          <Plus className="w-4 h-4" /> Add Connector
-        </button>
-      </div>
-
-      {<NoticeCard tone="info" title="Live connector mode" message="Connector tests show the real environment configuration. Unwired features will tell you they are not configured yet." />}
-
-      {/* Connector Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {connectors.map(c => (
-          <motion.div key={c.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card connector-card cursor-pointer group" onClick={() => toggle(c.id)}>
-            <div className="icon bg-bg-tertiary group-hover:bg-emerald-500/20 transition-colors">{c.icon}</div>
-            <div className="font-medium text-sm text-text-primary">{c.name}</div>
-            <div className={cn('w-2 h-2 rounded-full transition-colors', c.enabled ? 'bg-emerald-400' : 'bg-text-muted/30')} />
-              <button
-                onClick={e => { e.stopPropagation(); testConnector(c.id); }} 
-                aria-label={`Test ${c.name} connection`}
-                title={`Test ${c.name} connection`}
-                className="text-xs text-text-muted hover:text-emerald-400 transition-colors focus:outline-none focus:outline-2 focus:outline-emerald-500 focus:outline-offset-2"
-              >
-                <span className="sr-only">Test {c.name} connection</span>
-                Test Connection
-              </button>
-              </motion.div>
-            ))}
-          </div>
-
-      {connectorStatusMessage && <NoticeCard tone={connectorStatusTone} title="Connector status" message={connectorStatusMessage} />}
-
-      {/* AI Agent Generator */}
-      <div className="glass-card p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Bot className="w-5 h-5 text-emerald-400" />
-          <h3 className="text-lg font-semibold text-text-primary">AI Agent Generator</h3>
-        </div>
-        <div className="space-y-3">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="text-xs text-text-muted mb-1 block">Describe your agent</label>
-              <textarea value={agentPrompt} onChange={e => setAgentPrompt(e.target.value)} placeholder="I need an agent that monitors GitHub PRs and sends Slack notifications when reviews are requested..." rows={3} className="w-full bg-bg-primary border border-border rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none" />
-            </div>
-            <label htmlFor="agent-model" className="block w-48">
-              <span className="sr-only">Agent Model</span>
-              <select id="agent-model" value={agentModel} onChange={e => setAgentModel(e.target.value)} className="w-full bg-bg-primary border border-border rounded-xl px-3 py-3 text-sm text-text-primary focus:outline-none focus:border-emerald-500/50 transition-all h-[74px]">
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                <option value="claude-sonnet">Claude Sonnet</option>
-                <option value="ollama">Ollama (Local)</option>
-              </select>
-            </label>
-          </div>
-          <button onClick={generateAgent} disabled={!agentPrompt || agentLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-bg-primary font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-            {agentLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Bot className="w-4 h-4" /> Generate Agent</>}
-          </button>
-          {agentError && <NoticeCard tone="error" title="Agent generation failed" message={agentError} />}
-          {agentResult && <CopyBlock text={agentResult} />}
-        </div>
-      </div>
-
-      {/* Add Connector Modal */}
-      <AnimatePresence>
-        {showWizard && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => { setShowWizard(false); setWizardStep(1); }}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-card p-6 w-full max-w-lg mx-4" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-text-primary">Add Connector</h3>
-                <button
-                  type="button"
-                  onClick={() => { setShowWizard(false); setWizardStep(1); }}
-                  aria-label="Close add connector dialog"
-                  title="Close add connector dialog"
-                  className="p-1.5 rounded-lg hover:bg-bg-tertiary transition-colors"
-                >
-                  <X className="w-5 h-5 text-text-muted" />
-                </button>
-              </div>
-              {/* Step Indicator */}
-              <div className="flex items-center gap-2 mb-6">
-                {[1, 2, 3].map(s => (
-                  <React.Fragment key={s}>
-                    <div className={cn('step-dot', wizardStep === s ? 'active' : wizardStep > s ? 'completed' : 'inactive')} />
-                    {s < 3 && <div className={cn('flex-1 h-0.5 rounded', wizardStep > s ? 'bg-emerald-500' : 'bg-border')} />}
-                  </React.Fragment>
-                ))}
-              </div>
-              <div className="mb-6">
-                {wizardStep === 1 && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-text-muted">Select the platform you want to connect:</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {connectors.map(c => (
-                        <button key={c.id} onClick={() => setWizardStep(2)} className="p-4 rounded-xl border border-border hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left flex items-center gap-3">
-                          <div className="p-2 bg-bg-tertiary rounded-lg">{c.icon}</div>
-                          <div><div className="font-medium text-sm text-text-primary">{c.name}</div><div className="text-xs text-text-muted">{c.description.split(' ').slice(0, 3).join(' ')}</div></div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {wizardStep === 2 && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-text-muted">Configure credentials:</p>
-                    <input placeholder="API Key or Token" className="w-full bg-bg-primary border border-border rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-emerald-500/50 transition-all" />
-                    <input placeholder="Webhook URL (optional)" className="w-full bg-bg-primary border border-border rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-emerald-500/50 transition-all" />
-                  </div>
-                )}
-                {wizardStep === 3 && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-text-muted">Test your connection:</p>
-                    <div className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      <div><div className="text-sm font-medium text-emerald-400">Connection Successful</div><div className="text-xs text-text-muted">Connector is ready to use</div></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-3">
-                {wizardStep > 1 && <button onClick={() => setWizardStep(s => s - 1)} className="px-4 py-2 rounded-xl bg-bg-tertiary text-text-secondary hover:text-text-primary transition-all text-sm">Back</button>}
-                <button onClick={() => wizardStep < 3 ? setWizardStep(s => s + 1) : {}} className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-bg-primary font-semibold text-sm transition-all flex items-center justify-center gap-2">
-                  {wizardStep < 3 ? 'Next' : 'Save Connector'}
-                  {wizardStep < 3 && <ChevronRight className="w-4 h-4" />}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
 // ─── Settings Tab ────────────────────────────────────────────────────────────
 
 const SettingsTab = ({ services }: { services: Service[] }) => {
@@ -1155,11 +399,6 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
     let active = true;
 
     const syncDbStatus = async () => {
-      if (false) {
-        setDbStatus('unknown');
-        return;
-      }
-
       try {
         const response = await fetch('/status');
         const data = await response.json() as Record<string, string>;
@@ -1243,7 +482,7 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
         <h2 className="text-xl font-bold text-text-primary">Settings</h2>
       </div>
 
-      {<NoticeCard tone="info" title="Live settings mode" message="Endpoint statuses in this panel reflect the actual running suite. Tests call the real health endpoints through the dashboard backend." />}
+      {<NoticeCard tone="info" title="Live" message="Endpoint statuses reflect the actual running suite. Tests call the real health endpoints." />}
 
       {/* Service Endpoints */}
       <div className="glass-card overflow-hidden">
@@ -1559,7 +798,7 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
       try {
         data = text ? JSON.parse(text) : {};
       } catch {
-        throw new Error(`Replay endpoint returned ${res.status} and not JSON. The dashboard may be out of date.`);
+        throw new Error(`Replay endpoint returned ${res.status} and not JSON. This console may be out of date.`);
       }
 
       if (!res.ok) {
@@ -1625,8 +864,6 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
 
       {/* The global view opens the Observe layer: what is held, right now,
           counted rather than estimated. */}
-      {view === 'observe' && <GlobalView />}
-
       {/* The recorder, recording. Placed above everything because it is the one
           thing on this screen that a screenshot cannot convey. */}
       {view === 'observe' && (
@@ -1638,8 +875,6 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
         />
       )}
 
-      {view === 'observe' && <AttentionPanel />}
-      {view === 'observe' && <UnknownsPanel />}
 
       {view === 'observe' && (
         <NoticeCard
@@ -1996,158 +1231,6 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
   );
 };
 
-// ─── Monitoring: AI watching AI ──────────────────────────────────────────────
-
-type ArbPosition = { agentId: string; answer: string; family?: string; weight: number; rawWeight: number; discounted?: boolean; discountReason?: string };
-type Arbitration = { outcome: string; answer?: string; margin: number; independentSupport: number; requiresHuman: boolean; reasoning: string[]; positions: ArbPosition[] };
-
-const DEFAULT_POSITIONS = `[
-  { "agentId": "gpt-4o",      "answer": "no",  "family": "openai:gpt-4",     "confidence": 0.90 },
-  { "agentId": "gpt-4-turbo", "answer": "no",  "family": "openai:gpt-4",     "confidence": 0.88 },
-  { "agentId": "gpt-3.5",     "answer": "no",  "family": "openai:gpt-3.5",   "confidence": 0.85 },
-  { "agentId": "claude-opus", "answer": "yes", "family": "anthropic:claude", "confidence": 0.80 }
-]`;
-
-/**
- * Correlation-aware arbitration, made visible.
- *
- * Three models agreeing is not three pieces of evidence when two share a
- * family — they fail together. The engine always discounted that; nothing ever
- * showed it happening, which is the one thing that makes the idea land.
- */
-const MonitoringTab = () => {
-  const [question, setQuestion] = useState('Did the agent exceed its authority?');
-  const [positions, setPositions] = useState(DEFAULT_POSITIONS);
-  const [result, setResult] = useState<Arbitration | null>(null);
-  const [anomalies, setAnomalies] = useState<{ kind: string; detail?: string }[]>([]);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await fetch('/trust/anomalies', { headers: getAdminHeaders() });
-        if (!res.ok) return;
-        const data = await res.json();
-        setAnomalies(Array.isArray(data.anomalies) ? data.anomalies : []);
-      } catch { /* Trust may be down; the panel says so rather than inventing. */ }
-    })();
-  }, []);
-
-  const arbitrate = async () => {
-    setBusy(true); setError(''); setResult(null);
-    let parsed: unknown;
-    try { parsed = JSON.parse(positions); }
-    catch { setError('Positions must be valid JSON.'); setBusy(false); return; }
-    try {
-      const res = await fetch('/trust/arbitrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
-        body: JSON.stringify({ question, positions: parsed }),
-      });
-      const text = await res.text();
-      let data: Record<string, unknown>;
-      try { data = text ? JSON.parse(text) : {}; }
-      catch { throw new Error(`Arbitration returned ${res.status} and not JSON.`); }
-      if (!res.ok) {
-        const e = data.error as { message?: string } | string | undefined;
-        throw new Error((typeof e === 'string' ? e : e?.message) ?? `Arbitration failed (${res.status})`);
-      }
-      setResult(data as unknown as Arbitration);
-    } catch (err) { setError((err as Error).message); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <div className="space-y-4">
-      <NoticeCard tone="info"
-        title="Agreement between correlated models is not corroboration"
-        message="Two models of the same family fail the same way, so their agreement counts once rather than twice — and every discount is stated with its reason. Confidence never decides the answer." />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-border bg-bg-secondary p-4">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Put a question to a panel</h3>
-          <input value={question} onChange={e => setQuestion(e.target.value)}
-            className="w-full text-xs p-2 mb-2 rounded bg-bg-primary border border-border text-text-primary" />
-          <textarea value={positions} onChange={e => setPositions(e.target.value)} spellCheck={false}
-            className="w-full h-40 text-[11px] font-mono p-2 rounded bg-bg-primary border border-border text-text-primary mb-2" />
-          <button onClick={arbitrate} disabled={busy}
-            className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
-            {busy ? 'Arbitrating…' : 'Arbitrate'}
-          </button>
-          {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
-        </div>
-
-        <div className="rounded-xl border border-border bg-bg-secondary p-4">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Verdict</h3>
-          {!result ? (
-            <p className="text-sm text-text-muted">Run an arbitration to see how each voice was weighted.</p>
-          ) : (
-            <>
-              <div className={cn('rounded-lg border p-3 mb-3',
-                result.requiresHuman ? 'border-amber-500/40 bg-amber-500/[0.06]'
-                  : result.outcome === 'resolved' ? 'border-emerald-500/40 bg-emerald-500/[0.06]' : 'border-border')}>
-                <div className={cn('text-lg font-bold', result.requiresHuman ? 'text-amber-400'
-                  : result.outcome === 'resolved' ? 'text-emerald-400' : 'text-text-primary')}>
-                  {result.outcome === 'resolved' ? `Answer: ${result.answer}`
-                    : result.outcome === 'escalate' ? 'Escalated to a human' : 'No consensus'}
-                </div>
-                <div className="text-xs text-text-muted mt-1 font-mono">
-                  {Math.round(result.margin * 100)}% of weight · {result.independentSupport} independent famil{result.independentSupport === 1 ? 'y' : 'ies'}
-                </div>
-              </div>
-
-              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-2">How each voice counted</div>
-              <div className="space-y-1.5 mb-3">
-                {result.positions.map(pos => (
-                  <div key={pos.agentId} className={cn('rounded border p-2 text-xs',
-                    pos.discounted ? 'border-amber-500/30 bg-amber-500/[0.04]' : 'border-border')}>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-mono text-text-primary">{pos.agentId}</span>
-                      <span className="font-mono text-[11px] text-text-muted">
-                        {pos.answer} · {pos.discounted
-                          ? <><s>{pos.rawWeight.toFixed(2)}</s> <span className="text-amber-400">{pos.weight.toFixed(2)}</span></>
-                          : pos.weight.toFixed(2)}
-                      </span>
-                    </div>
-                    {pos.discountReason && <p className="text-[11px] text-amber-400/80 mt-1 leading-snug">{pos.discountReason}</p>}
-                  </div>
-                ))}
-              </div>
-
-              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1.5">Reasoning</div>
-              <ul className="space-y-1">
-                {result.reasoning.map((line, i) => (
-                  <li key={i} className="text-[11px] text-text-muted leading-snug flex gap-1.5">
-                    <span className="text-emerald-500/60">·</span><span>{line}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-bg-secondary p-4">
-        <h3 className="text-sm font-semibold text-text-primary mb-1">Chain anomalies</h3>
-        <p className="text-xs text-text-muted mb-3">Cycles, runaways, stalls and observer disagreement across agent chains.</p>
-        {anomalies.length === 0 ? (
-          <p className="text-sm text-text-muted">None detected. A real result, not a placeholder — chains with no anomalies report none.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {anomalies.map((a, i) => (
-              <li key={i} className="rounded border border-amber-500/30 bg-amber-500/[0.04] p-2 text-xs">
-                <span className="font-mono text-amber-400">{a.kind}</span>
-                {a.detail && <span className="text-text-muted"> — {a.detail}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // ─── Main App ────────────────────────────────────────────────────────────────
 
 const TAB_CONFIG: {
@@ -2167,48 +1250,59 @@ const TAB_CONFIG: {
   { id: 'explain',   layer: 3, label: 'Explain',   question: 'What does this record mean?',        icon: MessageSquare },
   { id: 'govern',    layer: 4, label: 'Govern',    question: 'What is it allowed to do?',          icon: Wrench },
   { id: 'arbitrate', layer: 5, label: 'Arbitrate', question: 'Who is right when they disagree?',   icon: Network },
-  { id: 'act',       layer: 6, label: 'Act',       question: 'What can it reach, and is it up?',   icon: Zap },
+  { id: 'act',       layer: 6, label: 'Act',       question: 'What is running, and what can it reach?', icon: Zap },
   { id: 'learn',     layer: 7, label: 'Learn',     question: 'How fast is it, really?',            icon: Gauge },
+  // Not stages. The four standing things the stages act on — each had been a
+  // panel buried inside a stage, which is where a capability goes to be unread.
+  { id: 'evidence', label: 'Evidence',     question: 'What is held, and where is it thin?', icon: Layers },
+  { id: 'agents',   label: 'Agents',       question: 'Who has been acting here?',           icon: Bot },
+  { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
+  { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
   // Not layers. The machinery underneath.
-  { id: 'system',   label: 'System',   question: 'Infrastructure health',  icon: Home },
-  { id: 'settings', label: 'Settings', question: 'Keys and configuration', icon: Server },
+  { id: 'system',   label: 'System health', question: 'The suite that runs the stack', icon: Server },
+  { id: 'settings', label: 'Settings',     question: 'Keys and configuration',        icon: Wrench },
 ];
 
-/** Everything the Act layer can reach, and whether it is up. */
-const ActTab = ({ services, onServiceAction }: {
-  services: Service[];
-  onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void;
-}) => (
-  <div className="space-y-6">
-    {/* Work in flight first. Whether a container is up is infrastructure; what
-        is running is the layer. */}
-    <ActLayer />
-    <div>
-      <h3 className="text-sm font-semibold text-text-primary mb-3">The surfaces underneath</h3>
-      <ServicesTab services={services} onServiceAction={onServiceAction} />
-    </div>
-    <ConnectorsTab />
-  </div>
-);
+/**
+ * Layer 6 — what is in flight, what is scheduled, what this instance can reach.
+ *
+ * This tab used to end in a Service Inspector and a grid of six connector tiles
+ * whose enabled flags were written into the source. ActLayer reads the real
+ * connector registry, which reports what credentials are actually present; a
+ * hardcoded tile claiming Slack was enabled was a fabricated fact sitting two
+ * inches from a measured one.
+ */
+const ActTab = () => <ActLayer />;
 
-/** Layer 7 — what the system measures about itself, and about models. */
-const LearnTab = () => (
+/**
+ * Layer 4 — the rules, the refusals, and the tokens that carry authority.
+ */
+const GovernTab = () => (
   <div className="space-y-6">
-    <LearnLayer />
-    <div>
-      <h3 className="text-sm font-semibold text-text-primary mb-3">Benchmark a model</h3>
-      <BenchmarksTab />
-    </div>
-  </div>
-);
-
-/** Layer 4 — the rules, the refusals, and the tokens that carry authority. */
-const GovernTab = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }) => (
-  <div className="space-y-6">
-    <Agents onOpenRecord={onOpenRecord} />
     <AuthorityPanel />
-    <ConstraintsPanel />
     <AIStudioTab />
+  </div>
+);
+
+/**
+ * View 9 — the evidence base, and where it is thin.
+ *
+ * What is held, counted on this request, beside the records that are failed,
+ * unsigned or unauthorised on their face. These two belong together: a count of
+ * evidence without a count of its weak points flatters the archive.
+ */
+const EvidenceTab = () => (
+  <div className="space-y-6">
+    <GlobalView />
+    <AttentionPanel />
+  </div>
+);
+
+/** View 10 — what the system refuses, and what each side owes the other. */
+const PoliciesTab = () => (
+  <div className="space-y-6">
+    <ConstraintsPanel />
+    <Obligations />
   </div>
 );
 
@@ -2241,7 +1335,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<Array<{ id: string; message: string; time: string; read: boolean; type: 'info' | 'success' | 'warn' }>>([]);
   const unreadCount = notifications.filter(n => !n.read).length;
   const { theme } = useTheme();
-  const { services, loading, error, startService, stopService, restartService } = useServices();
+  const { services, loading, error } = useServices();
 
   // Close notification panel on outside click
   useEffect(() => {
@@ -2276,17 +1370,11 @@ export default function App() {
         message: `${newest.subject} ${newest.outcome === 'failure' ? 'failed' : 'performed'} "${newest.action}"`,
         time: 'just now',
         read: false,
-        type: newest.outcome === 'failure' ? 'warn' : 'success',
+        type: (newest.outcome === 'failure' ? 'warn' : 'success') as 'warn' | 'success',
       },
       ...current,
     ].slice(0, 20));
   }, [liveExecutions, arrivedIds]);
-
-  const handleServiceAction = useCallback(async (id: string, action: 'start' | 'stop' | 'restart') => {
-    if (action === 'start') await startService(id);
-    else if (action === 'stop') await stopService(id);
-    else if (action === 'restart') await restartService(id);
-  }, [restartService, startService, stopService]);
 
   const renderTab = () => {
     if (openRecordId) {
@@ -2305,13 +1393,34 @@ export default function App() {
         />
       );
       case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
-      case 'verify': return <ProofTab view="verify" onOpenRecord={setOpenRecordId} />;
+      case 'verify': return (
+        <div className="space-y-6">
+          <ProofTab view="verify" onOpenRecord={setOpenRecordId} />
+          <Audit />
+        </div>
+      );
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
-      case 'govern': return <GovernTab onOpenRecord={setOpenRecordId} />;
+      case 'govern': return <GovernTab />;
       case 'arbitrate': return <ArbitrateLayer />;
-      case 'act': return <ActTab services={services} onServiceAction={handleServiceAction} />;
-      case 'learn': return <LearnTab />;
-      case 'system': return <OverviewTab services={services} error={error} onServiceAction={handleServiceAction} />;
+      case 'act': return <ActTab />;
+      case 'learn': return (
+        <div className="space-y-6">
+          <LearnLayer />
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary mb-1">The full record behind those bars</h3>
+            <p className="text-xs text-text-muted mb-3 max-w-3xl leading-relaxed">
+              Same measurement, nothing withheld: warmup discarded, failures, standard deviation,
+              concurrency and the exact workload each figure describes.
+            </p>
+            <PerformanceTab />
+          </div>
+        </div>
+      );
+      case 'evidence': return <EvidenceTab />;
+      case 'agents': return <Agents onOpenRecord={setOpenRecordId} />;
+      case 'policies': return <PoliciesTab />;
+      case 'unknowns': return <UnknownsPanel />;
+      case 'system': return <MachineRoom services={services} error={error} />;
       case 'settings': return <SettingsTab services={services} />;
     }
   };
@@ -2329,7 +1438,17 @@ export default function App() {
             <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 shrink-0">
               <Hexagon className="w-5 h-5 text-emerald-400" />
             </div>
-            {!sidebarCollapsed && <span className="font-bold text-text-primary">ABSuite</span>}
+            {!sidebarCollapsed && (
+              <span className="leading-tight">
+                <span className="block font-bold text-[#FFFFFF]">ABSuite</span>
+                <span className="block text-[9px] font-mono uppercase tracking-[0.22em] text-[#00D9FF]/70">
+                  Trust Operations Center
+                </span>
+                <span className="block text-[9px] text-text-muted/60 italic mt-0.5">
+                  The Future Is Accountable.
+                </span>
+              </span>
+            )}
           </div>
 
           {/* Nav — the stack, in order. */}
@@ -2342,7 +1461,12 @@ export default function App() {
                     The stack
                   </div>
                 )}
-                {/* The seven layers are the product; the last two are plumbing. */}
+                {/* The four standing views sit between the loop and the plumbing. */}
+                {id === 'evidence' && !sidebarCollapsed && (
+                  <div className="px-3 pt-4 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
+                    The record
+                  </div>
+                )}
                 {layer === undefined && id === 'system' && (
                   <div className={cn('pt-3 mt-2 border-t border-border/40', sidebarCollapsed && 'mx-2')}>
                     {!sidebarCollapsed && (
@@ -2441,7 +1565,6 @@ export default function App() {
 {unreadCount > 0 && <span className="notification-badge" />}
               </button>
 
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-sm font-bold text-bg-primary">E</div>
             </div>
           </header>
 
@@ -2462,7 +1585,9 @@ export default function App() {
                       ? `Layer ${current.layer} of 7`
                       : current.id === 'operations'
                         ? 'Trust Operations Center'
-                        : 'Underneath the stack'}
+                        : current.id === 'system' || current.id === 'settings'
+                          ? 'Underneath the stack'
+                          : 'The record'}
                   </div>
                   <h1 className="text-2xl font-bold text-text-primary leading-tight">{current.label}</h1>
                   <p className="text-sm text-text-muted mt-0.5">{current.question}</p>
@@ -2476,9 +1601,13 @@ export default function App() {
                 Evidence tab it pushed the answer the reader came for below a
                 banner telling them something they did not ask. An actual error
                 still surfaces everywhere. */}
-            {(error || activeTab === 'system' || activeTab === 'act') && (
+            {error && activeTab !== 'system' && (
               <div className="mb-4">
-                <NoticeCard tone={error ? 'error' : 'info'} title={error ? 'Live mode reports a real issue' : 'Live mode enabled'} message={error ? `${error} The dashboard is intentionally not showing fake fallback data.` : 'This dashboard is currently showing the real ABSuite service state.'} />
+                <NoticeCard
+                  tone="error"
+                  title="A service is not answering"
+                  message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}
+                />
               </div>
             )}
 

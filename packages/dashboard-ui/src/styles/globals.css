@@ -19,6 +19,17 @@
     --bg-tertiary: 158 16% 8%;    /* #101A16 — raised */
     --border-color: 158 30% 14%;  /* emerald-tinted hairline */
     --text-primary: 158 30% 94%;  /* #E8F5F0 */
+    /*
+     * #FFFFFF — reserved for peak emphasis only.
+     *
+     * The philosophy states white as part of the colour system. Body text is
+     * deliberately not it: pure white on the #05070A ground halates at small
+     * sizes, and 94% lightness with a faint green cast reads cleanly against a
+     * near-black field lit by #00FF88. So white is kept for the one place that
+     * should out-rank everything else on the screen — the wordmark — and the
+     * deviation for body copy is written down rather than left to drift.
+     */
+    --white: 0 0% 100%;
     --text-muted: 158 10% 53%;    /* #7C9389 */
     --accent-primary: 153 100% 50%;  /* #00FF88 — signal green */
     /* Secondary is a deeper teal, not blue. A blue "Restart" button next to an
