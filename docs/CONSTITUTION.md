@@ -499,13 +499,25 @@ quiet self-promotion `check:doctrine` was written to prevent.
 
 ### Unknown is not the same as false
 
-Two states are a lie in an evidence system. There are three:
+Nor the same as true — which is the half that was actually hiding in this
+codebase. Two states are a lie in an evidence system, and three are not enough.
+There are four:
 
-| | Meaning | Carries |
+| | Meaning | Must also carry |
 |---|---|---|
-| **VERIFIED** | Checked, and it holds | The statement |
-| **FAILED** | Checked, and it does not | The statement |
-| **UNKNOWN** | Not checked, or not checkable by this verifier | The statement **and what would resolve it** |
+| **DEMONSTRATED** | The evidence supports it | — |
+| **FAILED** | The evidence contradicts it | — |
+| **UNKNOWN** | The evidence is unavailable, or unreadable by this verifier | **What would resolve it** |
+| **ABSENT** | The record never attempted to answer | **Why the record is silent** |
+
+Not `true` / `false` / `null`. True and false are claims about the world; this
+system only ever makes claims about *evidence*. DEMONSTRATED means the evidence
+for this is present and holds — never that the thing is true. A record does not
+make an action correct, and the vocabulary must stop implying otherwise.
+
+ABSENT is the fourth because "we checked and found nothing" and "this record was
+never asked" are different facts. A trace that predates governance is silent for
+a reason that has nothing to do with the action it describes.
 
 A thermometer that cannot read 10,000°C does not report `temperature: false`; it
 reports out of range. A verifier that has not checked a signature has not
@@ -514,21 +526,47 @@ tampering. Collapsing those into "invalid" turns every limitation of the verifie
 into an accusation against the evidence — and the accused record is usually the
 one that is right.
 
-**An UNKNOWN must always state what would resolve it.** This is enforced at
-construction: building one without a resolution throws. An unknown nobody can act
-on is a dead end dressed as an answer, and a reader who cannot act on it starts
-reading it as a pass within a week — which is the failure this whole distinction
-exists to prevent.
+### Every unknown must carry its path to resolution
+
+Uncertainty without a next step is paralysis. Uncertainty with one is work.
+
+Enforced at construction rather than left to discipline: building an UNKNOWN
+without a resolution throws, and so does an ABSENT without a reason for the
+silence. An unknown nobody can act on is a dead end dressed as an answer, and a
+reader who cannot act on it starts reading it as a pass within a week — which is
+the failure the whole distinction exists to prevent.
+
+In practice it turns a witness into a guide without making it an adviser:
+
+> UNKNOWN — no signature was checked, so who wrote this record is unproven.
+> *Resolved by: verify again with the signing key's public half.*
+
+> UNKNOWN — this record was written in canonical form v3.
+> *Resolved by: upgrade to a build that supports it.*
+
+> ABSENT — no scope was recorded.
+> *Not answered because: the record makes no claim about what was permitted.*
+
+Saying what would settle a question is not the same as saying what someone
+should do about the answer. The first is help; the second is the judgement this
+system refuses to make.
 
 **What this found in our own code.** `verifyTrace()` called without a public key
-returns `valid: true`. That is technically correct — the content matches its hash,
-which is all it was asked — and it has been readable as "this record is genuine"
-ever since, when nobody checked who wrote it. The boolean cannot express the
-difference. The determination can:
+returns `valid: true`. That is technically correct — the content matches its
+hash, which is all it was asked — and it has been readable as "this record is
+genuine" ever since, when nobody checked who wrote it.
 
-> UNKNOWN — The content matches its hash, but no signature was checked, so who
-> wrote this record is unproven.
-> *Resolved by: verify again with the signing key's public half.*
+One bit was carrying two independent questions:
+
+| | |
+|---|---|
+| Integrity — has the content changed? | DEMONSTRATED |
+| Authorship — who wrote it? | UNKNOWN |
+
+They are reported separately now, and the overall finding is never better than
+the weaker of the two. That also makes a distinction the old boolean could not:
+a signature checked against the wrong key leaves integrity DEMONSTRATED and
+authorship FAILED — nothing was edited, it was signed by someone else.
 
 The same refusal to collapse uncertainty already runs through the codebase in
 four other places, and they are all the same principle: `signatureValid: null`,
@@ -596,7 +634,8 @@ checks are the part that is worth anything:
 | These seven refusals are behaviour, not marketing | `check:constraints` fails if the test enforcing any refusal is renamed or deleted |
 | The layer table distinguishes built from planned | `check:doctrine` fails if a built layer's evidence vanishes, or a planned one starts claiming some |
 | History must survive improvement | `frozen-chain.test.ts` verifies records signed in 2026 against their committed public key, forever |
-| Unknown is not the same as false | `finding()` throws on an UNKNOWN with no stated resolution |
+| Unknown is not the same as false | Four states, and the vocabulary contains no TRUE, FALSE or VALID |
+| Every unknown carries its path to resolution | `finding()` throws on an UNKNOWN with no resolution, or an ABSENT with no reason |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 | The interface only calls things that answer | `check:routes` fails if a client call has no server route |
 

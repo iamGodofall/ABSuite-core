@@ -1395,7 +1395,7 @@ type Trace = {
   inputHash?: string; outputHash?: string;
 };
 
-type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null; signatureValid: boolean | null; checkable?: boolean; determination?: 'VERIFIED' | 'FAILED' | 'UNKNOWN'; statement?: string; resolvedBy?: string };
+type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null; signatureValid: boolean | null; checkable?: boolean; determination?: 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT'; statement?: string; resolvedBy?: string; notAnsweredBecause?: string };
 
 /**
  * The regulator-facing view.
@@ -1425,7 +1425,7 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
   const [tampered, setTampered] = useState(false);
   const [replay, setReplay] = useState<{ inputMatches: boolean; outputMatches: boolean; deterministic: boolean } | null>(null);
   const [explanation, setExplanation] = useState<{ headline: string; conclusion: string; warrantsReview: boolean; findings: { question: string; answer: string; from: string; status: string }[] } | null>(null);
-  const [conditions, setConditions] = useState<{ conclusion: string; allDemonstrated: boolean; conditions: { condition: string; answers: string; state: string; finding: string; from: string }[] } | null>(null);
+  const [conditions, setConditions] = useState<{ conclusion: string; allDemonstrated: boolean; conditions: { condition: string; answers: string; state: string; finding: string; from: string; resolvedBy?: string; notAnsweredBecause?: string }[] } | null>(null);
   const [replayInput, setReplayInput] = useState('');
   const [replayOutput, setReplayOutput] = useState('');
 
@@ -1816,19 +1816,24 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
                         <div key={c.condition} className="text-[11px] leading-snug">
                           <div className="flex items-baseline gap-2">
                             <span className={cn('font-mono',
-                              c.state === 'demonstrated' ? 'text-emerald-400'
-                                : c.state === 'unproven' ? 'text-amber-400' : 'text-text-muted')}>
-                              {c.state === 'demonstrated' ? '✓' : c.state === 'unproven' ? '?' : '·'}
+                              c.state === 'DEMONSTRATED' ? 'text-emerald-400'
+                                : c.state === 'FAILED' ? 'text-red-400'
+                                : c.state === 'UNKNOWN' ? 'text-amber-400' : 'text-text-muted')}>
+                              {c.state === 'DEMONSTRATED' ? '✓' : c.state === 'FAILED' ? '✗' : c.state === 'UNKNOWN' ? '?' : '·'}
                             </span>
                             <span className="font-semibold text-text-primary">{c.condition}</span>
                             <span className="text-text-muted">{c.answers}</span>
                             <span className={cn('font-mono text-[10px] ml-auto',
-                              c.state === 'demonstrated' ? 'text-emerald-500/70'
-                                : c.state === 'unproven' ? 'text-amber-400/70' : 'text-text-muted/70')}>
+                              c.state === 'DEMONSTRATED' ? 'text-emerald-500/70'
+                                : c.state === 'FAILED' ? 'text-red-400/70'
+                                : c.state === 'UNKNOWN' ? 'text-amber-400/70' : 'text-text-muted/70')}>
                               {c.state}
                             </span>
                           </div>
                           <div className="text-text-muted pl-5">{c.finding}</div>
+                          {/* An unknown nobody can act on gets read as a pass. */}
+                          {c.resolvedBy && <div className="text-amber-400/80 pl-5">Resolved by: {c.resolvedBy}</div>}
+                          {c.notAnsweredBecause && <div className="text-text-muted/80 pl-5">Not answered because: {c.notAnsweredBecause}</div>}
                           <div className="text-dim font-mono text-[10px] pl-5 mt-0.5 opacity-70">from: {c.from}</div>
                         </div>
                       ))}
@@ -1909,22 +1914,26 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
 
               {verdict && (
                 <div className={cn('mt-4 rounded-lg border p-3',
-                  verdict.determination === 'VERIFIED' ? 'border-emerald-500/50 bg-emerald-500/5'
-                    : verdict.determination === 'UNKNOWN' ? 'border-amber-500/50 bg-amber-500/5'
-                    : 'border-red-500/50 bg-red-500/5')}>
+                  verdict.determination === 'DEMONSTRATED' ? 'border-emerald-500/50 bg-emerald-500/5'
+                    : verdict.determination === 'FAILED' ? 'border-red-500/50 bg-red-500/5'
+                    : 'border-amber-500/50 bg-amber-500/5')}>
                   {/* Three states, never two. "Nobody checked" is not a pass
                       and not a failure, and it always says what would settle it. */}
                   <p className={cn('text-sm font-semibold mb-1',
-                    verdict.determination === 'VERIFIED' ? 'text-emerald-500'
-                      : verdict.determination === 'UNKNOWN' ? 'text-amber-500'
-                      : 'text-red-500')}>
-                    {verdict.determination === 'VERIFIED' ? 'Verified'
-                      : verdict.determination === 'UNKNOWN' ? 'Unknown — not checked'
-                      : 'Failed verification'}
+                    verdict.determination === 'DEMONSTRATED' ? 'text-emerald-500'
+                      : verdict.determination === 'FAILED' ? 'text-red-500'
+                      : 'text-amber-500')}>
+                    {verdict.determination === 'DEMONSTRATED' ? 'Demonstrated'
+                      : verdict.determination === 'FAILED' ? 'Failed'
+                      : verdict.determination === 'ABSENT' ? 'Absent — the record does not answer'
+                      : 'Unknown — not checked'}
                   </p>
                   {verdict.statement && <p className="text-xs text-text-muted mb-2">{verdict.statement}</p>}
                   {verdict.resolvedBy && (
                     <p className="text-[11px] text-amber-400/90 mb-2">Resolved by: {verdict.resolvedBy}</p>
+                  )}
+                  {verdict.notAnsweredBecause && (
+                    <p className="text-[11px] text-text-muted mb-2">Not answered because: {verdict.notAnsweredBecause}</p>
                   )}
                   <ul className="text-xs space-y-1">
                     {/* null means we could not check, which must not be shown

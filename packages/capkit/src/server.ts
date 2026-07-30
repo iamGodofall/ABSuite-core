@@ -767,7 +767,13 @@ app.post('/executions/verify', (req, res) => {
   // `valid` is a boolean and booleans cannot carry "nobody checked". The
   // determination can, and it names what would resolve an UNKNOWN rather than
   // leaving a reader with a dead end they will eventually read as a pass.
-  return res.status(200).json({ ...verdict, ...determineTrace(verdict) });
+  const assessed = determineTrace(verdict);
+  return res.status(200).json({
+    ...verdict,
+    ...assessed.overall,
+    integrity: assessed.integrity,
+    authorship: assessed.authorship,
+  });
 });
 
 app.get('/executions-verify-chain', authorise('execution:read'), (_req, res) => {
@@ -775,14 +781,14 @@ app.get('/executions-verify-chain', authorise('execution:read'), (_req, res) => 
   res.status(200).json({
     ...result,
     ...(result.valid
-      ? { determination: 'VERIFIED' as const, statement: `${result.checked} record(s) verified.` }
+      ? { determination: 'DEMONSTRATED' as const, statement: `${result.checked} record(s) verified.` }
       : determineTrace({
           valid: false,
           contentIntact: result.contentIntact ?? false,
           signatureValid: result.contentIntact === false ? null : false,
           ...(result.checkable === false ? { checkable: false } : {}),
           ...(result.reason ? { reason: result.reason } : {}),
-        })),
+        }).overall),
   });
 });
 

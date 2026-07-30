@@ -45,11 +45,11 @@ describe('the necessary conditions for trust', () => {
     // Governance is honestly absent: a trace records the authority an action
     // held, never the rule that decided it should hold it.
     const governance = report.conditions.find(c => c.condition === 'Governance')!;
-    expect(governance.state).toBe('absent');
+    expect(governance.state).toBe('ABSENT');
     expect(report.allDemonstrated).toBe(false);
 
     for (const condition of report.conditions.filter(c => c.condition !== 'Governance')) {
-      expect(condition.state).toBe('demonstrated');
+      expect(condition.state).toBe('DEMONSTRATED');
     }
   });
 
@@ -69,8 +69,8 @@ describe('the necessary conditions for trust', () => {
     const evidence = report.conditions.find(c => c.condition === 'Evidence')!;
 
     // Silence about verification must never read as a pass.
-    expect(identity.state).toBe('unproven');
-    expect(evidence.state).toBe('unproven');
+    expect(identity.state).toBe('UNKNOWN');
+    expect(evidence.state).toBe('UNKNOWN');
     expect(evidence.finding).toMatch(/has not been verified/i);
   });
 
@@ -81,8 +81,8 @@ describe('the necessary conditions for trust', () => {
     const unchecked = trustConditions(trace, verifyTrace(trace, key.publicKeyPem));
     const checked = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true);
 
-    expect(unchecked.conditions.find(c => c.condition === 'Time')!.state).toBe('unproven');
-    expect(checked.conditions.find(c => c.condition === 'Time')!.state).toBe('demonstrated');
+    expect(unchecked.conditions.find(c => c.condition === 'Time')!.state).toBe('UNKNOWN');
+    expect(checked.conditions.find(c => c.condition === 'Time')!.state).toBe('DEMONSTRATED');
     expect(renderConditions(unchecked)).toMatch(/asserted rather than shown/i);
   });
 
@@ -92,8 +92,36 @@ describe('the necessary conditions for trust', () => {
     const report = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true);
 
     const capability = report.conditions.find(c => c.condition === 'Capability')!;
-    expect(capability.state).toBe('absent');
+    expect(capability.state).toBe('ABSENT');
     expect(capability.finding).toMatch(/cannot be stated from the record/i);
+  });
+
+  test('every unknown states what would resolve it, and every absence says why', () => {
+    const { traces, key } = fresh();
+    // A record with gaps in several conditions at once.
+    const trace = sample(traces, { scope: [] });
+
+    for (const report of [trustConditions(trace), trustConditions(trace, verifyTrace(trace, key.publicKeyPem))]) {
+      for (const condition of report.conditions) {
+        // Uncertainty without a next step is paralysis. Uncertainty with one is
+        // work — and an unknown nobody can act on gets read as a pass.
+        if (condition.state === 'UNKNOWN') expect(condition.resolvedBy).toBeTruthy();
+        if (condition.state === 'ABSENT') expect(condition.notAnsweredBecause).toBeTruthy();
+      }
+    }
+  });
+
+  test('a record whose content contradicts its hash FAILS rather than being unknown', () => {
+    const { traces, key, storage } = fresh();
+    const trace = sample(traces);
+    storage.run("UPDATE executions SET outcome = 'failure' WHERE id = ?", trace.id);
+    const altered = traces.get(trace.id)!;
+
+    const report = trustConditions(altered, verifyTrace(altered, key.publicKeyPem), false);
+    const evidence = report.conditions.find(c => c.condition === 'Evidence')!;
+
+    // Evidence that contradicts itself is not merely unproven.
+    expect(evidence.state).toBe('FAILED');
   });
 
   test('every finding names the field it was read from', () => {

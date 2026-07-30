@@ -18,8 +18,18 @@
  * demonstrated, unproven or absent, each naming the field it was read from.
  */
 import type { ExecutionTrace, TraceVerdict } from './trace';
+import { type Determination } from './determination';
 
-export type ConditionState = 'demonstrated' | 'unproven' | 'absent';
+/**
+ * The same four states used everywhere else — see determination.ts.
+ *
+ * These were once `demonstrated | unproven | absent`, a third private
+ * vocabulary for the same idea. One model, one set of words: a reader should
+ * not have to learn what "unproven" means here versus "UNKNOWN" two endpoints
+ * away, and FAILED was missing entirely — a record whose content contradicts
+ * its own hash is not merely unproven.
+ */
+export type ConditionState = Determination;
 
 export interface TrustCondition {
   /** Identity, Capability, Evidence, Governance or Time. */
@@ -30,6 +40,10 @@ export interface TrustCondition {
   finding: string;
   /** The field(s) this was read from, so a reader can check rather than believe. */
   from: string;
+  /** Required for UNKNOWN: what would settle it. */
+  resolvedBy?: string;
+  /** Required for ABSENT: why the record does not answer. */
+  notAnsweredBecause?: string;
 }
 
 export interface ConditionsReport {
@@ -60,9 +74,10 @@ export function trustConditions(
         {
           condition: 'All',
           answers: 'Anything at all?',
-          state: 'unproven',
+          state: 'UNKNOWN',
           finding: `${verdict.reason ?? 'This record was written in a canonical form this build does not know.'} No condition can be assessed until this build can read it.`,
           from: 'canonicalVersion',
+          resolvedBy: 'Upgrade to a build that supports this record’s canonical form.',
         },
       ],
       conclusion:
@@ -79,7 +94,10 @@ export function trustConditions(
   conditions.push({
     condition: 'Identity',
     answers: 'Who?',
-    state: hasSubject ? (verdict?.signatureValid ? 'demonstrated' : 'unproven') : 'absent',
+    state: !hasSubject ? 'ABSENT' : verdict?.signatureValid === false ? 'FAILED' : verdict?.signatureValid ? 'DEMONSTRATED' : 'UNKNOWN',
+    ...(!hasSubject ? { notAnsweredBecause: 'No subject was recorded on this execution.' } : {}),
+    ...(hasSubject && verdict?.signatureValid === undefined || verdict?.signatureValid === null
+      ? { resolvedBy: 'Verify the record against the signing key’s public half.' } : {}),
     finding: !hasSubject
       ? 'No subject is recorded, so there is nothing to attribute this action to.'
       : verdict?.signatureValid
@@ -93,7 +111,12 @@ export function trustConditions(
   conditions.push({
     condition: 'Capability',
     answers: 'Allowed?',
-    state: scopes.length === 0 ? 'absent' : trace.jti ? 'demonstrated' : 'unproven',
+    state: scopes.length === 0 ? 'ABSENT' : trace.jti ? 'DEMONSTRATED' : 'UNKNOWN',
+    ...(scopes.length === 0
+      ? { notAnsweredBecause: 'No scope was recorded, so the record makes no claim about what was permitted.' }
+      : !trace.jti
+        ? { resolvedBy: 'Record the token id (jti) alongside the scope so the authority can be traced to an issued credential.' }
+        : {}),
     finding: scopes.length === 0
       ? 'No scope is recorded, so what this action was permitted to do cannot be stated from the record.'
       : trace.jti
@@ -108,7 +131,15 @@ export function trustConditions(
   conditions.push({
     condition: 'Evidence',
     answers: 'What happened?',
-    state: !hasInput ? 'absent' : verdict?.contentIntact ? (hasOutput ? 'demonstrated' : 'unproven') : 'unproven',
+    state: !hasInput ? 'ABSENT'
+      : verdict?.contentIntact === false ? 'FAILED'
+      : !verdict ? 'UNKNOWN'
+      : hasOutput ? 'DEMONSTRATED' : 'UNKNOWN',
+    ...(!hasInput
+      ? { notAnsweredBecause: 'Nothing was hashed on this record.' }
+      : verdict?.contentIntact !== false && (!verdict || !hasOutput)
+        ? { resolvedBy: !verdict ? 'Run verifyTrace() against the signing key.' : 'Record an output hash so a replay can confirm the result, not only the input.' }
+        : {}),
     finding: !hasInput
       ? 'Nothing was hashed, so there is no evidence of what was processed.'
       : !verdict
@@ -131,7 +162,14 @@ export function trustConditions(
   conditions.push({
     condition: 'Governance',
     answers: 'Under what rule?',
-    state: !governance ? 'absent' : verdict?.contentIntact ? 'demonstrated' : 'unproven',
+    state: !governance ? 'ABSENT'
+      : verdict?.contentIntact === false ? 'FAILED'
+      : verdict?.contentIntact ? 'DEMONSTRATED' : 'UNKNOWN',
+    ...(!governance
+      ? { notAnsweredBecause: 'This record carries no policy reference — either it predates governance, or the caller recorded none.' }
+      : !verdict
+        ? { resolvedBy: 'Verify the record, so the policy reference is checked along with everything else on it.' }
+        : {}),
     finding: !governance
       ? 'Not recorded. A trace states the authority an action held, not the rule that decided it should hold it. ' +
         'Under what rule this was permitted cannot be answered from this record — only whether it was.'
@@ -152,7 +190,12 @@ export function trustConditions(
   conditions.push({
     condition: 'Time',
     answers: 'When, and after what?',
-    state: !hasStart || !chained ? 'absent' : chainIntact === true ? 'demonstrated' : 'unproven',
+    state: !hasStart || !chained ? 'ABSENT' : chainIntact === true ? 'DEMONSTRATED' : chainIntact === false ? 'FAILED' : 'UNKNOWN',
+    ...(!hasStart || !chained
+      ? { notAnsweredBecause: 'The record carries no start time or no link to a predecessor.' }
+      : chainIntact === undefined
+        ? { resolvedBy: 'Run verifyChain() — ordering is asserted until the chain is walked.' }
+        : {}),
     finding: !hasStart
       ? 'No start time is recorded.'
       : !chained
@@ -163,8 +206,8 @@ export function trustConditions(
     from: 'startedAt, prevHash, verifyChain()',
   });
 
-  const demonstrated = conditions.filter(condition => condition.state === 'demonstrated');
-  const outstanding = conditions.filter(condition => condition.state !== 'demonstrated');
+  const demonstrated = conditions.filter(condition => condition.state === 'DEMONSTRATED');
+  const outstanding = conditions.filter(condition => condition.state !== 'DEMONSTRATED');
 
   const conclusion = outstanding.length === 0
     ? 'All necessary conditions for trust have been demonstrated. Whether that is sufficient is a judgement, and it is yours.'
@@ -178,7 +221,7 @@ export function trustConditions(
 /** The report as plain text, for a terminal, an email or a ticket. */
 export function renderConditions(report: ConditionsReport): string {
   const mark = (state: ConditionState) =>
-    state === 'demonstrated' ? '✓' : state === 'unproven' ? '?' : '·';
+    state === 'DEMONSTRATED' ? '✓' : state === 'FAILED' ? '✗' : state === 'UNKNOWN' ? '?' : '·';
 
   return [
     'Trust := f(Identity, Capability, Evidence, Governance, Time)',
@@ -187,6 +230,8 @@ export function renderConditions(report: ConditionsReport): string {
     ...report.conditions.flatMap(condition => [
       `${mark(condition.state)} ${condition.condition} — ${condition.answers}  [${condition.state}]`,
       `    ${condition.finding}`,
+      ...(condition.resolvedBy ? [`    resolved by: ${condition.resolvedBy}`] : []),
+      ...(condition.notAnsweredBecause ? [`    not answered because: ${condition.notAnsweredBecause}`] : []),
       `    from: ${condition.from}`,
       '',
     ]),
