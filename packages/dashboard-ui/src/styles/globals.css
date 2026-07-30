@@ -603,3 +603,99 @@
   .ops-cube, .ops-ring, .ops-arrive,
   .ops-state-demonstrated, .ops-state-unknown { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   The cube, as a shell element.
+   Every rule below is driven by something that happened: the socket's state,
+   the chain's integrity, or a record that actually arrived. Nothing here runs
+   on a timer that means nothing.
+   ------------------------------------------------------------------------- */
+
+.trust-cube-scene { perspective: 700px; }
+.trust-cube-centre { perspective: 900px; }
+
+.trust-cube {
+  position: relative;
+  transform-style: preserve-3d;
+  animation: ops-cube-turn 28s linear infinite;
+}
+
+/* Not connected means not observing, and the cube says so by stopping. */
+.trust-cube.is-still { animation-play-state: paused; }
+
+.trust-cube-face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--cube-line, hsl(var(--accent-primary) / 0.35));
+  background: linear-gradient(140deg, var(--cube-wash, hsl(var(--accent-primary) / 0.05)), transparent 60%);
+  box-shadow: inset 0 0 30px var(--cube-wash, hsl(var(--accent-primary) / 0.08));
+}
+
+/* The four determinations, on the centrepiece itself.
+   DEMONSTRATED holds steady. FAILED holds strong contrast without blinking —
+   an alarm that flashes gets muted like any other. UNKNOWN pulses amber,
+   because unresolved is not wrong. ABSENT dims rather than disappearing. */
+.trust-cube.cube-intact    { --cube-line: hsl(var(--accent-primary) / 0.4);  --cube-wash: hsl(var(--accent-primary) / 0.06); }
+.trust-cube.cube-broken    { --cube-line: hsl(0 84% 60% / 0.55);             --cube-wash: hsl(0 84% 60% / 0.08); }
+.trust-cube.cube-unchecked { --cube-line: hsl(38 92% 55% / 0.45);            --cube-wash: hsl(38 92% 55% / 0.06);
+                             animation: ops-cube-turn 28s linear infinite, cube-unresolved 2.6s ease-in-out infinite; }
+.trust-cube.cube-empty     { --cube-line: hsl(var(--text-muted) / 0.25);     --cube-wash: transparent; opacity: 0.45; }
+
+@keyframes cube-unresolved { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+/* A record arriving. One particle per record — it converges from an angle
+   derived from that record's id, so the same record always approaches the same
+   way and nothing depends on randomness. */
+@keyframes trust-converge {
+  0%   { opacity: 0; transform: rotate(var(--approach)) translateX(190%) scale(0.5); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--approach)) translateX(0) scale(1); }
+}
+
+.trust-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 9999px;
+  background: hsl(var(--accent-primary));
+  box-shadow: 0 0 8px hsl(var(--accent-primary) / 0.9);
+  pointer-events: none;
+  animation: trust-converge 1.5s ease-in forwards;
+}
+
+/* A failed execution arrives too. It is drawn in the failure colour rather
+   than hidden, because a feed that only shows successes is a feed of half the
+   record. */
+.trust-particle.is-failure {
+  background: hsl(0 84% 62%);
+  box-shadow: 0 0 8px hsl(0 84% 62% / 0.9);
+}
+
+/* Verification in flight. Mounted when the request goes out and unmounted when
+   it returns, so the sweep lasts exactly as long as the work does. A fixed
+   duration here would be a comforting animation about nothing. */
+@keyframes trust-sweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.trust-sweep {
+  position: absolute;
+  inset: -22%;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  border-top-color: hsl(var(--accent-secondary) / 0.75);
+  border-right-color: hsl(var(--accent-secondary) / 0.25);
+  animation: trust-sweep 1.1s linear infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trust-cube { animation: none; }
+  .trust-sweep { animation: none; border-top-color: hsl(var(--accent-secondary) / 0.5); }
+  .trust-cube.cube-unchecked { animation: none; }
+  .trust-particle { animation-duration: 0.01ms; }
+}

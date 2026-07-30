@@ -20,6 +20,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
 import type { LiveExecution } from '../hooks/useSocket';
+import { TrustCube, type Integrity } from '../components/TrustCube';
 
 type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
 
@@ -111,12 +112,16 @@ function layerReadings(stats: Stats | null, unknownCount: number | null, attenti
   ];
 }
 
-export const Operations = ({ live, arrivedIds, connected, servicesUp, servicesTotal, onOpenRecord, onOpenLayer }: {
+export const Operations = ({ live, arrivedIds, connected, servicesUp, servicesTotal, integrity, arrivals, verifying, onOpenRecord, onOpenLayer }: {
   live: LiveExecution[];
   arrivedIds: Set<string>;
   connected: boolean;
   servicesUp: number;
   servicesTotal: number;
+  /** The chain's state, read once by the shell so both cubes always agree. */
+  integrity: Integrity;
+  arrivals: { id: string; outcome?: string }[];
+  verifying: boolean;
   onOpenRecord?: (id: string) => void;
   onOpenLayer?: (layer: string) => void;
 }) => {
@@ -159,8 +164,6 @@ export const Operations = ({ live, arrivedIds, connected, servicesUp, servicesTo
   useEffect(() => { if (live.length) void load(); }, [live.length, load]);
 
   const readings = layerReadings(stats, unknownCount, attention, servicesUp, servicesTotal);
-  const newest = live[0];
-  const justArrived = newest && arrivedIds.has(newest.id);
 
   return (
     <div className="space-y-6">
@@ -186,31 +189,30 @@ export const Operations = ({ live, arrivedIds, connected, servicesUp, servicesTo
           <div className="ops-ring" style={{ width: 340, height: 340, top: '50%', left: '50%', marginTop: -170, marginLeft: -170 }} />
           <div className="ops-ring reverse" style={{ width: 470, height: 470, top: '50%', left: '50%', marginTop: -235, marginLeft: -235 }} />
 
-          {/* The cube. Still when the socket is not connected. */}
-          <div className="ops-cube-scene relative" style={{ width: 130, height: 130 }}>
-            <div className={cn('ops-cube', !connected && 'is-still')} style={{ width: 130, height: 130 }}>
-              {[
-                'translateZ(65px)', 'rotateY(180deg) translateZ(65px)',
-                'rotateY(90deg) translateZ(65px)', 'rotateY(-90deg) translateZ(65px)',
-                'rotateX(90deg) translateZ(65px)', 'rotateX(-90deg) translateZ(65px)',
-              ].map(transform => (
-                <div key={transform} className="ops-cube-face" style={{ transform }} />
-              ))}
-            </div>
-
-            {/* A record arriving converges on the cube, once. */}
-            {justArrived && (
-              <div
-                key={newest.id}
-                className="ops-arrive absolute inset-0 rounded-full border border-[#00FF88]/60 pointer-events-none"
-              />
-            )}
-          </div>
+          {/* The same component the shell mounts, at centrepiece size. One
+              implementation, so the small cube and the large one can never
+              disagree about what the system is doing. */}
+          <TrustCube
+            connected={connected}
+            integrity={integrity}
+            arrivals={arrivals}
+            verifying={verifying}
+            variant="centre"
+            size={130}
+          />
 
           <div className="mt-6 text-center">
             <div className={cn('text-[10px] font-mono uppercase tracking-[0.3em]',
-              connected ? 'text-[#00FF88]/80' : 'text-red-400/80')}>
-              {connected ? 'observing' : 'not connected'}
+              !connected ? 'text-red-400/80'
+                : integrity === 'FAILED' ? 'text-red-400/80'
+                : integrity === 'UNKNOWN' ? 'text-amber-400/80'
+                : integrity === 'ABSENT' ? 'text-text-muted'
+                : 'text-[#00FF88]/80')}>
+              {!connected ? 'not connected'
+                : integrity === 'FAILED' ? 'chain broken'
+                : integrity === 'UNKNOWN' ? 'chain not checked'
+                : integrity === 'ABSENT' ? 'nothing recorded'
+                : 'observing · chain intact'}
             </div>
             {!connected && (
               <div className="text-[10px] text-text-muted mt-1">

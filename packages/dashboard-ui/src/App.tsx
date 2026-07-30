@@ -39,6 +39,7 @@ import { ArbitrateLayer } from './tabs/ArbitrateLayer';
 import { MachineRoom } from './tabs/MachineRoom';
 import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
+import { TrustCube, type Integrity } from './components/TrustCube';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1358,6 +1359,49 @@ export default function App() {
 
   const { connected, executions: liveExecutions, arrivedIds } = useSocket();
 
+  /**
+   * The chain's integrity, held by the shell because the cube is now a shell
+   * element and must be able to state it on every view.
+   *
+   * Four states, never three: intact, broken, not-checked, and nothing-recorded.
+   * A failed request leaves this UNKNOWN rather than dropping to a green
+   * default — "I could not check" and "it is fine" must not render alike.
+   */
+  const [integrity, setIntegrity] = useState<Integrity>('UNKNOWN');
+  const [verifying, setVerifying] = useState(false);
+  useEffect(() => {
+    let active = true;
+    const read = async () => {
+      if (active) setVerifying(true);
+      try {
+        const res = await fetch('/executions/stats?windowHours=24', { headers: getAdminHeaders() });
+        if (!active) return;
+        if (!res.ok) { setIntegrity('UNKNOWN'); return; }
+        const data = (await res.json()) as {
+          total: number;
+          chain: { valid: boolean; checkable?: boolean };
+        };
+        if (data.total === 0) setIntegrity('ABSENT');
+        else if (data.chain?.checkable === false) setIntegrity('UNKNOWN');
+        else setIntegrity(data.chain?.valid ? 'DEMONSTRATED' : 'FAILED');
+      } catch {
+        if (active) setIntegrity('UNKNOWN');
+      } finally {
+        if (active) setVerifying(false);
+      }
+    };
+    void read();
+    const timer = window.setInterval(read, 10_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [liveExecutions.length]);
+
+  /** Only records the socket actually delivered as new. */
+  const arrivals = React.useMemo(
+    () => liveExecutions.filter(execution => arrivedIds.has(execution.id))
+      .map(execution => ({ id: execution.id, outcome: execution.outcome })),
+    [liveExecutions, arrivedIds]
+  );
+
   // Real arrivals become notifications. Nothing else does.
   const lastNotifiedRef = React.useRef<string | null>(null);
   useEffect(() => {
@@ -1388,6 +1432,9 @@ export default function App() {
           connected={connected}
           servicesUp={services.filter(s => s.status === 'up').length}
           servicesTotal={services.length}
+          integrity={integrity}
+          arrivals={arrivals}
+          verifying={verifying}
           onOpenRecord={setOpenRecordId}
           onOpenLayer={layer => setActiveTab(layer as TabId)}
         />
@@ -1435,8 +1482,12 @@ export default function App() {
         >
           {/* Logo */}
           <div className="h-16 flex items-center px-4 border-b border-border/40 gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 shrink-0">
-              <Hexagon className="w-5 h-5 text-emerald-400" />
+            {/* The cube, present on all thirteen views. It is not the wordmark:
+                it turns only while the socket is connected, carries the chain's
+                integrity in its colour, and takes a mark for every record that
+                actually arrives. A logo would do none of those. */}
+            <div className="w-10 h-10 flex items-center justify-center shrink-0">
+              <TrustCube connected={connected} integrity={integrity} arrivals={arrivals} verifying={verifying} />
             </div>
             {!sidebarCollapsed && (
               <span className="leading-tight">
