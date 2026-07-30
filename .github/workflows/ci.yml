@@ -47,6 +47,13 @@ jobs:
       - name: API docs are in sync with the code
         run: pnpm docs:check
 
+      # A missing dashboard route does not 404 — the SPA catch-all returns
+      # index.html, so the client gets HTML where it expects JSON and reports a
+      # parse error blaming the user's input. The Proof tab shipped broken this
+      # way and stayed broken because nothing pointed at the cause.
+      - name: Every dashboard call has a server route
+        run: pnpm check:routes
+
   test:
     name: Test
     runs-on: ubuntu-latest

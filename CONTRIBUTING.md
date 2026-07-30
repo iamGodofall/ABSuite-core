@@ -30,10 +30,28 @@ cd ABSuite-core
 corepack enable          # pnpm 9+
 pnpm install
 
-pnpm build               # also type-checks
-pnpm test                # 410 tests, a few seconds
-pnpm docs:check          # fails if docs/API.md has drifted from the routes
+pnpm verify              # build, test, docs, and route coverage in one
 ```
+
+Or individually:
+
+```bash
+pnpm build               # also type-checks
+pnpm test                # 411 tests, a few seconds
+pnpm docs:check          # fails if docs/API.md has drifted from the routes
+pnpm check:routes        # fails if the dashboard calls a route nobody implemented
+pnpm check:live          # asks a running suite whether every documented route answers
+```
+
+`check:routes` exists because a missing dashboard route does not 404. The
+single-page app is served from a catch-all, so the client receives
+`<!DOCTYPE html>` where it expected JSON and reports a parse error blaming the
+user's input. The Proof tab shipped broken that way and stayed broken, because
+the failure pointed away from its own cause. It runs in CI.
+
+`check:live` needs the suite running (`pnpm start`) and is not in CI for that
+reason. It answers the question `docs:check` cannot: a document can match the
+source perfectly and still describe a route that throws on load.
 
 Docker 24+ is needed only for `pnpm start`, which brings up the whole suite.
 
