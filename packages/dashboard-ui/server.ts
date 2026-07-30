@@ -921,7 +921,65 @@ async function suiteStatusWithHealthFallback(
 
 let status: Record<ServiceName, ServiceState> = suiteStatus();
 
+/**
+ * Stream real executions to every connected client.
+ *
+ * The socket carried service health and nothing else, so the one screen that
+ * exists to show a recorder recording never moved. Records appeared when a
+ * human pressed refresh, which is the opposite of what a flight recorder is.
+ *
+ * This polls CapKit for records newer than the last one seen and pushes them.
+ * Polling rather than a push from CapKit on purpose: the dashboard is an
+ * observer, and an observer that requires the observed system to know about it
+ * is not an observer — it is a dependency. CapKit does not learn that a
+ * dashboard exists.
+ */
+let lastSeenExecutionId: string | null = null;
+let streamingStarted = false;
+
+async function pollExecutions() {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions?limit=25`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    if (!response.ok || !Array.isArray(data.executions)) return;
+
+    const executions = data.executions as Record<string, unknown>[];
+    if (executions.length === 0) return;
+
+    // Newest first from CapKit. On the first pass we only take a bearing —
+    // replaying history as "just arrived" would be a lie told by animation.
+    if (lastSeenExecutionId === null) {
+      lastSeenExecutionId = String(executions[0]!.id);
+      io.emit('executions:snapshot', { executions });
+      return;
+    }
+
+    const index = executions.findIndex(execution => String(execution.id) === lastSeenExecutionId);
+    const arrived = index === -1 ? executions : executions.slice(0, index);
+    if (arrived.length === 0) return;
+
+    lastSeenExecutionId = String(executions[0]!.id);
+    // Oldest first, so a client animating arrivals shows them in the order they
+    // actually happened.
+    for (const execution of [...arrived].reverse()) {
+      io.emit('execution', execution);
+    }
+  } catch {
+    // CapKit down or unreachable. The status stream already reports that; a
+    // second alarm saying the same thing is noise.
+  }
+}
+
+function startExecutionStream() {
+  if (streamingStarted) return;
+  streamingStarted = true;
+  void pollExecutions();
+  setInterval(() => void pollExecutions(), 2000);
+}
+
 io.on('connection', (socket: Socket) => {
+  startExecutionStream();
   void suiteStatusWithHealthFallback(status).then(next => {
     Object.assign(status, next);
     socket.emit('status', status);

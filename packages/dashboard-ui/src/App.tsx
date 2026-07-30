@@ -21,6 +21,7 @@ import { GlobalView } from './tabs/GlobalView';
 import { AttentionPanel } from './tabs/Attention';
 import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
+import { LiveFeed } from './tabs/LiveFeed';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1415,7 +1416,11 @@ type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null;
  * different panels, so the record you select in Observe is the record you
  * verify and the record you explain.
  */
-const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
+const ProofTab = ({ view, live, arrivedIds }: {
+  view: 'observe' | 'verify' | 'explain';
+  live?: import('./hooks/useSocket').LiveExecution[];
+  arrivedIds?: Set<string>;
+}) => {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [selected, setSelected] = useState<Trace | null>(null);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
@@ -1634,6 +1639,21 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
       {/* The global view opens the Observe layer: what is held, right now,
           counted rather than estimated. */}
       {view === 'observe' && <GlobalView />}
+
+      {/* The recorder, recording. Placed above everything because it is the one
+          thing on this screen that a screenshot cannot convey. */}
+      {view === 'observe' && (
+        <LiveFeed
+          executions={live ?? []}
+          arrivedIds={arrivedIds ?? new Set()}
+          connected={Boolean(live)}
+          onSelect={execution => {
+            const match = traces.find(t => t.id === execution.id);
+            if (match) { setSelected(match); setTampered(false); setVerdict(null); }
+          }}
+        />
+      )}
+
       {view === 'observe' && <AttentionPanel />}
       {view === 'observe' && <UnknownsPanel />}
 
@@ -2201,11 +2221,19 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; time: string; read: boolean; type: 'info' | 'success' | 'warn' }>>([
-    { id: '1', message: 'Dashboard connected to ABSuite services', time: 'Just now', read: false, type: 'success' },
-    { id: '2', message: 'QuickBench health check passed', time: '5m ago', read: false, type: 'info' },
-    { id: '3', message: 'GitHub connector active', time: '1h ago', read: true, type: 'info' },
-  ]);
+  /**
+   * Notifications, from events that actually happened.
+   *
+   * This list used to be three hardcoded strings, one of which claimed a
+   * QuickBench health check had passed. It may never have run. That was invented
+   * evidence in the first thing anyone sees, in the product whose root principle
+   * is that nothing may look more certain than it is — and every check we built
+   * looks at code and docs, never at the interface, which is why it survived.
+   *
+   * Now it is empty until something happens, and what happens is a signed record
+   * arriving.
+   */
+  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; time: string; read: boolean; type: 'info' | 'success' | 'warn' }>>([]);
   const unreadCount = notifications.filter(n => !n.read).length;
   const { theme } = useTheme();
   const { services, demoMode, toggleDemoMode, loading, error, startService, stopService, restartService } = useServices();
@@ -2229,7 +2257,25 @@ export default function App() {
     return () => document.removeEventListener('keydown', handler);
   }, [notifOpen]);
 
-  const { connected } = useSocket();
+  const { connected, executions: liveExecutions, arrivedIds } = useSocket();
+
+  // Real arrivals become notifications. Nothing else does.
+  const lastNotifiedRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    const newest = liveExecutions[0];
+    if (!newest || !arrivedIds.has(newest.id) || lastNotifiedRef.current === newest.id) return;
+    lastNotifiedRef.current = newest.id;
+    setNotifications(current => [
+      {
+        id: newest.id,
+        message: `${newest.subject} ${newest.outcome === 'failure' ? 'failed' : 'performed'} "${newest.action}"`,
+        time: 'just now',
+        read: false,
+        type: newest.outcome === 'failure' ? 'warn' : 'success',
+      },
+      ...current,
+    ].slice(0, 20));
+  }, [liveExecutions, arrivedIds]);
 
   const handleServiceAction = useCallback(async (id: string, action: 'start' | 'stop' | 'restart') => {
     if (action === 'start') await startService(id);
@@ -2239,7 +2285,7 @@ export default function App() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'observe': return <ProofTab view="observe" />;
+      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} />;
       case 'verify': return <ProofTab view="verify" />;
       case 'explain': return <ProofTab view="explain" />;
       case 'govern': return <GovernTab demoMode={demoMode} />;
