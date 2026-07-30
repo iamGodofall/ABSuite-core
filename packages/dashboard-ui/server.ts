@@ -406,6 +406,47 @@ app.post('/executions/:id/replay', requireAdminAccess, async (req, res) => {
   }
 });
 
+// ─── Trust: AI monitoring AI ─────────────────────────────────────────────────
+//
+// Correlation-aware arbitration and chain monitoring are the most
+// differentiated things this project does, and — like replay before it — they
+// had no interface. The engines work; nobody could reach them.
+
+/** Anomalies across agent chains: cycles, runaways, stalls, observer disagreement. */
+app.get('/trust/anomalies', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.trust}/anomalies`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Trust is unreachable', anomalies: [] });
+  }
+});
+
+/**
+ * Arbitrate without storing anything.
+ *
+ * Agreement between models of the same family is discounted to a single voice,
+ * because correlated participants fail together and their agreement is not
+ * corroboration.
+ */
+app.post('/trust/arbitrate', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.trust}/arbitrate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'Trust is unreachable' });
+  }
+});
+
 /** Walk the whole chain and report the first record that fails. */
 app.get('/executions-verify-chain', requireAdminAccess, async (_req, res) => {
   try {

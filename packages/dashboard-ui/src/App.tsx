@@ -25,7 +25,7 @@ import './styles/globals.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TabId = 'overview' | 'services' | 'ai-studio' | 'benchmarks' | 'connectors' | 'proof' | 'settings';
+type TabId = 'monitoring' | 'overview' | 'services' | 'ai-studio' | 'benchmarks' | 'connectors' | 'proof' | 'settings';
 
 interface LogEntry { time: string; level: 'info' | 'warn' | 'error'; message: string; }
 interface BenchmarkResult { id: string; service: string; type: string; p50: number; p95: number; p99: number; rps: number; status: string; timestamp: string; }
@@ -1767,6 +1767,158 @@ const ProofTab = () => {
   );
 };
 
+// ─── Monitoring: AI watching AI ──────────────────────────────────────────────
+
+type ArbPosition = { agentId: string; answer: string; family?: string; weight: number; rawWeight: number; discounted?: boolean; discountReason?: string };
+type Arbitration = { outcome: string; answer?: string; margin: number; independentSupport: number; requiresHuman: boolean; reasoning: string[]; positions: ArbPosition[] };
+
+const DEFAULT_POSITIONS = `[
+  { "agentId": "gpt-4o",      "answer": "no",  "family": "openai:gpt-4",     "confidence": 0.90 },
+  { "agentId": "gpt-4-turbo", "answer": "no",  "family": "openai:gpt-4",     "confidence": 0.88 },
+  { "agentId": "gpt-3.5",     "answer": "no",  "family": "openai:gpt-3.5",   "confidence": 0.85 },
+  { "agentId": "claude-opus", "answer": "yes", "family": "anthropic:claude", "confidence": 0.80 }
+]`;
+
+/**
+ * Correlation-aware arbitration, made visible.
+ *
+ * Three models agreeing is not three pieces of evidence when two share a
+ * family — they fail together. The engine always discounted that; nothing ever
+ * showed it happening, which is the one thing that makes the idea land.
+ */
+const MonitoringTab = () => {
+  const [question, setQuestion] = useState('Did the agent exceed its authority?');
+  const [positions, setPositions] = useState(DEFAULT_POSITIONS);
+  const [result, setResult] = useState<Arbitration | null>(null);
+  const [anomalies, setAnomalies] = useState<{ kind: string; detail?: string }[]>([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/trust/anomalies', { headers: getAdminHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAnomalies(Array.isArray(data.anomalies) ? data.anomalies : []);
+      } catch { /* Trust may be down; the panel says so rather than inventing. */ }
+    })();
+  }, []);
+
+  const arbitrate = async () => {
+    setBusy(true); setError(''); setResult(null);
+    let parsed: unknown;
+    try { parsed = JSON.parse(positions); }
+    catch { setError('Positions must be valid JSON.'); setBusy(false); return; }
+    try {
+      const res = await fetch('/trust/arbitrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
+        body: JSON.stringify({ question, positions: parsed }),
+      });
+      const text = await res.text();
+      let data: Record<string, unknown>;
+      try { data = text ? JSON.parse(text) : {}; }
+      catch { throw new Error(`Arbitration returned ${res.status} and not JSON.`); }
+      if (!res.ok) {
+        const e = data.error as { message?: string } | string | undefined;
+        throw new Error((typeof e === 'string' ? e : e?.message) ?? `Arbitration failed (${res.status})`);
+      }
+      setResult(data as unknown as Arbitration);
+    } catch (err) { setError((err as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <NoticeCard tone="info"
+        title="Agreement between correlated models is not corroboration"
+        message="Two models of the same family fail the same way, so their agreement counts once rather than twice — and every discount is stated with its reason. Confidence never decides the answer." />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-border bg-bg-secondary p-4">
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Put a question to a panel</h3>
+          <input value={question} onChange={e => setQuestion(e.target.value)}
+            className="w-full text-xs p-2 mb-2 rounded bg-bg-primary border border-border text-text-primary" />
+          <textarea value={positions} onChange={e => setPositions(e.target.value)} spellCheck={false}
+            className="w-full h-40 text-[11px] font-mono p-2 rounded bg-bg-primary border border-border text-text-primary mb-2" />
+          <button onClick={arbitrate} disabled={busy}
+            className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
+            {busy ? 'Arbitrating…' : 'Arbitrate'}
+          </button>
+          {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+        </div>
+
+        <div className="rounded-xl border border-border bg-bg-secondary p-4">
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Verdict</h3>
+          {!result ? (
+            <p className="text-sm text-text-muted">Run an arbitration to see how each voice was weighted.</p>
+          ) : (
+            <>
+              <div className={cn('rounded-lg border p-3 mb-3',
+                result.requiresHuman ? 'border-amber-500/40 bg-amber-500/[0.06]'
+                  : result.outcome === 'resolved' ? 'border-emerald-500/40 bg-emerald-500/[0.06]' : 'border-border')}>
+                <div className={cn('text-lg font-bold', result.requiresHuman ? 'text-amber-400'
+                  : result.outcome === 'resolved' ? 'text-emerald-400' : 'text-text-primary')}>
+                  {result.outcome === 'resolved' ? `Answer: ${result.answer}`
+                    : result.outcome === 'escalate' ? 'Escalated to a human' : 'No consensus'}
+                </div>
+                <div className="text-xs text-text-muted mt-1 font-mono">
+                  {Math.round(result.margin * 100)}% of weight · {result.independentSupport} independent famil{result.independentSupport === 1 ? 'y' : 'ies'}
+                </div>
+              </div>
+
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-2">How each voice counted</div>
+              <div className="space-y-1.5 mb-3">
+                {result.positions.map(pos => (
+                  <div key={pos.agentId} className={cn('rounded border p-2 text-xs',
+                    pos.discounted ? 'border-amber-500/30 bg-amber-500/[0.04]' : 'border-border')}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-mono text-text-primary">{pos.agentId}</span>
+                      <span className="font-mono text-[11px] text-text-muted">
+                        {pos.answer} · {pos.discounted
+                          ? <><s>{pos.rawWeight.toFixed(2)}</s> <span className="text-amber-400">{pos.weight.toFixed(2)}</span></>
+                          : pos.weight.toFixed(2)}
+                      </span>
+                    </div>
+                    {pos.discountReason && <p className="text-[11px] text-amber-400/80 mt-1 leading-snug">{pos.discountReason}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1.5">Reasoning</div>
+              <ul className="space-y-1">
+                {result.reasoning.map((line, i) => (
+                  <li key={i} className="text-[11px] text-text-muted leading-snug flex gap-1.5">
+                    <span className="text-emerald-500/60">·</span><span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-bg-secondary p-4">
+        <h3 className="text-sm font-semibold text-text-primary mb-1">Chain anomalies</h3>
+        <p className="text-xs text-text-muted mb-3">Cycles, runaways, stalls and observer disagreement across agent chains.</p>
+        {anomalies.length === 0 ? (
+          <p className="text-sm text-text-muted">None detected. A real result, not a placeholder — chains with no anomalies report none.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {anomalies.map((a, i) => (
+              <li key={i} className="rounded border border-amber-500/30 bg-amber-500/[0.04] p-2 text-xs">
+                <span className="font-mono text-amber-400">{a.kind}</span>
+                {a.detail && <span className="text-text-muted"> — {a.detail}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ─── Main App ────────────────────────────────────────────────────────────────
 
 const TAB_CONFIG: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -1778,6 +1930,7 @@ const TAB_CONFIG: { id: TabId; label: string; icon: React.ComponentType<{ classN
   // allowed, and has the record been altered?", so that is what it opens on.
   // Infrastructure health still matters; it is just not the headline.
   { id: 'proof', label: 'Evidence', icon: Shield },
+  { id: 'monitoring', label: 'Monitoring', icon: Network },
   { id: 'overview', label: 'System', icon: Home },
   { id: 'services', label: 'Services', icon: Server },
   { id: 'ai-studio', label: 'AI Studio', icon: Bot },
@@ -1835,6 +1988,7 @@ export default function App() {
       case 'benchmarks': return <BenchmarksTab demoMode={demoMode} />;
       case 'connectors': return <ConnectorsTab demoMode={demoMode} />;
       case 'proof': return <ProofTab />;
+      case 'monitoring': return <MonitoringTab />;
       case 'settings': return <SettingsTab services={services} demoMode={demoMode} />;
     }
   };
