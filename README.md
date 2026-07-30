@@ -62,6 +62,37 @@ None of these answers require trusting the operator. That is the whole design.
 
 ---
 
+## The stack
+
+A recorder records. A trust layer observes, verifies, explains, governs,
+arbitrates, acts and learns. The recorder is one component; these seven are the
+system, and they are also the seven screens of the console — a product whose
+navigation does not match its architecture is telling two different stories.
+
+| | | |
+|---|---|---|
+| 1 | **Observe** | What did the agents do? — subject, authority, steps, hashes |
+| 2 | **Verify** | Has any of it been altered? — Ed25519, hash chains, replay |
+| 3 | **Explain** | What does this record mean? — derived from signed fields, no model |
+| 4 | **Govern** | What is it allowed to do? — policies, scopes, refusals enforced by tests |
+| 5 | **Arbitrate** | Who is right when they disagree? — correlation-discounted, weight shown |
+| 6 | **Act** | What can it reach? — MCP, edge execution, connectors, under capability |
+| 7 | **Learn** | How fast is it, really? — measured, with the machine stated |
+
+Two of those layers carry a rule that costs us something:
+
+**Explanation is derived, never generated.** Using an LLM to explain a trace
+would stack a second black box on the first — a new claim, from reasoning nobody
+can inspect, about a record whose whole value is that its reasoning *can* be
+inspected. A generated explanation would be more impressive. A derived one is
+checkable.
+
+**No number is published that a measurement did not produce.** Every figure names
+the machine it came from, or it does not appear. This is the worst possible
+project to be caught rounding up.
+
+---
+
 ## Verify it yourself, right now
 
 [**iamgodofall.github.io/ABSuite-core/verify.html**](https://iamgodofall.github.io/ABSuite-core/verify.html)
@@ -260,7 +291,7 @@ As services, they listen on 8081 (CapKit), 8082 (Edge-Run), 8083 (QuickBench),
 ```
 
 Each step names the thing that performs it. Nothing in that column is
-aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 98.
+aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 100.
 
 ---
 
@@ -293,7 +324,7 @@ of that command.
 ## Status
 
 ```text
-438 tests                     98 API endpoints
+444 tests                    100 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```

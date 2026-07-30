@@ -137,6 +137,43 @@ project and the people who install it.
 
 ---
 
+## The stack
+
+Seven things this system does, in the order trust is built. Each rests on the one
+below it, and each is a screen in the console, because a product whose navigation
+does not match its architecture is telling two different stories.
+
+| | | |
+|---|---|---|
+| 1 | **Observe** | Capture what an agent did — the subject, the authority it held, its steps, and hashes of what it processed |
+| 2 | **Verify** | Ed25519 signatures, hash chains, provenance, capability tokens. Checkable by someone holding only a public key |
+| 3 | **Explain** | Turn a record into plain language derived from signed fields, deterministically, with every sentence naming its source |
+| 4 | **Govern** | Policies, permissions, organisational rules, and the constitutional refusals enforced in code |
+| 5 | **Arbitrate** | Resolve disagreement between agents with correlation discounting and stated evidence weight |
+| 6 | **Act** | Execute — MCP, edge execution, connectors — only under a capability that was granted |
+| 7 | **Learn** | Measure the system against itself: baselines, regression detection, and numbers that came from a benchmark |
+
+Layer 3 carries a rule that looks like a limitation and is the opposite of one.
+**Explanation is derived, never generated.** Using a language model to explain a
+record would place a second unauditable system on top of the first: a new claim,
+produced by reasoning nobody can inspect, about a record whose entire value is
+that its reasoning *can* be inspected. The explanation would be the least
+trustworthy thing on the screen. A generated explanation would be more
+impressive. A derived one is checkable, and this project chooses checkable over
+impressive every time the two conflict.
+
+Layer 7 carries the matching rule. **No number is published that a measurement
+did not produce.** Throughput, latency, record counts, verification rates — every
+figure names the machine it was measured on, or it does not appear. A system that
+says "trust must be verifiable" and then advertises an unverifiable number has
+refuted itself in its own marketing, and one fabricated figure costs more than
+ten honest ones are worth.
+
+The seven layers above are what the system *does*. The seven below are what it
+*becomes* — a different axis, over a longer horizon.
+
+---
+
 ## The shape of the decade
 
 The black box is the first capability people understand immediately, and it is

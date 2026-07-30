@@ -626,6 +626,48 @@ app.get('/executions/stats', authorise('execution:read'), (req, res) => {
   });
 });
 
+/**
+ * What a person should look at, with the field that says so.
+ *
+ * Deliberately not called "incidents". An incident is a judgement about meaning;
+ * this is the narrower claim ABSuite is entitled to make — these records are
+ * failed, unproven or unauthorised on their face. Whether any of it matters is
+ * the reader's call, and the response says so.
+ */
+app.get('/executions/attention', authorise('execution:read'), (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+  const items = traces.needingAttention(limit);
+  const chain = traces.verifyChain(signingKey.publicKeyPem);
+
+  res.status(200).json({
+    items,
+    count: items.length,
+    chain: {
+      valid: chain.valid,
+      ...(chain.brokenAt !== undefined ? { brokenAt: chain.brokenAt } : {}),
+      ...(chain.reason ? { reason: chain.reason } : {}),
+      ...(chain.contentIntact !== undefined ? { contentIntact: chain.contentIntact } : {}),
+    },
+    note: 'These records are failed, unproven or carry no recorded authority. ABSuite states that; it does not declare an incident or recommend an action.',
+  });
+});
+
+/**
+ * Authority actually exercised, per subject.
+ *
+ * Built from records of what happened rather than tokens that were issued: an
+ * unused token grants nothing observable, and an access review needs behaviour,
+ * not intent.
+ */
+app.get('/executions/authority', authorise('execution:read'), (_req, res) => {
+  const subjects = traces.authorityInventory();
+  res.status(200).json({
+    subjects,
+    count: subjects.length,
+    note: 'Derived from executions that happened, not from tokens issued. A capability nobody used does not appear here.',
+  });
+});
+
 app.get('/executions/:id', authorise('execution:read'), (req, res) => {
   const trace = traces.get(String(req.params.id));
   if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');

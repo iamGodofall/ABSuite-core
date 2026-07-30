@@ -61,6 +61,37 @@ depends on it and on nothing else in the repo.
                 └────────────────────────────────────┘
 ```
 
+### The seven layers, and what implements each
+
+The diagram above is the deployment. This is the same system by function — the
+order trust is built, and the code that does each part. The console's navigation
+is these seven words, in this order.
+
+| | Layer | Implemented by | Entry point |
+|---|---|---|---|
+| 1 | **Observe** | `capkit/trace.ts` — `TraceStore.record()` | `POST /executions` |
+| 2 | **Verify** | `capkit/trace.ts` — `verifyTrace()`, `verifyChain()`, `compareReplay()` | `POST /executions/verify`, `GET /executions-verify-chain` |
+| 3 | **Explain** | `capkit/explain.ts` — derived from signed fields, no model | `GET /executions/:id/explain` |
+| 4 | **Govern** | `capkit/capability.ts`, `capkit/middleware.ts`, `capkit/ai-policy-generator.ts` | `POST /auth/token`, `capabilityGuard()` |
+| 5 | **Arbitrate** | `trust/` — correlation discounting, evidence weighting | `POST /arbitrate`, `GET /anomalies` |
+| 6 | **Act** | `edge-run/`, `connector-starter/`, `mcp/` | `POST /schedule`, `POST /queue`, MCP stdio |
+| 7 | **Learn** | `quickbench/measure.ts`, `quickbench/core-suite.ts` | `GET /bench/core`, `pnpm bench:core` |
+
+Two layers carry constraints that are architectural, not stylistic:
+
+**Layer 3 uses no language model.** A generated explanation is a second
+unauditable system stacked on the first. `explain.ts` derives every sentence from
+a signed field and names the field, so the prose can be checked against the
+record and disagreed with.
+
+**Layer 7 publishes nothing it did not measure.** `measure.ts` records the CPU,
+core count, memory, platform and Node version alongside every figure; throughput
+comes from elapsed wall-clock time rather than a mean, and warmup is discarded
+and stated. `docs/PERFORMANCE.md` is generated from the benchmark output, and CI
+fails if the two disagree.
+
+---
+
 ### Why enforcement is a library, not a gateway
 
 A common design routes every request through a central orchestrator, with the

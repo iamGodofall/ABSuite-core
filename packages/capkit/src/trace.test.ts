@@ -492,6 +492,81 @@ describe('aggregate counts for a control plane', () => {
   });
 });
 
+describe('what a person should look at', () => {
+  const seeded = () => {
+    const traces = new TraceStore(new Storage(':memory:'), new SigningKey());
+    traces.record({ subject: 'agent:a', scope: ['pay:approve'], module: 'payments', action: 'approve', input: 1, outcome: 'success' });
+    traces.record({ subject: 'agent:a', scope: ['pay:approve'], module: 'payments', action: 'refund', input: 2, outcome: 'failure', error: 'limit exceeded' });
+    traces.record({ subject: 'agent:b', scope: [], module: 'ledger', action: 'read', input: 3, outcome: 'success' });
+    return traces;
+  };
+
+  test('lists what failed and what was unauthorised, and nothing else', () => {
+    const flagged = seeded().needingAttention();
+
+    // A successful, scoped, signed record is not a finding. Flagging everything
+    // is the same as flagging nothing.
+    expect(flagged).toHaveLength(2);
+    expect(flagged.map(f => f.trace.action).sort()).toEqual(['read', 'refund']);
+  });
+
+  test('every flag names the field it came from', () => {
+    for (const item of seeded().needingAttention()) {
+      expect(item.reasons.length).toBeGreaterThan(0);
+      for (const reason of item.reasons) {
+        expect(reason.from.length).toBeGreaterThan(0);
+        // It says what is true of the record, never what to do about it.
+        expect(reason.reason).not.toMatch(/\b(should be (revoked|suspended)|recommend)\b/i);
+      }
+    }
+  });
+
+  test('a failure and a missing scope are different findings', () => {
+    const flagged = seeded().needingAttention();
+    const failed = flagged.find(f => f.trace.action === 'refund')!;
+    const unscoped = flagged.find(f => f.trace.action === 'read')!;
+
+    expect(failed.reasons[0]!.reason).toContain('limit exceeded');
+    expect(unscoped.reasons[0]!.reason).toMatch(/cannot be shown to have been permitted/i);
+  });
+
+  test('a clean store has nothing to report', () => {
+    const traces = new TraceStore(new Storage(':memory:'), new SigningKey());
+    traces.record({ subject: 'agent:a', scope: ['x'], module: 'm', action: 'ok', input: 1, outcome: 'success' });
+
+    expect(traces.needingAttention()).toEqual([]);
+  });
+});
+
+describe('authority actually exercised', () => {
+  test('groups the scopes each subject acted under, with counts', () => {
+    const traces = new TraceStore(new Storage(':memory:'), new SigningKey());
+    traces.record({ subject: 'agent:a', scope: ['pay:approve', 'ledger:read'], module: 'm', action: 'x', input: 1, outcome: 'success' });
+    traces.record({ subject: 'agent:a', scope: ['pay:approve'], module: 'm', action: 'y', input: 2, outcome: 'success' });
+    traces.record({ subject: 'agent:b', scope: [], module: 'm', action: 'z', input: 3, outcome: 'success' });
+
+    const inventory = traces.authorityInventory();
+
+    expect(inventory).toHaveLength(2);
+    const a = inventory.find(entry => entry.subject === 'agent:a')!;
+    expect(a.total).toBe(2);
+    expect(a.scopes).toEqual([
+      { scope: 'pay:approve', count: 2 },
+      { scope: 'ledger:read', count: 1 },
+    ]);
+    expect(a.unscoped).toBe(0);
+
+    // An absent scope is counted as absent, never folded into "no restrictions".
+    const b = inventory.find(entry => entry.subject === 'agent:b')!;
+    expect(b.unscoped).toBe(1);
+    expect(b.scopes).toEqual([]);
+  });
+
+  test('reports nothing for a store that has recorded nothing', () => {
+    expect(new TraceStore(new Storage(':memory:'), new SigningKey()).authorityInventory()).toEqual([]);
+  });
+});
+
 describe('SigningKey.createPair', () => {
   test('returns a key that signs and PEMs that verify it', () => {
     const { key, privateKeyPem, publicKeyPem } = SigningKey.createPair();

@@ -18,6 +18,8 @@ import { useServices, Service } from './hooks/useServices';
 import { PerformanceTab } from './tabs/Performance';
 import { ConstraintsPanel } from './tabs/Govern';
 import { GlobalView } from './tabs/GlobalView';
+import { AttentionPanel } from './tabs/Attention';
+import { AuthorityPanel } from './tabs/Authority';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1623,6 +1625,7 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
       {/* The global view opens the Observe layer: what is held, right now,
           counted rather than estimated. */}
       {view === 'observe' && <GlobalView />}
+      {view === 'observe' && <AttentionPanel />}
 
       {view === 'observe' && (
         <NoticeCard
@@ -2095,6 +2098,7 @@ const LearnTab = ({ demoMode }: { demoMode: boolean }) => (
 /** Layer 4 — the rules, the refusals, and the tokens that carry authority. */
 const GovernTab = ({ demoMode }: { demoMode: boolean }) => (
   <div className="space-y-6">
+    <AuthorityPanel />
     <ConstraintsPanel />
     <AIStudioTab demoMode={demoMode} />
   </div>

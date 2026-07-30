@@ -367,6 +367,32 @@ app.get('/executions/stats', requireAdminAccess, async (req, res) => {
   }
 });
 
+/** Records that failed, are unsigned, or carry no recorded authority. */
+app.get('/executions/attention', requireAdminAccess, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/executions/attention?limit=${limit}`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/** Which subject acted under which scope, counted from records. */
+app.get('/executions/authority', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/authority`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 /**
  * The trace-signing public key.
  *

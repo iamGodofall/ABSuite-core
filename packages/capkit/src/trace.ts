@@ -430,6 +430,113 @@ export class TraceStore {
   }
 
   /**
+   * Records a person should look at, with the reason attached.
+   *
+   * Not "incidents". An incident is a judgement about what something means, and
+   * ABSuite does not make those — it is the witness. This is the narrower and
+   * defensible claim: here is what is unproven, failed, or unauthorised on its
+   * face, and here is the field that says so. What it means is the reader's
+   * call.
+   *
+   * Ordering is newest-first rather than by severity, because severity is
+   * itself a judgement. Nothing here is scored.
+   */
+  needingAttention(limit = 50): {
+    trace: ExecutionTrace;
+    reasons: { reason: string; from: string }[];
+  }[] {
+    const capped = Math.min(Math.max(Number(limit) || 50, 1), 500);
+    const rows = this.storage.all<Record<string, unknown>>(
+      `SELECT * FROM executions
+        WHERE outcome = 'failure' OR scope IS NULL OR scope = '' OR scope = '[]'
+        ORDER BY seq DESC LIMIT ?`,
+      capped
+    );
+
+    return rows.map(row => {
+      const trace = rowToTrace(row);
+      const reasons: { reason: string; from: string }[] = [];
+
+      if (trace.outcome === 'failure') {
+        reasons.push({
+          reason: trace.error ? `It failed: ${trace.error}` : 'It failed, and no error was recorded against it.',
+          from: 'outcome, error',
+        });
+      }
+      if (!trace.scope || trace.scope.length === 0) {
+        reasons.push({
+          reason: 'No scope was recorded, so this action cannot be shown to have been permitted.',
+          from: 'scope',
+        });
+      }
+      if (!trace.signature) {
+        reasons.push({ reason: 'The record carries no signature, so its authorship is unproven.', from: 'signature' });
+      }
+
+      return { trace, reasons };
+    });
+  }
+
+  /**
+   * What authority has actually been exercised, per subject.
+   *
+   * Derived entirely from records of things that happened — not from tokens that
+   * were issued. A token nobody used grants nothing observable, and a list of
+   * issued tokens would describe intent rather than behaviour. This answers
+   * "what has this agent actually done, and under what scope", which is the
+   * question an access review is trying to ask.
+   */
+  authorityInventory(): {
+    subject: string;
+    total: number;
+    lastSeen: string;
+    scopes: { scope: string; count: number }[];
+    unscoped: number;
+  }[] {
+    const rows = this.storage.all<Record<string, unknown>>(
+      'SELECT subject, scope, COUNT(*) AS uses, MAX(started_at) AS last_seen FROM executions GROUP BY subject, scope'
+    );
+
+    const bySubject = new Map<string, { total: number; lastSeen: string; scopes: Map<string, number>; unscoped: number }>();
+
+    for (const row of rows) {
+      const subject = String(row.subject);
+      const uses = Number(row.uses) || 0;
+      const lastSeen = String(row.last_seen ?? '');
+      const entry = bySubject.get(subject) ?? { total: 0, lastSeen: '', scopes: new Map(), unscoped: 0 };
+
+      entry.total += uses;
+      if (lastSeen > entry.lastSeen) entry.lastSeen = lastSeen;
+
+      let scopes: string[] = [];
+      try {
+        scopes = JSON.parse(String(row.scope ?? '[]')) as string[];
+      } catch {
+        // A row whose scope will not parse is not "unrestricted" — it is
+        // unreadable, and counting it as unscoped is the honest reading.
+        scopes = [];
+      }
+
+      if (scopes.length === 0) entry.unscoped += uses;
+      for (const scope of scopes) entry.scopes.set(scope, (entry.scopes.get(scope) ?? 0) + uses);
+
+      bySubject.set(subject, entry);
+    }
+
+    return [...bySubject.entries()]
+      .map(([subject, entry]) => ({
+        subject,
+        total: entry.total,
+        lastSeen: entry.lastSeen,
+        unscoped: entry.unscoped,
+        scopes: [...entry.scopes.entries()]
+          .map(([scope, count]) => ({ scope, count }))
+          .sort((a, b) => b.count - a.count || a.scope.localeCompare(b.scope)),
+      }))
+      .sort((a, b) => b.total - a.total || a.subject.localeCompare(b.subject));
+  }
+
+  /**
    * Walk the whole chain and report the first record that fails.
    *
    * `brokenAt` is the sequence number of the offending record — the evidence an
