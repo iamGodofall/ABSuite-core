@@ -154,16 +154,6 @@ const AIStudioTab = () => {
   const [recommendedProvider, setRecommendedProvider] = useState('none');
   useEffect(() => {
     let active = true;
-    const fallbackProviders: ProviderOption[] = [
-      { name: 'ollama', label: 'Ollama', type: 'local', available: false, configured: true, defaultModel: 'llama3.2', description: 'Sovereign local inference via Ollama.' },
-      { name: 'lmstudio', label: 'LM Studio', type: 'local', available: false, configured: true, defaultModel: 'local-model', description: 'OpenAI-compatible local desktop inference.' },
-      { name: 'github-models', label: 'GitHub Models', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'GitHub-hosted model access.' },
-      { name: 'openrouter', label: 'OpenRouter', type: 'cloud', available: false, configured: false, defaultModel: 'openai/gpt-4o-mini', description: 'One API for many hosted models.' },
-      { name: 'groq', label: 'Groq', type: 'cloud', available: false, configured: false, defaultModel: 'llama-3.3-70b-versatile', description: 'Fast low-latency inference.' },
-      { name: 'openai', label: 'OpenAI', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'OpenAI GPT models.' },
-      { name: 'anthropic', label: 'Anthropic', type: 'cloud', available: false, configured: false, defaultModel: 'claude-3-5-sonnet-20241022', description: 'Anthropic Claude models.' },
-      { name: 'azure-openai', label: 'Azure OpenAI', type: 'cloud', available: false, configured: false, defaultModel: 'gpt-4o-mini', description: 'Enterprise-hosted OpenAI deployments.' },
-    ];
 
     const loadProviders = async () => {
       try {
@@ -176,9 +166,11 @@ const AIStudioTab = () => {
         const liveProviders: ProviderOption[] = Array.isArray(data.providers)
           ? (data.providers as ProviderOption[])
           : [];
-        const nextProviders: ProviderOption[] = false
-          ? (liveProviders.length > 0 ? liveProviders : fallbackProviders)
-          : liveProviders;
+        // Whatever CapKit reports, and nothing else. A hardcoded fallback list
+        // of eight providers used to sit here behind a dead condition; it would
+        // have drawn Ollama, Groq and Anthropic as known-about on an instance
+        // that had never reached any of them.
+        const nextProviders = liveProviders;
 
         setProviders(nextProviders);
         setRecommendedProvider(data.recommended ?? 'none');
@@ -219,15 +211,13 @@ const AIStudioTab = () => {
 
       const generatedToken = data.token ?? JSON.stringify(data.capability ?? data, null, 2);
       setTokenResult(generatedToken);
-      setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
+      setRecentGens(prev => [{ id: crypto.randomUUID(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
     } catch (err) {
-      if (false) {
-        setTokenResult(`ck_demo_${Math.random().toString(36).slice(2, 18)}...`);
-        setRecentGens(prev => [{ id: Math.random().toString(), type: 'token', provider, preview: tokenName, timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
-      } else {
-        setTokenResult('');
-        setTokenError((err as Error).message);
-      }
+      // A failed issue shows the failure. There was a dead branch here that
+      // printed `ck_demo_<random>` on error — a fabricated credential that
+      // looked real, one flipped condition away from shipping.
+      setTokenResult('');
+      setTokenError((err as Error).message);
     } finally {
       setTokenLoading(false);
     }
@@ -244,15 +234,10 @@ const AIStudioTab = () => {
       if (!res.ok) throw new Error(data.message ?? data.error ?? 'Policy generation failed');
 
       setPolicyResult(data.policy ?? data.improvedPolicy ?? '');
-      setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
+      setRecentGens(prev => [{ id: crypto.randomUUID(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
     } catch (err) {
-      if (false) {
-        setPolicyResult(`Generated demo policy for: ${policyDesc.slice(0, 40)}...\n\n- Access Level: Medium\n- Rate Limiting: 100 req/min\n- Content Filter: Strict\n- Audit: Enabled`);
-        setRecentGens(prev => [{ id: Math.random().toString(), type: 'policy', provider, preview: policyDesc.slice(0, 30), timestamp: new Date().toLocaleTimeString() }, ...prev.slice(0, 4)]);
-      } else {
-        setPolicyResult('');
-        setPolicyError((err as Error).message);
-      }
+      setPolicyResult('');
+      setPolicyError((err as Error).message);
     } finally {
       setPolicyLoading(false);
     }
@@ -414,11 +399,6 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
     let active = true;
 
     const syncDbStatus = async () => {
-      if (false) {
-        setDbStatus('unknown');
-        return;
-      }
-
       try {
         const response = await fetch('/status');
         const data = await response.json() as Record<string, string>;

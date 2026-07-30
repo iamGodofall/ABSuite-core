@@ -221,12 +221,18 @@ The answer is:
 
 ## How this document is enforced
 
-This is not aspiration filed away. Three things hold it in place:
+This is not aspiration filed away. Four things hold it in place:
 
 - **`scripts/check-ui-philosophy.mjs`** — fails the build if the thirteen
   primary views above are not all reachable from the shell, if the header loses
   its identity, or if a colour outside the stated system is introduced as a new
   state colour.
+- **`scripts/check-no-fabrication.mjs`** — scans every interface source file
+  for the shapes fabricated data actually takes: dead `if (false)` toggles,
+  `Math.random()`, constants named for their own fictionality, and string
+  literals shaped like invented values. Every other check in this repo reads
+  code, docs or routes; this is the only one that looks at the thing a stranger
+  judges the product by.
 - **The critical rule outranks every other line here.** Where "alive" and
   "never fake data" conflict, the data wins and the motion stops. A particle
   field with nothing behind it is a screensaver, and a screensaver in a trust
