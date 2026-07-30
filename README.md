@@ -260,7 +260,7 @@ As services, they listen on 8081 (CapKit), 8082 (Edge-Run), 8083 (QuickBench),
 ```
 
 Each step names the thing that performs it. Nothing in that column is
-aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 97.
+aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 98.
 
 ---
 
@@ -293,7 +293,7 @@ of that command.
 ## Status
 
 ```text
-430 tests                     97 API endpoints
+438 tests                     98 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```

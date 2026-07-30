@@ -77,6 +77,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | GET | `/executions/:id/replay` | `execution:read` | — |
 | POST | `/executions/:id/replay` | `execution:read` | — |
 | GET | `/executions/public-key` | _public_ | — |
+| GET | `/executions/stats` | `execution:read` | — |
 | POST | `/executions/verify` | _public_ | — |
 | GET | `/health` | _public_ | — |
 | POST | `/issue` | `auth:token:create` | — |
@@ -98,6 +99,8 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`POST /executions/:id/replay`** — Compare a re-run of an execution against its recorded hashes.
 
 **`GET /executions/public-key`** — The public half of the trace signing key. Deliberately unauthenticated: verification is meant to be possible by an auditor or customer who holds no ABSuite credentials at all.
+
+**`GET /executions/stats`** — Aggregate counts across everything recorded, plus a live chain verification. This is what a control plane opens on, so it is also the easiest screen in the product to lie on. Every field is a count of records that exist; the verification result comes from actually walking the chain on this request rather than from a cached "healthy". `unverifiable` names what we deliberately do not track, so an absent number reads as absent rather than as zero.
 
 **`POST /executions/verify`** — Verify a single trace, or the whole chain. Unauthenticated by design: a customer or regulator must be able to check a trace they were handed without holding an ABSuite credential.
 
@@ -250,4 +253,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_97 HTTP endpoints across 5 services. Generated from source._
+_98 HTTP endpoints across 5 services. Generated from source._

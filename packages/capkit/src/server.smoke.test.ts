@@ -180,4 +180,46 @@ describe('the running CapKit server', () => {
     // Payloads are hashed, never stored.
     expect(JSON.stringify(body)).not.toContain('BATCH-1');
   });
+
+  /**
+   * Every route the API reference documents for CapKit must actually answer.
+   *
+   * A misplaced closing brace once nested every route after `/executions/stats`
+   * *inside* that handler. TypeScript accepted it — the code is syntactically
+   * fine — the build passed, the unit tests passed, and eleven endpoints simply
+   * stopped existing until someone happened to call the one route that
+   * registered them. Nothing that reads source could see it. Only asking the
+   * server could.
+   *
+   * A 4xx counts as answering: an auth or validation failure is a real handler
+   * declining. Only "no route" means the endpoint is gone.
+   */
+  test('every documented GET route is actually registered', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { join: joinPath } = require('node:path') as typeof import('node:path');
+
+    const doc = readFileSync(joinPath(__dirname, '..', '..', '..', 'docs', 'API.md'), 'utf8');
+    const section = doc.slice(doc.indexOf('## CapKit'), doc.indexOf('## ', doc.indexOf('## CapKit') + 5));
+
+    const paths = [...section.matchAll(/^\| GET \| `([^`]+)`/gm)]
+      .map(match => match[1]!)
+      // Parameterised routes need a real id; they are covered by their own tests.
+      .filter(path => !path.includes(':'));
+
+    expect(paths.length).toBeGreaterThan(5);
+
+    const missing: string[] = [];
+    for (const path of paths) {
+      const res = await fetch(`${base}${path}`, { headers: { 'x-absuite-admin-key': ADMIN } });
+      if (res.status >= 500) { missing.push(`${path} → ${res.status}`); continue; }
+      if (res.status === 404) {
+        const body = await res.text();
+        if (body.includes('No route for')) missing.push(`${path} → not registered`);
+      }
+    }
+
+    expect(missing).toEqual([]);
+  }, 30_000);
 });

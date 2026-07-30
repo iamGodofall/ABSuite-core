@@ -147,6 +147,18 @@ export function explainTrace(trace: ExecutionTrace, verdict?: TraceVerdict): Tra
       status: verdict.signatureValid ? 'ok' : 'unknown',
     });
     if (!verdict.signatureValid) warrantsReview = true;
+  } else if (verdict.contentIntact) {
+    // Content matches its hash but the signature does not verify: nothing was
+    // edited, the key is wrong. Answering "yes, it was altered" here would be a
+    // false accusation — and this system exists to not make those.
+    warrantsReview = true;
+    findings.push({
+      question: 'Has the record been altered?',
+      answer:
+        'No. The content still matches its hash, so nothing in it was edited. But its signature does not verify against the key it was checked with, so who wrote it is unproven — check whether the signing key was rotated before treating this as an incident.',
+      from: 'verifyTrace(): contentIntact, signatureValid',
+      status: 'attention',
+    });
   } else {
     warrantsReview = true;
     findings.push({

@@ -353,6 +353,20 @@ app.get('/executions', requireAdminAccess, async (req, res) => {
   }
 });
 
+/** Aggregate counts plus a live chain verification — the global view. */
+app.get('/executions/stats', requireAdminAccess, async (req, res) => {
+  try {
+    const windowHours = Math.min(Math.max(Number(req.query.windowHours) || 24, 1), 24 * 90);
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/executions/stats?windowHours=${windowHours}`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 /**
  * The trace-signing public key.
  *

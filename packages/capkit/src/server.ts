@@ -590,6 +590,42 @@ app.get('/executions', authorise('execution:read'), (req, res) => {
   });
 });
 
+/**
+ * Aggregate counts across everything recorded, plus a live chain verification.
+ *
+ * This is what a control plane opens on, so it is also the easiest screen in the
+ * product to lie on. Every field is a count of records that exist; the
+ * verification result comes from actually walking the chain on this request
+ * rather than from a cached "healthy". `unverifiable` names what we deliberately
+ * do not track, so an absent number reads as absent rather than as zero.
+ */
+app.get('/executions/stats', authorise('execution:read'), (req, res) => {
+  const windowHours = Math.min(Math.max(Number(req.query.windowHours) || 24, 1), 24 * 90);
+  const stats = traces.stats(windowHours);
+  const chain = traces.verifyChain(signingKey.publicKeyPem);
+
+  res.status(200).json({
+    ...stats,
+    chain: {
+      valid: chain.valid,
+      checked: chain.checked,
+      ...(chain.brokenAt !== undefined ? { brokenAt: chain.brokenAt } : {}),
+      ...(chain.reason ? { reason: chain.reason } : {}),
+      // Content intact with an invalid signature is a key problem, not an
+      // intrusion, and the two must not read the same on a control plane.
+      ...(chain.contentIntact !== undefined ? { contentIntact: chain.contentIntact } : {}),
+      headHash: chain.headHash,
+    },
+    // Named, not silently omitted: a dashboard that shows "0 incidents" when it
+    // has never had a concept of an incident is worse than one that says so.
+    unverifiable: [
+      { field: 'activeAgents', because: 'A subject that acted once is not an agent that is running. Nothing here reports liveness.' },
+      { field: 'incidents', because: 'An incident is a judgement. ABSuite records what happened and flags what warrants a look; it does not declare incidents.' },
+      { field: 'openDisputes', because: 'Arbitrations are answered on request and not persisted, so there is no count to give.' },
+    ],
+  });
+});
+
 app.get('/executions/:id', authorise('execution:read'), (req, res) => {
   const trace = traces.get(String(req.params.id));
   if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');

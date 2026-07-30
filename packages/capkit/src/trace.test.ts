@@ -411,6 +411,87 @@ describe('recording without the ceremony', () => {
   });
 });
 
+describe('a wrong key is not the same accusation as an edit', () => {
+  test('a rotated key is reported as a different key, not as tampering', () => {
+    const traces = new TraceStore(new Storage(':memory:'), new SigningKey());
+    const trace = traces.record({ subject: 'a', scope: ['x'], module: 'm', action: 'x', input: 1, outcome: 'success' });
+
+    // Same record, different key — exactly what a rotation or an ephemeral dev
+    // key produces.
+    const verdict = verifyTrace(trace, new SigningKey().publicKeyPem);
+
+    expect(verdict.valid).toBe(false);
+    expect(verdict.signatureValid).toBe(false);
+    // The content is untouched, and the message must say so. An operator who
+    // reads "tampered" after a routine rotation stops believing the alarm.
+    expect(verdict.contentIntact).toBe(true);
+    expect(verdict.reason).toMatch(/was not edited/i);
+    expect(verdict.reason).toMatch(/different key/i);
+  });
+
+  test('an edited record still says the content does not match its hash', () => {
+    const key = new SigningKey();
+    const traces = new TraceStore(new Storage(':memory:'), key);
+    const trace = traces.record({ subject: 'a', scope: ['x'], module: 'm', action: 'x', input: 1, outcome: 'success' });
+
+    const verdict = verifyTrace({ ...trace, outcome: 'failure' }, key.publicKeyPem);
+
+    expect(verdict.contentIntact).toBe(false);
+    expect(verdict.reason).toMatch(/does not match its hash/i);
+    // The two failures must never be worded the same way.
+    expect(verdict.reason).not.toMatch(/different key/i);
+  });
+});
+
+describe('aggregate counts for a control plane', () => {
+  const seed = () => {
+    const key = new SigningKey();
+    const traces = new TraceStore(new Storage(':memory:'), key);
+    const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+
+    traces.record({ subject: 'agent:a', scope: ['pay:approve'], module: 'payments', action: 'approve', input: 1, outcome: 'success', startedAt: hoursAgo(1) });
+    traces.record({ subject: 'agent:a', scope: ['pay:approve'], module: 'payments', action: 'refund', input: 2, outcome: 'failure', startedAt: hoursAgo(2) });
+    traces.record({ subject: 'agent:b', scope: [], module: 'ledger', action: 'read', input: 3, outcome: 'success', startedAt: hoursAgo(72) });
+    return traces;
+  };
+
+  test('counts what exists, over the window it says it counts', () => {
+    const stats = seed().stats(24);
+
+    expect(stats.total).toBe(3);
+    expect(stats.subjects).toBe(2);
+    expect(stats.modules).toBe(2);
+    expect(stats.actions).toBe(3);
+    expect(stats.failures).toBe(1);
+    // The 72-hour-old record is outside a 24-hour window and must not be counted
+    // in it — a "today" figure that quietly includes last week is a lie with a
+    // timestamp on it.
+    expect(stats.inWindow).toBe(2);
+    expect(stats.failuresInWindow).toBe(1);
+    expect(stats.windowHours).toBe(24);
+  });
+
+  test('a wider window includes more, and says which window it used', () => {
+    const stats = seed().stats(24 * 7);
+    expect(stats.inWindow).toBe(3);
+    expect(stats.windowHours).toBe(168);
+  });
+
+  test('an action with no recorded scope is counted, not overlooked', () => {
+    // "Nothing is wrong" and "nobody could check" must never look the same.
+    expect(seed().stats().withoutScope).toBe(1);
+  });
+
+  test('an empty store reports empty rather than nothing', () => {
+    const stats = new TraceStore(new Storage(':memory:'), new SigningKey()).stats();
+
+    expect(stats.total).toBe(0);
+    expect(stats.subjects).toBe(0);
+    expect(stats.oldest).toBeUndefined();
+    expect(stats.newest).toBeUndefined();
+  });
+});
+
 describe('SigningKey.createPair', () => {
   test('returns a key that signs and PEMs that verify it', () => {
     const { key, privateKeyPem, publicKeyPem } = SigningKey.createPair();

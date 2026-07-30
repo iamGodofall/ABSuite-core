@@ -17,6 +17,7 @@ import {
 import { useServices, Service } from './hooks/useServices';
 import { PerformanceTab } from './tabs/Performance';
 import { ConstraintsPanel } from './tabs/Govern';
+import { GlobalView } from './tabs/GlobalView';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1518,6 +1519,14 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
     finally { setBusy(false); }
   };
 
+  // On the Explain layer, selecting a record is the request. Making someone
+  // click "Explain this record" after choosing it is a step that exists only
+  // because the panel used to live inside the verification screen.
+  useEffect(() => {
+    if (view === 'explain' && selected) void explain();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, selected?.id]);
+
   const runReplay = async () => {
     if (!selected) return;
     setBusy(true); setError(''); setReplay(null);
@@ -1577,8 +1586,9 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
 
   return (
     <div className="space-y-4">
-      {/* The headline answer, before any interaction. */}
-      {view !== 'explain' && (
+      {/* The headline answer, before any interaction. Observe gets the fuller
+          global view above instead, so this would only repeat it. */}
+      {view === 'verify' && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className={cn(
           'rounded-xl border p-4',
@@ -1609,6 +1619,10 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
         </div>
       </div>
       )}
+
+      {/* The global view opens the Observe layer: what is held, right now,
+          counted rather than estimated. */}
+      {view === 'observe' && <GlobalView />}
 
       {view === 'observe' && (
         <NoticeCard
@@ -1750,7 +1764,7 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
               <div className="mb-3">
                 <button onClick={explain} disabled={busy}
                   className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
-                  {busy ? 'Working…' : 'Explain this record'}
+                  {busy ? 'Working…' : explanation ? 'Explain again' : 'Explain this record'}
                 </button>
 
                 {explanation && (

@@ -214,7 +214,19 @@ export function verifyTrace(trace: ExecutionTrace, publicKeyPem?: string): Trace
   const signatureValid = verifySignature(hash, signature, publicKeyPem);
   return signatureValid
     ? { valid: true, contentIntact: true, signatureValid: true }
-    : { valid: false, reason: 'Signature does not verify against the supplied key', contentIntact: true, signatureValid: false };
+    : {
+        valid: false,
+        // We already know the content matches its hash, so this is not an edit —
+        // it is a different key. Saying only "signature does not verify" sends
+        // an operator hunting for tampering after a routine key rotation, or
+        // after a dev server restarted with an ephemeral key. Name the actual
+        // cause; an alarm that cries tampering at every rotation gets muted, and
+        // then the real one is missed too.
+        reason:
+          'Signature does not verify against the supplied key. The content still matches its hash, so this record was not edited — it was signed by a different key (a rotation, or a server that started with an ephemeral one).',
+        contentIntact: true,
+        signatureValid: false,
+      };
 }
 
 /**
@@ -367,6 +379,57 @@ export class TraceStore {
   }
 
   /**
+   * Aggregate counts over everything held.
+   *
+   * Every field here is a `COUNT` over records that exist. Nothing is sampled,
+   * projected or annualised, and a count of zero is returned as zero rather
+   * than hidden — an empty system reporting an empty system is the correct
+   * answer, and the only one a control plane is allowed to give.
+   *
+   * Deliberately absent: anything we do not store. There is no "active agents"
+   * figure because a subject that acted once is not an agent that is running,
+   * and no "incidents" count because an incident is a judgement nobody here has
+   * made. Those would have to be invented, and this is the one product that
+   * cannot afford an invented number.
+   */
+  stats(windowHours = 24): {
+    total: number;
+    subjects: number;
+    modules: number;
+    actions: number;
+    failures: number;
+    windowHours: number;
+    inWindow: number;
+    failuresInWindow: number;
+    oldest?: string;
+    newest?: string;
+    withoutScope: number;
+  } {
+    const since = new Date(Date.now() - windowHours * 3600_000).toISOString();
+    const one = <T>(sql: string, ...params: unknown[]): T =>
+      (this.storage.get<Record<string, unknown>>(sql, ...params)?.value as T);
+
+    return {
+      total: one<number>('SELECT COUNT(*) AS value FROM executions') ?? 0,
+      subjects: one<number>('SELECT COUNT(DISTINCT subject) AS value FROM executions') ?? 0,
+      modules: one<number>('SELECT COUNT(DISTINCT module) AS value FROM executions') ?? 0,
+      actions: one<number>('SELECT COUNT(DISTINCT action) AS value FROM executions') ?? 0,
+      failures: one<number>("SELECT COUNT(*) AS value FROM executions WHERE outcome = 'failure'") ?? 0,
+      windowHours,
+      inWindow: one<number>('SELECT COUNT(*) AS value FROM executions WHERE started_at >= ?', since) ?? 0,
+      failuresInWindow:
+        one<number>("SELECT COUNT(*) AS value FROM executions WHERE outcome = 'failure' AND started_at >= ?", since) ?? 0,
+      oldest: one<string>('SELECT MIN(started_at) AS value FROM executions') ?? undefined,
+      newest: one<string>('SELECT MAX(started_at) AS value FROM executions') ?? undefined,
+      // An action recorded with no scope cannot be shown to have been permitted.
+      // Counting them is the difference between "nothing is wrong" and "nobody
+      // checked".
+      withoutScope:
+        one<number>("SELECT COUNT(*) AS value FROM executions WHERE scope IS NULL OR scope = '' OR scope = '[]'") ?? 0,
+    };
+  }
+
+  /**
    * Walk the whole chain and report the first record that fails.
    *
    * `brokenAt` is the sequence number of the offending record — the evidence an
@@ -378,6 +441,14 @@ export class TraceStore {
     brokenAt?: number;
     brokenId?: string;
     reason?: string;
+    /**
+     * Whether the offending record's content still matches its hash.
+     *
+     * `true` with `valid: false` means nothing was edited and the signature was
+     * checked against the wrong key — a rotation, not an intrusion. A reader who
+     * cannot tell those apart eventually treats both as noise.
+     */
+    contentIntact?: boolean;
     headHash: string;
   } {
     const rows = this.storage.all<Record<string, unknown>>('SELECT * FROM executions ORDER BY seq ASC');
@@ -393,7 +464,15 @@ export class TraceStore {
 
       const verdict = verifyTrace(trace, publicKeyPem);
       if (!verdict.valid) {
-        return { valid: false, checked: seq, brokenAt: seq, brokenId: trace.id, reason: verdict.reason ?? 'Verification failed', headHash: this.headHash };
+        return {
+          valid: false,
+          checked: seq,
+          brokenAt: seq,
+          brokenId: trace.id,
+          reason: verdict.reason ?? 'Verification failed',
+          contentIntact: verdict.contentIntact,
+          headHash: this.headHash,
+        };
       }
 
       expectedPrev = trace.hash;

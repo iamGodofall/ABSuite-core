@@ -96,6 +96,22 @@ describe('explaining a record without a language model', () => {
     expect(text).toMatch(/unproven/i);
   });
 
+  test('a wrong key is not reported as an alteration', () => {
+    const { traces } = fresh();
+    const trace = sample(traces);
+
+    // Checked against a key that never signed it — a rotation, not an edit.
+    const out = explainTrace(trace, verifyTrace(trace, new SigningKey().publicKeyPem));
+    const text = renderExplanation(out);
+
+    expect(out.warrantsReview).toBe(true);
+    // It still needs a person. It must not tell that person the record was
+    // tampered with, because it was not.
+    expect(text).toMatch(/nothing in it was edited/i);
+    expect(text).toMatch(/rotated/i);
+    expect(text).not.toMatch(/Yes — verification failed/);
+  });
+
   test('a failure is reported as a failure, with its reason', () => {
     const { traces, key } = fresh();
     const trace = sample(traces, { outcome: 'failure', error: 'policy limit exceeded' });
