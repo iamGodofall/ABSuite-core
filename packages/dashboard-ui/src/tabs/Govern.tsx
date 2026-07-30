@@ -43,6 +43,12 @@ export const CONSTRAINTS: Constraint[] = [
     test: { file: 'packages/capkit/src/explain.test.ts', name: 'the conclusion never tells anyone what to do' },
   },
   {
+    refusal: 'It will not reduce trust to a number.',
+    because:
+      'Trust := f(Identity, Capability, Evidence, Governance, Time), and f is left undefined on purpose. ABSuite supplies the inputs; a person performs the judgement. "Trust: 96.4%" replaces evidence with something nobody audits — they just act on it.',
+    test: { file: 'packages/capkit/src/conditions.test.ts', name: 'never produces a score, a percentage or a grade' },
+  },
+  {
     refusal: 'It will not reveal the payload it is describing.',
     because:
       'Inputs and outputs are hashed and dropped. A record that proves what happened without being a copy of it is the only kind safe to keep.',

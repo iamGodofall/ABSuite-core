@@ -21,6 +21,7 @@ import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './b
 import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload } from './trace';
 import { explainTrace } from './explain';
+import { trustConditions } from './conditions';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
 import { TenantRateLimiter } from './rate-limit';
 
@@ -695,6 +696,28 @@ app.get('/executions/:id/explain', authorise('execution:read'), (req, res) => {
 });
 
 /** Compare a re-run of an execution against its recorded hashes. */
+/**
+ * The five necessary conditions, assessed for one execution.
+ *
+ *     Trust := f(Identity, Capability, Evidence, Governance, Time)
+ *
+ * `f` is not implemented, here or anywhere. This returns the inputs — each
+ * demonstrated, unproven or absent, each naming its source field — and a
+ * conclusion in words. There is no score, and the absence is deliberate: a
+ * number replaces evidence with something nobody audits.
+ */
+app.get('/executions/:id/conditions', authorise('execution:read'), (req, res) => {
+  const trace = traces.get(String(req.params.id));
+  if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');
+
+  // Both checks run here rather than being assumed: an unverified record and a
+  // verified one must never produce the same assessment.
+  const verdict = verifyTrace(trace, signingKey.publicKeyPem);
+  const chain = traces.verifyChain(signingKey.publicKeyPem);
+
+  return res.status(200).json(trustConditions(trace, verdict, chain.valid));
+});
+
 app.post('/executions/:id/replay', authorise('execution:read'), (req, res) => {
   const trace = traces.get(String(req.params.id));
   if (!trace) return fail(res, 404, 'NOT_FOUND', 'No such execution');

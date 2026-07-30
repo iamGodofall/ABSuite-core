@@ -100,6 +100,14 @@ export {
 } from './trace';
 
 export {
+  trustConditions,
+  renderConditions,
+  type ConditionsReport,
+  type TrustCondition,
+  type ConditionState,
+} from './conditions';
+
+export {
   explainTrace,
   renderExplanation,
   type TraceExplanation,

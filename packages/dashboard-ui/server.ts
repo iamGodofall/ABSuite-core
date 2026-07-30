@@ -506,6 +506,19 @@ app.get('/executions/:id/explain', requireAdminAccess, async (req, res) => {
 });
 
 /** Walk the whole chain and report the first record that fails. */
+/** The five necessary conditions for one execution. Inputs, never a score. */
+app.get('/executions/:id/conditions', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/executions/${encodeURIComponent(String(req.params.id))}/conditions`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 app.get('/executions-verify-chain', requireAdminAccess, async (_req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions-verify-chain`, {

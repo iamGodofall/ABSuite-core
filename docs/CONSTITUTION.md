@@ -319,6 +319,22 @@ file you can open; `pnpm check:doctrine` fails the build if one of those files
 stops existing, and fails equally if a layer marked *not built* starts claiming
 evidence — a promotion has to be a deliberate act, not a drift.
 
+The layers are an ascent, and each transition is load-bearing:
+
+```text
+Identity        enables    Capability      — you cannot grant to nobody
+Capability      produces   Evidence        — an authorised action leaves a record
+Evidence        establishes Trust          — records accumulate into facts
+Trust           permits    Governance      — you cannot govern what you cannot establish
+Governance      enables    Autonomy        — unsupervised action needs a rule that held
+Autonomy (×N)   becomes    Collective Intelligence
+Collective Intelligence at scale becomes   Civilization
+```
+
+Read downward, it is also a list of what breaks: govern without evidence and you
+are enforcing opinions; grant autonomy without governance and you have built the
+thing this project exists to make unnecessary.
+
 Layer 7 is marked not built on the strength of its own definition. Multi-agent
 arbitration runs today and is real; *federated verification between independent
 deployments* is what the layer means, and none of it exists.
@@ -376,12 +392,19 @@ Trust is not a thing ABSuite has. It is what is left over once five other things
 are answerable:
 
 ```text
-TRUST = IDENTITY      who?
-      + CAPABILITY    allowed?
-      + EVIDENCE      what actually happened?
-      + GOVERNANCE    should it have?
-      + TIME          when, in what order, and what came before?
+Trust := f(
+    Identity,     who?
+    Capability,   allowed?
+    Evidence,     what actually happened?
+    Governance,   should it have?
+    Time          when, in what order, and after what?
+)
 ```
+
+**`f` is intentionally undefined.** ABSuite supplies the inputs. A person
+performs the judgement. That is not a gap to be filled in a later release; it is
+the position, and `packages/capkit/src/conditions.ts` is where it is implemented
+rather than merely stated.
 
 Time is the one people leave out, and it is the one that makes the rest hold:
 identity without history is an assertion, evidence without ordering cannot be
@@ -396,13 +419,28 @@ And the runtime is the loop applied to that state, over and over:
 Trust(t+1) = Learn(Act(Arbitrate(Govern(Explain(Verify(Observe(t)))))))
 ```
 
-**This is a definition, not an output.** ABSuite does not compute the left-hand
-side and hand you a number. It never will: a trust score is a judgement wearing
-a decimal point, and this document already refuses to produce one — counts,
-never scores, and never about people at all. The equation says what trust is
-*composed of*, so that a person can assemble it and disagree with the result.
-The moment ABSuite evaluates it for you, it has become the thing it was built to
-replace.
+When every condition holds, `GET /executions/:id/conditions` concludes:
+
+> All necessary conditions for trust have been demonstrated. Whether that is
+> sufficient is a judgement, and it is yours.
+
+It does not conclude `Trust: 97.3%`. Those are philosophically different
+statements, and the difference is the entire product. A number replaces evidence
+with something nobody audits — nobody interrogates a 97.3, they act on it. A list
+of five conditions, each naming the field it was read from, can be disagreed with
+one line at a time.
+
+The refusal is a test, not a paragraph: *"never produces a score, a percentage or
+a grade"* fails the build if a percentage, the word *score*, *grade*, *rating* or
+*confidence* ever appears in that output.
+
+**What this reveals about us.** Run it today and Governance comes back *absent*,
+on every record. A trace states the authority an action held; it does not carry
+the rule that decided the authority should have been granted. So the honest
+answer to "should it have?" is that the record cannot say — which is exactly why
+Governance is marked *partly built* in the layer table above. The tool applied to
+its own output names our largest gap, in public, without being asked. That is the
+point of building it this way.
 
 ---
 
@@ -423,6 +461,27 @@ checks are the part that is worth anything:
 A principle that cannot fail a build is a preference. This table is the
 difference between a project that says these things and a project that does
 them, and it is the only reason any of the prose above should be believed.
+
+There is a hierarchy here, and only the last rung has teeth:
+
+| | | Example |
+|---|---|---|
+| 1 | Preference | "Documentation should be good" |
+| 2 | Principle | "Claims should be verifiable" |
+| 3 | Constraint | "Every claim requires evidence" |
+| 4 | Check | `check:doctrine` |
+| 5 | Build failure | `Claimed: Collective Intelligence = Built` · `Evidence: missing` · `Result: FAIL` |
+
+Most projects stop at 2 and believe they are at 5. The distance between them is
+where every broken promise in software lives.
+
+**And ABSuite is subject to ABSuite.** The trust layer is not exempt from trust,
+the governance system is not exempt from governance, and the evidence system does
+not get to assert things without evidence. The benchmark runs the loop on itself;
+the conditions check names our own missing Governance layer; the doctrine check
+fails our own build when a claim outruns the code — it caught two fabricated file
+paths in the commit that introduced it. A system that grants itself privileges it
+denies everyone else has already decided what it is.
 
 ---
 

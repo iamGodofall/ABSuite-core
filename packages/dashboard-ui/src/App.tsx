@@ -1425,6 +1425,7 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
   const [tampered, setTampered] = useState(false);
   const [replay, setReplay] = useState<{ inputMatches: boolean; outputMatches: boolean; deterministic: boolean } | null>(null);
   const [explanation, setExplanation] = useState<{ headline: string; conclusion: string; warrantsReview: boolean; findings: { question: string; answer: string; from: string; status: string }[] } | null>(null);
+  const [conditions, setConditions] = useState<{ conclusion: string; allDemonstrated: boolean; conditions: { condition: string; answers: string; state: string; finding: string; from: string }[] } | null>(null);
   const [replayInput, setReplayInput] = useState('');
   const [replayOutput, setReplayOutput] = useState('');
 
@@ -1517,6 +1518,13 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
         throw new Error((typeof e === 'string' ? e : e?.message) ?? `Explain failed (${res.status})`);
       }
       setExplanation(data as never);
+
+      // The five necessary conditions, fetched beside the explanation. They are
+      // inputs to a judgement, never a score — see conditions.ts.
+      try {
+        const res2 = await fetch(`/executions/${encodeURIComponent(selected.id)}/conditions`, { headers: getAdminHeaders() });
+        setConditions(res2.ok ? await res2.json() : null);
+      } catch { setConditions(null); }
     } catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
   };
@@ -1579,7 +1587,7 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
   };
 
   const reset = () => {
-    setReplay(null); setExplanation(null);
+    setReplay(null); setExplanation(null); setConditions(null);
     const original = traces.find(t => t.id === selected?.id);
     if (original) { setSelected(original); setTampered(false); setVerdict(null); }
   };
@@ -1789,6 +1797,46 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
                     <p className={cn('text-[11px] mt-3 pt-2 border-t border-border',
                       explanation.warrantsReview ? 'text-amber-400' : 'text-text-muted')}>
                       {explanation.conclusion}
+                    </p>
+                  </div>
+                )}
+
+                {conditions && (
+                  <div className="mt-3 rounded-lg border border-border bg-bg-primary/40 p-3">
+                    <p className="text-[11px] font-mono text-text-muted mb-1">
+                      Trust := f(Identity, Capability, Evidence, Governance, Time)
+                    </p>
+                    <p className="text-[11px] text-text-muted mb-3 leading-snug opacity-80">
+                      f is undefined here on purpose. These are the inputs; the judgement is yours.
+                      ABSuite will not turn them into a score.
+                    </p>
+
+                    <div className="space-y-2">
+                      {conditions.conditions.map(c => (
+                        <div key={c.condition} className="text-[11px] leading-snug">
+                          <div className="flex items-baseline gap-2">
+                            <span className={cn('font-mono',
+                              c.state === 'demonstrated' ? 'text-emerald-400'
+                                : c.state === 'unproven' ? 'text-amber-400' : 'text-text-muted')}>
+                              {c.state === 'demonstrated' ? '✓' : c.state === 'unproven' ? '?' : '·'}
+                            </span>
+                            <span className="font-semibold text-text-primary">{c.condition}</span>
+                            <span className="text-text-muted">{c.answers}</span>
+                            <span className={cn('font-mono text-[10px] ml-auto',
+                              c.state === 'demonstrated' ? 'text-emerald-500/70'
+                                : c.state === 'unproven' ? 'text-amber-400/70' : 'text-text-muted/70')}>
+                              {c.state}
+                            </span>
+                          </div>
+                          <div className="text-text-muted pl-5">{c.finding}</div>
+                          <div className="text-dim font-mono text-[10px] pl-5 mt-0.5 opacity-70">from: {c.from}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className={cn('text-[11px] mt-3 pt-2 border-t border-border',
+                      conditions.allDemonstrated ? 'text-emerald-400' : 'text-text-muted')}>
+                      {conditions.conclusion}
                     </p>
                   </div>
                 )}
