@@ -22,6 +22,7 @@ import { AttentionPanel } from './tabs/Attention';
 import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
 import { LiveFeed } from './tabs/LiveFeed';
+import { RecordDetail } from './tabs/RecordDetail';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1416,10 +1417,11 @@ type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null;
  * different panels, so the record you select in Observe is the record you
  * verify and the record you explain.
  */
-const ProofTab = ({ view, live, arrivedIds }: {
+const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
   view: 'observe' | 'verify' | 'explain';
   live?: import('./hooks/useSocket').LiveExecution[];
   arrivedIds?: Set<string>;
+  onOpenRecord?: (id: string) => void;
 }) => {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [selected, setSelected] = useState<Trace | null>(null);
@@ -1647,10 +1649,7 @@ const ProofTab = ({ view, live, arrivedIds }: {
           executions={live ?? []}
           arrivedIds={arrivedIds ?? new Set()}
           connected={Boolean(live)}
-          onSelect={execution => {
-            const match = traces.find(t => t.id === execution.id);
-            if (match) { setSelected(match); setTampered(false); setVerdict(null); }
-          }}
+          onSelect={execution => onOpenRecord?.(execution.id)}
         />
       )}
 
@@ -1699,7 +1698,12 @@ const ProofTab = ({ view, live, arrivedIds }: {
               {traces.map(trace => (
                 <button
                   key={trace.id}
-                  onClick={() => { setSelected(trace); setTampered(false); setVerdict(null); }}
+                  onClick={() => {
+                    setSelected(trace); setTampered(false); setVerdict(null);
+                    // Observe and Explain hand off to the full record; Verify
+                    // keeps its side-by-side, which is what that layer is for.
+                    if (view !== 'verify') onOpenRecord?.(trace.id);
+                  }}
                   className={cn(
                     'w-full text-left px-3 py-2 rounded-lg border transition-colors',
                     selected?.id === trace.id
@@ -2218,6 +2222,15 @@ const GovernTab = ({ demoMode }: { demoMode: boolean }) => (
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('observe');
+  /**
+   * The record being examined, if any.
+   *
+   * Held at app level rather than inside a layer: a record is not the property
+   * of the screen you happened to find it on, and clicking one in Observe then
+   * losing it by moving to Verify is exactly the kind of seam that makes a
+   * console feel like a set of pages instead of a system.
+   */
+  const [openRecordId, setOpenRecordId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -2284,10 +2297,13 @@ export default function App() {
   }, [restartService, startService, stopService]);
 
   const renderTab = () => {
+    if (openRecordId) {
+      return <RecordDetail id={openRecordId} onClose={() => setOpenRecordId(null)} />;
+    }
     switch (activeTab) {
-      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} />;
-      case 'verify': return <ProofTab view="verify" />;
-      case 'explain': return <ProofTab view="explain" />;
+      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
+      case 'verify': return <ProofTab view="verify" onOpenRecord={setOpenRecordId} />;
+      case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
       case 'govern': return <GovernTab demoMode={demoMode} />;
       case 'arbitrate': return <MonitoringTab />;
       case 'act': return <ActTab services={services} demoMode={demoMode} onServiceAction={handleServiceAction} />;
@@ -2333,7 +2349,7 @@ export default function App() {
                   </div>
                 )}
                 <button
-                  onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+                  onClick={() => { setActiveTab(id); setOpenRecordId(null); setMobileMenuOpen(false); }}
                   title={sidebarCollapsed ? `${label} — ${question}` : question}
                   className={cn(
                     'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
@@ -2525,7 +2541,7 @@ export default function App() {
                 {TAB_CONFIG.map(({ id, label, layer, question, icon: Icon }) => (
                   <button
                     key={id}
-                    onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+                    onClick={() => { setActiveTab(id); setOpenRecordId(null); setMobileMenuOpen(false); }}
                     className={cn('w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all', activeTab === id ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'text-text-muted hover:text-text-primary')}
                   >
                     <Icon className="w-5 h-5 shrink-0 mt-0.5" />

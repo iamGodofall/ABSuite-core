@@ -533,6 +533,25 @@ app.get('/executions/:id/conditions', requireAdminAccess, async (req, res) => {
   }
 });
 
+/**
+ * One record, whole.
+ *
+ * The record is the product and had no route of its own — everything happened
+ * in panels beside lists. Registered after the specific paths above so that
+ * /executions/stats is never matched as an id.
+ */
+app.get('/executions/:id', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/executions/${encodeURIComponent(String(req.params.id))}`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 app.get('/executions-verify-chain', requireAdminAccess, async (_req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions-verify-chain`, {
