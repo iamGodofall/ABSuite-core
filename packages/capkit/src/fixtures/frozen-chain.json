@@ -1,0 +1,79 @@
+{
+  "note": "Generated once and frozen. See frozen-chain.test.ts. Do not regenerate.",
+  "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAH2kAAL1IylIk/CqTXNVCQQ01IkkvRMuoNVRtC4IfZck=\n-----END PUBLIC KEY-----\n",
+  "records": [
+    {
+      "id": "exec_fixture_legacy_1",
+      "subject": "agent:invoicing",
+      "jti": "tok_fixture_1",
+      "scope": [
+        "payment:approve"
+      ],
+      "module": "payments",
+      "action": "approve_batch",
+      "inputHash": "9b74613cdd177f8fc07d3334ba9d19817628f3b85bd432a0bd5e8810ff08931e",
+      "outputHash": "20ec2f38fc96bc7d416a9af537493ae0bae26c5ad4c5a0f2d94f56f9c3e04958",
+      "outcome": "success",
+      "startedAt": "2026-01-15T09:00:00.000Z",
+      "completedAt": "2026-01-15T09:00:02.000Z",
+      "durationMs": 2000,
+      "steps": [
+        {
+          "seq": 1,
+          "name": "load_batch",
+          "at": "2026-01-15T09:00:00.000Z"
+        }
+      ],
+      "prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "hash": "a15290e7ce01abd8cfd1f2d5d42fe60b5a800e8e238ad263972dd301a78440d0",
+      "signature": "ep8WRQSnO4KSDjdWuK/PiHP/4uCpJoeOq+csL6XUt3ReV4+NZp85uTd0EwRtXanWnGNvrgkDjgrIfi2mIaW8CQ==",
+      "keyId": "absuite-fixture-key"
+    },
+    {
+      "id": "exec_fixture_legacy_2",
+      "subject": "agent:ops",
+      "scope": [],
+      "module": "ledger",
+      "action": "reconcile",
+      "inputHash": "a9a4eb5780ffe631e1fa45ad325016595e897a44c39d62cc2d152f786aa4ab82",
+      "outcome": "failure",
+      "error": "source unavailable",
+      "startedAt": "2026-01-15T10:00:00.000Z",
+      "steps": [],
+      "prevHash": "a15290e7ce01abd8cfd1f2d5d42fe60b5a800e8e238ad263972dd301a78440d0",
+      "hash": "0431d990cfe985ca4599730855937eb8d012f997db06e56005fcae6796a2a2a5",
+      "signature": "VoJLo0AwMt7LkBAdrbCVzup2Ubjz9sqj6LoyU83H8bdCQNMAIdp6uc3KoXOrzrFfVq6+M9mQi3ou+RkiR55TDw==",
+      "keyId": "absuite-fixture-key"
+    },
+    {
+      "id": "exec_fixture_governed_1",
+      "subject": "agent:finance-6",
+      "jti": "tok_fixture_3",
+      "scope": [
+        "refund:process"
+      ],
+      "module": "payments",
+      "action": "process_refund",
+      "inputHash": "fb78b9486d03a530164884091e631e0c38adfd243154f09b8e8dd5d959d21150",
+      "outputHash": "d7f8be82cb3ec4c1a4c405f65c72943bd80e60d19c9ca3f1489a3bef32b404f6",
+      "outcome": "success",
+      "startedAt": "2026-01-15T11:00:00.000Z",
+      "steps": [],
+      "governance": {
+        "policyRef": "finance.refunds.max-10000",
+        "policyVersion": "2.1.4",
+        "decision": "PERMITTED",
+        "evidence": [
+          "refund < $10,000",
+          "customer_age > 30d",
+          "approval_872"
+        ],
+        "evaluatedBy": "policy-engine-1"
+      },
+      "prevHash": "0431d990cfe985ca4599730855937eb8d012f997db06e56005fcae6796a2a2a5",
+      "hash": "d47276a7cd0559b14d9be3af08e759d8bffe0670332611697a443e311102148f",
+      "signature": "OYf2+18zjvwMFaWVT1jdDGOgSEjLxZjSPw/cArisc9VwG+OCe6B+JRCixJfs9V54+scxV7ZKkcTwc6GxfM09BQ==",
+      "keyId": "absuite-fixture-key"
+    }
+  ]
+}

@@ -462,11 +462,60 @@ An ungoverned record still reports Governance as absent. It is not backfilled,
 assumed, or inferred from scope, because a capability is the *result* of a
 governing decision and not the decision itself.
 
+**Under what rule, not whether the rule was right.** The record is
+constitutionally neutral about the content of a policy. Given
+`finance.refunds.max-10000`, ABSuite says the action was permitted under v2.1.4.
+Given a policy whose content is indefensible, ABSuite says the action was
+permitted under that policy, in exactly the same words. The trace does not
+flinch, because a record that editorialised about which rules it approved of
+would be worthless as evidence — you could not trust it about the rules it
+liked either.
+
+That neutrality has a boundary, and stating it is the difference between a
+principle and an alibi:
+
+- **The record is neutral. The project is not.** ABSuite refuses to score people,
+  refuses to name what it declined, refuses to tell anyone what to do. Those
+  refusals are about what this system *is built to do*, and no appeal to
+  neutrality overrides them. "We are only infrastructure" is the most
+  comfortable sentence in technology and it has excused a great deal.
+- **Recording a rule is not endorsing it — it is exposing it.** Before this
+  field existed, an indefensible policy could operate invisibly: the action
+  looked authorised, and the rule behind it left no trace. Now the rule is
+  named, versioned and attributable, permanently, in a record its author cannot
+  edit. Neutrality of description is what makes accountability possible; it is
+  not the opposite of it.
+
+Judgement stays with people. Making sure they have something to judge is the
+entire job.
+
 **And the layer stays partly built.** Recording a policy reference is not policy
 evaluation, versioned policy documents, approval workflows, or governance replay.
 One condition can now be demonstrated where it could not before; the layer is not
 finished, and promoting it here because a field exists would be exactly the
 quiet self-promotion `check:doctrine` was written to prevent.
+
+---
+
+### History must survive improvement
+
+Adding a field must never invalidate a record written before it existed. This is
+easy to promise and easy to break: a reordered field, a new element, a "harmless"
+null placeholder for consistency — any of them silently changes the canonical
+form of every trace ever written, and nobody finds out until an auditor's chain
+reports as tampered by a system that was only trying to be tidy.
+
+Unit tests cannot catch it. A test that signs a record and verifies it in the
+same process moves both sides together and stays green while the archive rots.
+
+So there is a frozen chain in the repository — three records signed in January
+2026 and never regenerated, two from before governance existed and one carrying
+a signed policy. `frozen-chain.test.ts` verifies them against nothing but their
+committed public key. If that test fails, the fixture is not what is wrong.
+
+Verified by making the exact mistake it guards against: appending a null
+governance placeholder for consistency turned three historical records
+invalid immediately.
 
 ---
 
@@ -481,6 +530,7 @@ checks are the part that is worth anything:
 | A comparison across machines or workloads is meaningless | `compareReports()` refuses it and says why, rather than producing a number |
 | These seven refusals are behaviour, not marketing | `check:constraints` fails if the test enforcing any refusal is renamed or deleted |
 | The layer table distinguishes built from planned | `check:doctrine` fails if a built layer's evidence vanishes, or a planned one starts claiming some |
+| History must survive improvement | `frozen-chain.test.ts` verifies records signed in 2026 against their committed public key, forever |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 | The interface only calls things that answer | `check:routes` fails if a client call has no server route |
 

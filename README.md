@@ -6,6 +6,8 @@ The trust layer for autonomous systems: it observes everything, proves what
 happened, and explains it to whoever has the right to ask. ABSuite is not the
 intelligence — it is the witness.
 
+**ABSuite does not tell you what to believe. It tells you what can be proven.**
+
 **Observation is automatic. Action is granted.** Nobody switches trust on; the
 moment a human has to remember to enable it, it has already failed. Humans
 decide what an AI may do. ABSuite makes sure nobody can forget what it did.
@@ -90,6 +92,18 @@ different stories.
 | 6 | **Act** | What can it reach? — MCP, edge execution, connectors, under capability |
 | 7 | **Learn** | How fast is it, really? — measured, with the machine stated |
 
+Each stage has something tangible behind it, today:
+
+| Stage | What implements it |
+|---|---|
+| Observe | A signed, hash-chained execution trace |
+| Verify | Ed25519 signature and chain verification, public key only |
+| Explain | A deterministic renderer — no model, every sentence names its field |
+| Govern | A signed policy reference: rule, version, decision, conditions checked |
+| Arbitrate | Correlation discounting across model families, weights shown |
+| Act | Execution under capability — MCP, edge-run, connectors |
+| Learn | Measured baselines and regression detection against the previous run |
+
 Two of those stages carry a rule that costs us something:
 
 **Explanation is derived, never generated.** Using an LLM to explain a trace
@@ -101,6 +115,15 @@ checkable.
 **No number is published that a measurement did not produce.** Every figure names
 the machine it came from, or it does not appear. This is the worst possible
 project to be caught rounding up.
+
+**A record says under what rule, never whether the rule was right.** Given a
+policy whose content is indefensible, ABSuite reports the action as permitted
+under that policy in exactly the same words it uses for any other — because a
+record that editorialised about which rules it approved of could not be trusted
+about the ones it liked either. Recording a rule is not endorsing it; it is
+naming it, versioning it and making it attributable in a record its author
+cannot edit. Judgement stays with people. Making sure they have something to
+judge is the job.
 
 And Learn returns to Observe, or it is not a loop: every benchmark run is
 compared against the previous run on the same machine, with Welch's t-test
@@ -153,6 +176,7 @@ something, and they are the part worth believing:
 | A comparison across machines or workloads is meaningless | `compareReports()` refuses it and says why, instead of producing a number |
 | The seven refusals are behaviour, not marketing | `pnpm check:constraints` fails if the test behind any refusal is renamed |
 | Built and planned are different words | `pnpm check:doctrine` fails if a layer claimed as built stops naming a file that exists |
+| History must survive improvement | A chain signed in January 2026 is committed, and must still verify — forever |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 
 A principle that cannot fail a build is a preference.
@@ -392,7 +416,7 @@ of that command.
 ## Status
 
 ```text
-464 tests                    102 API endpoints
+469 tests                    102 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```
