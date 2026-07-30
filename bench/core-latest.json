@@ -1,0 +1,150 @@
+{
+  "schema": "absuite.bench.v1",
+  "environment": {
+    "node": "22.22.2",
+    "v8": "12.4.254.21-node.39",
+    "platform": "linux",
+    "arch": "x64",
+    "cpuModel": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "cpuCount": 4,
+    "memoryGb": 15.7,
+    "commit": "c62a35b",
+    "measuredAt": "2026-07-30T00:59:05.068Z"
+  },
+  "measurements": [
+    {
+      "operation": "trace.record",
+      "description": "Hash an input and output, link to the previous record, Ed25519-sign the result and commit it to SQLite (WAL) in one transaction.",
+      "iterations": 2000,
+      "warmupDiscarded": 50,
+      "concurrency": 1,
+      "failures": 0,
+      "successRate": 1,
+      "latencyMs": {
+        "count": 2000,
+        "min": 0.88,
+        "max": 11.87,
+        "mean": 1.36,
+        "stddev": 0.6,
+        "p50": 1.21,
+        "p90": 2.05,
+        "p95": 2.36,
+        "p99": 3.47
+      },
+      "opsPerSecond": 734.4,
+      "wallClockMs": 2723.42
+    },
+    {
+      "operation": "trace.verify",
+      "description": "Re-canonicalise a stored record, recompute its hash and verify the Ed25519 signature against the public key.",
+      "iterations": 2000,
+      "warmupDiscarded": 50,
+      "concurrency": 1,
+      "failures": 0,
+      "successRate": 1,
+      "latencyMs": {
+        "count": 2000,
+        "min": 0.14,
+        "max": 1.68,
+        "mean": 0.16,
+        "stddev": 0.06,
+        "p50": 0.15,
+        "p90": 0.19,
+        "p95": 0.21,
+        "p99": 0.27
+      },
+      "opsPerSecond": 6084.9,
+      "wallClockMs": 328.68
+    },
+    {
+      "operation": "chain.verify",
+      "description": "Walk a 1000-record chain end to end: every link checked against its predecessor and every record's signature verified.",
+      "iterations": 10,
+      "warmupDiscarded": 1,
+      "concurrency": 1,
+      "failures": 0,
+      "successRate": 1,
+      "latencyMs": {
+        "count": 10,
+        "min": 169.48,
+        "max": 189.46,
+        "mean": 177.52,
+        "stddev": 6.59,
+        "p50": 173.32,
+        "p90": 184.19,
+        "p95": 189.46,
+        "p99": 189.46
+      },
+      "opsPerSecond": 5.6,
+      "wallClockMs": 1775.26
+    },
+    {
+      "operation": "capability.issue",
+      "description": "Mint a scoped, expiring HS256 capability token.",
+      "iterations": 2000,
+      "warmupDiscarded": 50,
+      "concurrency": 1,
+      "failures": 0,
+      "successRate": 1,
+      "latencyMs": {
+        "count": 2000,
+        "min": 0.01,
+        "max": 4.1,
+        "mean": 0.02,
+        "stddev": 0.09,
+        "p50": 0.02,
+        "p90": 0.02,
+        "p95": 0.02,
+        "p99": 0.06
+      },
+      "opsPerSecond": 51123.3,
+      "wallClockMs": 39.12
+    },
+    {
+      "operation": "capability.validate",
+      "description": "Verify a token signature, check expiry and audience, and match the requested scope segment-wise.",
+      "iterations": 2000,
+      "warmupDiscarded": 50,
+      "concurrency": 1,
+      "failures": 0,
+      "successRate": 1,
+      "latencyMs": {
+        "count": 2000,
+        "min": 0.01,
+        "max": 1.64,
+        "mean": 0.02,
+        "stddev": 0.04,
+        "p50": 0.02,
+        "p90": 0.03,
+        "p95": 0.06,
+        "p99": 0.1
+      },
+      "opsPerSecond": 40138,
+      "wallClockMs": 49.83
+    },
+    {
+      "operation": "explain.render",
+      "description": "Derive the plain-language explanation of a verified record from its signed fields and render it as text. No model involved.",
+      "iterations": 2000,
+      "warmupDiscarded": 50,
+      "concurrency": 1,
+      "failures": 0,
+      "successRate": 1,
+      "latencyMs": {
+        "count": 2000,
+        "min": 0.15,
+        "max": 3.85,
+        "mean": 0.19,
+        "stddev": 0.1,
+        "p50": 0.18,
+        "p90": 0.25,
+        "p95": 0.3,
+        "p99": 0.37
+      },
+      "opsPerSecond": 5156.3,
+      "wallClockMs": 387.87
+    }
+  ],
+  "totalDurationMs": 7238.95,
+  "reproduce": "pnpm bench:core"
+}

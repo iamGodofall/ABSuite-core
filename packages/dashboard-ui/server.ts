@@ -531,6 +531,47 @@ app.post('/ai/policy/generate', async (req, res) => {
   }
 });
 
+// ─── ABSuite's own performance ───────────────────────────────────────────────
+//
+// The Learn layer. These are the only numbers the product is allowed to publish
+// about itself, and they come from a benchmark that ran on a stated machine.
+// When nothing has been measured the UI shows that, rather than a zero that
+// reads like a measurement.
+
+/** The last recorded core benchmark, or an honest "not measured". */
+app.get('/bench/core', async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.quickbench}/bench/core`);
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'QuickBench is unreachable', measured: false });
+  }
+});
+
+/** Run it here, now, on this machine. Costs CPU, which is why it needs the key. */
+app.post('/bench/core', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.quickbench}/bench/core`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+      },
+      body: JSON.stringify({
+        iterations: Number(req.body?.iterations ?? 500),
+        chainLength: Number(req.body?.chainLength ?? 200),
+      }),
+    });
+    return res.status(response.status).json(data);
+  } catch (error) {
+    return res.status(502).json({
+      error: 'Core benchmark failed',
+      message: (error as Error).message,
+      measured: false,
+    });
+  }
+});
+
 app.post('/benchmark/run', requireAdminAccess, async (req, res) => {
   try {
     const { service, requests = 25 } = req.body ?? {};

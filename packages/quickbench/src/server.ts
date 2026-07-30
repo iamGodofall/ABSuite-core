@@ -3,9 +3,13 @@
  */
 import express from 'express';
 import { capabilityGuard, revocationStoreFromEnv, createServiceMetrics } from '@absuitecore/capkit';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { BenchmarkRunner } from './runner';
 import { availableProviders } from './providers';
 import { toMarkdown, toCsv } from './report';
+import { runCoreSuite } from './core-suite';
+import { renderReport, type BenchReport } from './measure';
 
 const PORT = Number(process.env.QUICKBENCH_PORT || process.env.PORT || 8083);
 const STARTED_AT = Date.now();
@@ -140,6 +144,78 @@ app.get('/history', requireCapability('bench:read'), (req, res) => {
         : null,
     })),
   });
+});
+
+/**
+ * ABSuite's own numbers.
+ *
+ * `/bench/core` is deliberately not behind a capability: the whole point is
+ * that anyone can check what this instance claims about its own speed. It
+ * exposes no execution data, no keys and no tenant information — only how fast
+ * this machine signs and verifies, and which machine that is.
+ *
+ * When nothing has been measured it says so. It never returns zeros, an
+ * estimate or a figure from another machine, because an unmeasured system that
+ * reports numbers is exactly the failure ABSuite exists to catch.
+ */
+const RESULTS_PATH = resolve(
+  process.env.ABSUITE_BENCH_RESULTS || `${process.cwd()}/bench/core-latest.json`
+);
+
+function loadRecordedReport(): BenchReport | null {
+  try {
+    if (!existsSync(RESULTS_PATH)) return null;
+    const parsed = JSON.parse(readFileSync(RESULTS_PATH, 'utf8')) as BenchReport;
+    return parsed?.schema === 'absuite.bench.v1' ? parsed : null;
+  } catch {
+    // A corrupt file is not a measurement. Report "not measured" rather than
+    // half of one.
+    return null;
+  }
+}
+
+/** The most recent run in this process, which beats anything on disk. */
+let liveReport: BenchReport | null = null;
+let running = false;
+
+app.get('/bench/core', (req, res) => {
+  const report = liveReport ?? loadRecordedReport();
+
+  if (!report) {
+    return res.status(200).json({
+      measured: false,
+      reason: 'No benchmark has been run on this machine.',
+      howTo: 'pnpm bench:core',
+      resultsPath: RESULTS_PATH,
+    });
+  }
+
+  if (String(req.query.format) === 'markdown') {
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    return res.status(200).send(renderReport(report));
+  }
+
+  return res.status(200).json({ measured: true, source: liveReport ? 'this process' : RESULTS_PATH, report });
+});
+
+app.post('/bench/core', requireCapability('bench:run'), async (req, res) => {
+  if (running) return fail(res, 409, 'BENCH_BUSY', 'A core benchmark is already running');
+
+  // Signing and SQLite writes are synchronous, so a large run holds the event
+  // loop and this service stops answering health checks. Cap it rather than
+  // letting a benchmark take the service down.
+  const iterations = Math.min(Math.max(Number(req.body?.iterations ?? 500), 1), 5000);
+  const chainLength = Math.min(Math.max(Number(req.body?.chainLength ?? 200), 1), 5000);
+
+  running = true;
+  try {
+    liveReport = await runCoreSuite({ iterations, chainLength });
+    return res.status(200).json({ measured: true, source: 'this process', report: liveReport });
+  } catch (error) {
+    return fail(res, 500, 'BENCH_FAILED', (error as Error).message);
+  } finally {
+    running = false;
+  }
 });
 
 app.get('/compare', requireCapability('bench:read'), (req, res) => {

@@ -57,3 +57,6 @@ desktop.ini
 __pycache__/
 *.pyc
 
+
+# Benchmark history is local; the published measurement is bench/core-latest.json
+bench/history/

@@ -137,6 +137,8 @@ LLM and HTTP benchmarking with statistical regression detection.
 
 | Method | Path | Required scope | Counts against |
 |---|---|---|---|
+| GET | `/bench/core` | _public_ | — |
+| POST | `/bench/core` | `bench:run` | — |
 | GET | `/compare` | `bench:read` | — |
 | GET | `/health` | _public_ | — |
 | GET | `/history` | `bench:read` | — |
@@ -248,4 +250,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_95 HTTP endpoints across 5 services. Generated from source._
+_97 HTTP endpoints across 5 services. Generated from source._

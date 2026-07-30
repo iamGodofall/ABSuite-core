@@ -15,6 +15,8 @@ import {
   Download, Upload, Eye, Hexagon, Network, Gauge, Wrench
 } from 'lucide-react';
 import { useServices, Service } from './hooks/useServices';
+import { PerformanceTab } from './tabs/Performance';
+import { ConstraintsPanel } from './tabs/Govern';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -25,7 +27,22 @@ import './styles/globals.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TabId = 'monitoring' | 'overview' | 'services' | 'ai-studio' | 'benchmarks' | 'connectors' | 'proof' | 'settings';
+/**
+ * The seven layers.
+ *
+ * This console used to be organised around the services that happen to run —
+ * capkit, edge-run, quickbench — which is the shape of our deployment, not the
+ * shape of the problem anyone opens it to solve. Nobody has a "quickbench
+ * question". They have "what did it do, was it allowed, has the record been
+ * altered, and what do we do when two agents disagree".
+ *
+ * So the navigation is the stack itself, in the order trust is actually built:
+ * observe, verify, explain, govern, arbitrate, act, learn. Everything else sits
+ * underneath one of those seven words.
+ */
+type TabId =
+  | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
+  | 'system' | 'settings';
 
 interface LogEntry { time: string; level: 'info' | 'warn' | 'error'; message: string; }
 interface BenchmarkResult { id: string; service: string; type: string; p50: number; p95: number; p99: number; rps: number; status: string; timestamp: string; }
@@ -1385,7 +1402,16 @@ type Verdict = { valid: boolean; reason?: string; contentIntact: boolean; signat
  * public key — the same check an outside auditor performs with no credentials
  * at all — so this demonstrates the claim rather than asserting it.
  */
-const ProofTab = () => {
+/**
+ * Observe, Verify and Explain share one engine.
+ *
+ * All three answer questions about the same records, and splitting them into
+ * three components would mean three copies of the loader, three selections and
+ * three places for them to drift apart. They are one component showing
+ * different panels, so the record you select in Observe is the record you
+ * verify and the record you explain.
+ */
+const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [selected, setSelected] = useState<Trace | null>(null);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
@@ -1552,6 +1578,7 @@ const ProofTab = () => {
   return (
     <div className="space-y-4">
       {/* The headline answer, before any interaction. */}
+      {view !== 'explain' && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className={cn(
           'rounded-xl border p-4',
@@ -1581,12 +1608,31 @@ const ProofTab = () => {
           <div className="text-xs text-text-muted mt-1">Ed25519 · public half below</div>
         </div>
       </div>
+      )}
 
-      <NoticeCard
-        tone="info"
-        title="Cryptographic proof of what your agents actually did"
-        message="Every execution is hash-chained and signed with Ed25519. Verification uses only the public key — which cannot produce a signature — so an auditor can confirm a record without being able to forge one."
-      />
+      {view === 'observe' && (
+        <NoticeCard
+          tone="info"
+          title="Observation is automatic. Action is granted."
+          message="Every execution an instrumented agent performs is captured here without anyone deciding to capture it — the subject, the authority it held, the steps it took and the hashes of what it processed. Watching costs nothing and asks no permission; doing something about it does."
+        />
+      )}
+
+      {view === 'verify' && (
+        <NoticeCard
+          tone="info"
+          title="Cryptographic proof of what your agents actually did"
+          message="Every execution is hash-chained and signed with Ed25519. Verification uses only the public key — which cannot produce a signature — so an auditor can confirm a record without being able to forge one."
+        />
+      )}
+
+      {view === 'explain' && (
+        <NoticeCard
+          tone="info"
+          title="AI that explains AI does not need an AI"
+          message="Every sentence below is derived from a field that was signed, and names the field it came from. Nothing is generated: run it twice and it reads identically, which is what lets you check the prose against the record instead of trusting it."
+        />
+      )}
 
       {error && <NoticeCard tone="error" title="Could not load proof data" message={error} />}
 
@@ -1627,6 +1673,7 @@ const ProofTab = () => {
             </div>
           )}
 
+          {view === 'verify' && (
           <div className="mt-4 pt-3 border-t border-border">
             <button className="px-4 py-2 rounded-lg bg-bg-primary border border-border hover:border-border-strong text-text-primary font-semibold text-sm transition-all disabled:opacity-50" onClick={() => void verifyChain()} disabled={busy}>
               Verify the entire chain
@@ -1639,13 +1686,20 @@ const ProofTab = () => {
               </p>
             )}
           </div>
+          )}
         </div>
 
         <div className="bg-bg-tertiary border border-border rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Verify a record</h3>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">
+            {view === 'observe' ? 'What this execution did' : view === 'explain' ? 'Explain a record' : 'Verify a record'}
+          </h3>
 
           {!selected ? (
-            <p className="text-sm text-text-muted">Select an execution to inspect and verify it.</p>
+            <p className="text-sm text-text-muted">
+              {view === 'observe' ? 'Select an execution to see the authority it held and every step it took.'
+                : view === 'explain' ? 'Select an execution and have it explained from its signed fields.'
+                : 'Select an execution to inspect and verify it.'}
+            </p>
           ) : (
             <>
               <dl className="text-xs space-y-1 mb-3">
@@ -1672,7 +1726,7 @@ const ProofTab = () => {
                   had ever rendered them — the "see every step, in order, with
                   timestamps" the campaign artwork promises was in the database
                   and invisible. */}
-              {selected.steps && selected.steps.length > 0 && (
+              {view !== 'explain' && selected.steps && selected.steps.length > 0 && (
                 <div className="mb-4">
                   <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-2">
                     Timeline · {selected.steps.length} step(s)
@@ -1692,6 +1746,7 @@ const ProofTab = () => {
               )}
 
               {/* Explain — derived, not generated. */}
+              {view === 'explain' && (
               <div className="mb-3">
                 <button onClick={explain} disabled={busy}
                   className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
@@ -1721,8 +1776,10 @@ const ProofTab = () => {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Replay. */}
+              {view === 'verify' && (<>
               <details className="mb-3 rounded-lg border border-border bg-bg-primary/40 p-3">
                 <summary className="text-xs font-semibold text-text-primary cursor-pointer">
                   Replay this execution
@@ -1803,10 +1860,11 @@ const ProofTab = () => {
                   {verdict.reason && <p className="text-xs text-text-muted mt-2">{verdict.reason}</p>}
                 </div>
               )}
+              </>)}
             </>
           )}
 
-          {publicKey && (
+          {view === 'verify' && publicKey && (
             <details className="mt-4">
               <summary className="text-xs text-text-muted cursor-pointer">Public key an auditor would use</summary>
               <pre className="text-[10px] font-mono text-text-muted mt-2 overflow-x-auto">{publicKey}</pre>
@@ -1972,26 +2030,64 @@ const MonitoringTab = () => {
 
 // ─── Main App ────────────────────────────────────────────────────────────────
 
-const TAB_CONFIG: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  // Evidence first, deliberately.
-  //
-  // This opened on six service-health tiles — the same first screen as every
-  // other ops console, and not the reason anyone would choose this one. The
-  // question ABSuite alone can answer is "what did the agent do, was it
-  // allowed, and has the record been altered?", so that is what it opens on.
-  // Infrastructure health still matters; it is just not the headline.
-  { id: 'proof', label: 'Evidence', icon: Shield },
-  { id: 'monitoring', label: 'Monitoring', icon: Network },
-  { id: 'overview', label: 'System', icon: Home },
-  { id: 'services', label: 'Services', icon: Server },
-  { id: 'ai-studio', label: 'AI Studio', icon: Bot },
-  { id: 'benchmarks', label: 'Benchmarks', icon: Gauge },
-  { id: 'connectors', label: 'Connectors', icon: Network },
-  { id: 'settings', label: 'Settings', icon: Wrench },
+const TAB_CONFIG: {
+  id: TabId;
+  label: string;
+  layer?: number;
+  question: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  // The seven layers, in the order trust is built. Each label is a verb,
+  // because each one is something the system does — and the question beneath it
+  // is the one a person actually arrived with.
+  { id: 'observe',   layer: 1, label: 'Observe',   question: 'What did the agents do?',            icon: Eye },
+  { id: 'verify',    layer: 2, label: 'Verify',    question: 'Has any of it been altered?',        icon: Shield },
+  { id: 'explain',   layer: 3, label: 'Explain',   question: 'What does this record mean?',        icon: MessageSquare },
+  { id: 'govern',    layer: 4, label: 'Govern',    question: 'What is it allowed to do?',          icon: Wrench },
+  { id: 'arbitrate', layer: 5, label: 'Arbitrate', question: 'Who is right when they disagree?',   icon: Network },
+  { id: 'act',       layer: 6, label: 'Act',       question: 'What can it reach, and is it up?',   icon: Zap },
+  { id: 'learn',     layer: 7, label: 'Learn',     question: 'How fast is it, really?',            icon: Gauge },
+  // Not layers. The machinery underneath.
+  { id: 'system',   label: 'System',   question: 'Infrastructure health',  icon: Home },
+  { id: 'settings', label: 'Settings', question: 'Keys and configuration', icon: Server },
 ];
 
+/** Everything the Act layer can reach, and whether it is up. */
+const ActTab = ({ services, demoMode, onServiceAction }: {
+  services: Service[];
+  demoMode: boolean;
+  onServiceAction: (id: string, action: 'start' | 'stop' | 'restart') => void;
+}) => (
+  <div className="space-y-6">
+    <NoticeCard tone="info"
+      title="Observation is automatic. Action is granted."
+      message="Nothing here runs because ABSuite decided it should. Every execution surface below acts only under a capability that was issued to it, and every action it takes lands in Observe as a signed record." />
+    <ServicesTab services={services} onServiceAction={onServiceAction} />
+    <ConnectorsTab demoMode={demoMode} />
+  </div>
+);
+
+/** Layer 7 — what the system measures about itself, and about models. */
+const LearnTab = ({ demoMode }: { demoMode: boolean }) => (
+  <div className="space-y-6">
+    <PerformanceTab />
+    <div>
+      <h3 className="text-sm font-semibold text-text-primary mb-3">Benchmark a model</h3>
+      <BenchmarksTab demoMode={demoMode} />
+    </div>
+  </div>
+);
+
+/** Layer 4 — the rules, the refusals, and the tokens that carry authority. */
+const GovernTab = ({ demoMode }: { demoMode: boolean }) => (
+  <div className="space-y-6">
+    <ConstraintsPanel />
+    <AIStudioTab demoMode={demoMode} />
+  </div>
+);
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('proof');
+  const [activeTab, setActiveTab] = useState<TabId>('observe');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -2033,13 +2129,14 @@ export default function App() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'overview': return <OverviewTab services={services} demoMode={demoMode} error={error} onServiceAction={handleServiceAction} />;
-      case 'services': return <ServicesTab services={services} onServiceAction={handleServiceAction} />;
-      case 'ai-studio': return <AIStudioTab demoMode={demoMode} />;
-      case 'benchmarks': return <BenchmarksTab demoMode={demoMode} />;
-      case 'connectors': return <ConnectorsTab demoMode={demoMode} />;
-      case 'proof': return <ProofTab />;
-      case 'monitoring': return <MonitoringTab />;
+      case 'observe': return <ProofTab view="observe" />;
+      case 'verify': return <ProofTab view="verify" />;
+      case 'explain': return <ProofTab view="explain" />;
+      case 'govern': return <GovernTab demoMode={demoMode} />;
+      case 'arbitrate': return <MonitoringTab />;
+      case 'act': return <ActTab services={services} demoMode={demoMode} onServiceAction={handleServiceAction} />;
+      case 'learn': return <LearnTab demoMode={demoMode} />;
+      case 'system': return <OverviewTab services={services} demoMode={demoMode} error={error} onServiceAction={handleServiceAction} />;
       case 'settings': return <SettingsTab services={services} demoMode={demoMode} />;
     }
   };
@@ -2060,23 +2157,47 @@ export default function App() {
             {!sidebarCollapsed && <span className="font-bold text-text-primary">ABSuite</span>}
           </div>
 
-          {/* Nav */}
+          {/* Nav — the stack, in order. */}
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-            {TAB_CONFIG.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-                  activeTab === id
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
-                    : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50',
-                  sidebarCollapsed && 'justify-center px-0'
+            {!sidebarCollapsed && (
+              <div className="px-3 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
+                The stack
+              </div>
+            )}
+            {TAB_CONFIG.map(({ id, label, layer, question, icon: Icon }) => (
+              <React.Fragment key={id}>
+                {/* The seven layers are the product; the last two are plumbing. */}
+                {layer === undefined && id === 'system' && (
+                  <div className={cn('pt-3 mt-2 border-t border-border/40', sidebarCollapsed && 'mx-2')}>
+                    {!sidebarCollapsed && (
+                      <div className="px-3 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
+                        Underneath
+                      </div>
+                    )}
+                  </div>
                 )}
-              >
-                <Icon className={cn('w-5 h-5 shrink-0', activeTab === id ? 'text-emerald-400' : '')} />
-                {!sidebarCollapsed && <span>{label}</span>}
-              </button>
+                <button
+                  onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+                  title={sidebarCollapsed ? `${label} — ${question}` : question}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                    activeTab === id
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                      : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50',
+                    sidebarCollapsed && 'justify-center px-0'
+                  )}
+                >
+                  <Icon className={cn('w-5 h-5 shrink-0', activeTab === id ? 'text-emerald-400' : '')} />
+                  {!sidebarCollapsed && (
+                    <span className="flex-1 text-left flex items-baseline gap-2">
+                      <span>{label}</span>
+                      {layer !== undefined && (
+                        <span className="text-[10px] font-mono text-text-muted/60">{layer}</span>
+                      )}
+                    </span>
+                  )}
+                </button>
+              </React.Fragment>
             ))}
           </nav>
 
@@ -2148,13 +2269,30 @@ export default function App() {
 
           {/* Content */}
           <main className="flex-1 overflow-y-auto p-5 dot-grid-bg">
+            {/* Which layer you are standing in, and the question it answers. A
+                tab label alone leaves the reader to guess what this screen is
+                for; the question is the whole reason they clicked. */}
+            {(() => {
+              const current = TAB_CONFIG.find(tab => tab.id === activeTab);
+              if (!current) return null;
+              return (
+                <div className="mb-5">
+                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-500/70 mb-1">
+                    {current.layer !== undefined ? `Layer ${current.layer} of 7` : 'Underneath the stack'}
+                  </div>
+                  <h1 className="text-2xl font-bold text-text-primary leading-tight">{current.label}</h1>
+                  <p className="text-sm text-text-muted mt-0.5">{current.question}</p>
+                </div>
+              );
+            })()}
+
             {/* Demo mode is worth announcing anywhere, because it changes what the
                 numbers mean. "Live mode enabled" is a statement about service
                 health, so it belongs on the tabs about service health — on the
                 Evidence tab it pushed the answer the reader came for below a
                 banner telling them something they did not ask. An actual error
                 still surfaces everywhere. */}
-            {(demoMode || error || activeTab === 'overview' || activeTab === 'services') && (
+            {(demoMode || error || activeTab === 'system' || activeTab === 'act') && (
               <div className="mb-4">
                 {demoMode ? (
                   <NoticeCard tone="warn" title="Demo mode enabled" message="You are viewing showcase behavior in this same dashboard URI. Switch back to Live for the real suite state." />
@@ -2228,13 +2366,20 @@ export default function App() {
                 <span className="font-bold text-text-primary">ABSuite</span>
               </div>
               <nav className="py-4 px-3 space-y-1">
-                {TAB_CONFIG.map(({ id, label, icon: Icon }) => (
+                {TAB_CONFIG.map(({ id, label, layer, question, icon: Icon }) => (
                   <button
                     key={id}
                     onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
-                    className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all', activeTab === id ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'text-text-muted hover:text-text-primary')}
+                    className={cn('w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all', activeTab === id ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'text-text-muted hover:text-text-primary')}
                   >
-                    <Icon className="w-5 h-5" /> {label}
+                    <Icon className="w-5 h-5 shrink-0 mt-0.5" />
+                    <span className="text-left">
+                      <span className="flex items-baseline gap-2">
+                        {label}
+                        {layer !== undefined && <span className="text-[10px] font-mono opacity-60">{layer}</span>}
+                      </span>
+                      <span className="block text-[11px] font-normal opacity-70 leading-snug">{question}</span>
+                    </span>
                   </button>
                 ))}
               </nav>

@@ -54,6 +54,17 @@ jobs:
       - name: Every dashboard call has a server route
         run: pnpm check:routes
 
+      # The dashboard advertises seven things ABSuite refuses to do and names
+      # the test enforcing each. A renamed or deleted test turns that panel into
+      # a guarantee nobody keeps, which is worse than never claiming it.
+      - name: Every advertised refusal still has a test behind it
+        run: pnpm check:constraints
+
+      # Published performance figures must match the benchmark data in the repo.
+      # Hand-edited numbers are how honest projects start lying by accident.
+      - name: Performance doc matches the measured data
+        run: node scripts/gen-performance-doc.mjs --check
+
   test:
     name: Test
     runs-on: ubuntu-latest

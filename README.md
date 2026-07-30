@@ -260,14 +260,40 @@ As services, they listen on 8081 (CapKit), 8082 (Edge-Run), 8083 (QuickBench),
 ```
 
 Each step names the thing that performs it. Nothing in that column is
-aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 94.
+aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 97.
+
+---
+
+## How fast it is
+
+Measured, not estimated. `pnpm bench:core` runs the real signing, storage and
+verification paths — no stubs — and writes the numbers below. On a 4-vCPU
+Intel Xeon @ 2.80GHz, Node 22.22.2:
+
+| Operation | ops/sec | p50 | p95 | p99 |
+|---|---:|---:|---:|---:|
+| Sign an execution into the chain | 734 | 1.21 ms | 2.36 ms | 3.47 ms |
+| Verify a record (Ed25519 + hash) | 6,085 | 0.15 ms | 0.21 ms | 0.27 ms |
+| Verify a 1,000-record chain | 5.6 | 173 ms | 189 ms | 189 ms |
+| Issue a capability token | 51,123 | 0.02 ms | 0.02 ms | 0.06 ms |
+| Check a capability | 40,138 | 0.02 ms | 0.06 ms | 0.10 ms |
+| Explain a record | 5,156 | 0.18 ms | 0.30 ms | 0.37 ms |
+
+Your machine will give different numbers — that is why ours is stated. The
+table is generated from [`bench/core-latest.json`](./bench/core-latest.json) and
+CI fails if the document and the data disagree, so a figure cannot be edited
+into something friendlier. Full method and caveats:
+[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md).
+
+There is no performance claim anywhere in this repository that did not come out
+of that command.
 
 ---
 
 ## Status
 
 ```text
-410 tests                     94 API endpoints
+430 tests                     97 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```
@@ -287,6 +313,7 @@ honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 | [Modules in code](./docs/MODULES.md) | What each package looks like to use |
 | [API reference](./docs/API.md) | Every route, generated from source |
 | [Architecture](./docs/ARCHITECTURE.md) | How the pieces fit together |
+| [Performance](./docs/PERFORMANCE.md) | Measured throughput and latency, with the machine |
 | [Principles](./PRINCIPLES.md) | The rules the code is held to |
 | [Constitution](./docs/CONSTITUTION.md) | What this will never become |
 | [Security model](./docs/SECURITY-MODEL.md) | Threat model and defence in depth |

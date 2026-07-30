@@ -32,3 +32,16 @@ export {
 } from './runner';
 
 export { toMarkdown, toCsv, summaryLine } from './report';
+
+export {
+  measureOperation,
+  measureSuite,
+  describeEnvironment,
+  renderReport,
+  type MeasureSpec,
+  type OperationMeasurement,
+  type BenchReport,
+  type BenchEnvironment,
+} from './measure';
+
+export { runCoreSuite, coreSuiteSpecs, type CoreSuiteOptions } from './core-suite';

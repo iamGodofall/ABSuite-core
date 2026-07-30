@@ -1,7 +1,7 @@
 {
   "name": "absuite-core",
   "version": "1.0.0",
-  "description": "ABSuite — Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
+  "description": "ABSuite \u2014 Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -26,8 +26,11 @@
     "test:coverage": "jest --coverage --coverageReporters=lcov --coverageReporters=text-summary",
     "test:packages": "pnpm -r test",
     "check:routes": "node scripts/check-dashboard-routes.mjs",
-    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes",
-    "check:live": "node scripts/check-live-routes.mjs"
+    "check:constraints": "node scripts/check-constraints.mjs",
+    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints",
+    "check:live": "node scripts/check-live-routes.mjs",
+    "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",
+    "bench:doc": "node scripts/gen-performance-doc.mjs"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"
