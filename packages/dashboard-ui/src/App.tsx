@@ -17,7 +17,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot, Menu, Zap, Shield, Bell, ChevronLeft, ChevronRight,
   Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
-  Download, Upload, Eye, Hexagon, Network, Gauge, Wrench
+  Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
+  Layers, Scale, HelpCircle
 } from 'lucide-react';
 import { useServices, Service } from './hooks/useServices';
 import { PerformanceTab } from './tabs/Performance';
@@ -63,7 +64,10 @@ import './styles/globals.css';
  */
 type TabId =
   | 'operations'
+  // The seven-stage loop.
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
+  // The four standing views. Not stages — the things the stages act on.
+  | 'evidence' | 'policies' | 'agents' | 'unknowns'
   | 'system' | 'settings';
 
 interface RecentGeneration { id: string; type: 'token' | 'policy'; provider: string; preview: string; timestamp: string; }
@@ -880,8 +884,6 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
 
       {/* The global view opens the Observe layer: what is held, right now,
           counted rather than estimated. */}
-      {view === 'observe' && <GlobalView />}
-
       {/* The recorder, recording. Placed above everything because it is the one
           thing on this screen that a screenshot cannot convey. */}
       {view === 'observe' && (
@@ -893,8 +895,6 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
         />
       )}
 
-      {view === 'observe' && <AttentionPanel />}
-      {view === 'observe' && <UnknownsPanel />}
 
       {view === 'observe' && (
         <NoticeCard
@@ -1272,8 +1272,14 @@ const TAB_CONFIG: {
   { id: 'arbitrate', layer: 5, label: 'Arbitrate', question: 'Who is right when they disagree?',   icon: Network },
   { id: 'act',       layer: 6, label: 'Act',       question: 'What is running, and what can it reach?', icon: Zap },
   { id: 'learn',     layer: 7, label: 'Learn',     question: 'How fast is it, really?',            icon: Gauge },
+  // Not stages. The four standing things the stages act on — each had been a
+  // panel buried inside a stage, which is where a capability goes to be unread.
+  { id: 'evidence', label: 'Evidence',     question: 'What is held, and where is it thin?', icon: Layers },
+  { id: 'agents',   label: 'Agents',       question: 'Who has been acting here?',           icon: Bot },
+  { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
+  { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
   // Not layers. The machinery underneath.
-  { id: 'system',   label: 'Machine room', question: 'The suite that runs the stack', icon: Server },
+  { id: 'system',   label: 'System health', question: 'The suite that runs the stack', icon: Server },
   { id: 'settings', label: 'Settings',     question: 'Keys and configuration',        icon: Wrench },
 ];
 
@@ -1291,13 +1297,32 @@ const ActTab = () => <ActLayer />;
 /**
  * Layer 4 — the rules, the refusals, and the tokens that carry authority.
  */
-const GovernTab = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }) => (
+const GovernTab = () => (
   <div className="space-y-6">
-    <Agents onOpenRecord={onOpenRecord} />
     <AuthorityPanel />
-    <Obligations />
-    <ConstraintsPanel />
     <AIStudioTab />
+  </div>
+);
+
+/**
+ * View 9 — the evidence base, and where it is thin.
+ *
+ * What is held, counted on this request, beside the records that are failed,
+ * unsigned or unauthorised on their face. These two belong together: a count of
+ * evidence without a count of its weak points flatters the archive.
+ */
+const EvidenceTab = () => (
+  <div className="space-y-6">
+    <GlobalView />
+    <AttentionPanel />
+  </div>
+);
+
+/** View 10 — what the system refuses, and what each side owes the other. */
+const PoliciesTab = () => (
+  <div className="space-y-6">
+    <ConstraintsPanel />
+    <Obligations />
   </div>
 );
 
@@ -1395,7 +1420,7 @@ export default function App() {
         </div>
       );
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
-      case 'govern': return <GovernTab onOpenRecord={setOpenRecordId} />;
+      case 'govern': return <GovernTab />;
       case 'arbitrate': return <ArbitrateLayer />;
       case 'act': return <ActTab />;
       case 'learn': return (
@@ -1411,6 +1436,10 @@ export default function App() {
           </div>
         </div>
       );
+      case 'evidence': return <EvidenceTab />;
+      case 'agents': return <Agents onOpenRecord={setOpenRecordId} />;
+      case 'policies': return <PoliciesTab />;
+      case 'unknowns': return <UnknownsPanel />;
       case 'system': return <MachineRoom services={services} error={error} />;
       case 'settings': return <SettingsTab services={services} />;
     }
@@ -1431,9 +1460,12 @@ export default function App() {
             </div>
             {!sidebarCollapsed && (
               <span className="leading-tight">
-                <span className="block font-bold text-text-primary">ABSuite</span>
+                <span className="block font-bold text-[#FFFFFF]">ABSuite</span>
                 <span className="block text-[9px] font-mono uppercase tracking-[0.22em] text-[#00D9FF]/70">
                   Trust Operations Center
+                </span>
+                <span className="block text-[9px] text-text-muted/60 italic mt-0.5">
+                  The Future Is Accountable.
                 </span>
               </span>
             )}
@@ -1449,7 +1481,12 @@ export default function App() {
                     The stack
                   </div>
                 )}
-                {/* The seven layers are the product; the last two are plumbing. */}
+                {/* The four standing views sit between the loop and the plumbing. */}
+                {id === 'evidence' && !sidebarCollapsed && (
+                  <div className="px-3 pt-4 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
+                    The record
+                  </div>
+                )}
                 {layer === undefined && id === 'system' && (
                   <div className={cn('pt-3 mt-2 border-t border-border/40', sidebarCollapsed && 'mx-2')}>
                     {!sidebarCollapsed && (
@@ -1568,7 +1605,9 @@ export default function App() {
                       ? `Layer ${current.layer} of 7`
                       : current.id === 'operations'
                         ? 'Trust Operations Center'
-                        : 'Underneath the stack'}
+                        : current.id === 'system' || current.id === 'settings'
+                          ? 'Underneath the stack'
+                          : 'The record'}
                   </div>
                   <h1 className="text-2xl font-bold text-text-primary leading-tight">{current.label}</h1>
                   <p className="text-sm text-text-muted mt-0.5">{current.question}</p>

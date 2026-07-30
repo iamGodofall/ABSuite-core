@@ -1,0 +1,236 @@
+# Build the room people will sit in when intelligence becomes infrastructure.
+
+---
+
+The UI is not decoration. It is part of the product's philosophy.
+
+Every design decision answers one question:
+
+**What would the control room for accountable intelligence look like?**
+
+---
+
+## Do not build a dashboard.
+
+Build a Trust Operations Center.
+
+The user should feel like they have walked into Mission Control for autonomous
+systems.
+
+This is not Grafana.
+This is not Kibana.
+This is not Datadog.
+This is not another enterprise admin panel.
+
+ABSuite observes, verifies, governs, arbitrates, acts, learns, and explains
+intelligence in real time.
+
+The interface should communicate:
+
+- Trust.
+- Evidence.
+- Accountability.
+- Permanence.
+- Intelligence.
+- Scale.
+- The future.
+
+When the application opens, the user should feel:
+
+> "I am looking at intelligence becoming accountable."
+
+Everything in the interface should feel alive.
+
+Not busy.
+Alive.
+
+There is a difference.
+
+Alive means:
+
+- Traces moving.
+- Evidence chains forming.
+- Particles flowing.
+- Cubes connecting.
+- Policy decisions appearing.
+- Services pulsing.
+- Unknowns surfacing.
+- Verification occurring.
+- Agent activity changing.
+
+Nothing should feel static.
+
+The UI should behave like a living system.
+
+---
+
+## Design language
+
+**Primary primitive:** the cube.
+
+**Secondary:** hexagons, circular rings, particle fields.
+
+**Colour system**
+
+| Role | Value |
+| --- | --- |
+| Background | `#05070A` |
+| Surface | `#0D1117` |
+| Primary | `#00FF88` |
+| Secondary | `#00D9FF` |
+| White | `#FFFFFF` |
+
+White is reserved for peak emphasis — the wordmark — not for body copy. Pure
+white halates against the `#05070A` ground at small sizes, so body text sits at
+`#E8F5F0`: 94% lightness with a faint green cast, which reads cleanly on a
+near-black field lit by `#00FF88`. The deviation is recorded here rather than
+left to drift, because `check-ui-philosophy.mjs` would otherwise pass on a
+colour system nobody uses.
+
+**Motion principles**
+
+- Slow.
+- Intentional.
+- Meaningful.
+- Never distracting.
+
+Animations communicate **state**, not aesthetics.
+
+| State | Motion |
+| --- | --- |
+| Service healthy | Slow green pulse |
+| Verification running | Trace line animation |
+| Evidence created | Brief particle convergence |
+| Policy violation | Red interruption |
+| `UNKNOWN` | Amber pulse |
+| `ABSENT` | Dimmed state |
+| `FAILED` | Strong visual contrast |
+| `DEMONSTRATED` | Stable illumination |
+
+---
+
+## Application structure
+
+### Header
+
+> **ABSuite**
+> Trust Operations Center
+>
+> *"The Future Is Accountable."*
+
+### Centerpiece
+
+A holographic ABSuite cube.
+
+The cube is always present.
+
+The cube rotates slowly.
+
+Every service, agent, policy and verification event connects back to the cube.
+
+The cube is not a logo.
+
+**The cube is the visual representation of trust.**
+
+### Primary views
+
+1. Operations
+2. Observe
+3. Verify
+4. Explain
+5. Govern
+6. Arbitrate
+7. Act
+8. Learn
+9. Evidence
+10. Policies
+11. Agents
+12. Unknown Queue
+13. System Health
+
+### Operations view
+
+Central cube.
+
+Around it: Observe, Verify, Explain, Govern, Arbitrate, Act, Learn.
+
+Live activity streams continuously.
+
+Users should feel like they are overseeing a living ecosystem.
+
+---
+
+## Design references
+
+TRON · Iron Man HUD · Mission Control · Palantir · GitHub · Star Trek LCARS ·
+The Expanse command deck · Modern SIEM products
+
+The result should feel familiar and impossible at the same time.
+
+---
+
+## Critical rule
+
+**Never fake data.**
+
+If a metric does not exist, do not invent one.
+
+ABSuite does not simulate intelligence.
+
+It observes intelligence.
+
+- If there are 8 records, show 8.
+- If there are 496 tests, show 496.
+- If Governance is partly built, say so.
+
+**Truth is part of the visual language.**
+
+---
+
+## Emotional goal
+
+The user should think:
+
+> "This is what operating autonomous civilization will look like."
+
+Not:
+
+> "This is a nice dashboard."
+
+---
+
+## Final test
+
+If someone walks past the screen from ten feet away and says:
+
+> "What is that?"
+
+The answer should be:
+
+> "That's the Trust Operations Center."
+
+And if they ask:
+
+> "What does it do?"
+
+The answer is:
+
+> "It makes intelligence accountable."
+
+---
+
+## How this document is enforced
+
+This is not aspiration filed away. Three things hold it in place:
+
+- **`scripts/check-ui-philosophy.mjs`** — fails the build if the thirteen
+  primary views above are not all reachable from the shell, if the header loses
+  its identity, or if a colour outside the stated system is introduced as a new
+  state colour.
+- **The critical rule outranks every other line here.** Where "alive" and
+  "never fake data" conflict, the data wins and the motion stops. A particle
+  field with nothing behind it is a screensaver, and a screensaver in a trust
+  product is a lie with a frame rate.
+- **Anything this document asks for that the system cannot honestly show is
+  recorded as unbuilt rather than mocked.** The status of each view is tracked
+  in `docs/ROADMAP.md`, not simulated on screen.
