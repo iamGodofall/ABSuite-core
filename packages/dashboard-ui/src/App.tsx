@@ -12,10 +12,10 @@
  * furniture, and they live at the bottom of a layer called Act.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bot, Zap, Shield,
+  Bot, Zap, Shield, Boxes, Activity, Search, Users,
   Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
   Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
   Layers, Scale, HelpCircle
@@ -40,7 +40,11 @@ import { MachineRoom } from './tabs/MachineRoom';
 import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
 import { type Integrity } from './components/TrustCube';
-import { Room, type RoomNode, type Determination } from './room/Room';
+import { Cockpit, type RoomNode, type Determination } from './room/Cockpit';
+import {
+  Panel, SystemHealth, LiveActivity, UnknownQueue, AgentsAttention,
+  EvidenceStream, ConstitutionalReminder, type ActivityRow, type Stage,
+} from './room/panels';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1359,7 +1363,19 @@ export default function App() {
    * streamed yet, Observe rendered ABSENT — "nothing recorded" — about a log
    * that was not empty. Understating is still misstating.
    */
-  const [figures, setFigures] = useState<{ total: number; withoutScope: number; failures: number } | null>(null);
+  const [figures, setFigures] = useState<{ total: number; withoutScope: number; failures: number; subjects: number } | null>(null);
+  const [recent, setRecent] = useState<ActivityRow[] | null>(null);
+  const [latestId, setLatestId] = useState<string | null>(null);
+  const [latestStages, setLatestStages] = useState<Stage[]>([]);
+  const [queue, setQueue] = useState<{ total: number; breakdown: { label: string; count: number }[] } | null>(null);
+  const [attention, setAttention] = useState<{ subject: string; actions: number; tags: { label: string; tone: 'warn' | 'bad' | 'ok' }[]; detail?: string }[]>([]);
+  /** Records held, so an empty attention panel can say which kind of empty. */
+  const [subjectsSeen, setSubjectsSeen] = useState(0);
+  const [clock, setClock] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => {
     let active = true;
     const read = async () => {
@@ -1369,10 +1385,10 @@ export default function App() {
         if (!active) return;
         if (!res.ok) { setIntegrity('UNKNOWN'); return; }
         const data = (await res.json()) as {
-          total: number; withoutScope: number; failures: number;
+          total: number; withoutScope: number; failures: number; subjects: number;
           chain: { valid: boolean; checkable?: boolean };
         };
-        setFigures({ total: data.total, withoutScope: data.withoutScope ?? 0, failures: data.failures ?? 0 });
+        setFigures({ total: data.total, withoutScope: data.withoutScope ?? 0, failures: data.failures ?? 0, subjects: data.subjects ?? 0 });
         if (data.total === 0) setIntegrity('ABSENT');
         else if (data.chain?.checkable === false) setIntegrity('UNKNOWN');
         else setIntegrity(data.chain?.valid ? 'DEMONSTRATED' : 'FAILED');
@@ -1386,6 +1402,101 @@ export default function App() {
     const timer = window.setInterval(read, 10_000);
     return () => { active = false; window.clearInterval(timer); };
   }, [liveExecutions.length]);
+
+  /**
+   * What the instruments read.
+   *
+   * Every panel in the design carried an illustrative figure. These are the
+   * real ones. Where an endpoint does not answer the panel says so rather than
+   * falling back to a plausible number.
+   */
+  const readInstruments = useCallback(async () => {
+    const headers = getAdminHeaders();
+    try {
+      const [recordsRes, unknownRes, attentionRes] = await Promise.all([
+        fetch('/executions?limit=12', { headers }),
+        fetch('/executions/unknowns?limit=200', { headers }),
+        fetch('/executions/attention?limit=200', { headers }),
+      ]);
+
+      if (recordsRes.ok) {
+        const payload = (await recordsRes.json()) as {
+          executions: { id: string; subject: string; action: string; outcome: string; startedAt: string; scope?: string[]; governance?: unknown; outputHash?: string }[];
+        };
+        const rows = payload.executions ?? [];
+        setRecent(rows.map(record => ({
+          id: record.id,
+          time: new Date(record.startedAt).toLocaleTimeString('en-GB', { hour12: false }),
+          subject: record.subject,
+          action: record.action,
+          state: record.outcome === 'failure' ? 'FAILED'
+            : !record.scope || record.scope.length === 0 ? 'UNSCOPED'
+            : 'DEMONSTRATED',
+        })));
+
+        const newest = rows[0];
+        setLatestId(newest?.id ?? null);
+        // A stage lights only when the record actually carries what it needs.
+        setLatestStages(newest ? [
+          { name: 'Action', note: 'recorded', reached: true, at: new Date(newest.startedAt).toLocaleTimeString('en-GB', { hour12: false }) },
+          { name: 'Evidence', note: newest.outputHash ? 'captured' : 'no output hash', reached: Boolean(newest.outputHash) },
+          { name: 'Verification', note: integrity === 'DEMONSTRATED' ? 'intact' : integrity === 'FAILED' ? 'broken' : 'not checked', reached: integrity === 'DEMONSTRATED' },
+          { name: 'Policy', note: newest.scope?.length ? 'scoped' : 'no scope', reached: Boolean(newest.scope?.length) },
+          { name: 'Governance', note: newest.governance ? 'applied' : 'no rule named', reached: Boolean(newest.governance) },
+          { name: 'Ledger', note: 'hash-chained', reached: true },
+        ] : []);
+      } else setRecent([]);
+
+      if (unknownRes.ok) {
+        const payload = (await unknownRes.json()) as { queue?: { resolution: string; examples?: string[] }[] };
+        const items = payload.queue ?? [];
+        setQueue({
+          total: items.reduce((sum, item) => sum + (item.examples?.length ?? 0), 0),
+          breakdown: items.slice(0, 5).map(item => ({
+            label: item.resolution.length > 34 ? `${item.resolution.slice(0, 32)}…` : item.resolution,
+            count: item.examples?.length ?? 0,
+          })),
+        });
+      } else setQueue(null);
+
+      if (attentionRes.ok) {
+        // The key is `items`, not `records`. Reading the wrong one produced an
+        // empty panel that said "no subject has acted yet" while three had —
+        // an empty result and a false statement about why it was empty.
+        const payload = (await attentionRes.json()) as {
+          items?: { subject: string; action: string; outcome: string; scope?: string[]; governance?: unknown }[];
+          held?: number;
+        };
+        setSubjectsSeen(payload.held ?? 0);
+        const bySubject = new Map<string, { actions: number; failed: number; unscoped: number; ungoverned: number; action?: string }>();
+        for (const record of payload.items ?? []) {
+          const entry = bySubject.get(record.subject) ?? { actions: 0, failed: 0, unscoped: 0, ungoverned: 0 };
+          entry.actions += 1;
+          if (record.outcome === 'failure') entry.failed += 1;
+          if (!record.scope?.length) entry.unscoped += 1;
+          if (!record.governance) entry.ungoverned += 1;
+          entry.action = record.action;
+          bySubject.set(record.subject, entry);
+        }
+        setAttention([...bySubject.entries()].map(([subject, entry]) => {
+          const tags: { label: string; tone: 'warn' | 'bad' | 'ok' }[] = [];
+          if (entry.unscoped) tags.push({ label: `${entry.unscoped} unscoped`, tone: 'warn' });
+          if (entry.failed) tags.push({ label: `${entry.failed} failed`, tone: 'bad' });
+          if (entry.ungoverned) tags.push({ label: `${entry.ungoverned} no rule`, tone: 'warn' });
+          if (tags.length === 0) tags.push({ label: 'nothing unproven', tone: 'ok' });
+          return { subject, actions: entry.actions, tags, detail: entry.action };
+        }));
+      }
+    } catch {
+      setRecent(null); setQueue(null);
+    }
+  }, [integrity]);
+
+  useEffect(() => {
+    void readInstruments();
+    const timer = window.setInterval(() => void readInstruments(), 8000);
+    return () => window.clearInterval(timer);
+  }, [readInstruments]);
 
   /** Only records the socket actually delivered as new. */
   const arrivals = React.useMemo(
@@ -1508,34 +1619,15 @@ export default function App() {
     });
   }, [integrity, services, figures]);
 
+  const upCount = services.filter(service => service.status === 'up').length;
+  const systemState: Determination =
+    services.length === 0 ? 'UNKNOWN'
+      : upCount === services.length ? 'DEMONSTRATED'
+      : upCount === 0 ? 'FAILED' : 'UNKNOWN';
+
   return (
-    <div className={cn('h-screen w-screen overflow-hidden bg-bg-primary text-text-primary', theme)}>
-      {/* One thin band. Not a header bar with an avatar and a bell — the two
-          things that must be reachable from anywhere: asking the log a
-          question, and knowing whether anything is being observed at all. */}
-      <div className="absolute top-0 inset-x-0 z-30 flex items-center gap-4 px-6 py-3 pointer-events-none">
-        <div className="flex-1 max-w-xl pointer-events-auto">
-          <AskBar onOpenRecord={setOpenRecordId} />
-        </div>
-        <div className="flex items-center gap-2 ml-auto pointer-events-auto">
-          <span className={cn('w-2 h-2 rounded-full', connected ? 'bg-[#00FF88] live-pulse' : 'bg-red-500')} />
-          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted">
-            {loading ? 'syncing' : connected ? 'observing' : 'not connected'}
-          </span>
-        </div>
-      </div>
-
-      {error && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 max-w-xl w-[92%]">
-          <NoticeCard
-            tone="error"
-            title="A service is not answering"
-            message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}
-          />
-        </div>
-      )}
-
-      <Room
+    <div className={cn(theme)}>
+      <Cockpit
         nodes={nodes}
         active={openRecordId ? null : activeTab}
         onEnter={id => { setActiveTab(id as TabId); setOpenRecordId(null); }}
@@ -1544,16 +1636,128 @@ export default function App() {
         integrity={integrity}
         arrivals={arrivals}
         verifying={verifying}
+
+        top={
+          <header className="flex items-center gap-4 px-4 py-2.5 border-b border-[#00FF88]/12 shrink-0 flex-wrap">
+            <span className="flex items-center gap-2.5">
+              {/* Placeholder for the supplied logo mark. Swapped for the SVG
+                  when it arrives; the layout does not change. */}
+              <span className="w-9 h-9 flex items-center justify-center border border-[#00FF88]/40 text-[#00FF88]"
+                style={{ clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)' }}>
+                <Boxes className="w-4 h-4" />
+              </span>
+              <span className="leading-tight">
+                <span className="block text-lg font-bold text-[#FFFFFF]">ABSuite</span>
+                <span className="block text-[8px] font-mono uppercase tracking-[0.24em] text-text-muted">
+                  Trust Operations Center
+                </span>
+              </span>
+            </span>
+
+            <span className="hidden md:block text-[11px] font-mono uppercase tracking-[0.22em] text-[#00FF88]/80">
+              The Future Is Accountable.
+            </span>
+
+            <span className="ml-auto flex items-center gap-2 flex-wrap">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[#00FF88]/15 bg-[#0D1117]/70">
+                <span className={cn('w-1.5 h-1.5 rounded-full',
+                  systemState === 'DEMONSTRATED' ? 'bg-[#00FF88] live-pulse'
+                    : systemState === 'FAILED' ? 'bg-red-500' : 'bg-amber-400')} />
+                <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-secondary">
+                  {services.length === 0 ? 'services not checked' : `${upCount}/${services.length} services answered`}
+                </span>
+              </span>
+
+              <span className="px-2.5 py-1 rounded-md border border-[#00FF88]/15 bg-[#0D1117]/70 text-[10px] font-mono text-text-secondary tabular-nums">
+                {clock.toISOString().slice(11, 19)} UTC
+              </span>
+
+              <span className="px-2.5 py-1 rounded-md border border-[#00FF88]/15 bg-[#0D1117]/70 leading-tight text-right">
+                <span className="block text-[8px] font-mono uppercase tracking-[0.14em] text-text-muted">Chain</span>
+                <span className={cn('block text-[10px] font-mono uppercase tracking-[0.1em]',
+                  integrity === 'DEMONSTRATED' ? 'text-[#00FF88]'
+                    : integrity === 'FAILED' ? 'text-red-400'
+                    : integrity === 'ABSENT' ? 'text-text-muted' : 'text-amber-400')}>
+                  {integrity}
+                </span>
+              </span>
+            </span>
+          </header>
+        }
+
+        left={
+          <>
+            <Panel title="System Health" icon={<Activity className="w-3.5 h-3.5" />}>
+              <SystemHealth services={services} />
+            </Panel>
+            <Panel title="Live Activity" icon={<Activity className="w-3.5 h-3.5" />}>
+              <LiveActivity rows={recent ?? []} onOpen={setOpenRecordId} />
+            </Panel>
+            <Panel title="Unknown Queue" icon={<HelpCircle className="w-3.5 h-3.5" />}>
+              <UnknownQueue
+                total={queue?.total ?? null}
+                breakdown={queue?.breakdown ?? []}
+                onOpen={() => setActiveTab('unknowns')}
+              />
+            </Panel>
+          </>
+        }
+
+        right={
+          <>
+            <Panel title="Ask ABSuite" icon={<Search className="w-3.5 h-3.5" />}>
+              <AskBar onOpenRecord={setOpenRecordId} />
+            </Panel>
+            <Panel title="Agents Requiring Attention" icon={<Users className="w-3.5 h-3.5" />}>
+              <AgentsAttention agents={attention} held={subjectsSeen} />
+            </Panel>
+            <Panel title="Constitutional Reminder" icon={<Shield className="w-3.5 h-3.5" />}>
+              <ConstitutionalReminder />
+            </Panel>
+          </>
+        }
+
+        bottom={
+          <Panel title="Evidence Stream" icon={<Boxes className="w-3.5 h-3.5" />}>
+            <EvidenceStream
+              stages={latestStages}
+              latest={latestId}
+              onOpen={() => latestId && setOpenRecordId(latestId)}
+            />
+          </Panel>
+        }
+
+        footer={
+          <footer className="flex items-center gap-5 px-4 py-2 border-t border-[#00FF88]/12 shrink-0 flex-wrap text-[10px] font-mono text-text-muted/70">
+            <span>ABSuite Core v{__APP_VERSION__}</span>
+            <span className="hidden sm:inline">Evidence is immutable.</span>
+            <span className="hidden md:inline">Truth is not assumed.</span>
+            <span className="hidden lg:inline">Unknown is not an error.</span>
+            <span className="ml-auto flex items-center gap-2">
+              <span className={cn('w-1.5 h-1.5 rounded-full', connected ? 'bg-[#00FF88]' : 'bg-red-500')} />
+              {loading ? 'syncing' : connected ? 'observing' : 'not connected'}
+            </span>
+          </footer>
+        }
       >
         {activeTab && renderTab()}
-      </Room>
+      </Cockpit>
 
-      {/* A record is a depth, not a page. It opens over the room it came from. */}
+      {error && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[92%]">
+          <NoticeCard
+            tone="error"
+            title="A service is not answering"
+            message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}
+          />
+        </div>
+      )}
+
       <AnimatePresence>
         {openRecordId && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute top-14 inset-x-0 bottom-0 z-40 bg-bg-primary/95 backdrop-blur-md overflow-y-auto px-8 py-6"
+            className="fixed top-16 inset-x-0 bottom-8 z-40 bg-[#05070A]/97 backdrop-blur-md overflow-y-auto px-8 py-6"
           >
             <button
               type="button"

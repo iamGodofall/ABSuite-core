@@ -705,3 +705,16 @@
 @keyframes chain-sealed { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; } }
 .chain-link-sealed { animation: chain-sealed 5s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .chain-link-sealed { animation: none; } }
+
+/* The hex field behind the room. Structure, not decoration: it gives the cube
+   somewhere to sit and reads as depth rather than as a pattern. Static on
+   purpose — a moving background would be motion with no cause behind it. */
+.hex-field {
+  background-color: #05070A;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 42%, rgba(0, 255, 136, 0.045), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 100%, rgba(0, 217, 255, 0.035), transparent 70%),
+    repeating-linear-gradient(60deg, rgba(0,255,136,0.020) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(-60deg, rgba(0,255,136,0.020) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(0deg, rgba(0,255,136,0.014) 0 1px, transparent 1px 46px);
+}
