@@ -109,6 +109,37 @@ years were spent making trust infrastructure boringly reliable.
 
 ---
 
+## Known limits, written down before anyone hits them
+
+These are correct today and bounded today. They are recorded here because a
+limit nobody wrote down is discovered at the worst possible moment, and because
+"correct and explicitly limited" is the state this project prefers to "fast and
+misleading".
+
+- **`/executions/attention` and `/executions/unknowns` verify every record they
+  examine.** Ed25519 verification per record, capped by `limit`, with the cap
+  reported in the response. Correct at thousands of records; at millions it
+  wants an index on the flagged predicate and a cursor rather than a limit.
+  This is the first scaling wall the product will hit, ahead of anything else
+  in here.
+- **`verifyChain()` walks the entire chain on every call**, and several reports
+  call it. Fine while a chain is thousands of records; a checkpointing scheme —
+  verify from the last known-good sequence — is the obvious answer and has not
+  been built.
+- **Governance is recorded, not evaluated.** ABSuite stores which rule permitted
+  an action; it does not evaluate policies, version policy documents, replay a
+  governing decision, or run approval workflows. That is why Layer 5 is marked
+  *partly built* and it is the largest single gap in the layer table.
+- **The unknown queue examines a capped window** and says so. It is a sample of
+  the work, not a complete inventory of it, until the cursor above exists.
+
+None of these are correctness problems, and none of them are hidden: every
+endpoint above states its scope in the response. They are the honest list of
+where this stops working well, which is a different document from where it
+stops working.
+
+---
+
 ## Things deliberately not on this roadmap
 
 Recorded so they are refused on purpose rather than forgotten and rediscovered:
