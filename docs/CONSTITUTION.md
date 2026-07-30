@@ -804,7 +804,21 @@ Read the applications back and each one traces to a root:
 | Additive migrations only | 2 | `trace.test.ts` — a chain mixing shapes |
 | The unknown queue | 5 | `server.smoke.test.ts` — listed, never ranked |
 | Overall is the weakest condition | 4 | `conditions.test.ts` — nothing composes upward |
-| No severity, anywhere | — the machine/person boundary below | `server.smoke.test.ts` |
+| No severity on a record or a gap | — the machine/person boundary below | `server.smoke.test.ts` |
+
+**One exception, named rather than buried.** That last row said "no severity,
+anywhere" when it was first written. It was overstated, in the table built to
+stop exactly that: `@absuitecore/trust` carries `severity` on findings and a
+0–100 `reviewPriority`, and the test enforcing the row only covers the CapKit
+report endpoints.
+
+The row is now narrowed to what is true and enforced. `reviewPriority` stays,
+because it does something different from severity: it orders a *review queue* by
+finding density when a team has ten thousand outputs and time for fifty, and it
+says so in its own documentation — not a probability of falsehood, not a
+judgement about the output. That is a defensible tool and a genuine tension with
+the boundary below, so it is written down here instead of being quietly excluded
+from a claim that said "anywhere".
 
 Fifty years from now nobody will remember why `complete: true` exists, or why an
 unknown must carry a resolution. They will understand the third line, and it
