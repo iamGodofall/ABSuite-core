@@ -247,7 +247,10 @@ function buildAgentConfig(prompt: string, model: string): string {
 }
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy', service: 'dashboard', timestamp: new Date().toISOString() });
+  // `service` names the process in the orchestrator's service map, which is
+  // still 'dashboard'; `role` says what it actually is. Renaming the key would
+  // break /status, /start/:id and every caller keyed on it.
+  res.status(200).json({ status: 'healthy', service: 'dashboard', role: 'trust-operations-center', timestamp: new Date().toISOString() });
 });
 
 app.get('/status', async (req, res) => {

@@ -35,13 +35,12 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
-          charts: ['recharts'],
           state: ['zustand']
         }
       }
     }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', 'recharts', 'zustand', 'lucide-react']
+    include: ['react', 'react-dom', 'react-router-dom', 'zustand', 'lucide-react']
   }
 });

@@ -1,5 +1,16 @@
 /**
- * Services Hook for Managing ABSuite Services
+ * What is running underneath, reported without embellishment.
+ *
+ * This hook used to fill in what it did not know. A service that answered its
+ * health check was given `uptime: 100` — a figure nobody measured, derived from
+ * "it responded once, just now". CPU and memory defaulted to 0 rather than to
+ * absent, so an unreported metric was drawn as a real reading of zero. And every
+ * service carried a hardcoded feature list ("Self-Healing", "AI Analyzer") that
+ * described an intention, not an endpoint.
+ *
+ * All three are gone. `health` and `metrics` are now absent when the service did
+ * not report them, and absent is rendered as absent. The one thing this hook can
+ * honestly state is whether something answered, on which port, and when.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -16,18 +27,22 @@ export interface Service {
   status: 'up' | 'down' | 'unknown' | 'starting' | 'stopping' | 'failed';
   port: number;
   features: string[];
+  /** Present only when the service reported it. Absent means not measured. */
   metrics?: {
-    cpu: number;
-    memory: number;
-    requests: number;
-    errors: number;
+    cpu?: number;
+    memory?: number;
+    requests?: number;
+    errors?: number;
   };
-  health: {
-    cpu: number;
-    memory: number;
-    uptime: number;
+  /** Present only when the service reported it. Absent means not measured. */
+  health?: {
+    cpu?: number;
+    memory?: number;
+    uptime?: number;
   };
   lastCheck: Date;
+  /** True when this entry came from a real /service-health answer. */
+  reported: boolean;
 }
 
 const SERVICE_PORTS: Record<string, number> = {
@@ -45,54 +60,54 @@ const DEFAULT_SERVICES: Service[] = [
     name: 'capkit',
     status: 'unknown',
     port: 8081,
-    features: ['Capability Tokens', 'Policy Engine', 'AI Policy Generator'],
-    health: { cpu: 0, memory: 0, uptime: 0 },
+    features: [],
     lastCheck: new Date(),
+    reported: false,
   },
   {
     id: 'edge-run',
     name: 'edge-run',
     status: 'unknown',
     port: 8082,
-    features: ['Agent Scheduler', 'Self-Healing', 'WebSocket Orchestration'],
-    health: { cpu: 0, memory: 0, uptime: 0 },
+    features: [],
     lastCheck: new Date(),
+    reported: false,
   },
   {
     id: 'quickbench',
     name: 'quickbench',
     status: 'unknown',
     port: 8083,
-    features: ['Benchmarking', 'A/B Testing', 'AI Analyzer'],
-    health: { cpu: 0, memory: 0, uptime: 0 },
+    features: [],
     lastCheck: new Date(),
+    reported: false,
   },
   {
     id: 'connector-starter',
     name: 'connector-starter',
     status: 'unknown',
     port: 8084,
-    features: ['Adapter Factory', 'AI Agent Generator', 'Multi-Platform'],
-    health: { cpu: 0, memory: 0, uptime: 0 },
+    features: [],
     lastCheck: new Date(),
+    reported: false,
   },
   {
     id: 'trust',
     name: 'trust',
     status: 'unknown',
     port: 8085,
-    features: ['Evidence Validation', 'Chain Monitoring', 'Arbitration'],
-    health: { cpu: 0, memory: 0, uptime: 0 },
+    features: [],
     lastCheck: new Date(),
+    reported: false,
   },
   {
     id: 'dashboard',
     name: 'dashboard',
-    status: 'up',
+    status: 'unknown',
     port: 3001,
-    features: ['System Overview', 'AI Studio', 'Monitoring'],
-    health: { cpu: 0, memory: 0, uptime: 0 },
+    features: [],
     lastCheck: new Date(),
+    reported: false,
   },
 ];
 
@@ -143,36 +158,34 @@ export function useServices() {
 
             const liveHealth = healthData?.health ?? {};
             const liveStats = healthData?.stats ?? {};
-            const cpu = typeof liveHealth.cpu === 'number' ? Math.round(liveHealth.cpu) : undefined;
-            const memory = typeof liveHealth.memory === 'number' ? Math.round(liveHealth.memory) : undefined;
-            const requestCount = [liveStats.total, liveStats.totalTests, liveStats.pending, liveStats.running].find((value: unknown) => typeof value === 'number') as number | undefined;
-            const errorCount = [liveStats.failed, liveStats.alerts].find((value: unknown) => typeof value === 'number') as number | undefined;
+            const num = (value: unknown) => (typeof value === 'number' ? Math.round(value) : undefined);
+
+            const cpu = num(liveHealth.cpu);
+            const memory = num(liveHealth.memory);
+            // Uptime is only uptime if the service measured it. "It answered
+            // just now" is not 100%, and writing 100 there would be an invented
+            // figure in the one place that exists to refuse them.
             const uptime = typeof liveHealth.uptime === 'number'
               ? Math.max(0, Math.min(100, Math.round(liveHealth.uptime)))
-              : finalStatus === 'up'
-                ? 100
-                : 0;
+              : undefined;
+            const requestCount = [liveStats.total, liveStats.totalTests, liveStats.pending, liveStats.running].find((value: unknown) => typeof value === 'number') as number | undefined;
+            const errorCount = [liveStats.failed, liveStats.alerts].find((value: unknown) => typeof value === 'number') as number | undefined;
+
+            const anyHealth = cpu !== undefined || memory !== undefined || uptime !== undefined;
+            const anyMetric = requestCount !== undefined || errorCount !== undefined;
 
             return {
               id: template.id,
               name: template.name,
               status: finalStatus,
               port: template.port,
-              features: Array.isArray(healthData?.features) && healthData.features.length > 0 ? healthData.features : template.features,
-              health: {
-                cpu: cpu ?? 0,
-                memory: memory ?? 0,
-                uptime,
-              },
-              metrics: cpu !== undefined || memory !== undefined || requestCount !== undefined || errorCount !== undefined
-                ? {
-                    cpu: cpu ?? 0,
-                    memory: memory ?? 0,
-                    requests: requestCount ?? 0,
-                    errors: errorCount ?? 0,
-                  }
-                : undefined,
+              features: Array.isArray(healthData?.features) ? healthData.features : [],
+              ...(anyHealth ? { health: { cpu, memory, uptime } } : {}),
+              ...(anyMetric || anyHealth
+                ? { metrics: { cpu, memory, requests: requestCount, errors: errorCount } }
+                : {}),
               lastCheck: new Date(healthData?.timestamp ?? Date.now()),
+              reported: healthData !== null,
             };
           })
       );
@@ -182,10 +195,13 @@ export function useServices() {
     } catch (err: any) {
       console.error('Live services failed:', err);
       setError(`Orchestrator unavailable: ${err.message}`);
+      // Not reachable is not "down". Every status becomes unknown, because the
+      // orchestrator is the thing that would have told us.
       setServices(DEFAULT_SERVICES.map(service => ({
         ...service,
-        status: service.id === 'dashboard' ? 'up' : 'unknown',
+        status: 'unknown' as const,
         lastCheck: new Date(),
+        reported: false,
       })));
     } finally {
       setLoading(false);
