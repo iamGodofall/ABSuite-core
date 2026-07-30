@@ -773,33 +773,45 @@ denies everyone else has already decided what it is.
 
 ---
 
-## The single rule underneath
+## The roots, and what derives from them
 
-Every principle in this document is one application of a single idea:
+Five principles. Everything else in this document is an application of one of
+them, and is written down only because the application was not obvious until
+something went wrong.
 
-> **Nothing may look more complete, more certain, or more authoritative than it
-> actually is.**
+| | | |
+|---|---|---|
+| **1** | **Trust must be verifiable** | A conclusion nobody outside can re-derive is an assertion |
+| **2** | **History must survive improvement** | A change that orphans old records has destroyed evidence to tidy a schema |
+| **3** | **Nothing may look more complete, more certain, or more authoritative than it actually is** | The root of most of the rest |
+| **4** | **Evidence composes pessimistically** | Claims shrink to fit uncertainty; the strong parts do not compensate for the weak |
+| **5** | **Every unknown must carry its path to resolution** | Uncertainty without a next step is paralysis; with one it is work |
 
-Read the decisions back and they are all the same decision:
+Read the applications back and each one traces to a root:
 
-| | |
-|---|---|
-| `UNKNOWN` | instead of assumed |
-| `ABSENT` | instead of implied |
-| `checkable: false` | instead of tampered |
-| `complete: true` | instead of silence |
-| Denominators | instead of bare counts |
-| Resolutions | instead of dead ends |
-| Reasons | instead of omissions |
-| Versioning | instead of rewriting history |
-| Measured figures | instead of estimates |
-| Derived explanations | instead of generated ones |
+| Application | From | Enforced by |
+|---|---|---|
+| Unknown is not the same as false — or true | 3 | `determination.test.ts` |
+| ABSENT instead of implied, with a reason | 3 | `determination.test.ts` — construction throws |
+| `checkable: false` instead of tampered | 3 | `trace.test.ts` — a record from the future |
+| `complete: true` instead of silence | 3 | `server.smoke.test.ts` — denominators |
+| Denominators instead of bare counts | 3 | `server.smoke.test.ts` — truncation |
+| Context on every report | 3 | `server.smoke.test.ts` — provenance |
+| No trust score, ever | 1, 4 | `conditions.test.ts` — no percentage, grade or score |
+| Derived explanations, never generated | 1, 3 | `explain.test.ts` — determinism |
+| Measured numbers only | 3 | `gen-performance-doc.mjs --check` in CI |
+| Versioned canonical forms | 2 | `frozen-chain.test.ts` |
+| Additive migrations only | 2 | `trace.test.ts` — a chain mixing shapes |
+| The unknown queue | 5 | `server.smoke.test.ts` — listed, never ranked |
+| Overall is the weakest condition | 4 | `conditions.test.ts` — nothing composes upward |
+| No severity, anywhere | — the machine/person boundary below | `server.smoke.test.ts` |
 
-The greatest feature here is not traceability. It is restraint. Most systems are
-built to maximise the number of questions they answer; this one is built to
-minimise the number it answers wrongly — and for a trust layer that is the
-correct optimisation, because a single confident wrong answer costs more than
-ten missing ones.
+Fifty years from now nobody will remember why `complete: true` exists, or why an
+unknown must carry a resolution. They will understand the third line, and it
+explains almost every choice here: **this system refuses to pretend.**
+
+The greatest feature is not traceability. It is restraint — not because
+restraint is elegant, but because restraint is provable.
 
 ---
 
@@ -863,3 +875,20 @@ that is what a roadmap is for.
 
 The refusals above are not amendable by convenience. If one is ever removed, the
 commit message must say which, why, and what it costs.
+
+**No new principle without a failing test that proves its absence.**
+
+A constitution should feel expensive to change. A principle that does not
+deserve a test, an enforcement, a documented example and future maintenance is
+not constitutional — it is a preference, and preferences belong in a style guide
+where they can be argued with cheaply.
+
+This document is now long enough that its length is itself a risk: a document
+nobody finishes governs nothing. The next useful change to it is far more likely
+to be subtraction than addition. Before anything is added, two questions:
+
+1. Does it derive from one of the five roots? Then it is an application, and it
+   belongs beside the code it constrains, not here.
+2. Can a test fail when it is violated? If not, it is philosophy — and this
+   project has spent a great deal of effort learning that philosophy without
+   enforcement is decoration.

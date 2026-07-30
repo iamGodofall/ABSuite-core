@@ -67,7 +67,11 @@ jobs:
 
       # The layer table is where a project quietly promotes a plan to a feature,
       # one honest-looking edit at a time. Prose does not fail a build; this does.
-      - name: Every layer claimed as built names something that exists
+      # Also enforces the amendment rule: no constitutional principle without an
+      # enforcement that exists. A principle that does not deserve a test is a
+      # preference, and preferences dressed as principles are how a constitution
+      # becomes decoration.
+      - name: Every claim in the Constitution names an enforcement that exists
         run: pnpm check:doctrine
 
   test:

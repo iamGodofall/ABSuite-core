@@ -201,9 +201,20 @@ something, and they are the part worth believing:
 | Evidence composes pessimistically | The overall finding is the weakest condition, never an average |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 
-A principle that cannot fail a build is a preference. And underneath all of
-them is one rule: **nothing may look more complete, more certain, or more
-authoritative than it actually is.**
+A principle that cannot fail a build is a preference — and adding one now
+requires a failing test that proves its absence, checked by `check:doctrine`.
+
+Five roots, and everything else derives from them:
+
+1. **Trust must be verifiable.**
+2. **History must survive improvement.**
+3. **Nothing may look more complete, more certain, or more authoritative than it actually is.**
+4. **Evidence composes pessimistically.**
+5. **Every unknown must carry its path to resolution.**
+
+Fifty years from now nobody will remember why `complete: true` exists. They will
+understand the third one, and it explains almost every choice here: this system
+refuses to pretend.
 
 **Context is part of the evidence.** Verified against which key; unknown
 resolved by what; absent because of what; measured on which machine; counted out

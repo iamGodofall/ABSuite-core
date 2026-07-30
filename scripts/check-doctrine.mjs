@@ -81,10 +81,59 @@ for (const row of rows) {
   );
 }
 
+// ── Every constitutional application must name an enforcement that exists ───
+//
+// "No new principle without a failing test that proves its absence." A
+// principle that does not deserve a test is a preference, and preferences that
+// dress as principles are how a constitution becomes decoration.
+//
+// The derivations table names the check behind each application. This walks it
+// and fails if one of those files is gone.
+// Scoped to the derivations table alone. Parsing every table in the document
+// swept up the hierarchy example and reported "Claimed: Collective Intelligence
+// = Built" as a missing file — a check that cries wolf gets muted like any
+// other false alarm.
+const derivationsSection = (() => {
+  const marker = 'Read the applications back and each one traces to a root:';
+  const from = text.indexOf(marker);
+  if (from === -1) return '';
+  const to = text.indexOf('\n---', from);
+  return text.slice(from, to === -1 ? undefined : to);
+})();
+
+const derivations = [...derivationsSection.matchAll(/^\| ([^|]+?) \| ([^|]*?) \| `([^`]+?)`([^|]*)\|$/gm)]
+  .map(match => ({ application: match[1].trim(), from: match[2].trim(), enforcedBy: match[3].trim() }));
+
+if (derivations.length === 0) {
+  console.error('\n✗ No derivations table found in docs/CONSTITUTION.md — every application must name its enforcement.');
+  failures++;
+} else {
+  console.log('');
+  for (const row of derivations) {
+    // "checked by CI" style entries name a script; test files name a test file.
+    const candidates = [
+      row.enforcedBy,
+      `packages/capkit/src/${row.enforcedBy}`,
+      `packages/trust/src/${row.enforcedBy}`,
+      `scripts/${row.enforcedBy.split(' ')[0]}`,
+    ];
+
+    if (candidates.some(candidate => existsSync(join(root, candidate)))) {
+      console.log(`✓ ${row.application.padEnd(46)} ← ${row.enforcedBy}`);
+    } else {
+      console.error(`✗ ${row.application} claims enforcement by ${row.enforcedBy}, which does not exist.`);
+      failures++;
+    }
+  }
+}
+
 if (failures > 0) {
-  console.error(`\n${failures} layer claim(s) do not hold. Fix the code or fix the claim.`);
+  console.error(`\n${failures} claim(s) do not hold. Fix the code or fix the claim.`);
   process.exit(1);
 }
 
 const built = rows.filter(row => row.status !== 'Not built').length;
-console.log(`\n${built} of ${rows.length} layers claim to exist, and each names something that does.`);
+console.log(
+  `\n${built} of ${rows.length} layers claim to exist, and ${derivations.length} constitutional ` +
+    'application(s) name an enforcement — all of which exist.'
+);
