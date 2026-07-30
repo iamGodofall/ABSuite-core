@@ -144,3 +144,68 @@ merely locked.
 
 Screenshots of the current state, for before/after comparison, were taken across
 all seven layers plus System at 1600×1100.
+
+---
+
+## Make it living
+
+The direction, stated plainly: **do not be reserved.** The interface has to carry
+the weight of the vision, and right now it reads like an admin panel for a
+product that is far more ambitious than it looks.
+
+A living system means the screen behaves like something is happening in it,
+because something is:
+
+- **Records arrive, they do not appear on refresh.** The socket is already
+  connected. New executions should land in view — a row entering, a chain link
+  drawing itself, a counter incrementing — so the recorder visibly records.
+- **The loop should be watchable.** Observe → Verify → Explain → Govern →
+  Arbitrate → Act → Learn is the product's own model. An execution moving
+  through those stages, on screen, is the demo. Nothing we could write explains
+  it faster than watching it happen once.
+- **The chain should look like a chain.** Hash-linked records rendered as linked
+  things, with verification sweeping along them and stopping visibly at a break.
+  This is the single most explicable idea in the product and it is currently a
+  sentence.
+- **Verification should be an event, not a field.** Pressing verify should feel
+  like something ran: the signature checking, the chain walking, the result
+  landing. It takes 0.17 ms — the honesty is in showing the work, not in faking
+  duration.
+- **Tamper should be theatre.** The demo where you edit a record in the browser
+  and watch it fail verification is the most convincing thirty seconds this
+  product has. It should be front and centre, not a button beside a list.
+- **Depth on demand.** A record opens into its full life: timeline, authority,
+  governing rule, conditions, replay, explanation, chain position — without a
+  page reload breaking the sense of a continuous system.
+
+Motion must always mean something. A pulse on a record that just arrived is
+information. A spinning gradient is noise, and noise in this product is worse
+than plain, because we have spent the entire Constitution arguing that nothing
+should look like more than it is. **Impressive and honest is the bar — and they
+are not in tension here, because what is actually happening underneath is
+genuinely impressive.**
+
+## GitHub Pages is in scope
+
+<https://iamgodofall.github.io/ABSuite-core/>
+
+That URL is the first thing most people will ever see — before the repository,
+before npm, before the dashboard. It is served from `docs/` via
+`.github/workflows/pages.yml` and currently offers `docs/verify.html`, the
+standalone verifier.
+
+It should do what the dashboard does, for someone who has installed nothing:
+
+- **Verify a real record in the browser, against a public key, with no server.**
+  That is the entire thesis, executable by a stranger in ten seconds, and it
+  already works — it just is not the front door.
+- **Show the seven layers** as the site's structure, so the model is legible
+  before anyone reads a line of prose.
+- **Let them tamper with a record and watch it fail.** No install, no account,
+  no trust required in us — which is precisely the argument.
+- **Link to the live numbers** from `docs/PERFORMANCE.md`, measured, with the
+  machine stated.
+
+A landing page that says "trust must be verifiable" is marketing. A landing page
+where you verify something yourself, in your own browser, is the product. The
+second one is not harder to build — it is just less commonly attempted.
