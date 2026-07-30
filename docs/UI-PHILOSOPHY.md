@@ -219,6 +219,34 @@ The answer is:
 
 ---
 
+## What is not built yet
+
+Every promise above is either kept, or listed here. Nothing sits in between —
+that gap is where a document quietly becomes decoration, and where a check that
+passes starts certifying compliance with something nobody is complying with.
+
+`check-ui-philosophy.mjs` enforces this ledger in both directions: a promise it
+can verify as unmet must appear here, and an entry here that has since been
+built must be removed. Neither drift survives a build.
+
+| Promise | State | Recorded |
+| --- | --- | --- |
+| The cube is always present | Renders on Operations only — 1 of 13 views | 2026-07-30 |
+| Everything connects back to the cube | Not implemented | 2026-07-30 |
+| Particle fields, particle convergence on evidence created | Not implemented | 2026-07-30 |
+| Evidence chains forming as motion | Not implemented — chains are drawn, not animated | 2026-07-30 |
+| Trace line animation while verification runs | Not implemented | 2026-07-30 |
+
+The honest summary of this ledger: the interface currently satisfies the
+critical rule and the structure, and does not yet satisfy the centerpiece or
+"alive". It is an evidence console with an unusually truthful vocabulary. It is
+not yet the room.
+
+That distinction is worth keeping written down, because the truthful vocabulary
+is the harder half and it is tempting to call the job done once it lands.
+
+---
+
 ## How this document is enforced
 
 This is not aspiration filed away. Four things hold it in place:

@@ -13,7 +13,7 @@
  *
  * Exits non-zero on any drift.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -121,6 +121,79 @@ if (/@media\s*\(\s*prefers-reduced-motion/.test(css)) {
   passes.push('motion yields to prefers-reduced-motion');
 } else {
   failures.push('globals.css defines state animations but honours no prefers-reduced-motion query.');
+}
+
+// ── 6. Promises must be kept or listed as unkept ────────────────────────────
+//
+// This check passed for a whole session while the interface violated the
+// document's centerpiece section outright: "The cube is always present" was
+// true of one view out of thirteen. It passed because it only checked what was
+// cheap to check — names, hexes, header strings — and never the claims that
+// actually describe what the thing feels like.
+//
+// A check that certifies compliance with a document nobody is complying with is
+// worse than no check, because it converts an open question into a green tick.
+// That is precisely the failure this product exists to argue against, committed
+// by the tool built to prevent it.
+//
+// So the verifiable claims are verified, and anything unmet must appear in the
+// "What is not built yet" ledger. Both directions are enforced: an unmet
+// promise missing from the ledger fails, and a ledger entry that has since been
+// built also fails, so the list cannot rot into an excuse.
+
+const ledger = section('## What is not built yet');
+const ledgerRows = [...ledger.matchAll(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/gm)]
+  .map(match => match[1].trim())
+  .filter(entry => entry && !/^-+$/.test(entry) && entry.toLowerCase() !== 'promise');
+
+const uiFiles = [];
+const collect = (dir) => {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) { collect(full); continue; }
+    if (/\.tsx$/.test(entry) && !/\.test\./.test(entry)) uiFiles.push(full);
+  }
+};
+collect(join(root, 'packages/dashboard-ui/src'));
+
+/**
+ * Claims this script can actually settle by reading the source.
+ *
+ * `met()` must be a real test, not a proxy. Where a claim cannot be settled
+ * mechanically — "familiar and impossible at the same time" — it is left to a
+ * human and deliberately not asserted here, because a check that pretends to
+ * measure taste is the same lie in a different costume.
+ */
+const VERIFIABLE = [
+  {
+    promise: 'The cube is always present',
+    met: () => {
+      const withCube = uiFiles.filter(file => /cube/i.test(readFileSync(file, 'utf8')));
+      // "Always present" means the shell, not one tab.
+      return withCube.some(file => /App\.tsx$/.test(file));
+    },
+  },
+  {
+    promise: 'Particle fields, particle convergence on evidence created',
+    met: () => /@keyframes[^{]*particle/i.test(css) || /particle/i.test(css),
+  },
+];
+
+for (const claim of VERIFIABLE) {
+  const isMet = claim.met();
+  const isListed = ledgerRows.some(row => row.toLowerCase() === claim.promise.toLowerCase());
+
+  if (isMet && isListed) {
+    failures.push(`"${claim.promise}" is built, but still listed under "What is not built yet". Remove the row — a stale ledger becomes an excuse.`);
+  } else if (!isMet && !isListed) {
+    failures.push(`"${claim.promise}" is promised by this document, is not implemented, and is not listed under "What is not built yet". Build it or record it.`);
+  } else {
+    passes.push(isMet ? `promise kept: ${claim.promise}` : `promise recorded as unbuilt: ${claim.promise}`);
+  }
+}
+
+if (ledgerRows.length === 0) {
+  failures.push('docs/UI-PHILOSOPHY.md: the "What is not built yet" ledger is missing or unparseable. An empty ledger must be an empty table, not an absent section.');
 }
 
 // ── 6. The critical rule outranks the rest ──────────────────────────────────
