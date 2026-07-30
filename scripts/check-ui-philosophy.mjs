@@ -189,6 +189,19 @@ const VERIFIABLE = [
     promise: 'Trace line animation while verification runs',
     met: () => /trust-sweep/.test(css),
   },
+  {
+    /**
+     * The claim the other four were mistaken for.
+     *
+     * Every promise above can be satisfied while the interface remains a
+     * dashboard, because each names a component and this one names the model.
+     * A shell that navigates by sidebar is document navigation whatever is
+     * drawn inside it, so that is what gets tested: the absence of the nav
+     * list, not the presence of a cube.
+     */
+    promise: 'The interaction model is spatial, not document navigation',
+    met: () => !/<nav\b/.test(readFileSync(join(root, 'packages/dashboard-ui/src/App.tsx'), 'utf8')),
+  },
 ];
 
 for (const claim of VERIFIABLE) {

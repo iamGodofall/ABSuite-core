@@ -229,10 +229,28 @@ passes starts certifying compliance with something nobody is complying with.
 can verify as unmet must appear here, and an entry here that has since been
 built must be removed. Neither drift survives a build.
 
-_Empty. Every promise in this document is currently kept._
-
 | Promise | State | Recorded |
 | --- | --- | --- |
+| The interaction model is spatial, not document navigation | Not built — sidebar, pages, cards, scroll | 2026-07-30 |
+
+**Determination: FAILED.**
+
+Claim: "The dashboard is now a Trust Operations Center."
+Reason: the visual language exists; the interaction model does not. The
+underlying model remains sidebar → page → cards → scroll.
+Resolution: replace the shell.
+
+This entry was opened after the previous one was closed, because every promise
+above was ticked while the thing itself was not achieved. A cube in a dashboard
+is a dashboard with a cube in it. Position decides meaning, not comments: a 34px
+cube in the top-left corner is a logo; a 500px cube at the centre that controls
+navigation is infrastructure. Those are different things, and only the second
+one is what this document asks for.
+
+The lesson for whoever maintains the checks: they verified that
+`CubeConnections` was imported, not that the room existed. A mechanical check
+can confirm a token is present. It cannot confirm a goal is met, and it must
+never be read as if it had.
 
 Kept since this ledger was opened: the cube is a shell component mounted on all
 thirteen views; particle convergence fires once per record that genuinely
@@ -245,6 +263,73 @@ The ledger stays in the document even while empty. An absent section would let
 the next unkept promise arrive with nowhere to be written down, and
 `check-ui-philosophy.mjs` fails if the section disappears for exactly that
 reason.
+
+---
+
+## v3 — the room
+
+The honest progression:
+
+| | |
+| --- | --- |
+| v1 | Dashboard |
+| v2 | Operations Center |
+| v3 | **Trust Environment** |
+
+What this document describes is not an operations centre any more. It is an
+environment. NASA does not put *rockets, telemetry, crew, fuel, communications*
+in a left sidebar. It has a room. You look around the room. **The room is the
+interface.**
+
+### The shell to build
+
+No sidebar. No pages. No cards. No scroll.
+
+```
+                  LEARN
+
+        ACT                   ARBITRATE
+
+OBSERVE       [ CUBE ]          GOVERN
+
+        VERIFY               EXPLAIN
+```
+
+You rotate the cube. You enter Verify. The cube expands:
+
+```
+Verification
+├── FAILED
+├── UNKNOWN
+├── DEMONSTRATED
+└── ABSENT
+```
+
+Click a failed verification and the world zooms in. You do not navigate — you
+**descend**:
+
+```
+Trace → Evidence → Policy → Agent → Timeline
+```
+
+Document navigation moves you between pages. Spatial navigation moves you
+through depth. That difference is the whole reason Mission Control feels unlike
+software, and it is the transition this project is standing in front of.
+
+### What is portable
+
+Everything underneath survives the rewrite: services, APIs, tests, traces,
+verification, unknown queues, governance, explanations. **The shell is the only
+thing currently lying.** Shells are replaceable; the system underneath was the
+hard part and it is built.
+
+### First line of the next session
+
+> **Delete the dashboard. Build the room.**
+
+The goal is not "nice dashboard." It is: *I have never seen software presented
+like this before.* When the sidebar disappears and the cube becomes the
+navigation, ABSuite stops being a product and starts being a place.
 
 ---
 
