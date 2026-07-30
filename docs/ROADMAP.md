@@ -143,6 +143,8 @@ else on this roadmap matters yet.
 
 ### Dashboard audit — findings from a live snapshot pass
 
+Full brief for the overhaul session: [`docs/UI-OVERHAUL-BRIEF.md`](./UI-OVERHAUL-BRIEF.md).
+
 Taken against the running suite, not from memory. In severity order:
 
 1. **The notification bell shows fabricated events.** Three notifications are

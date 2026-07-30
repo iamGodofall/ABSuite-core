@@ -491,6 +491,7 @@ honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 | [Reporting a vulnerability](./SECURITY.md) | Private disclosure |
 | [Code of conduct](./CODE_OF_CONDUCT.md) | How people are expected to treat each other |
 | [Roadmap](./docs/ROADMAP.md) | What is next, and what is deliberately refused |
+| [UI overhaul brief](./docs/UI-OVERHAUL-BRIEF.md) | 103 endpoints built, 18 reachable — the interface gap, in detail |
 | [Changelog](./CHANGELOG.md) | Including the bugs, and how they were found |
 
 ---
