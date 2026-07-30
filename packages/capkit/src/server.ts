@@ -22,6 +22,7 @@ import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, type GovernanceRecord } from './trace';
 import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
+import { determineTrace } from './determination';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
 import { TenantRateLimiter } from './rate-limit';
 
@@ -761,11 +762,28 @@ app.post('/executions/verify', (req, res) => {
   }
 
   const publicKey = typeof req.body?.publicKey === 'string' ? req.body.publicKey : signingKey.publicKeyPem;
-  return res.status(200).json(verifyTrace(trace, publicKey));
+  const verdict = verifyTrace(trace, publicKey);
+
+  // `valid` is a boolean and booleans cannot carry "nobody checked". The
+  // determination can, and it names what would resolve an UNKNOWN rather than
+  // leaving a reader with a dead end they will eventually read as a pass.
+  return res.status(200).json({ ...verdict, ...determineTrace(verdict) });
 });
 
 app.get('/executions-verify-chain', authorise('execution:read'), (_req, res) => {
-  res.status(200).json(traces.verifyChain(signingKey.publicKeyPem));
+  const result = traces.verifyChain(signingKey.publicKeyPem);
+  res.status(200).json({
+    ...result,
+    ...(result.valid
+      ? { determination: 'VERIFIED' as const, statement: `${result.checked} record(s) verified.` }
+      : determineTrace({
+          valid: false,
+          contentIntact: result.contentIntact ?? false,
+          signatureValid: result.contentIntact === false ? null : false,
+          ...(result.checkable === false ? { checkable: false } : {}),
+          ...(result.reason ? { reason: result.reason } : {}),
+        })),
+  });
 });
 
 // ---- Billing & tenancy ----

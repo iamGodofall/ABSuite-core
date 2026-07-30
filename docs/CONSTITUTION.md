@@ -497,6 +497,48 @@ quiet self-promotion `check:doctrine` was written to prevent.
 
 ---
 
+### Unknown is not the same as false
+
+Two states are a lie in an evidence system. There are three:
+
+| | Meaning | Carries |
+|---|---|---|
+| **VERIFIED** | Checked, and it holds | The statement |
+| **FAILED** | Checked, and it does not | The statement |
+| **UNKNOWN** | Not checked, or not checkable by this verifier | The statement **and what would resolve it** |
+
+A thermometer that cannot read 10,000°C does not report `temperature: false`; it
+reports out of range. A verifier that has not checked a signature has not
+disproved it, and a build too old to read a record has not caught anyone
+tampering. Collapsing those into "invalid" turns every limitation of the verifier
+into an accusation against the evidence — and the accused record is usually the
+one that is right.
+
+**An UNKNOWN must always state what would resolve it.** This is enforced at
+construction: building one without a resolution throws. An unknown nobody can act
+on is a dead end dressed as an answer, and a reader who cannot act on it starts
+reading it as a pass within a week — which is the failure this whole distinction
+exists to prevent.
+
+**What this found in our own code.** `verifyTrace()` called without a public key
+returns `valid: true`. That is technically correct — the content matches its hash,
+which is all it was asked — and it has been readable as "this record is genuine"
+ever since, when nobody checked who wrote it. The boolean cannot express the
+difference. The determination can:
+
+> UNKNOWN — The content matches its hash, but no signature was checked, so who
+> wrote this record is unproven.
+> *Resolved by: verify again with the signing key's public half.*
+
+The same refusal to collapse uncertainty already runs through the codebase in
+four other places, and they are all the same principle: `signatureValid: null`,
+`contentIntact: null`, `checkable: false`, and Governance reported as *absent*
+rather than *failed*. Evidence validation has carried it longest, in
+`SUPPORTED` / `UNVERIFIED` / `CONTRADICTED` / `NOT_CHECKED` — where `UNVERIFIED`
+has always meant *not found in the sources*, never *false*.
+
+---
+
 ### History must survive improvement
 
 Adding a field must never invalidate a record written before it existed. This is
@@ -554,6 +596,7 @@ checks are the part that is worth anything:
 | These seven refusals are behaviour, not marketing | `check:constraints` fails if the test enforcing any refusal is renamed or deleted |
 | The layer table distinguishes built from planned | `check:doctrine` fails if a built layer's evidence vanishes, or a planned one starts claiming some |
 | History must survive improvement | `frozen-chain.test.ts` verifies records signed in 2026 against their committed public key, forever |
+| Unknown is not the same as false | `finding()` throws on an UNKNOWN with no stated resolution |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 | The interface only calls things that answer | `check:routes` fails if a client call has no server route |
 

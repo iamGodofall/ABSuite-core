@@ -105,6 +105,14 @@ export {
 } from './trace';
 
 export {
+  finding,
+  determineTrace,
+  renderFinding,
+  type Determination,
+  type Finding,
+} from './determination';
+
+export {
   trustConditions,
   renderConditions,
   type ConditionsReport,

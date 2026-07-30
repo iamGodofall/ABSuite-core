@@ -1395,7 +1395,7 @@ type Trace = {
   inputHash?: string; outputHash?: string;
 };
 
-type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null; signatureValid: boolean | null; checkable?: boolean };
+type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null; signatureValid: boolean | null; checkable?: boolean; determination?: 'VERIFIED' | 'FAILED' | 'UNKNOWN'; statement?: string; resolvedBy?: string };
 
 /**
  * The regulator-facing view.
@@ -1909,15 +1909,23 @@ const ProofTab = ({ view }: { view: 'observe' | 'verify' | 'explain' }) => {
 
               {verdict && (
                 <div className={cn('mt-4 rounded-lg border p-3',
-                  verdict.valid ? 'border-emerald-500/50 bg-emerald-500/5'
-                    : verdict.checkable === false ? 'border-amber-500/50 bg-amber-500/5'
+                  verdict.determination === 'VERIFIED' ? 'border-emerald-500/50 bg-emerald-500/5'
+                    : verdict.determination === 'UNKNOWN' ? 'border-amber-500/50 bg-amber-500/5'
                     : 'border-red-500/50 bg-red-500/5')}>
-                  <p className={cn('text-sm font-semibold mb-2',
-                    verdict.valid ? 'text-emerald-500' : verdict.checkable === false ? 'text-amber-500' : 'text-red-500')}>
-                    {verdict.valid ? 'Genuine and unaltered'
-                      : verdict.checkable === false ? 'Cannot be checked by this build'
-                      : 'Verification failed'}
+                  {/* Three states, never two. "Nobody checked" is not a pass
+                      and not a failure, and it always says what would settle it. */}
+                  <p className={cn('text-sm font-semibold mb-1',
+                    verdict.determination === 'VERIFIED' ? 'text-emerald-500'
+                      : verdict.determination === 'UNKNOWN' ? 'text-amber-500'
+                      : 'text-red-500')}>
+                    {verdict.determination === 'VERIFIED' ? 'Verified'
+                      : verdict.determination === 'UNKNOWN' ? 'Unknown — not checked'
+                      : 'Failed verification'}
                   </p>
+                  {verdict.statement && <p className="text-xs text-text-muted mb-2">{verdict.statement}</p>}
+                  {verdict.resolvedBy && (
+                    <p className="text-[11px] text-amber-400/90 mb-2">Resolved by: {verdict.resolvedBy}</p>
+                  )}
                   <ul className="text-xs space-y-1">
                     {/* null means we could not check, which must not be shown
                         as a failed check — see TraceVerdict.contentIntact. */}

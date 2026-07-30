@@ -116,6 +116,13 @@ checkable.
 the machine it came from, or it does not appear. This is the worst possible
 project to be caught rounding up.
 
+**Unknown is not the same as false.** Verification has three outcomes, not two:
+verified, failed, and *not checked by this verifier* — the last always carrying
+what would resolve it. A build too old to read a record has not caught anyone
+tampering, and a signature nobody checked has not been disproved. Collapsing
+those into "invalid" turns a limitation of the verifier into an accusation
+against the evidence.
+
 **A record says under what rule, never whether the rule was right.** Given a
 policy whose content is indefensible, ABSuite reports the action as permitted
 under that policy in exactly the same words it uses for any other — because a
@@ -177,6 +184,7 @@ something, and they are the part worth believing:
 | The seven refusals are behaviour, not marketing | `pnpm check:constraints` fails if the test behind any refusal is renamed |
 | Built and planned are different words | `pnpm check:doctrine` fails if a layer claimed as built stops naming a file that exists |
 | History must survive improvement | A chain signed in January 2026 is committed, and must still verify — forever |
+| Unknown is not the same as false | Constructing an UNKNOWN without stating what would resolve it throws |
 | Every documented route exists | The CapKit smoke suite asks the running server for each one |
 
 A principle that cannot fail a build is a preference.
@@ -416,7 +424,7 @@ of that command.
 ## Status
 
 ```text
-473 tests                    102 API endpoints
+480 tests                    102 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```
