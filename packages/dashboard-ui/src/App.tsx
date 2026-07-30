@@ -15,7 +15,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bot, Zap, Shield, Boxes, Activity, Search, Users,
+  Bot, Zap, Shield,
   Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
   Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
   Layers, Scale, HelpCircle
@@ -40,11 +40,7 @@ import { MachineRoom } from './tabs/MachineRoom';
 import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
 import { type Integrity } from './components/TrustCube';
-import { Cockpit, type RoomNode, type Determination } from './room/Cockpit';
-import {
-  Panel, SystemHealth, LiveActivity, UnknownQueue, AgentsAttention,
-  EvidenceStream, ConstitutionalReminder, type ActivityRow, type Stage,
-} from './room/panels';
+import { Environment, type Station, type Determination } from './room/Environment';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1330,7 +1326,7 @@ export default function App() {
    */
   const [openRecordId, setOpenRecordId] = useState<string | null>(null);
   const { theme } = useTheme();
-  const { services, loading, error } = useServices();
+  const { services, error } = useServices();
 
   /**
    * There is no notification bell.
@@ -1364,18 +1360,7 @@ export default function App() {
    * that was not empty. Understating is still misstating.
    */
   const [figures, setFigures] = useState<{ total: number; withoutScope: number; failures: number; subjects: number } | null>(null);
-  const [recent, setRecent] = useState<ActivityRow[] | null>(null);
-  const [latestId, setLatestId] = useState<string | null>(null);
-  const [latestStages, setLatestStages] = useState<Stage[]>([]);
   const [queue, setQueue] = useState<{ total: number; breakdown: { label: string; count: number }[] } | null>(null);
-  const [attention, setAttention] = useState<{ subject: string; actions: number; tags: { label: string; tone: 'warn' | 'bad' | 'ok' }[]; detail?: string }[]>([]);
-  /** Records held, so an empty attention panel can say which kind of empty. */
-  const [subjectsSeen, setSubjectsSeen] = useState(0);
-  const [clock, setClock] = useState(() => new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setClock(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
   useEffect(() => {
     let active = true;
     const read = async () => {
@@ -1411,86 +1396,24 @@ export default function App() {
    * falling back to a plausible number.
    */
   const readInstruments = useCallback(async () => {
-    const headers = getAdminHeaders();
     try {
-      const [recordsRes, unknownRes, attentionRes] = await Promise.all([
-        fetch('/executions?limit=12', { headers }),
-        fetch('/executions/unknowns?limit=200', { headers }),
-        fetch('/executions/attention?limit=200', { headers }),
-      ]);
-
-      if (recordsRes.ok) {
-        const payload = (await recordsRes.json()) as {
-          executions: { id: string; subject: string; action: string; outcome: string; startedAt: string; scope?: string[]; governance?: unknown; outputHash?: string }[];
-        };
-        const rows = payload.executions ?? [];
-        setRecent(rows.map(record => ({
-          id: record.id,
-          time: new Date(record.startedAt).toLocaleTimeString('en-GB', { hour12: false }),
-          subject: record.subject,
-          action: record.action,
-          state: record.outcome === 'failure' ? 'FAILED'
-            : !record.scope || record.scope.length === 0 ? 'UNSCOPED'
-            : 'DEMONSTRATED',
-        })));
-
-        const newest = rows[0];
-        setLatestId(newest?.id ?? null);
-        // A stage lights only when the record actually carries what it needs.
-        setLatestStages(newest ? [
-          { name: 'Action', note: 'recorded', reached: true, at: new Date(newest.startedAt).toLocaleTimeString('en-GB', { hour12: false }) },
-          { name: 'Evidence', note: newest.outputHash ? 'captured' : 'no output hash', reached: Boolean(newest.outputHash) },
-          { name: 'Verification', note: integrity === 'DEMONSTRATED' ? 'intact' : integrity === 'FAILED' ? 'broken' : 'not checked', reached: integrity === 'DEMONSTRATED' },
-          { name: 'Policy', note: newest.scope?.length ? 'scoped' : 'no scope', reached: Boolean(newest.scope?.length) },
-          { name: 'Governance', note: newest.governance ? 'applied' : 'no rule named', reached: Boolean(newest.governance) },
-          { name: 'Ledger', note: 'hash-chained', reached: true },
-        ] : []);
-      } else setRecent([]);
-
-      if (unknownRes.ok) {
-        const payload = (await unknownRes.json()) as { queue?: { resolution: string; examples?: string[] }[] };
-        const items = payload.queue ?? [];
-        setQueue({
-          total: items.reduce((sum, item) => sum + (item.examples?.length ?? 0), 0),
-          breakdown: items.slice(0, 5).map(item => ({
-            label: item.resolution.length > 34 ? `${item.resolution.slice(0, 32)}…` : item.resolution,
-            count: item.examples?.length ?? 0,
-          })),
-        });
-      } else setQueue(null);
-
-      if (attentionRes.ok) {
-        // The key is `items`, not `records`. Reading the wrong one produced an
-        // empty panel that said "no subject has acted yet" while three had —
-        // an empty result and a false statement about why it was empty.
-        const payload = (await attentionRes.json()) as {
-          items?: { subject: string; action: string; outcome: string; scope?: string[]; governance?: unknown }[];
-          held?: number;
-        };
-        setSubjectsSeen(payload.held ?? 0);
-        const bySubject = new Map<string, { actions: number; failed: number; unscoped: number; ungoverned: number; action?: string }>();
-        for (const record of payload.items ?? []) {
-          const entry = bySubject.get(record.subject) ?? { actions: 0, failed: 0, unscoped: 0, ungoverned: 0 };
-          entry.actions += 1;
-          if (record.outcome === 'failure') entry.failed += 1;
-          if (!record.scope?.length) entry.unscoped += 1;
-          if (!record.governance) entry.ungoverned += 1;
-          entry.action = record.action;
-          bySubject.set(record.subject, entry);
-        }
-        setAttention([...bySubject.entries()].map(([subject, entry]) => {
-          const tags: { label: string; tone: 'warn' | 'bad' | 'ok' }[] = [];
-          if (entry.unscoped) tags.push({ label: `${entry.unscoped} unscoped`, tone: 'warn' });
-          if (entry.failed) tags.push({ label: `${entry.failed} failed`, tone: 'bad' });
-          if (entry.ungoverned) tags.push({ label: `${entry.ungoverned} no rule`, tone: 'warn' });
-          if (tags.length === 0) tags.push({ label: 'nothing unproven', tone: 'ok' });
-          return { subject, actions: entry.actions, tags, detail: entry.action };
-        }));
-      }
+      const res = await fetch('/executions/unknowns?limit=200', { headers: getAdminHeaders() });
+      if (!res.ok) { setQueue(null); return; }
+      const payload = (await res.json()) as { queue?: { resolution: string; examples?: string[] }[] };
+      const items = payload.queue ?? [];
+      setQueue({
+        total: items.reduce((sum, item) => sum + (item.examples?.length ?? 0), 0),
+        breakdown: items.slice(0, 5).map(item => ({
+          label: item.resolution,
+          count: item.examples?.length ?? 0,
+        })),
+      });
     } catch {
-      setRecent(null); setQueue(null);
+      // Unreachable is UNKNOWN, not zero. A queue that cannot be read is not
+      // an empty queue, and the vitals line renders the difference.
+      setQueue(null);
     }
-  }, [integrity]);
+  }, []);
 
   useEffect(() => {
     void readInstruments();
@@ -1562,73 +1485,120 @@ export default function App() {
    * reports — never assumed. Where nothing is known yet the node is UNKNOWN,
    * and where nothing exists it is ABSENT. Neither renders green.
    */
-  const nodes: RoomNode[] = React.useMemo(() => {
+  /**
+   * The stations, leading with state.
+   *
+   * A station's headline is the figure it actually holds; its purpose is
+   * secondary and only surfaces on hover. Mission Control does not explain what
+   * fuel is before showing you how much there is.
+   */
+  const stations: Station[] = React.useMemo(() => {
     const chainState: Determination =
       integrity === 'DEMONSTRATED' ? 'DEMONSTRATED'
         : integrity === 'FAILED' ? 'FAILED'
         : integrity === 'ABSENT' ? 'ABSENT' : 'UNKNOWN';
 
+    const upCount = services.filter(service => service.status === 'up').length;
     const servicesState: Determination =
       services.length === 0 ? 'UNKNOWN'
-        : services.every(service => service.status === 'up') ? 'DEMONSTRATED'
-        : services.some(service => service.status === 'down' || service.status === 'failed') ? 'FAILED'
-        : 'UNKNOWN';
+        : upCount === services.length ? 'DEMONSTRATED'
+        : upCount === 0 ? 'FAILED' : 'UNKNOWN';
 
     const held = figures?.total ?? null;
-    const upCount = services.filter(service => service.status === 'up').length;
+    const unscoped = figures?.withoutScope ?? 0;
+    const failures = figures?.failures ?? 0;
 
-    /**
-     * A node with no figure of its own is UNKNOWN, never ABSENT.
-     *
-     * Those are different claims and the difference is the whole product:
-     * ABSENT says the system holds nothing, UNKNOWN says this screen has not
-     * asked. The room does not fetch every layer's detail — that is what
-     * entering the layer is for — so it must not imply emptiness it never
-     * checked.
-     */
+    /** No figure of its own means UNKNOWN, never ABSENT. Different claims. */
     const unchecked: Determination = held === null ? 'UNKNOWN' : held > 0 ? 'UNKNOWN' : 'ABSENT';
 
-    return TAB_CONFIG.filter(tab => tab.id !== 'operations').map(tab => {
-      const base = { id: tab.id, label: tab.label, question: tab.question, layer: tab.layer };
-      switch (tab.id) {
-        case 'observe':
-          return { ...base,
-            state: (held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT') as Determination,
-            reading: held !== null && held > 0 ? held.toLocaleString('en-US') : undefined };
-        case 'verify':
-          return { ...base, state: chainState };
-        case 'govern':
-          return { ...base,
-            state: (held === null ? 'UNKNOWN'
-              : held === 0 ? 'ABSENT'
-              : (figures?.withoutScope ?? 0) > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination,
-            reading: figures && figures.withoutScope > 0 ? String(figures.withoutScope) : undefined };
-        case 'explain':
-          // Explanations are derived from records, so they exist exactly when
-          // records do. No separate call is needed to say that honestly.
-          return { ...base,
-            state: (held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT') as Determination };
-        case 'act':
-          return { ...base, state: servicesState,
-            reading: services.length ? `${upCount}/${services.length}` : undefined };
-        case 'system':
-          return { ...base, state: servicesState };
-        default:
-          return { ...base, state: unchecked };
-      }
-    });
-  }, [integrity, services, figures]);
+    const meta: Record<string, Partial<Station>> = {
+      observe: {
+        state: held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT',
+        headline: held === null ? undefined : String(held),
+        detail: held === null ? undefined : [
+          `${held === 1 ? 'record' : 'records'}`,
+          ...(unscoped > 0 ? [`${unscoped} unscoped`] : []),
+        ],
+      },
+      verify: {
+        state: chainState,
+        headline: chainState === 'DEMONSTRATED' ? 'INTACT'
+          : chainState === 'FAILED' ? 'BROKEN'
+          : chainState === 'ABSENT' ? 'EMPTY' : 'UNCHECKED',
+        detail: held !== null && held > 0 ? [`${held} links`] : undefined,
+      },
+      explain: {
+        state: held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT',
+        headline: held !== null && held > 0 ? 'DERIVED' : undefined,
+        detail: held !== null && held > 0 ? ['no model used'] : undefined,
+      },
+      govern: {
+        state: held === null ? 'UNKNOWN' : held === 0 ? 'ABSENT' : unscoped > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
+        headline: held === null ? undefined : unscoped > 0 ? String(unscoped) : 'SCOPED',
+        detail: unscoped > 0 ? ['with no authority'] : undefined,
+      },
+      arbitrate: {
+        state: failures > 0 ? 'FAILED' : unchecked,
+        headline: figures === null ? undefined : String(failures),
+        detail: figures === null ? undefined : [failures === 1 ? 'dispute' : 'disputes'],
+      },
+      act: {
+        state: servicesState,
+        headline: services.length ? `${upCount}/${services.length}` : undefined,
+        detail: services.length ? ['surfaces up'] : undefined,
+      },
+      learn: {
+        state: unchecked,
+        headline: undefined,
+      },
+      system: { state: servicesState, headline: services.length ? `${upCount}/${services.length}` : undefined },
+      unknowns: { state: queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
+                  headline: queue === null ? undefined : String(queue.total) },
+      agents: { state: unchecked, headline: figures?.subjects ? String(figures.subjects) : undefined },
+    };
 
-  const upCount = services.filter(service => service.status === 'up').length;
-  const systemState: Determination =
-    services.length === 0 ? 'UNKNOWN'
-      : upCount === services.length ? 'DEMONSTRATED'
-      : upCount === 0 ? 'FAILED' : 'UNKNOWN';
+    return TAB_CONFIG.filter(tab => tab.id !== 'operations').map(tab => ({
+      id: tab.id,
+      label: tab.label,
+      purpose: tab.question,
+      layer: tab.layer,
+      state: (meta[tab.id]?.state ?? unchecked) as Determination,
+      headline: meta[tab.id]?.headline,
+      detail: meta[tab.id]?.detail,
+    }));
+  }, [integrity, services, figures, queue]);
+
+  /**
+   * The vitals line.
+   *
+   * Chain, governance, unknowns, services, actions, evidence — state first,
+   * across the top, with no card around any of it. This is what a control room
+   * leads with.
+   */
+  const vitals = React.useMemo(() => {
+    const upCount = services.filter(service => service.status === 'up').length;
+    const held = figures?.total ?? null;
+    const unscoped = figures?.withoutScope ?? 0;
+    return [
+      { label: 'Chain', value: integrity, state: (integrity === 'DEMONSTRATED' ? 'DEMONSTRATED' : integrity === 'FAILED' ? 'FAILED' : integrity === 'ABSENT' ? 'ABSENT' : 'UNKNOWN') as Determination },
+      { label: 'Governance', value: held === null ? 'UNKNOWN' : unscoped > 0 ? `${unscoped} UNSCOPED` : 'SCOPED',
+        state: (held === null ? 'UNKNOWN' : unscoped > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
+      { label: 'Unknowns', value: queue === null ? '—' : String(queue.total),
+        state: (queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
+      { label: 'Services', value: services.length ? `${upCount}/${services.length}` : '—',
+        state: (services.length === 0 ? 'UNKNOWN' : upCount === services.length ? 'DEMONSTRATED' : 'FAILED') as Determination },
+      { label: 'Evidence held', value: held === null ? '—' : String(held),
+        state: (held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT') as Determination },
+      { label: 'Observed', value: connected ? 'LIVE' : 'OFFLINE',
+        state: (connected ? 'DEMONSTRATED' : 'FAILED') as Determination },
+    ];
+  }, [integrity, services, figures, queue, connected]);
 
   return (
     <div className={cn(theme)}>
-      <Cockpit
-        nodes={nodes}
+      <Environment
+        stations={stations}
+        vitals={vitals}
         active={openRecordId ? null : activeTab}
         onEnter={id => { setActiveTab(id as TabId); setOpenRecordId(null); }}
         onLeave={() => { setActiveTab(null); setOpenRecordId(null); }}
@@ -1636,115 +1606,13 @@ export default function App() {
         integrity={integrity}
         arrivals={arrivals}
         verifying={verifying}
-
-        top={
-          <header className="flex items-center gap-4 px-4 py-2.5 border-b border-[#00FF88]/12 shrink-0 flex-wrap">
-            <span className="flex items-center gap-2.5">
-              {/* Placeholder for the supplied logo mark. Swapped for the SVG
-                  when it arrives; the layout does not change. */}
-              <span className="w-9 h-9 flex items-center justify-center border border-[#00FF88]/40 text-[#00FF88]"
-                style={{ clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)' }}>
-                <Boxes className="w-4 h-4" />
-              </span>
-              <span className="leading-tight">
-                <span className="block text-lg font-bold text-[#FFFFFF]">ABSuite</span>
-                <span className="block text-[8px] font-mono uppercase tracking-[0.24em] text-text-muted">
-                  Trust Operations Center
-                </span>
-              </span>
-            </span>
-
-            <span className="hidden md:block text-[11px] font-mono uppercase tracking-[0.22em] text-[#00FF88]/80">
-              The Future Is Accountable.
-            </span>
-
-            <span className="ml-auto flex items-center gap-2 flex-wrap">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-[#00FF88]/15 bg-[#0D1117]/70">
-                <span className={cn('w-1.5 h-1.5 rounded-full',
-                  systemState === 'DEMONSTRATED' ? 'bg-[#00FF88] live-pulse'
-                    : systemState === 'FAILED' ? 'bg-red-500' : 'bg-amber-400')} />
-                <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-text-secondary">
-                  {services.length === 0 ? 'services not checked' : `${upCount}/${services.length} services answered`}
-                </span>
-              </span>
-
-              <span className="px-2.5 py-1 rounded-md border border-[#00FF88]/15 bg-[#0D1117]/70 text-[10px] font-mono text-text-secondary tabular-nums">
-                {clock.toISOString().slice(11, 19)} UTC
-              </span>
-
-              <span className="px-2.5 py-1 rounded-md border border-[#00FF88]/15 bg-[#0D1117]/70 leading-tight text-right">
-                <span className="block text-[8px] font-mono uppercase tracking-[0.14em] text-text-muted">Chain</span>
-                <span className={cn('block text-[10px] font-mono uppercase tracking-[0.1em]',
-                  integrity === 'DEMONSTRATED' ? 'text-[#00FF88]'
-                    : integrity === 'FAILED' ? 'text-red-400'
-                    : integrity === 'ABSENT' ? 'text-text-muted' : 'text-amber-400')}>
-                  {integrity}
-                </span>
-              </span>
-            </span>
-          </header>
-        }
-
-        left={
-          <>
-            <Panel title="System Health" icon={<Activity className="w-3.5 h-3.5" />}>
-              <SystemHealth services={services} />
-            </Panel>
-            <Panel title="Live Activity" icon={<Activity className="w-3.5 h-3.5" />}>
-              <LiveActivity rows={recent ?? []} onOpen={setOpenRecordId} />
-            </Panel>
-            <Panel title="Unknown Queue" icon={<HelpCircle className="w-3.5 h-3.5" />}>
-              <UnknownQueue
-                total={queue?.total ?? null}
-                breakdown={queue?.breakdown ?? []}
-                onOpen={() => setActiveTab('unknowns')}
-              />
-            </Panel>
-          </>
-        }
-
-        right={
-          <>
-            <Panel title="Ask ABSuite" icon={<Search className="w-3.5 h-3.5" />}>
-              <AskBar onOpenRecord={setOpenRecordId} />
-            </Panel>
-            <Panel title="Agents Requiring Attention" icon={<Users className="w-3.5 h-3.5" />}>
-              <AgentsAttention agents={attention} held={subjectsSeen} />
-            </Panel>
-            <Panel title="Constitutional Reminder" icon={<Shield className="w-3.5 h-3.5" />}>
-              <ConstitutionalReminder />
-            </Panel>
-          </>
-        }
-
-        bottom={
-          <Panel title="Evidence Stream" icon={<Boxes className="w-3.5 h-3.5" />}>
-            <EvidenceStream
-              stages={latestStages}
-              latest={latestId}
-              onOpen={() => latestId && setOpenRecordId(latestId)}
-            />
-          </Panel>
-        }
-
-        footer={
-          <footer className="flex items-center gap-5 px-4 py-2 border-t border-[#00FF88]/12 shrink-0 flex-wrap text-[10px] font-mono text-text-muted/70">
-            <span>ABSuite Core v{__APP_VERSION__}</span>
-            <span className="hidden sm:inline">Evidence is immutable.</span>
-            <span className="hidden md:inline">Truth is not assumed.</span>
-            <span className="hidden lg:inline">Unknown is not an error.</span>
-            <span className="ml-auto flex items-center gap-2">
-              <span className={cn('w-1.5 h-1.5 rounded-full', connected ? 'bg-[#00FF88]' : 'bg-red-500')} />
-              {loading ? 'syncing' : connected ? 'observing' : 'not connected'}
-            </span>
-          </footer>
-        }
+        ask={<AskBar onOpenRecord={setOpenRecordId} />}
       >
         {activeTab && renderTab()}
-      </Cockpit>
+      </Environment>
 
       {error && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[92%]">
+        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[92%]">
           <NoticeCard
             tone="error"
             title="A service is not answering"
@@ -1756,15 +1624,16 @@ export default function App() {
       <AnimatePresence>
         {openRecordId && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed top-16 inset-x-0 bottom-8 z-40 bg-[#05070A]/97 backdrop-blur-md overflow-y-auto px-8 py-6"
+            initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-40 bg-[#05070A]/97 backdrop-blur-md overflow-y-auto px-8 py-6"
           >
             <button
               type="button"
               onClick={() => setOpenRecordId(null)}
-              className="text-[10px] font-mono uppercase tracking-[0.2em] text-text-muted hover:text-[#00FF88] transition-colors mb-4"
+              className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-muted hover:text-[#00FF88] transition-colors mb-4"
             >
-              ← {activeTab ?? 'room'}
+              ← {activeTab ?? 'the centre'}
             </button>
             <RecordDetail id={openRecordId} onClose={() => setOpenRecordId(null)} />
           </motion.div>
