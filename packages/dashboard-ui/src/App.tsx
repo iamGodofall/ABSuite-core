@@ -1395,6 +1395,7 @@ const ProofTab = () => {
   const [busy, setBusy] = useState(false);
   const [tampered, setTampered] = useState(false);
   const [replay, setReplay] = useState<{ inputMatches: boolean; outputMatches: boolean; deterministic: boolean } | null>(null);
+  const [explanation, setExplanation] = useState<{ headline: string; conclusion: string; warrantsReview: boolean; findings: { question: string; answer: string; from: string; status: string }[] } | null>(null);
   const [replayInput, setReplayInput] = useState('');
   const [replayOutput, setReplayOutput] = useState('');
 
@@ -1472,6 +1473,25 @@ const ProofTab = () => {
    * This is the third pillar the README claims and it had no interface at all —
    * the engine worked, the routes worked, and no human could reach it.
    */
+  /** Plain-language explanation, derived from signed fields rather than generated. */
+  const explain = async () => {
+    if (!selected) return;
+    setBusy(true); setError(''); setExplanation(null);
+    try {
+      const res = await fetch(`/executions/${encodeURIComponent(selected.id)}/explain`, { headers: getAdminHeaders() });
+      const text = await res.text();
+      let data: Record<string, unknown>;
+      try { data = text ? JSON.parse(text) : {}; }
+      catch { throw new Error(`Explain returned ${res.status} and not JSON.`); }
+      if (!res.ok) {
+        const e = data.error as { message?: string } | string | undefined;
+        throw new Error((typeof e === 'string' ? e : e?.message) ?? `Explain failed (${res.status})`);
+      }
+      setExplanation(data as never);
+    } catch (err) { setError((err as Error).message); }
+    finally { setBusy(false); }
+  };
+
   const runReplay = async () => {
     if (!selected) return;
     setBusy(true); setError(''); setReplay(null);
@@ -1522,7 +1542,7 @@ const ProofTab = () => {
   };
 
   const reset = () => {
-    setReplay(null);
+    setReplay(null); setExplanation(null);
     const original = traces.find(t => t.id === selected?.id);
     if (original) { setSelected(original); setTampered(false); setVerdict(null); }
   };
@@ -1670,6 +1690,37 @@ const ProofTab = () => {
                   </ol>
                 </div>
               )}
+
+              {/* Explain — derived, not generated. */}
+              <div className="mb-3">
+                <button onClick={explain} disabled={busy}
+                  className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50">
+                  {busy ? 'Working…' : 'Explain this record'}
+                </button>
+
+                {explanation && (
+                  <div className="mt-2 rounded-lg border border-border bg-bg-primary/40 p-3">
+                    <p className="text-xs font-semibold text-text-primary mb-2">{explanation.headline}</p>
+                    <div className="space-y-2">
+                      {explanation.findings.map((f, i) => (
+                        <div key={i} className="text-[11px] leading-snug">
+                          <div className={cn('font-medium',
+                            f.status === 'attention' ? 'text-red-400' : f.status === 'unknown' ? 'text-amber-400' : 'text-emerald-400')}>
+                            {f.question}
+                          </div>
+                          <div className="text-text-muted">{f.answer}</div>
+                          {/* Naming the source is the point: a reader checks rather than believes. */}
+                          <div className="text-dim font-mono text-[10px] mt-0.5 opacity-70">from: {f.from}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className={cn('text-[11px] mt-3 pt-2 border-t border-border',
+                      explanation.warrantsReview ? 'text-amber-400' : 'text-text-muted')}>
+                      {explanation.conclusion}
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Replay. */}
               <details className="mb-3 rounded-lg border border-border bg-bg-primary/40 p-3">

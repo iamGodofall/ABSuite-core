@@ -447,6 +447,24 @@ app.post('/trust/arbitrate', requireAdminAccess, async (req, res) => {
   }
 });
 
+/**
+ * A plain-language explanation of one record.
+ *
+ * Derived, never generated. Every sentence names the signed field it came from,
+ * so a reader can check the prose against the trace instead of believing it.
+ */
+app.get('/executions/:id/explain', requireAdminAccess, async (req, res) => {
+  try {
+    const id = encodeURIComponent(String(req.params.id));
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/${id}/explain`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 /** Walk the whole chain and report the first record that fails. */
 app.get('/executions-verify-chain', requireAdminAccess, async (_req, res) => {
   try {

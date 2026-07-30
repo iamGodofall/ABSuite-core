@@ -99,6 +99,13 @@ export {
   type RecordExecutionInput,
 } from './trace';
 
+export {
+  explainTrace,
+  renderExplanation,
+  type TraceExplanation,
+  type Explanation,
+} from './explain';
+
 export { generatePolicy, type GeneratedPolicy, type SensitivityLevel, type FilterLevel } from './ai-policy-generator';
 
 export { describeProviders, type ProviderOption } from './llm-provider';
