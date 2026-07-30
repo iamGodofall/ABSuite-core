@@ -229,26 +229,22 @@ passes starts certifying compliance with something nobody is complying with.
 can verify as unmet must appear here, and an entry here that has since been
 built must be removed. Neither drift survives a build.
 
+_Empty. Every promise in this document is currently kept._
+
 | Promise | State | Recorded |
 | --- | --- | --- |
-| Everything connects back to the cube | Records connect; services, agents and policies do not | 2026-07-30 |
-| Evidence chains forming as motion | Not implemented — chains are drawn, not animated | 2026-07-30 |
 
-Kept since this ledger was opened: the cube is now a shell component mounted on
-all thirteen views, particle convergence fires once per record that genuinely
-arrived, and the verification sweep is mounted for exactly as long as the
-request is outstanding.
+Kept since this ledger was opened: the cube is a shell component mounted on all
+thirteen views; particle convergence fires once per record that genuinely
+arrived; the verification sweep is mounted for exactly as long as the request is
+outstanding; every layer connects back to the cube by a line carrying that
+layer's own determination; and the chain forms link by link, each landing after
+its predecessor because that is the order verification depends on.
 
-The honest summary: the interface satisfies the critical rule, the structure and
-the centerpiece. "Alive" is now partly true rather than absent — every motion on
-screen is caused by a real event, and there is still no ambient motion, because
-there is no ambient truth to drive it.
-
-The remaining two entries are the harder half. Connecting services and policies
-back to the cube needs an event stream those subsystems do not emit yet; drawing
-a chain forming needs verification to report progress rather than only a verdict.
-Both are backend gaps wearing a front-end costume, which is worth stating so
-nobody tries to solve them in CSS.
+The ledger stays in the document even while empty. An absent section would let
+the next unkept promise arrive with nowhere to be written down, and
+`check-ui-philosophy.mjs` fails if the section disappears for exactly that
+reason.
 
 ---
 

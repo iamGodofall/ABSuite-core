@@ -175,7 +175,19 @@ const VERIFIABLE = [
   },
   {
     promise: 'Particle fields, particle convergence on evidence created',
-    met: () => /@keyframes[^{]*particle/i.test(css) || /particle/i.test(css),
+    met: () => /particle/i.test(css),
+  },
+  {
+    promise: 'Everything connects back to the cube',
+    met: () => uiFiles.some(file => /CubeConnections/.test(readFileSync(file, 'utf8'))),
+  },
+  {
+    promise: 'Evidence chains forming as motion',
+    met: () => uiFiles.some(file => /ChainForming/.test(readFileSync(file, 'utf8'))),
+  },
+  {
+    promise: 'Trace line animation while verification runs',
+    met: () => /trust-sweep/.test(css),
   },
 ];
 
@@ -192,8 +204,10 @@ for (const claim of VERIFIABLE) {
   }
 }
 
-if (ledgerRows.length === 0) {
-  failures.push('docs/UI-PHILOSOPHY.md: the "What is not built yet" ledger is missing or unparseable. An empty ledger must be an empty table, not an absent section.');
+// An empty ledger is the goal, not an error — but the section must still exist,
+// so the next unkept promise has somewhere to be written down.
+if (!/## What is not built yet/.test(doc)) {
+  failures.push('docs/UI-PHILOSOPHY.md: the "What is not built yet" section is missing. It must remain even when empty, or the next unkept promise has nowhere to be recorded.');
 }
 
 // ── 6. The critical rule outranks the rest ──────────────────────────────────

@@ -21,6 +21,8 @@ import { motion } from 'framer-motion';
 import { cn } from '../utils';
 import type { LiveExecution } from '../hooks/useSocket';
 import { TrustCube, type Integrity } from '../components/TrustCube';
+import { CubeConnections } from '../components/CubeConnections';
+import { ChainForming } from '../components/ChainForming';
 
 type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
 
@@ -189,6 +191,12 @@ export const Operations = ({ live, arrivedIds, connected, servicesUp, servicesTo
           <div className="ops-ring" style={{ width: 340, height: 340, top: '50%', left: '50%', marginTop: -170, marginLeft: -170 }} />
           <div className="ops-ring reverse" style={{ width: 470, height: 470, top: '50%', left: '50%', marginTop: -235, marginLeft: -235 }} />
 
+          {/* Every layer connects back to the cube, each line carrying that
+              layer's own determination. */}
+          {readings.length > 0 && (
+            <CubeConnections nodes={readings.map(r => ({ name: r.name, state: r.state }))} />
+          )}
+
           {/* The same component the shell mounts, at centrepiece size. One
               implementation, so the small cube and the large one can never
               disagree about what the system is doing. */}
@@ -221,6 +229,22 @@ export const Operations = ({ live, arrivedIds, connected, servicesUp, servicesTo
             )}
           </div>
         </div>
+
+        {/* The chain itself, one link per record held. */}
+        {stats && (
+          <div className="px-5 pb-5">
+            <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-2">
+              The chain, as it verifies
+            </div>
+            <ChainForming
+              held={stats.total}
+              verified={stats.chain.checked}
+              brokenAt={stats.chain.brokenAt}
+              checkable={stats.chain.checkable !== false}
+              verifying={verifying}
+            />
+          </div>
+        )}
 
         {/* The seven, reading real state. */}
         {readings.length > 0 && (

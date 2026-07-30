@@ -699,3 +699,9 @@
   .trust-cube.cube-unchecked { animation: none; }
   .trust-particle { animation-duration: 0.01ms; }
 }
+
+/* A sealed link holds steady. It does not blink: a confirmed hash is not news
+   that needs repeating. */
+@keyframes chain-sealed { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; } }
+.chain-link-sealed { animation: chain-sealed 5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .chain-link-sealed { animation: none; } }
