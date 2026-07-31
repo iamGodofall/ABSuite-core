@@ -131,7 +131,14 @@ export function GlassShell({
          */
         thickness={0.7}
         ior={1.38}
-        roughness={roughness}
+        /*
+         * Frostier by default.
+         *
+         * 0.09 is polished glass. Ice scatters — it is translucent solid, not a
+         * window, and the surface has to break the light for the eye to read it
+         * as frozen rather than as manufactured.
+         */
+        roughness={Math.max(roughness, 0.28)}
         metalness={0}
         // The colour lives in the volume, not on the face — but faintly, so it
         // reads as a tint through ice rather than as stained glass.
@@ -145,10 +152,17 @@ export function GlassShell({
          */
         attenuationColor={'#E6F7FF'}
         attenuationDistance={6}
-        // A cold sheen across grazing angles — the light that catches an edge
-        // of ice and tells you it is solid.
-        clearcoat={1}
-        clearcoatRoughness={0.1}
+        /*
+         * No clearcoat. This is the mirror parameter.
+         *
+         * Clearcoat is a polished lacquer layer — it is literally what makes
+         * car paint and showroom glass look mirrored, and it is the single
+         * biggest reason this reads as glass rather than as ice. Ice has no
+         * lacquer on it. I identified this once and then lost it restoring
+         * these files after an unrelated revert, which is why the mirror came
+         * back after being diagnosed.
+         */
+        clearcoat={0}
         // Just enough to break white highlights into colour at the corners.
         iridescence={0.35}
         iridescenceIOR={1.32}
