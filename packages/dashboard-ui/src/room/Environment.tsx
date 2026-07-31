@@ -31,7 +31,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { type Integrity } from '../components/TrustCube';
-import { CoreCube } from './CoreCube';
+import { Scene } from './Scene';
+import type { TrustLayer } from './SceneCube';
 import { CommandLine } from './CommandLine';
 import { cn } from '../utils';
 
@@ -81,6 +82,9 @@ const placeOn = (ring: number, angle: number) => {
 
 /** The order a record travels. Observe first, Learn last. */
 const FLOW = ['observe', 'verify', 'explain', 'govern', 'arbitrate', 'act', 'learn'] as const;
+
+/** The seven the 3D scene knows how to behave as. */
+const LAYER_IDS = new Set<string>(FLOW);
 
 const TONE: Record<Determination, { text: string; line: string; rgb: string }> = {
   DEMONSTRATED: { text: 'text-[#00F58C]', line: 'rgba(0,245,140,0.45)',  rgb: '0,245,140' },
@@ -182,26 +186,6 @@ export const Environment = ({
   const activeStation = stations.find(station => station.id === active) ?? null;
   const field = useRef<HTMLDivElement>(null);
 
-  /**
-   * The core takes about half the field's shorter side.
-   *
-   * The specification asks for roughly 50% of the viewport, and a fixed pixel
-   * size cannot honour that across screens — it would be half a laptop and a
-   * fifth of a desk monitor. Measured, then clamped so it neither swallows the
-   * stations nor shrinks to an ornament.
-   */
-  const [coreSize, setCoreSize] = useState(320);
-  useEffect(() => {
-    const measure = () => {
-      const node = field.current;
-      if (!node) return;
-      const shorter = Math.min(node.clientWidth, node.clientHeight);
-      setCoreSize(Math.round(Math.max(220, Math.min(shorter * 0.5, 520))));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
 
   /** Wall-clock, because a control room states the time it is reporting for. */
   const [clock, setClock] = useState(() => new Date().toISOString().slice(11, 19));
@@ -328,7 +312,13 @@ export const Environment = ({
   const others = stations.filter(station => !ORBIT[station.id]);
 
   return (
-    <div className="fixed inset-0 bg-[#05070A] text-text-primary overflow-hidden hex-field select-none">
+    <div className="fixed inset-0 bg-[#05070A] text-text-primary overflow-hidden select-none">
+      {/* The scene is the room. Full-bleed, behind everything. */}
+      <Scene
+        activeLayer={(attention && LAYER_IDS.has(attention) ? attention : 'overview') as TrustLayer}
+        connected={connected}
+      />
+
       {/* ── State, leading. Not a status bar — a line of vitals. ────────── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-6 px-6 py-3 flex-wrap pointer-events-none">
         <span className="leading-none">
@@ -477,19 +467,6 @@ export const Environment = ({
             />
           );
         })}
-
-        {/* The reactor core — a real object, roughly half the field. */}
-        <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-          style={{ width: coreSize * 1.5, height: coreSize * 1.5 }}
-        >
-          <CoreCube
-            integrity={integrity}
-            attending={attention}
-            connected={connected}
-            arrivalKey={arrivals[0]?.id ?? null}
-          />
-        </div>
 
         {ringStations.map(station => (
           <StationMark
