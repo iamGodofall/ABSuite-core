@@ -67,18 +67,31 @@ const STATUS_COLOUR: Record<LayerStatus, string> = {
   NOT_BUILT: '#6B7280',
 };
 
-/** How solid a corner reads. A layer nobody has built is nearly not there. */
+/**
+ * How solid a corner reads.
+ *
+ * Not built was 0.14 — effectively invisible, which made the cube look as
+ * though it had six corners and two chips missing. That is the wrong claim:
+ * Collective Intelligence and Civilization are not absent from the
+ * architecture, they are unbuilt parts of it, and an architecture is supposed
+ * to show you its unfinished corners. They are plainly visible now and plainly
+ * grey — present, positioned, and unlit. The difference between "not here" and
+ * "not built yet" is the whole distinction this product exists to make.
+ */
 const STATUS_OPACITY: Record<LayerStatus, number> = {
   BUILT: 0.95,
   PARTLY: 0.55,
-  NOT_BUILT: 0.14,
+  NOT_BUILT: 0.5,
 };
 
-/** How large. Built layers carry weight; unbuilt ones are a marked position. */
+/**
+ * How large. Built layers carry weight; an unbuilt one is the same corner in
+ * outline — smaller, but not so small it reads as debris.
+ */
 const STATUS_SIZE: Record<LayerStatus, number> = {
   BUILT: 0.075,
-  PARTLY: 0.06,
-  NOT_BUILT: 0.042,
+  PARTLY: 0.062,
+  NOT_BUILT: 0.058,
 };
 
 function Vertex({ layer, position }: { layer: ArchitectureLayer; position: [number, number, number] }) {
@@ -125,7 +138,7 @@ function Vertex({ layer, position }: { layer: ArchitectureLayer; position: [numb
           color={colour}
           wireframe
           transparent
-          opacity={STATUS_OPACITY[layer.status] * 0.42}
+          opacity={STATUS_OPACITY[layer.status] * (layer.status === 'NOT_BUILT' ? 0.75 : 0.42)}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />

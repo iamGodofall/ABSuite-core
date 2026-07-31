@@ -41,9 +41,31 @@ interface GlassShellProps {
   supported: boolean;
   /** Idle drops the cost as well as the brightness. */
   isIdle?: boolean;
+  /** Edge length. The outer shell is 2.5; the inner block is 1.8. */
+  size?: number;
+  /**
+   * How frosted. The outer shell stays clear enough to see the whole interior
+   * through; the inner block is frostier, because it is the piece you are meant
+   * to read as a held object rather than as a window.
+   */
+  roughness?: number;
+  /** How much light the volume gives off on its own. */
+  emissive?: number;
+  /** Rendered without a fallback where the fallback would be a duplicate. */
+  fallback?: boolean;
 }
 
-export function GlassShell({ color, supported, isIdle }: GlassShellProps) {
+export function GlassShell({
+  color,
+  supported,
+  isIdle,
+  size = 2.5,
+  roughness = 0.09,
+  emissive = 0.035,
+  fallback = true,
+}: GlassShellProps) {
+  if (!supported && !fallback) return null;
+
   if (!supported) {
     /*
      * The original shell, unchanged.
@@ -54,7 +76,7 @@ export function GlassShell({ color, supported, isIdle }: GlassShellProps) {
      */
     return (
       <mesh>
-        <boxGeometry args={[2.5, 2.5, 2.5]} />
+        <boxGeometry args={[size, size, size]} />
         <meshBasicMaterial
           color={color}
           transparent
@@ -78,7 +100,7 @@ export function GlassShell({ color, supported, isIdle }: GlassShellProps) {
      * through the surface the way light does through ice.
      */
     <mesh renderOrder={-1}>
-      <boxGeometry args={[2.5, 2.5, 2.5]} />
+      <boxGeometry args={[size, size, size]} />
       <meshPhysicalMaterial
         /*
          * Transmission, not opacity.
@@ -101,7 +123,7 @@ export function GlassShell({ color, supported, isIdle }: GlassShellProps) {
          */
         thickness={0.7}
         ior={1.38}
-        roughness={0.09}
+        roughness={roughness}
         metalness={0}
         // The colour lives in the volume, not on the face — but faintly, so it
         // reads as a tint through ice rather than as stained glass.
@@ -125,7 +147,7 @@ export function GlassShell({ color, supported, isIdle }: GlassShellProps) {
          * lit ice.
          */
         emissive={color}
-        emissiveIntensity={isIdle ? 0.012 : 0.035}
+        emissiveIntensity={isIdle ? emissive * 0.35 : emissive}
         specularIntensity={1}
         envMapIntensity={isIdle ? 0.35 : 0.9}
         transparent

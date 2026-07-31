@@ -91,6 +91,9 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
    */
   const glowColor = baseColor.clone().multiplyScalar(isIdle ? 1.0 : 2.8);
 
+  /** Built once and shared by the five edge passes. */
+  const shellEdges = useMemo(() => new THREE.BoxGeometry(2.5, 2.5, 2.5), []);
+
   useFrame((state, delta) => {
     // Slow down time if idle
     const effectiveDelta = isIdle ? delta * 0.1 : delta;
@@ -300,6 +303,9 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
       {/* The Core Reactor Cube */}
       <group ref={cubeRef}>
         {!isArbitrate && (
+          /* The faint lattice. Subdivided, so its diagonals read as a mesh
+             rather than as stray lines, and left as a wireframe for that
+             reason. */
           <mesh>
             <boxGeometry args={[2.5, 2.5, 2.5, 8, 8, 8]} />
             <meshBasicMaterial color={color} transparent opacity={0.04} wireframe={true} blending={THREE.AdditiveBlending} depthWrite={false} />
@@ -308,17 +314,59 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         
         {!isArbitrate && (
           <group>
-            {/* The outer shell — glass where the machine can refract, the
-                original additive plane where it cannot. */}
-            <GlassShell color={color} supported={glass} isIdle={isIdle} />
+            {/*
+              * The outer shell stays a hologram, for now.
+              *
+              * Glass inside glass does not work: a transmissive surface is
+              * excluded from another transmissive surface's render pass, so an
+              * ice block placed inside a refracting shell simply is not there
+              * when you look through the shell. Making both of them glass gets
+              * you one piece of glass and a missing one.
+              *
+              * The inner block is the piece worth holding, so it takes the
+              * refraction and the outer surface goes back to the additive
+              * plane that lets you see straight into it. Turning the outer
+              * shell to ice as well means solving the nesting — most likely by
+              * giving the outer surface a thin refractive rim rather than a
+              * full transmissive volume — and that is its own piece of work.
+              */}
+            <mesh>
+              <boxGeometry args={[2.5, 2.5, 2.5]} />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={activeLayer === 'observe' ? 0.05 : 0.08}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+              />
+            </mesh>
             
-            {/* Thickened glowing edges using multiple overlapping wireframes */}
+            {/*
+              * Twelve edges, not eighteen.
+              *
+              * These were `wireframe` boxes, and a wireframe draws the
+              * geometry's triangulation — every square face of a box is two
+              * triangles, so each face came with a diagonal across it. Six
+              * extra lines cutting corner to corner, belonging to nothing,
+              * which is exactly what they looked like. `edgesGeometry` keeps
+              * only the twelve real edges of the shape.
+              *
+              * The stack of five at slightly different scales is unchanged:
+              * additive lines a hair apart is what makes an edge read as
+              * thick and lit rather than as a one-pixel line.
+              */}
             <group>
               {[0.98, 0.99, 1.0, 1.01, 1.02].map((scale, i) => (
-                <mesh key={i} scale={scale}>
-                  <boxGeometry args={[2.5, 2.5, 2.5]} />
-                  <meshBasicMaterial color={scale === 1.0 ? glowColor : color} transparent opacity={scale === 1.0 ? 1 : 0.22} wireframe={true} depthWrite={false} blending={THREE.AdditiveBlending} />
-                </mesh>
+                <lineSegments key={i} scale={scale}>
+                  <edgesGeometry args={[shellEdges]} />
+                  <lineBasicMaterial
+                    color={scale === 1.0 ? glowColor : color}
+                    transparent
+                    opacity={scale === 1.0 ? 1 : 0.22}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                  />
+                </lineSegments>
               ))}
             </group>
             
@@ -327,6 +375,30 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
             <LayerVertices />
 
             <group ref={innerCubeRef}>
+              {/*
+                * The inner block, as ice.
+                *
+                * This was five stacked wireframes around empty space — an
+                * outline of a cube rather than a cube. It is a solid now, and
+                * frostier than the outer shell: the outer one is a window you
+                * look through, this one is the object you look at. The core
+                * sits inside it, so its light is refracted and scattered by
+                * the block containing it rather than simply drawn in front.
+                *
+                * No fallback here. Where refraction is unavailable the
+                * wireframes below already describe this cube, and a second
+                * additive box would only wash them out.
+                */}
+              <GlassShell
+                color={color}
+                supported={glass}
+                isIdle={isIdle}
+                size={1.8}
+                roughness={0.22}
+                emissive={0.06}
+                fallback={false}
+              />
+
               {/* Inner structural wireframe - Cubist element */}
               {[1.78, 1.79, 1.8, 1.81, 1.82].map((scale, i) => (
                 <mesh key={i} scale={scale}>
@@ -335,17 +407,15 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                 </mesh>
               ))}
               
-              {/* Inner diagonal cross sections */}
-              <mesh rotation={[Math.PI / 4, Math.PI / 4, 0]}>
-                <boxGeometry args={[2, 2, 0.01]} />
-                <meshBasicMaterial color={glowColor} transparent opacity={0.05} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
-                <Edges scale={1.0} color={color} />
-              </mesh>
-              <mesh rotation={[-Math.PI / 4, -Math.PI / 4, 0]}>
-                <boxGeometry args={[2, 2, 0.01]} />
-                <meshBasicMaterial color={glowColor} transparent opacity={0.05} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
-                <Edges scale={1.0} color={color} />
-              </mesh>
+              {/*
+                * The two diagonal cross-sections are gone.
+                *
+                * They were 2x2 planes turned 45 degrees, and their edges ran
+                * corner to corner right across the outer shell — lines that
+                * belonged to neither cube, cutting through the space between
+                * them. With the shell now a refracting solid they read as
+                * scratches on the glass rather than as structure inside it.
+                */}
             </group>
           </group>
         )}
@@ -427,27 +497,30 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
       <group ref={coreRef}>
         <mesh>
           <icosahedronGeometry args={[0.2, 0]} />
-          <meshBasicMaterial color={'#FFFFFF'} transparent opacity={0.4} blending={THREE.AdditiveBlending} />
+          {/* The centre, at twice its former output. Everything in this group
+              was doubled together so the falloff between the shells is
+              unchanged — a brighter core, not a differently shaped one. */}
+          <meshBasicMaterial color={'#FFFFFF'} transparent opacity={0.8} blending={THREE.AdditiveBlending} />
         </mesh>
         <mesh>
           <dodecahedronGeometry args={[0.4, 0]} />
-          <meshBasicMaterial color={glowColor} wireframe transparent opacity={0.4} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial color={glowColor} wireframe transparent opacity={0.8} blending={THREE.AdditiveBlending} />
         </mesh>
         <mesh>
           <icosahedronGeometry args={[0.6, 0]} />
-          <meshBasicMaterial color={color} wireframe transparent opacity={0.2} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial color={color} wireframe transparent opacity={0.4} blending={THREE.AdditiveBlending} />
         </mesh>
         <mesh>
           <octahedronGeometry args={[0.8, 0]} />
-          <meshBasicMaterial color={glowColor} wireframe transparent opacity={0.1} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial color={glowColor} wireframe transparent opacity={0.2} blending={THREE.AdditiveBlending} />
           <Edges scale={1.0} color={glowColor} />
         </mesh>
       </group>
       
       {/* Center light */}
-      <pointLight color={color} intensity={isIdle ? 1 : 2} distance={8} />
-      <pointLight color={color} intensity={isIdle ? 0.5 : 1} distance={15} position={[0, 5, 0]} />
-      <pointLight color={color} intensity={isIdle ? 0.5 : 1} distance={15} position={[0, -5, 0]} />
+      <pointLight color={color} intensity={isIdle ? 2 : 4} distance={8} />
+      <pointLight color={color} intensity={isIdle ? 1 : 2} distance={15} position={[0, 5, 0]} />
+      <pointLight color={color} intensity={isIdle ? 1 : 2} distance={15} position={[0, -5, 0]} />
     </group>
   );
 }
