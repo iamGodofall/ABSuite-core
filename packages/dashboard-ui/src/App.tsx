@@ -18,7 +18,7 @@ import {
   Bot, Zap, Shield,
   Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
   Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
-  Layers, Scale, HelpCircle
+  Layers, Scale, HelpCircle, Play
 } from 'lucide-react';
 import { useServices, Service } from './hooks/useServices';
 import { PerformanceTab } from './tabs/Performance';
@@ -38,6 +38,7 @@ import { MachineRoom } from './tabs/MachineRoom';
 import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
 import { TrustOperationsCenter } from './room/TrustOperationsCenter';
+import { Replay } from './tabs/Replay';
 import { VITAL_ICONS, type Vital } from './room/TopBar';
 import { Mark } from './room/Mark';
 import type { LayerReading } from './room/OrbitalNodes';
@@ -73,6 +74,9 @@ type TabId =
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
   // The four standing views. Not stages — the things the stages act on.
   | 'evidence' | 'policies' | 'agents' | 'unknowns'
+  // A transport over the log, rather than a place. Replay is the only view
+  // whose subject is time.
+  | 'replay'
   // The operator console. Not a layer and not evidence — a place you act from.
   | 'console'
   | 'system' | 'settings';
@@ -1289,6 +1293,7 @@ const TAB_CONFIG: {
   { id: 'agents',   label: 'Agents',       question: 'Who has been acting here?',           icon: Bot },
   { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
   { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
+  { id: 'replay',   label: 'Replay',        question: 'What happened, in the order it happened', icon: Play },
   // Not layers. The machinery underneath.
   { id: 'console',  label: 'Console',      question: 'Issue a token, draft a policy', icon: Bot },
   { id: 'system',   label: 'System health', question: 'The suite that runs the stack', icon: Server },
@@ -1580,6 +1585,7 @@ export default function App() {
       case 'agents' as TrustLayer: return <Agents onOpenRecord={setOpenRecordId} />;
       case 'policies' as TrustLayer: return <><ConstraintsPanel /><Obligations /></>;
       case 'unknowns' as TrustLayer: return <UnknownsPanel />;
+      case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} />;
       case 'console' as TrustLayer: return <AIStudioTab />;
       case 'system' as TrustLayer: return <MachineRoom services={services} error={error} />;
       case 'settings' as TrustLayer: return <SettingsTab services={services} />;

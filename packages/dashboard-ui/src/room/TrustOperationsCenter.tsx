@@ -34,17 +34,33 @@ const STATE_COLOUR = {
   ABSENT: '#6B7280',
 } as const;
 
-function LayerSurface({ layer, reading, onClose, children }: {
+function LayerSurface({ layer, reading, question, onClose, children }: {
   layer: TrustLayer;
   /** What this layer currently reads. Absent when it has nothing to report. */
   reading?: LayerReading;
+  /** The question this view answers, from the one list that names the views. */
+  question?: string;
   onClose: () => void;
   children?: React.ReactNode;
 }) {
   if (layer === 'overview') return null;
 
-  const state = reading?.state ?? 'UNKNOWN';
-  const hex = STATE_COLOUR[state];
+  /*
+   * A place is not a claim.
+   *
+   * This defaulted a missing reading to UNKNOWN, which is right for one of the
+   * seven operations — an operation with nothing to report has genuinely not
+   * been resolved — and wrong for everything else. The standing views are not
+   * operations: Agents, Policies, Evidence, the unknown queue, the console, the
+   * machine room, settings and replay are somewhere you go, not something that
+   * was determined. All eight opened with an amber UNKNOWN and a 34-point dash,
+   * asserting an unresolved state about a destination.
+   *
+   * The seven operations always carry a reading, so "no reading" separates the
+   * two cleanly without a list to maintain: no reading, no determination.
+   */
+  const state = reading?.state;
+  const hex = state ? STATE_COLOUR[state] : undefined;
 
   return (
     <div className="absolute inset-0 z-40 flex items-stretch justify-end pointer-events-none">
@@ -75,14 +91,18 @@ function LayerSurface({ layer, reading, onClose, children }: {
           * the reading you land on.
           */}
         <div className="shrink-0 flex items-baseline gap-5 border-b border-ab-green/10 pb-4 mb-4">
-          <span className="font-mono text-[34px] leading-none tabular-nums" style={{ color: hex }}>
-            {reading?.metric ?? '—'}
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em]" style={{ color: hex }}>
-            {state}
-          </span>
+          {state && (
+            <>
+              <span className="font-mono text-[34px] leading-none tabular-nums" style={{ color: hex }}>
+                {reading?.metric ?? '—'}
+              </span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em]" style={{ color: hex }}>
+                {state}
+              </span>
+            </>
+          )}
           <span className="ml-auto text-[10px] text-ab-white/40 font-mono uppercase tracking-[0.16em]">
-            {LAYER_QUESTION[layer] ?? ''}
+            {LAYER_QUESTION[layer] ?? question ?? ''}
           </span>
         </div>
 
@@ -266,6 +286,7 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
           <LayerSurface
             layer={activeLayer}
             reading={readings[activeLayer]}
+            question={views?.find(v => v.id === activeLayer)?.question}
             onClose={() => setActiveLayer('overview')}
           >
             {surface(activeLayer)}
@@ -278,7 +299,20 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
-        onSelectLayer={setActiveLayer}
+        /*
+         * The palette reaches more than the cube does.
+         *
+         * TrustLayer names the seven operations, which are the seven things the
+         * cube can be steered to. The palette also reaches the standing views —
+         * evidence, agents, policies, the unknown queue, the console, the
+         * machine room, replay — and those are not layers and never were, which
+         * is why App.tsx resolves them with `as TrustLayer` too.
+         *
+         * The cast is here, at the one boundary where the wider set narrows,
+         * rather than hidden behind an `any` on the prop. An `any` there is what
+         * let this callback be wired to a component that ignored it.
+         */
+        onSelectLayer={(id) => setActiveLayer(id as TrustLayer)}
         onOpenRecord={onOpenRecord}
         views={views}
       />
