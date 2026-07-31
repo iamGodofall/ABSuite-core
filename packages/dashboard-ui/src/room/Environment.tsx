@@ -34,6 +34,7 @@ import { type Integrity } from '../components/TrustCube';
 import { Scene } from './Scene';
 import type { TrustLayer } from './SceneCube';
 import { CommandLine } from './CommandLine';
+import { Mark } from './Mark';
 import { cn } from '../utils';
 
 export type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
@@ -321,13 +322,16 @@ export const Environment = ({
 
       {/* ── State, leading. Not a status bar — a line of vitals. ────────── */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-6 px-6 py-3 flex-wrap pointer-events-none">
-        <span className="leading-none">
+        <span className="flex items-center gap-2.5 leading-none">
+          <Mark size={30} />
+          <span>
           <span className="text-base font-bold text-[#F4F7FA] tracking-tight">ABSuite</span>
           <span className="block text-[8px] font-mono uppercase tracking-[0.26em] text-text-muted mt-0.5">
             Trust Operations Center
           </span>
           <span className="block text-[8px] italic text-text-muted/50 mt-0.5">
             The Future Is Accountable.
+          </span>
           </span>
         </span>
 
