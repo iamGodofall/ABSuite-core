@@ -550,19 +550,21 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
             metalness={0}
           />
         </mesh>
-        <mesh>
-          <dodecahedronGeometry args={[0.4, 0]} />
-          <meshBasicMaterial color={glowColor} wireframe transparent opacity={0.8} blending={THREE.AdditiveBlending} />
-        </mesh>
-        <mesh>
-          <icosahedronGeometry args={[0.6, 0]} />
-          <meshBasicMaterial color={color} wireframe transparent opacity={0.4} blending={THREE.AdditiveBlending} />
-        </mesh>
-        <mesh>
-          <octahedronGeometry args={[0.8, 0]} />
-          <meshBasicMaterial color={glowColor} wireframe transparent opacity={0.2} blending={THREE.AdditiveBlending} />
-          <Edges scale={1.0} color={glowColor} />
-        </mesh>
+        {/*
+          * The three wireframe shells are gone.
+          *
+          * A dodecahedron, an icosahedron and an octahedron in wireframe, all
+          * turning together on their own axes inside the block. They were the
+          * only thing in the core still rotating continuously, and once the
+          * block became ice they stopped reading as structure: a tangle of
+          * lines revolving behind a refracting surface competes with the
+          * refraction for the same job, which is telling you there is depth
+          * here. The eye ends up tracking the lines instead of the volume.
+          *
+          * What is left is the source itself — one opaque emissive solid, in
+          * the middle of the ice, lighting it from within. That is the whole
+          * claim the centre is meant to make.
+          */}
       </group>
       
       {/*
