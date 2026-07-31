@@ -80,6 +80,16 @@ export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
       <Canvas
         camera={{ position: [0, 0, 7], fov: 45 }}
         /*
+         * Device pixel ratio, clamped — adopted from
+         * MilindBadsar/threejs-3d-cube, which clamps it the same way.
+         *
+         * Unclamped, a retina display at DPR 3 renders nine times the pixels of
+         * a DPR 1 screen, and this scene is refraction plus a particle field —
+         * exactly the workload that cannot afford it. Above 2 the difference is
+         * not visible and the frame cost is.
+         */
+        dpr={[1, 2]}
+        /*
          * No tone mapping.
          *
          * R3F v9 defaults to ACES filmic, which is right for a lit PBR scene
