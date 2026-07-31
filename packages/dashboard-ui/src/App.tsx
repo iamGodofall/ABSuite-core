@@ -648,10 +648,12 @@ type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null;
  * different panels, so the record you select in Observe is the record you
  * verify and the record you explain.
  */
-const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
+const ProofTab = ({ view, live, arrivedIds, connected = false, onOpenRecord }: {
   view: 'observe' | 'verify' | 'explain';
   live?: import('./hooks/useSocket').LiveExecution[];
   arrivedIds?: Set<string>;
+  /** The socket, as the socket reports itself. Not inferred from anything. */
+  connected?: boolean;
   onOpenRecord?: (id: string) => void;
 }) => {
   const [traces, setTraces] = useState<Trace[]>([]);
@@ -884,7 +886,17 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
         <LiveFeed
           executions={live ?? []}
           arrivedIds={arrivedIds ?? new Set()}
-          connected={Boolean(live)}
+          /*
+           * The socket, not the shape of a prop.
+           *
+           * This read Boolean(live) — and Boolean([]) is true, so an empty
+           * array counted as a live connection. The panel announced "LIVE
+           * observing" with a pulsing green dot while the masthead three
+           * inches above it said OFFLINE, on a machine that had never
+           * answered. A connection indicator inferred from the existence of a
+           * variable is not an indicator.
+           */
+          connected={connected}
           onSelect={execution => onOpenRecord?.(execution.id)}
         />
       )}
@@ -960,11 +972,16 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
             </div>
           )}
 
+          {/*
+            * The chain action lives in ChainView, at the top of this surface,
+            * where the chain is explained. A second "Verify the entire chain"
+            * down here did the same work under a different name — two buttons
+            * for one act, which reads as two different acts. The result is kept
+            * because a reader who has scrolled this far should not have to
+            * scroll back to see whether the sweep passed.
+            */}
           {view === 'verify' && (
           <div className="mt-4 pt-3 border-t border-border">
-            <button className="px-4 py-2 rounded-lg bg-bg-primary border border-border hover:border-border-strong text-text-primary font-semibold text-sm transition-all disabled:opacity-50" onClick={() => void verifyChain()} disabled={busy}>
-              Verify the entire chain
-            </button>
             {chain && (
               <p className={cn('text-xs mt-2', chain.valid ? 'text-emerald-500' : 'text-red-500')}>
                 {chain.valid
@@ -1521,7 +1538,7 @@ export default function App() {
   /** The real surface behind each layer. */
   const surface = (layer: TrustLayer) => {
     switch (layer) {
-      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
+      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} connected={connected} onOpenRecord={setOpenRecordId} />;
       case 'verify': return <><ProofTab view="verify" onOpenRecord={setOpenRecordId} /><Audit /></>;
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
       case 'govern': return <GovernTab />;

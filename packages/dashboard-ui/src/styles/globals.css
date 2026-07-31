@@ -928,7 +928,15 @@
 
 /* No solid accent fills. A filled emerald button is the loudest thing on a
    screen whose brightest element should be the evidence. */
-.ab-surface button:is([class*="bg-emerald-500"], [class*="bg-teal-500"]) {
+/* Every solid fill, not just the two Tailwind names I happened to check first.
+   The loudest thing on the Verify surface was a hardcoded bg-[#00FF88], and on
+   Learn a bg-accent-primary from the shared Button primitive — neither matched
+   a rule written against bg-emerald-500. */
+.ab-surface button:is(
+  [class*="bg-emerald"], [class*="bg-teal"], [class*="bg-green"],
+  [class*="bg-accent-primary"], [class*="bg-[#00FF88]"], [class*="bg-[#00F58C]"],
+  [class*="bg-white"]
+) {
   background-color: rgba(0, 245, 140, 0.06);
   border: 1px solid rgba(0, 245, 140, 0.3);
   color: #00F58C;
@@ -938,7 +946,11 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
-.ab-surface button:is([class*="bg-emerald-500"], [class*="bg-teal-500"]):hover:not(:disabled) {
+.ab-surface button:is(
+  [class*="bg-emerald"], [class*="bg-teal"], [class*="bg-green"],
+  [class*="bg-accent-primary"], [class*="bg-[#00FF88]"], [class*="bg-[#00F58C]"],
+  [class*="bg-white"]
+):hover:not(:disabled) {
   background-color: rgba(0, 245, 140, 0.14);
 }
 

@@ -1,6 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { SceneCube, type TrustLayer } from './SceneCube';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -94,45 +93,24 @@ export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
         <CameraController activeLayer={activeLayer} />
         
         {/*
-          * Bloom, with a threshold that actually thresholds.
+          * No post-processing pass.
           *
-          * The supplied settings were tuned against ACES filmic tone mapping,
-          * which rolls the top of the range off before the composer ever sees
-          * it. This canvas has tone mapping disabled — it had to be, or the
-          * additive materials composited to black — so nothing rolls off, and
-          * a luminance threshold of 0.1 meant every one of the five stacked
-          * wireframes, all four orbital rings and the entire starfield cleared
-          * the bar. Everything bloomed, so nothing read as bright: the core
-          * came out as a solid green mass with no edges in it.
+          * The scene carried an EffectComposer with a Bloom effect, and it
+          * intermittently wrote an empty buffer over the whole render: the
+          * cube, the four orbital rings, the particle field and the grid all
+          * disappeared, leaving the starfield (drawn before the pass) and the
+          * single mesh whose colour is a literal white. Dropping the
+          * composer's multisampling to 0 fixed it at one viewport and it came
+          * back at another, which is the signature of a pass that depends on
+          * a render target the machine may or may not give it.
           *
-          * Threshold raised to 0.62 with smoothing, intensity cut. Only the
-          * genuine highlights — the ×2 glow edge and the white core — bloom
-          * now, which is what gives the cube its structure back.
+          * A glow that sometimes deletes the instrument is not a glow worth
+          * having. The materials are additive against an opaque ground with
+          * tone mapping off, which is where most of the luminance came from in
+          * the first place — the composer was adding polish on top of a scene
+          * that already reads. Removing it makes the render unconditional:
+          * there is now no frame in which the core can fail to be drawn.
           */}
-        {/*
-          * multisampling={0} is not a tuning choice, it is the fix.
-          *
-          * The composer defaults to an 8x multisampled render target, and this
-          * canvas already requests antialias: true. On a machine without GPU
-          * acceleration that target fails to allocate, the composer writes
-          * nothing, and the pass replaces the scene with an empty buffer — so
-          * the cube, the four orbital rings, the particle field and the grid
-          * all disappeared while the starfield, drawn before the pass, stayed.
-          * It presented as an intermittent missing cube, because whether the
-          * allocation succeeds depends on the machine.
-          *
-          * Antialiasing is already handled by the canvas. Asking for it twice
-          * bought nothing and cost the scene.
-          */}
-        <EffectComposer multisampling={0}>
-          <Bloom
-            luminanceThreshold={0.62}
-            luminanceSmoothing={0.28}
-            mipmapBlur
-            intensity={isIdle ? 0.35 : 0.75}
-            radius={0.72}
-          />
-        </EffectComposer>
       </Canvas>
     </div>
   );

@@ -32,6 +32,13 @@ export type TrustLayer =
   | 'overview' | 'observe' | 'verify' | 'explain'
   | 'govern' | 'arbitrate' | 'act' | 'learn';
 
+/** Fixed for the life of the scene. Resizing a WebGL attribute mid-flight is
+ *  what produced the torn geometry this field used to show. */
+const PARTICLE_COUNT = 1200;
+/** The band the field occupies vertically, and the distance a point travels
+ *  before it wraps. Wrapping by exactly this keeps the drift continuous. */
+const FIELD_HEIGHT = 8;
+
 /** 0.05 degrees per second, in radians. The resting drift. */
 const REST_DRIFT = (0.05 * Math.PI) / 180;
 
@@ -68,7 +75,17 @@ export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubePr
 
   const baseColor = new THREE.Color(colors[activeLayer] || colors.overview);
   const color = baseColor.clone();
-  const glowColor = baseColor.clone().multiplyScalar(isIdle ? 1.0 : 2.0); // Reduced HDR bloom color
+  /*
+   * The glow now lives entirely in the materials.
+   *
+   * These values were tuned against a Bloom pass that has been removed for
+   * being unreliable — see Scene.tsx. Without it the additive stack lost its
+   * top end, so the multiplier is raised: the accumulation across the five
+   * overlapping edge wireframes is what produces the bright edge now, rather
+   * than a post-process finding it afterwards. Idle stays at 1.0, so standing
+   * down still visibly dims the core.
+   */
+  const glowColor = baseColor.clone().multiplyScalar(isIdle ? 1.0 : 2.8);
 
   useFrame((state, delta) => {
     // Slow down time if idle
@@ -186,10 +203,18 @@ export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubePr
     if (particlesRef.current) {
       particlesRef.current.rotation.y -= effectiveDelta * 0.05;
       const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-      
-      // Update draw range to simulate dropped particle count
-      particlesRef.current.geometry.setDrawRange(0, isIdle ? 400 : 1200);
-      
+
+      /*
+       * The whole field is always drawn.
+       *
+       * Going idle used to cut the draw range from 1200 to 400, so two thirds
+       * of the points vanished between one frame and the next and reappeared
+       * the moment the mouse moved. Nothing was fading — they were simply not
+       * being drawn — and a third of a starfield blinking out reads as a fault,
+       * not as a system resting. Idle already slows the clock, which is the
+       * honest way to show a system standing down.
+       */
+
       if (activeLayer === 'act' && !isIdle) {
          // Emit particles outward
          for (let i = 0; i < positions.length; i += 3) {
@@ -203,35 +228,66 @@ export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubePr
             }
          }
       } else {
-         for (let i = 0; i < positions.length; i += 3) {
-           positions[i + 1] += effectiveDelta * 0.5; // Flow upwards
-           if (positions[i + 1] > 4) {
-             positions[i + 1] = -4;
-           }
+         /*
+          * A continuous upward drift that wraps exactly.
+          *
+          * The wrap used to assign -4 whenever a point passed +4, which throws
+          * away the fraction it had already travelled past the boundary. At
+          * 60fps that error is invisible; on a frame that arrives late — a tab
+          * regaining focus, a slow machine — it is a visible jump, and the eye
+          * catches a bright point teleporting. Subtracting exactly one field
+          * height preserves the overshoot, so the motion is unbroken however
+          * long the frame took.
+          */
+         for (let i = 1; i < positions.length; i += 3) {
+           positions[i] += effectiveDelta * 0.5;
+           if (positions[i] > FIELD_HEIGHT / 2) positions[i] -= FIELD_HEIGHT;
          }
       }
       particlesRef.current.geometry.attributes.position.needsUpdate = true;
     }
   });
 
-  const [positions, particleColors] = useMemo(() => {
-    const pos = [];
-    const cols = [];
-    // Keep particle count constant to prevent WebGL attribute resize error
-    const count = 1200;
-    for (let i = 0; i < count; i++) {
+  /*
+   * The particle field, built once.
+   *
+   * This was memoised on [glowColor] — and glowColor is a fresh THREE.Color
+   * constructed on every render, so the dependency never compared equal. Both
+   * Float32Arrays were rebuilt every single render, React handed the geometry
+   * a brand-new position buffer, and the frame loop's mutations — the upward
+   * drift, the outward emission on Act — were discarded and restarted from
+   * scratch at random moments. That is the glitch: not a stutter in the
+   * animation, but the animation being thrown away and begun again several
+   * times a second, with the buffer briefly inconsistent while it swapped.
+   *
+   * Geometry is built once and never rebuilt. Colour is a separate buffer
+   * keyed on the colour itself as a string, so changing layer re-tints the
+   * field without disturbing where any point is or where it was going.
+   */
+  const positions = useMemo(() => {
+    const pos = new Float32Array(PARTICLE_COUNT * 3);
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = 3.5 + Math.random() * 8; // Spread out more, away from core
-      const x = Math.cos(angle) * radius;
+      const radius = 3.5 + Math.random() * 8; // Spread out, away from the core.
+      pos[i * 3] = Math.cos(angle) * radius;
       // absuite-allow-fabrication: the vertical coordinate of a scatter point in the particle field — where a dot sits, not a value anyone reads.
-      const y = (Math.random() - 0.5) * 8;
-      const z = Math.sin(angle) * radius;
-      pos.push(x, y, z);
-      
-      cols.push(glowColor.r, glowColor.g, glowColor.b);
+      pos[i * 3 + 1] = (Math.random() - 0.5) * FIELD_HEIGHT;
+      pos[i * 3 + 2] = Math.sin(angle) * radius;
     }
-    return [new Float32Array(pos), new Float32Array(cols)];
-  }, [glowColor]);
+    return pos;
+  }, []);
+
+  const glowHex = glowColor.getHexString();
+  const particleColors = useMemo(() => {
+    const cols = new Float32Array(PARTICLE_COUNT * 3);
+    const tint = new THREE.Color(`#${glowHex}`);
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      cols[i * 3] = tint.r;
+      cols[i * 3 + 1] = tint.g;
+      cols[i * 3 + 2] = tint.b;
+    }
+    return cols;
+  }, [glowHex]);
 
   const isArbitrate = activeLayer === 'arbitrate';
 
@@ -259,7 +315,7 @@ export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubePr
               {[0.98, 0.99, 1.0, 1.01, 1.02].map((scale, i) => (
                 <mesh key={i} scale={scale}>
                   <boxGeometry args={[2.5, 2.5, 2.5]} />
-                  <meshBasicMaterial color={scale === 1.0 ? glowColor : color} transparent opacity={scale === 1.0 ? 0.8 : 0.15} wireframe={true} depthWrite={false} blending={THREE.AdditiveBlending} />
+                  <meshBasicMaterial color={scale === 1.0 ? glowColor : color} transparent opacity={scale === 1.0 ? 1 : 0.22} wireframe={true} depthWrite={false} blending={THREE.AdditiveBlending} />
                 </mesh>
               ))}
             </group>

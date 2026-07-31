@@ -16,12 +16,35 @@ import type { TrustLayer } from './SceneCube';
  * opens here is the layer's real surface: the same panels that read from
  * CapKit, Trust and Edge-Run.
  */
-function LayerSurface({ layer, onClose, children }: {
+/** The question each station exists to answer. */
+const LAYER_QUESTION: Record<string, string> = {
+  observe: 'What did the agents do?',
+  verify: 'Has any of it been altered?',
+  explain: 'What does this record mean?',
+  govern: 'What is it allowed to do?',
+  arbitrate: 'Who is right when they disagree?',
+  act: 'What is running, and what can it reach?',
+  learn: 'How fast is it, really?',
+};
+
+const STATE_COLOUR = {
+  DEMONSTRATED: '#00F58C',
+  FAILED: '#EF4444',
+  UNKNOWN: '#F59E0B',
+  ABSENT: '#6B7280',
+} as const;
+
+function LayerSurface({ layer, reading, onClose, children }: {
   layer: TrustLayer;
+  /** What this layer currently reads. Absent when it has nothing to report. */
+  reading?: LayerReading;
   onClose: () => void;
   children?: React.ReactNode;
 }) {
   if (layer === 'overview') return null;
+
+  const state = reading?.state ?? 'UNKNOWN';
+  const hex = STATE_COLOUR[state];
 
   return (
     <div className="absolute inset-0 z-40 flex items-stretch justify-end pointer-events-none">
@@ -38,6 +61,29 @@ function LayerSurface({ layer, onClose, children }: {
             <span className="w-4 h-4 border border-ab-white/20 rounded flex items-center justify-center text-[8px] mr-1">ESC</span>
             TO CLOSE
           </button>
+        </div>
+
+        {/*
+          * The readout. State before explanation, on every layer without
+          * exception.
+          *
+          * Each surface used to open with a paragraph — three of them opened
+          * with two paragraphs saying nearly the same thing — and the actual
+          * reading was somewhere below the fold. A station reports its figure
+          * first and argues afterwards. This is the same determination that
+          * colours the layer's node in the room, so the reading you clicked is
+          * the reading you land on.
+          */}
+        <div className="shrink-0 flex items-baseline gap-5 border-b border-ab-green/10 pb-4 mb-4">
+          <span className="font-mono text-[34px] leading-none tabular-nums" style={{ color: hex }}>
+            {reading?.metric ?? '—'}
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em]" style={{ color: hex }}>
+            {state}
+          </span>
+          <span className="ml-auto text-[10px] text-ab-white/40 font-mono uppercase tracking-[0.16em]">
+            {LAYER_QUESTION[layer] ?? ''}
+          </span>
         </div>
 
         {/* ab-surface converts everything rendered inside into the supplied
@@ -217,7 +263,11 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
              />
           )}
 
-          <LayerSurface layer={activeLayer} onClose={() => setActiveLayer('overview')}>
+          <LayerSurface
+            layer={activeLayer}
+            reading={readings[activeLayer]}
+            onClose={() => setActiveLayer('overview')}
+          >
             {surface(activeLayer)}
           </LayerSurface>
 

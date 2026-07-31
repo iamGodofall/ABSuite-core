@@ -164,16 +164,15 @@ export const PerformanceTab = () => {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-bg-secondary p-4">
-        <h3 className="text-sm font-semibold text-text-primary mb-1">Numbers, or nothing</h3>
-        <p className="text-xs text-text-muted leading-relaxed">
-          Every figure here was produced by a benchmark run against the real signing, storage and
-          verification paths — nothing stubbed, nothing extrapolated, warmup discarded and stated.
-          A number is only true of the machine beside it. If no benchmark has run, this screen shows
-          no numbers at all, because one invented figure would cost more than every honest one is worth.
-        </p>
-      </div>
-
+      {/*
+        * The preamble is gone.
+        *
+        * This component only ever renders inside the Learn layer, directly
+        * below LearnLayer's own "Measured, or nothing" panel, which makes the
+        * same argument in almost the same words. Two paragraphs saying one
+        * thing is how a surface stops being read at all. The claim is kept
+        * once, where it is first made.
+        */}
       {state.status === 'loading' && (
         <div className="rounded-xl border border-border bg-bg-secondary p-6 text-sm text-text-muted">
           Loading the last measurement…
@@ -183,8 +182,10 @@ export const PerformanceTab = () => {
       {state.status === 'error' && (
         <div className="rounded-xl border border-red-500/40 bg-red-500/[0.06] p-4">
           <p className="text-sm font-semibold text-red-400 mb-1">Could not load performance data</p>
-          <p className="text-xs text-text-muted mb-3">{state.message}</p>
-          {runButton}
+          {/* The run control is offered once, by LearnLayer above. Repeating it
+              inside the failure notice put two buttons for one act on the same
+              screen, which reads as two different acts. */}
+          <p className="text-xs text-text-muted">{state.message}</p>
         </div>
       )}
 
