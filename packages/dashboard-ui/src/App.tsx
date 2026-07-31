@@ -1574,16 +1574,39 @@ export default function App() {
       />
 
       {error && (
-        /* Bottom-right, not bottom-centre. Centred it covered Arbitrate and
-           Govern — the two stations most likely to matter when a service has
-           stopped answering. A notice about the room must not sit on top of
-           the room. */
+        /*
+         * Two different situations were wearing the same red notice.
+         *
+         * "A service is not answering" is correct when there is an instance and
+         * one part of it has stopped responding. It is misleading when there is
+         * no instance at all — a copy of this interface opened with nothing
+         * behind it, where every call fails because there is nothing to call.
+         * That is not a fault, it is an unconnected console, and reporting it
+         * as a failure makes a working product look broken to anyone you show
+         * it to.
+         *
+         * The two are distinguishable by whether anything at all has answered:
+         * the socket is down and not one service is up. A partial failure still
+         * has something responding and still deserves the red card.
+         *
+         * Bottom-right, not bottom-centre — centred it covered Arbitrate and
+         * Govern, the two stations most likely to matter when something has
+         * stopped answering.
+         */
         <div className="fixed bottom-8 right-6 z-50 max-w-sm w-[92%] sm:w-auto">
-          <NoticeCard
-            tone="error"
-            title="A service is not answering"
-            message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}
-          />
+          {!connected && services.every(service => service.status !== 'up') ? (
+            <NoticeCard
+              tone="info"
+              title="No instance connected"
+              message="This is the Trust Operations Center with nothing behind it. Every reading shows UNKNOWN because nothing has been asked, not because anything failed — the room will not invent a figure to fill a gap. Point it at a running ABSuite instance and the same screen fills with real evidence."
+            />
+          ) : (
+            <NoticeCard
+              tone="error"
+              title="A service is not answering"
+              message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}
+            />
+          )}
         </div>
       )}
 

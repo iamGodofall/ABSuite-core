@@ -379,7 +379,10 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   <lineBasicMaterial
                     color={scale === 1.0 ? glowColor : color}
                     transparent
-                    opacity={scale === 1.0 ? 1 : 0.22}
+                    /* Quieter. The edges describe where the block is; they are
+                       not the subject, and at full strength they were louder
+                       than the thing they contain. */
+                    opacity={scale === 1.0 ? 0.42 : 0.08}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
                   />
