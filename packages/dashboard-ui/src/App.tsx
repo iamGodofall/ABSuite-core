@@ -1449,7 +1449,15 @@ export default function App() {
     const upCount = services.filter(service => service.status === 'up').length;
     const held = figures?.total ?? null;
     const unscoped = figures?.withoutScope ?? 0;
-    const failures = figures?.failures ?? 0;
+    /*
+     * `figures.failures` is deliberately not read here.
+     *
+     * It was the source of Arbitrate's reading, which is why a failed payment
+     * appeared on the front page as "1 DISPUTE". It is still fetched and still
+     * available to any layer that wants to state it as what it is — a count of
+     * executions whose outcome was failure — but no orbital node currently has
+     * an honest use for it, and borrowing it for one was the bug.
+     */
 
     const servicesState: Determination =
       services.length === 0 ? 'UNKNOWN'
@@ -1479,9 +1487,29 @@ export default function App() {
           ? { state: 'UNKNOWN', metric: `${unscoped} UNSCOPED` }
           // absuite-allow-fabrication: a determination label, not a measurement — this branch is only reachable when held > 0 and unscoped === 0, so the word is what the comparison concluded.
           : { state: 'DEMONSTRATED', metric: 'SCOPED' },
-      arbitrate: figures === null
-        ? { state: 'UNKNOWN' }
-        : { state: failures > 0 ? 'FAILED' : unchecked, metric: `${failures} DISPUTE${failures === 1 ? '' : 'S'}` },
+      /*
+       * Arbitrate reports nothing, because nothing is kept.
+       *
+       * This read `figures.failures` and rendered it as `${failures} DISPUTES`,
+       * which put "1 DISPUTE" on the front page in red the first time a single
+       * execution came back with outcome 'failure'. The number was real. The
+       * noun was not: a payment that failed is not two parties disagreeing, and
+       * Arbitrate is the layer for "who is right when they disagree", not for
+       * "what went wrong". The layer was also being marked FAILED — a claim
+       * that arbitration itself had failed — on the strength of an unrelated
+       * execution.
+       *
+       * capkit already says the true thing, in its own `unverifiable` list:
+       * "Arbitrations are answered on request and not persisted, so there is no
+       * count to give." /trust/disputes returns [] for the same reason. So the
+       * honest reading is the absence, and the room has a word for that.
+       *
+       * check-no-fabrication did not catch this, and could not have: it exempts
+       * any metric containing an interpolation on the grounds that a value
+       * bound to a variable cannot be invented. That is true of the number and
+       * says nothing about the label attached to it.
+       */
+      arbitrate: { state: figures === null ? 'UNKNOWN' : 'ABSENT' },
       act: services.length === 0
         ? { state: 'UNKNOWN' }
         : { state: servicesState, metric: `${upCount}/${services.length} UP` },

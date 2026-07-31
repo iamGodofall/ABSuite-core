@@ -165,10 +165,25 @@ const RULES = [
     pattern: /\b(?:metric|reading|value|count|total|headline)\s*:\s*['"`][^'"`]+['"`]/g,
     why: 'A field named for a reading, assigned a literal. Bind it to a source, or omit it so the component can say the reading is absent.',
     exempt: (text, index, matched) =>
-      // A template literal with an interpolation is bound to a source by
-      // construction — `${failures} DISPUTES` cannot be invented data, because
-      // the number comes from a variable. Only the constant part is a literal.
-      // A template with no interpolation, `482 records`, is still caught.
+      /*
+       * A template literal with an interpolation is bound to a source, so the
+       * *number* in it cannot be invented.
+       *
+       * This exemption was written with `${failures} DISPUTES` as its worked
+       * example of something safe. It was the wrong example. That exact line
+       * shipped, and the first execution to come back with outcome 'failure'
+       * put "1 DISPUTE" on the front page in red — a real number under a noun
+       * that described something else entirely, on a layer whose subject is
+       * disagreement rather than failure.
+       *
+       * The exemption is still correct and stays, because the alternative is
+       * flagging every honest derived metric in the interface. But its scope is
+       * narrower than it claimed: a lexical check can see that a value came
+       * from a variable, and can never see whether the word next to it is the
+       * right word. Mislabelling is not reachable from here. It is reachable by
+       * running the thing and reading what it says, which is how that one was
+       * found and is why the screenshots matter.
+       */
       /\$\{/.test(matched) ||
       // A label or a placeholder is not a reading; only flag values that look
       // like measurements — digits, or a determination word.

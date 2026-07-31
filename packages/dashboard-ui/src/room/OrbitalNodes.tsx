@@ -96,7 +96,22 @@ export function OrbitalNodes({ activeLayer, focusedLayer, onSelectLayer, reading
 
   return (
     <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
-      <div className="absolute inset-0">
+      {/*
+        * The ring is inset by the two fixed bars, not by the viewport.
+        *
+        * Every node is placed as a percentage of this container, and this
+        * container was `inset-0` — the whole window, including the strip the
+        * masthead is drawn over. Observe sits at the top of the ring, so its
+        * label landed inside the masthead at every size measured: y38 on a
+        * 1440x900 laptop, y43 on a MacBook, y22 on an iPad, against a header
+        * 80px tall. A percentage cannot clear a fixed-height bar, so no amount
+        * of adjusting `top: 12%` fixes it for more than one viewport.
+        *
+        * Insetting the container instead makes the percentages describe the
+        * space actually available, which is what they were always meant to
+        * mean. It also keeps Govern and Arbitrate, at 82%, off the footer.
+        */}
+      <div className="absolute inset-x-0 top-24 bottom-16">
         {evidenceMoving && (
           <div
             className="absolute w-2 h-2 rounded-full bg-ab-white z-50 pointer-events-none -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#00F58C,0_0_20px_#00F58C]"
