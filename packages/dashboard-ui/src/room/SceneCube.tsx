@@ -475,22 +475,86 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                 * size it looked before, not the number it was written as.
                 */}
               <group ref={coreRef}>
+                {/*
+                  * The source, at the centre and opaque.
+                  *
+                  * Smaller and hotter than before. It is opaque because only
+                  * opaque objects enter the buffer a refracting surface reads —
+                  * an additive core is drawn over the ice instead of inside it.
+                  */}
                 <mesh>
-                  <icosahedronGeometry args={[0.42, 0]} />
-                  {/*
-                    * Opaque, and that is the whole point. Three builds the
-                    * transmission buffer from opaque objects only, so an
-                    * additive transparent core never enters the buffer the
-                    * glass refracts and gets drawn on top of the surface
-                    * instead of inside it.
-                    */}
+                  <icosahedronGeometry args={[0.3, 1]} />
                   <meshStandardMaterial
                     color={'#04180F'}
                     emissive={color}
-                    emissiveIntensity={6}
+                    emissiveIntensity={9}
                     toneMapped={false}
                     roughness={0.35}
                     metalness={0}
+                  />
+                </mesh>
+
+                {/*
+                  * The radiance, falling off outward.
+                  *
+                  * A single emissive solid is uniformly bright to its own edge,
+                  * which reads as a painted disc rather than as a light. Real
+                  * radiance is strongest at the source and weakest at the
+                  * limit, so this is four additive shells at increasing radius
+                  * and decreasing opacity — the cheap volumetric every renderer
+                  * uses, and the only way to get a gradient out of geometry
+                  * without a custom shader.
+                  *
+                  * BackSide so each shell is seen from within: the far wall of
+                  * the sphere is what you look through, which is what makes the
+                  * stack accumulate toward the middle instead of ringing at the
+                  * silhouette.
+                  */}
+                {[
+                  { r: 0.40, o: 0.30 },
+                  { r: 0.54, o: 0.16 },
+                  { r: 0.70, o: 0.085 },
+                  { r: 0.88, o: 0.04 },
+                ].map(shell => (
+                  <mesh key={shell.r}>
+                    <sphereGeometry args={[shell.r, 28, 28]} />
+                    <meshBasicMaterial
+                      color={color}
+                      transparent
+                      opacity={isIdle ? shell.o * 0.4 : shell.o}
+                      side={THREE.BackSide}
+                      blending={THREE.AdditiveBlending}
+                      depthWrite={false}
+                    />
+                  </mesh>
+                ))}
+
+                {/*
+                  * The dark ring.
+                  *
+                  * Everything in this block emits, and a volume with no dark in
+                  * it has no depth — the eye needs something occluding to know
+                  * there is space between things. This is a solid, unlit torus
+                  * sitting in the radiance: it takes a rim highlight on the
+                  * side facing the source and goes black on the side away from
+                  * it, which is the gradient asked for, and it silhouettes as
+                  * two dark points wherever it crosses the glow.
+                  *
+                  * Opaque on purpose. It is the one part of the core that must
+                  * be genuinely inside the ice rather than composited over it,
+                  * and opaque is the only thing a refracting surface can see.
+                  * Tilted off every axis so it never lines up with the cube and
+                  * reads as a plate.
+                  */}
+                <mesh rotation={[Math.PI / 2.7, 0.22, Math.PI / 9]}>
+                  <torusGeometry args={[0.62, 0.045, 14, 96]} />
+                  <meshStandardMaterial
+                    color={'#01100A'}
+                    roughness={0.28}
+                    metalness={0.15}
+                    emissive={color}
+                    emissiveIntensity={0.12}
+                    toneMapped={false}
                   />
                 </mesh>
 
