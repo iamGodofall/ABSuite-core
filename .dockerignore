@@ -31,4 +31,9 @@ Dockerfile*
 # Docs and configs (not needed in image)
 *.md
 !README.md
+# deploy/Dockerfile runs scripts/gen-architecture-layers.mjs, which reads this
+# file to produce the cube's eight vertices. `*.md` above matches the root only,
+# so docs/ already survives — this states the dependency rather than leaving the
+# build resting on a subtlety of ignore-pattern matching that nothing tests.
+!docs/CONSTITUTION.md
 .github

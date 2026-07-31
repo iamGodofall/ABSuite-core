@@ -22,7 +22,7 @@ COPY packages/connector-starter/package.json ./packages/connector-starter/
 COPY packages/trust/package.json ./packages/trust/
 COPY packages/dashboard-ui/package.json ./packages/dashboard-ui/
 COPY packages/cli/package.json ./packages/cli/
-COPY packages/mcp-server/package.json ./packages/mcp-server/
+COPY packages/mcp/package.json ./packages/mcp/
 
 RUN pnpm install --frozen-lockfile
 

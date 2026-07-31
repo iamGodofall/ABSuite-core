@@ -274,6 +274,54 @@ for (const manifest of manifests) {
   }
 }
 
+/* ── 5. A Dockerfile may only COPY paths that exist ───────────────────────── */
+//
+// deploy/Dockerfile carried `COPY packages/mcp-server/package.json`. The
+// directory is packages/mcp. The path was written from memory, nothing in the
+// repository read Dockerfiles, and the only thing that could catch it was a
+// container build — which needs a daemon, which the machine it was written on
+// did not have. So it went in green and CD failed for three commits with
+// "/packages/mcp-server/package.json: not found" while everything local passed.
+//
+// A build that takes four minutes to tell you a filename is wrong should not be
+// the first thing that tells you a filename is wrong.
+
+const dockerfiles = [];
+(function walk(dir) {
+  for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry === '.git' || entry === 'dist') continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full);
+    else if (/^Dockerfile/.test(entry)) dockerfiles.push(full);
+  }
+})(root);
+
+let copyPaths = 0;
+for (const file of dockerfiles) {
+  const text = readFileSync(file, 'utf8');
+  for (const match of text.matchAll(/^\s*COPY\s+(?!--from)(.+)$/gim)) {
+    // Everything but the final argument is a source; the last is the
+    // destination inside the image and is not ours to check.
+    const args = match[1].trim().split(/\s+/);
+    if (args.length < 2) continue;
+    for (const source of args.slice(0, -1)) {
+      // Build-context-relative, and globs are left alone — a glob that matches
+      // nothing is a different and much rarer mistake than a typo.
+      if (source.startsWith('--') || /[*?[\]]/.test(source) || source === '.') continue;
+      copyPaths += 1;
+      if (!existsSync(join(root, source))) {
+        failures.push(
+          `${rel(file)}: COPY ${source} — no such path in the build context.\n` +
+          `      The image build fails on this with "not found", four minutes in.`,
+        );
+      }
+    }
+  }
+}
+if (dockerfiles.length > 0 && !failures.some(f => /COPY /.test(f))) {
+  passes.push(`${copyPaths} COPY path(s) across ${dockerfiles.length} Dockerfile(s) exist`);
+}
+
 /* ── Report ───────────────────────────────────────────────────────────────── */
 
 for (const line of passes) console.log(`✓ ${line}`);
