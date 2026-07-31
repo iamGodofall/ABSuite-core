@@ -23,10 +23,11 @@
  * Everything else — the geometry, the materials, the particle field, the rings,
  * the idle degradation — is as supplied.
  */
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import { LayerVertices } from './LayerVertices';
+import { createCausticTexture } from './iceTextures';
 import { GlassShell } from './GlassShell';
 import * as THREE from 'three';
 
@@ -93,6 +94,35 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
 
   /** Built once and shared by the five edge passes. */
   const shellEdges = useMemo(() => new THREE.BoxGeometry(2.5, 2.5, 2.5), []);
+
+  /*
+   * Air trapped in the ice.
+   *
+   * The single most convincing detail available: real ice has bubbles, and
+   * nothing else says "frozen" as immediately. A hundred points scattered
+   * through the inner volume, seeded so the block is the same block on every
+   * machine rather than a different one each reload.
+   */
+  const bubbles = useMemo(() => {
+    const count = 100;
+    const pos = new Float32Array(count * 3);
+    let seed = 0xB0BB1E;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < count; i++) {
+      // absuite-allow-fabrication: scatter positions for bubbles inside the ice — where a dot sits, not a value anyone reads.
+      pos[i * 3] = (rand() - 0.5) * 1.6;
+      pos[i * 3 + 1] = (rand() - 0.5) * 1.6;
+      pos[i * 3 + 2] = (rand() - 0.5) * 1.6;
+    }
+    return pos;
+  }, []);
+
+  /** Light the block has bent, arriving on the floor. */
+  const caustics = useMemo(() => (typeof document === 'undefined' ? null : createCausticTexture()), []);
+  useEffect(() => () => caustics?.dispose(), [caustics]);
 
   useFrame((state, delta) => {
     // Slow down time if idle
@@ -367,6 +397,24 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                 * surface, specular and structure, and it costs no second
                 * render. Glass shell, physical interior, living core.
                 */}
+              {glass && (
+                <points>
+                  <bufferGeometry>
+                    {/* R3F v9 takes args, not count/array/itemSize. The v8
+                        signature compiles and silently builds nothing. */}
+                    <bufferAttribute attach="attributes-position" args={[bubbles, 3]} />
+                  </bufferGeometry>
+                  <pointsMaterial
+                    size={0.028}
+                    color="#DFF6FF"
+                    transparent
+                    opacity={0.55}
+                    sizeAttenuation
+                    depthWrite={false}
+                  />
+                </points>
+              )}
+
               {glass ? (
                 <mesh>
                   <boxGeometry args={[1.8, 1.8, 1.8]} />
@@ -437,27 +485,30 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         <group ref={ringsRef}>
           {[3.5, 4.5, 6, 7.5].map((radius, i) => (
             <group key={i}>
+              {/* A tube, not a flat annulus. A ring with thickness catches
+                  light along its length and reads as a track rather than as a
+                  drawn circle. */}
               <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[radius, radius + 0.01, 128]} />
-                <meshBasicMaterial color={glowColor} transparent opacity={0.15 + (i * 0.05)} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+                <torusGeometry args={[radius, 0.015, 8, 128]} />
+                <meshBasicMaterial color={glowColor} transparent opacity={0.15 + (i * 0.05)} blending={THREE.AdditiveBlending} />
               </mesh>
               {i > 1 && (
                 <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                  <ringGeometry args={[radius + 0.1, radius + 0.15, 64, 1, 0, Math.PI * 2]} />
-                  <meshBasicMaterial color={color} transparent opacity={0.1} side={THREE.DoubleSide} wireframe={true} blending={THREE.AdditiveBlending} />
+                  <torusGeometry args={[radius + 0.12, 0.02, 8, 64]} />
+                  <meshBasicMaterial color={color} transparent opacity={0.14} blending={THREE.AdditiveBlending} />
                 </mesh>
               )}
               {/* Add data arcs */}
               <mesh rotation={[-Math.PI / 2, 0, (i * Math.PI) / 2]}>
-                <ringGeometry args={[radius - 0.05, radius + 0.05, 64, 1, 0, Math.PI / (i + 2)]} />
-                <meshBasicMaterial color={color} transparent opacity={0.3} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+                <torusGeometry args={[radius, 0.03, 8, 64, Math.PI / (i + 2)]} />
+                <meshBasicMaterial color={color} transparent opacity={0.3} blending={THREE.AdditiveBlending} />
               </mesh>
             </group>
           ))}
           {/* Dashed outer boundary ring */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-             <ringGeometry args={[9, 9.02, 128]} />
-             <meshBasicMaterial color={color} transparent opacity={0.1} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+             <torusGeometry args={[9, 0.01, 8, 128]} />
+             <meshBasicMaterial color={color} transparent opacity={0.1} blending={THREE.AdditiveBlending} />
           </mesh>
         </group>
       )}
@@ -514,6 +565,29 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         </mesh>
       </group>
       
+      {/*
+        * The caustic floor.
+        *
+        * Light the block has bent, landing somewhere else — the detail that
+        * makes the cube an object in a room rather than a shape on a
+        * background. Only drawn where the machine is actually refracting;
+        * without transmission there is no bent light to land, and painting one
+        * anyway would be a claim about physics that is not happening.
+        */}
+      {glass && caustics && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -4, 0]}>
+          <planeGeometry args={[15, 15]} />
+          <meshBasicMaterial
+            map={caustics}
+            color={glowColor}
+            transparent
+            opacity={isIdle ? 0.12 : 0.26}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
       {/* Center light */}
       <pointLight color={color} intensity={isIdle ? 2 : 4} distance={8} />
       <pointLight color={color} intensity={isIdle ? 1 : 2} distance={15} position={[0, 5, 0]} />

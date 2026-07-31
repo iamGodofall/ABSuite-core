@@ -32,6 +32,7 @@
  * additive shell renders instead. See glass.ts for why that fallback exists
  * and is not optional.
  */
+import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface GlassShellProps {
@@ -99,8 +100,15 @@ export function GlassShell({
      * shell first lets the glow add on top of it, so the structure still burns
      * through the surface the way light does through ice.
      */
-    <mesh renderOrder={-1}>
-      <boxGeometry args={[size, size, size]} />
+    /*
+     * Rounded, not sharp.
+     *
+     * Ice has no razor edges — it is formed, not machined, and a 90-degree
+     * corner is the single clearest tell that a shape came out of a modelling
+     * package. A 2% fillet also gives the edges somewhere to catch a highlight,
+     * which is most of what makes a solid read as solid.
+     */
+    <RoundedBox renderOrder={-1} args={[size, size, size]} radius={size * 0.022} smoothness={6}>
       <meshPhysicalMaterial
         /*
          * Transmission, not opacity.
@@ -127,8 +135,16 @@ export function GlassShell({
         metalness={0}
         // The colour lives in the volume, not on the face — but faintly, so it
         // reads as a tint through ice rather than as stained glass.
-        attenuationColor={color}
-        attenuationDistance={8}
+        /*
+         * The ice is ice-coloured; the light inside carries the layer.
+         *
+         * Tinting the volume with the layer colour was wrong and it is why this
+         * read as stained glass. Real ice is a pale blue-white regardless of
+         * what is lit behind it — the colour you see through a block comes from
+         * the source, not the block.
+         */
+        attenuationColor={'#E6F7FF'}
+        attenuationDistance={6}
         // A cold sheen across grazing angles — the light that catches an edge
         // of ice and tells you it is solid.
         clearcoat={1}
@@ -154,6 +170,6 @@ export function GlassShell({
         opacity={1}
         side={THREE.DoubleSide}
       />
-    </mesh>
+    </RoundedBox>
   );
 }

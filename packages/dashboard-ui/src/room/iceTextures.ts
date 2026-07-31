@@ -121,6 +121,67 @@ export interface IceMaps {
  * must call `dispose()` — a `CanvasTexture` is GPU memory that React's
  * reconciler does not know about and will not free.
  */
+/**
+ * Light that has passed through the ice, landing on the floor.
+ *
+ * A caustic is the give-away that an object is genuinely transmissive rather
+ * than merely translucent — it is the light the block has bent, arriving
+ * somewhere else. Without one the cube floats on a background; with one it is
+ * an object in a room.
+ *
+ * Drawn as overlapping radial gradients with thin bright rings, which is the
+ * cheap approximation every real-time renderer uses, seeded so the pattern is
+ * the same on every machine.
+ */
+export function createCausticTexture(): THREE.CanvasTexture {
+  const size = 512;
+  const rand = seeded(0xCA05);
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 60; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const radius = rand() * 50 + 10;
+
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.4)');
+    gradient.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // The thin bright ring is what makes it read as focused light rather than
+    // as a smudge.
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 0.5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // A soft centre, so the pattern is brightest directly beneath the cube and
+  // falls off — the light has a source and the floor should say where.
+  const c = size / 2;
+  const falloff = ctx.createRadialGradient(c, c, 0, c, c, size / 2.2);
+  falloff.addColorStop(0, 'rgba(255,255,255,1)');
+  falloff.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.beginPath();
+  ctx.arc(c, c, size / 2.2, 0, Math.PI * 2);
+  ctx.fillStyle = falloff;
+  ctx.fill();
+
+  return new THREE.CanvasTexture(canvas);
+}
+
 export function createIceMaps(): IceMaps {
   const height = fractalNoise(SIZE, 0x1CE);
 
