@@ -74,6 +74,40 @@ jobs:
       - name: Every claim in the Constitution names an enforcement that exists
         run: pnpm check:doctrine
 
+      # The room draws one corner per architectural layer, coloured by whether
+      # the Constitution says it is built. Generated rather than typed, so a
+      # layer cannot be promoted on screen without being promoted in the
+      # document — and this fails if the committed copy has gone stale.
+      - name: The room's architecture layers match the Constitution
+        run: pnpm check:layers
+
+      # The four checks below existed and were never wired into CI, which meant
+      # they only ran when someone remembered to run them by hand. A build gate
+      # nobody triggers is a preference. These are the ones that keep the
+      # interface honest, so they belong here with the rest.
+
+      # Invented data in the interface: dead toggles, demo literals, randomness
+      # in a value a reader will see, metrics assigned by hand.
+      - name: The interface fabricates nothing
+        run: pnpm check:fabrication
+
+      # A perpetual animation nobody can name a state for — and any animation
+      # name with no keyframes behind it, which renders as a frozen element
+      # while the code claims it is moving.
+      - name: Every perpetual motion is earned
+        run: pnpm check:motion
+
+      # No sidebar, no scrolling-document shell, no cube nobody can steer, and
+      # state before explanation. Regression, not fabrication, is what turns a
+      # room back into a dashboard.
+      - name: The interaction model has not regressed
+        run: pnpm check:doctrine-ui
+
+      # A promise in the philosophy document that the interface does not keep
+      # and the ledger does not record as unbuilt.
+      - name: The interface keeps what the philosophy promises
+        run: pnpm check:ui
+
   test:
     name: Test
     runs-on: ubuntu-latest

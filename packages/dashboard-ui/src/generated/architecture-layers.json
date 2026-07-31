@@ -1,0 +1,60 @@
+{
+  "layers": [
+    {
+      "index": 1,
+      "name": "Identity",
+      "property": "Every agent, model and human has one that survives restarts",
+      "status": "PARTLY",
+      "evidence": "packages/capkit/src/keyring.ts"
+    },
+    {
+      "index": 2,
+      "name": "Capability",
+      "property": "Authority is granted narrowly, expires, and is revocable centrally",
+      "status": "BUILT",
+      "evidence": "packages/capkit/src/capability.ts"
+    },
+    {
+      "index": 3,
+      "name": "Evidence",
+      "property": "Claims are checked against sources and reported as supported, unverified or contradicted",
+      "status": "BUILT",
+      "evidence": "packages/trust/src/verification.ts"
+    },
+    {
+      "index": 4,
+      "name": "Trust",
+      "property": "Records accumulate into facts about behaviour — counts, never scores about people",
+      "status": "BUILT",
+      "evidence": "packages/trust/src/scoring.ts"
+    },
+    {
+      "index": 5,
+      "name": "Governance",
+      "property": "Policies, obligations, approvals and the workflows humans use to run all of it",
+      "status": "PARTLY",
+      "evidence": "packages/capkit/src/ai-policy-generator.ts"
+    },
+    {
+      "index": 6,
+      "name": "Autonomy",
+      "property": "ABSuite's own agents watch the record continuously and raise what a person should see",
+      "status": "PARTLY",
+      "evidence": "packages/trust/src/monitoring.ts"
+    },
+    {
+      "index": 7,
+      "name": "Collective Intelligence",
+      "property": "Independent deployments verify each other's records without merging them",
+      "status": "NOT_BUILT",
+      "evidence": null
+    },
+    {
+      "index": 8,
+      "name": "Civilization",
+      "property": "Millions of agents, autonomous economies, planetary-scale accountability",
+      "status": "NOT_BUILT",
+      "evidence": null
+    }
+  ]
+}

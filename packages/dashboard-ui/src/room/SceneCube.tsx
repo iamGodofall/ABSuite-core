@@ -26,6 +26,7 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
+import { LayerVertices } from './LayerVertices';
 import * as THREE from 'three';
 
 export type TrustLayer =
@@ -320,6 +321,10 @@ export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubePr
               ))}
             </group>
             
+            {/* The eight architectural layers, on the eight corners. Inside
+                the cube group so they turn with it. */}
+            <LayerVertices />
+
             <group ref={innerCubeRef}>
               {/* Inner structural wireframe - Cubist element */}
               {[1.78, 1.79, 1.8, 1.81, 1.82].map((scale, i) => (
