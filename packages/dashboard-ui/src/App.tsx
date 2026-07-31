@@ -38,6 +38,7 @@ import { MachineRoom } from './tabs/MachineRoom';
 import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
 import { TrustOperationsCenter } from './room/TrustOperationsCenter';
+import { VITAL_ICONS, type Vital } from './room/TopBar';
 import { Mark } from './room/Mark';
 import type { LayerReading } from './room/OrbitalNodes';
 import type { TrustLayer } from './room/SceneCube';
@@ -72,6 +73,8 @@ type TabId =
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
   // The four standing views. Not stages — the things the stages act on.
   | 'evidence' | 'policies' | 'agents' | 'unknowns'
+  // The operator console. Not a layer and not evidence — a place you act from.
+  | 'console'
   | 'system' | 'settings';
 
 interface RecentGeneration { id: string; type: 'token' | 'policy'; provider: string; preview: string; timestamp: string; }
@@ -1270,6 +1273,7 @@ const TAB_CONFIG: {
   { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
   { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
   // Not layers. The machinery underneath.
+  { id: 'console',  label: 'Console',      question: 'Issue a token, draft a policy', icon: Bot },
   { id: 'system',   label: 'System health', question: 'The suite that runs the stack', icon: Server },
   { id: 'settings', label: 'Settings',     question: 'Keys and configuration',        icon: Wrench },
 ];
@@ -1285,12 +1289,22 @@ const TAB_CONFIG: {
  */
 
 /**
- * Layer 4 — the rules, the refusals, and the tokens that carry authority.
+ * Layer 4 — the rules and the authority actually exercised.
+ *
+ * The AI Studio console used to open here: a token-generation form with two
+ * dropdowns and a Generate button, and a policy generator with a textarea. It
+ * is a good console and it does real work, but it is a console — a place you
+ * operate the system from — and Govern is a place you read what the system
+ * did. Putting them together is what made entering a layer feel like leaving
+ * the operations centre for an admin panel.
+ *
+ * It is not deleted. It moved to its own standing view, reachable from the
+ * command palette, where an operator tool belongs. Govern now answers only the
+ * question it is named for: what is it allowed to do, and what did it do.
  */
 const GovernTab = () => (
   <div className="space-y-6">
     <AuthorityPanel />
-    <AIStudioTab />
   </div>
 );
 
@@ -1458,54 +1472,51 @@ export default function App() {
     };
   }, [integrity, services, figures]);
 
-  /** The vitals line: state first, no card around it. */
-  const vitals = (
-    <div className="absolute top-0 inset-x-0 h-20 flex items-center gap-8 px-8 z-20 pointer-events-none flex-wrap">
-      <span className="flex items-center gap-2.5 leading-none">
-        <Mark size={30} />
-        <span>
-          <span className="block text-base font-bold text-ab-white tracking-widest">ABSuite</span>
-          <span className="block text-[8px] font-mono uppercase tracking-[0.22em] text-ab-white/50 mt-1">
-            Trust Operations Center
-          </span>
-        </span>
-      </span>
-
-      <span className="flex items-center gap-8 flex-wrap text-[9px] font-mono uppercase tracking-widest">
-        {[
-          { label: 'Chain', value: integrity, tone: integrity },
-          { label: 'Governance', value: figures === null ? 'UNKNOWN' : figures.withoutScope > 0 ? `${figures.withoutScope} UNSCOPED` : 'SCOPED',
-            tone: (figures === null ? 'UNKNOWN' : figures.withoutScope > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
-          { label: 'Unknowns', value: queue === null ? '—' : String(queue.total),
-            tone: (queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
-          { label: 'Evidence held', value: figures === null ? '—' : String(figures.total),
-            tone: (figures === null ? 'UNKNOWN' : figures.total > 0 ? 'DEMONSTRATED' : 'ABSENT') as Determination },
-          { label: 'Observed', value: connected ? 'LIVE' : 'OFFLINE',
-            tone: (connected ? 'DEMONSTRATED' : 'FAILED') as Determination },
-        ].map(item => (
-          <span key={item.label} className="flex flex-col items-start gap-1">
-            <span className="text-ab-white/40">{item.label}</span>
-            <span className={cn(
-              item.tone === 'DEMONSTRATED' ? 'text-ab-green'
-                : item.tone === 'FAILED' ? 'text-ab-red'
-                : item.tone === 'ABSENT' ? 'text-ab-gray' : 'text-ab-amber')}>
-              {item.value}
-            </span>
-          </span>
-        ))}
-      </span>
-
-      {/*
-        * The masthead's third line, set far right rather than under the
-        * wordmark so it reads as a signature instead of crowding the identity.
-        * docs/UI-PHILOSOPHY.md § Header requires it: the Final Test is that a
-        * stranger ten feet away can name what this is.
-        */}
-      <span className="ml-auto hidden lg:block text-[9px] font-mono uppercase tracking-[0.28em] text-ab-green/50">
-        The Future Is Accountable.
-      </span>
-    </div>
-  );
+  /*
+   * The masthead's columns, as data.
+   *
+   * These were markup here — my own vitals row, built after deleting the
+   * supplied TopBar. The supplied masthead is back and this is what feeds it:
+   * five readings, each with the determination that decides its colour, and
+   * a dash wherever the instance has not been able to ask. The supplied file
+   * carried `482 (+18m)` and `NO VIOLATIONS` as literals; those are the only
+   * part of it that could not be adopted.
+   */
+  const vitals: Vital[] = [
+    {
+      label: 'Services',
+      value: services.length === 0 ? '—' : `${services.filter(s => s.status === 'up').length}/${services.length} responding`,
+      tone: services.length === 0 ? 'UNKNOWN'
+        : services.every(s => s.status === 'up') ? 'DEMONSTRATED'
+        : services.some(s => s.status === 'up') ? 'UNKNOWN' : 'FAILED',
+      icon: VITAL_ICONS.Network,
+    },
+    {
+      label: 'Chain integrity',
+      value: integrity === 'DEMONSTRATED' ? 'Intact'
+        : integrity === 'FAILED' ? 'Broken'
+        : integrity === 'ABSENT' ? 'Nothing held' : 'Unchecked',
+      tone: integrity,
+      icon: VITAL_ICONS.ShieldCheck,
+    },
+    {
+      label: 'Evidence held',
+      value: figures === null ? '—' : String(figures.total),
+      tone: figures === null ? 'UNKNOWN' : figures.total > 0 ? 'DEMONSTRATED' : 'ABSENT',
+      icon: VITAL_ICONS.Database,
+    },
+    {
+      label: 'Constitution',
+      value: figures === null ? '—' : figures.withoutScope > 0 ? `${figures.withoutScope} unscoped` : 'No violations',
+      tone: figures === null ? 'UNKNOWN' : figures.withoutScope > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
+      icon: VITAL_ICONS.Star,
+    },
+    {
+      label: 'Unknowns',
+      value: queue === null ? '—' : String(queue.total),
+      tone: queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
+    },
+  ];
 
   /** The real surface behind each layer. */
   const surface = (layer: TrustLayer) => {
@@ -1524,6 +1535,7 @@ export default function App() {
       case 'agents' as TrustLayer: return <Agents onOpenRecord={setOpenRecordId} />;
       case 'policies' as TrustLayer: return <><ConstraintsPanel /><Obligations /></>;
       case 'unknowns' as TrustLayer: return <UnknownsPanel />;
+      case 'console' as TrustLayer: return <AIStudioTab />;
       case 'system' as TrustLayer: return <MachineRoom services={services} error={error} />;
       case 'settings' as TrustLayer: return <SettingsTab services={services} />;
       default: return null;
@@ -1536,6 +1548,7 @@ export default function App() {
         readings={readings}
         vitals={vitals}
         connected={connected}
+        version={__APP_VERSION__}
         surface={surface}
         onLayerChange={(layer: TrustLayer) => setActiveTab(layer === 'overview' ? null : (layer as TabId))}
         /* TAB_CONFIG names all thirteen views; check-ui-philosophy reads it. */

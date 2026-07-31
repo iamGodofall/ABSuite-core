@@ -10,8 +10,23 @@
  */
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { createRequire } from 'node:module';
+
+const { version } = createRequire(import.meta.url)('./package.json');
 
 export default defineConfig({
+  /*
+   * The same compile-time constants the real build defines.
+   *
+   * This config omitted them, so __APP_VERSION__ stayed a bare identifier and
+   * the bundle threw a ReferenceError at first render — a blank page, from a
+   * build that reported success. It only surfaced when the footer started
+   * reading the version at the top level instead of inside a panel nobody had
+   * opened. Anything vite.config.ts defines has to be defined here too.
+   */
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   plugins: [react()],
   build: {
     outDir: 'dist-artifact',

@@ -109,7 +109,22 @@ export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
           * genuine highlights — the ×2 glow edge and the white core — bloom
           * now, which is what gives the cube its structure back.
           */}
-        <EffectComposer>
+        {/*
+          * multisampling={0} is not a tuning choice, it is the fix.
+          *
+          * The composer defaults to an 8x multisampled render target, and this
+          * canvas already requests antialias: true. On a machine without GPU
+          * acceleration that target fails to allocate, the composer writes
+          * nothing, and the pass replaces the scene with an empty buffer — so
+          * the cube, the four orbital rings, the particle field and the grid
+          * all disappeared while the starfield, drawn before the pass, stayed.
+          * It presented as an intermittent missing cube, because whether the
+          * allocation succeeds depends on the machine.
+          *
+          * Antialiasing is already handled by the canvas. Asking for it twice
+          * bought nothing and cost the scene.
+          */}
+        <EffectComposer multisampling={0}>
           <Bloom
             luminanceThreshold={0.62}
             luminanceSmoothing={0.28}

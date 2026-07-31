@@ -3,6 +3,8 @@ import React, { type ReactNode } from 'react';
 import { Scene } from './Scene';
 import { OrbitalNodes, type LayerReading } from './OrbitalNodes';
 import { CommandPalette } from './CommandPalette';
+import { TopBar, type Vital } from './TopBar';
+import { BottomBar } from './BottomBar';
 import type { TrustLayer } from './SceneCube';
 
 /**
@@ -49,11 +51,14 @@ function LayerSurface({ layer, onClose, children }: {
 /** The ring, in the order the stations sit on it. Dragging walks this. */
 const ORBIT: TrustLayer[] = ['observe', 'verify', 'explain', 'govern', 'arbitrate', 'act', 'learn'];
 
-export function TrustOperationsCenter({ readings, vitals, connected, surface, onLayerChange, onOpenRecord, views }: {
+export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views }: {
   /** Live readings per layer. Absent when the layer has nothing to report. */
   readings: Record<string, LayerReading | undefined>;
-  vitals: ReactNode;
+  /** The masthead's metric columns, each bound to what the instance holds. */
+  vitals: Vital[];
   connected: boolean;
+  /** Shown in the footer. Read from the package, not typed in. */
+  version: string;
   /** The entered layer's real surface. */
   surface: (layer: TrustLayer) => ReactNode;
   onLayerChange: (layer: TrustLayer) => void;
@@ -198,7 +203,7 @@ export function TrustOperationsCenter({ readings, vitals, connected, surface, on
       {/* UI Overlay Layer */}
       <div className={`absolute inset-0 z-10 flex flex-col pointer-events-none transition-opacity duration-1000 ${isIdle ? 'opacity-30' : 'opacity-100'}`}>
         
-        {vitals}
+        <TopBar connected={connected} vitals={vitals} />
         
         <main className="flex-1 flex justify-center items-center p-6 pt-24 pb-20 overflow-hidden relative pointer-events-none">
           
@@ -228,10 +233,8 @@ export function TrustOperationsCenter({ readings, vitals, connected, surface, on
         views={views}
       />
 
-      {/* The line the whole product is built around. */}
-      <p className="absolute bottom-3 inset-x-0 z-20 text-center text-[9px] font-mono uppercase tracking-[0.18em] text-ab-green/40 px-6 pointer-events-none">
-        Nothing may look more complete, more certain, or more authoritative than it actually is.
-      </p>
+      {/* The supplied footer, carrying the constitutional line. */}
+      <BottomBar connected={connected} version={version} />
     </div>
   );
 }
