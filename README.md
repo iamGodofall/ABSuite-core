@@ -6,6 +6,15 @@
 >
 > **ABSuite does not tell you what to believe. It tells you what can be proven.**
 
+![The Trust Operations Center: a glass cube whose eight corners are the architectural layers, orbited by the seven operations, with live readings for services, chain integrity, evidence held and constitutional violations](docs/images/trust-operations-center.gif)
+
+<sub>The Trust Operations Center, reading a live instance. Nine signed executions
+across four agents; the chain verifies; one action was recorded without a scope
+and both Govern and the masthead say so in amber rather than rounding it to
+green. Drag steers the cube, `1`–`7` enter a layer. Reproduce it with
+`pnpm room` and `node scripts/seed-scenario.mjs` — the events in that scenario
+are fictional, the signatures over them are not.</sub>
+
 Every verb above is backed by code, tests and doctrine — not by a plan.
 `observe` is a signed, hash-chained execution record. `verify` is Ed25519 against
 a public key that cannot forge. `govern` is the rule that permitted an action,
@@ -510,6 +519,21 @@ Center at **http://localhost:3001**. A copy of the interface with nothing behind
 it reports *No instance connected* rather than a failure — it reads live
 services and shows UNKNOWN for anything it cannot reach, and never substitutes a
 figure for a gap.
+
+A fresh instance has recorded nothing, so it honestly reports ABSENT everywhere
+— which is correct and tells you very little. To see it with a day's work in it:
+
+```bash
+pnpm seed
+```
+
+Nine executions across four agents, including one refused at a policy limit and
+one recorded without a scope, so the interface has something to disagree with.
+**The business events are fictional; the signatures are not.** Each record is
+signed with the instance's own Ed25519 key and hash-chained to the one before,
+through the same API a production record goes through — edit one afterwards and
+`verifyChain` names its sequence number. Nothing is inserted behind the API, and
+nothing is displayed that was not measured.
 
 To put an instance at a public address, `deploy/Dockerfile` builds all six
 services and the room into a single container — `fly deploy`, a Render

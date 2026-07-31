@@ -40,7 +40,8 @@
     "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",
     "bench:doc": "node scripts/gen-performance-doc.mjs",
     "check:deploy": "node scripts/check-deployment-manifests.mjs",
-    "deploy:secrets": "node scripts/gen-deploy-secrets.mjs"
+    "deploy:secrets": "node scripts/gen-deploy-secrets.mjs",
+    "seed": "node scripts/seed-scenario.mjs"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"

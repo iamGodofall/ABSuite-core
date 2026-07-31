@@ -84,6 +84,21 @@ That starts all six services and the orchestrator, waits until each one actually
 answers rather than guessing at a delay, and tells you which did not come up if
 any did not. Then open **http://localhost:3001**.
 
+The instance you are looking at has recorded nothing yet, so every reading is
+ABSENT. That is the honest report and it is not much to look at, so in a second
+terminal:
+
+```bash
+pnpm seed
+```
+
+Nine signed executions across four agents — one refused at a policy limit, one
+recorded without a scope, one with no steps at all — so the interface has
+something to disagree with rather than a wall of green. The events are made up.
+The signatures over them are real, made with this instance's own key through the
+same path a production record takes, which is why tampering with one afterwards
+is still detected and named.
+
 It sets a local `CAPKIT_ADMIN_KEY` for you, because without one CapKit refuses
 to mint the first capability token — nothing can be recorded, every layer stays
 empty, and it looks exactly like a bug. Override it in anything that is not your
