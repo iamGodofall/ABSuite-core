@@ -39,6 +39,7 @@ import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
 import { TrustOperationsCenter } from './room/TrustOperationsCenter';
 import { Replay } from './tabs/Replay';
+import { Manual } from './tabs/Manual';
 import { VITAL_ICONS, type Vital } from './room/TopBar';
 import { Mark } from './room/Mark';
 import type { LayerReading } from './room/OrbitalNodes';
@@ -77,6 +78,8 @@ type TabId =
   // A transport over the log, rather than a place. Replay is the only view
   // whose subject is time.
   | 'replay'
+  // How to move around. A room has no menu bar, so this is where the rules live.
+  | 'manual'
   // The operator console. Not a layer and not evidence — a place you act from.
   | 'console'
   | 'system' | 'settings';
@@ -123,17 +126,68 @@ const CopyBlock = ({ text }: { text: string }) => {
   );
 };
 
-const NoticeCard = ({ tone = 'info', title, message }: { tone?: 'info' | 'warn' | 'error'; title: string; message: string }) => {
+/**
+ * A notice that says its piece and then gets out of the way.
+ *
+ * The "no instance connected" card is the right thing to say once and the
+ * wrong thing to leave sitting over the room forever — it is a sentence, and a
+ * sentence that will not go away stops being read and starts being furniture.
+ *
+ * `collapsible` gives it a life: it shows itself, waits ten seconds, and folds
+ * back into its own icon. Clicking the icon brings it back, and it folds again
+ * after another ten. Nothing is hidden and nothing is lost; the information is
+ * always one click away and never in the way twice.
+ */
+const NoticeCard = ({ tone = 'info', title, message, collapsible = false }: {
+  tone?: 'info' | 'warn' | 'error'; title: string; message: string; collapsible?: boolean;
+}) => {
   const toneStyles = {
     info: 'border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-100',
     warn: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
     error: 'border-red-500/30 bg-red-500/10 text-red-200',
   } as const;
 
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    if (!collapsible || !open) return;
+    const timer = window.setTimeout(() => setOpen(false), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [collapsible, open]);
+
+  if (collapsible && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`${title} — show details`}
+        title={title}
+        className={cn(
+          'h-10 w-10 rounded-full border flex items-center justify-center ml-auto',
+          'transition-colors hover:brightness-125',
+          toneStyles[tone],
+        )}
+      >
+        <AlertCircle className="h-4 w-4" />
+      </button>
+    );
+  }
+
   return (
-    <div className={cn('glass-card border p-4', toneStyles[tone])}>
+    <div className={cn('glass-card border p-4 rounded-2xl', toneStyles[tone])}>
       <div className="flex items-start gap-3">
-        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Collapse this notice"
+            className="mt-0.5 shrink-0"
+          >
+            <AlertCircle className="h-4 w-4" />
+          </button>
+        ) : (
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        )}
         <div>
           <div className="text-sm font-semibold">{title}</div>
           <p className="mt-1 text-sm opacity-90">{message}</p>
@@ -1294,6 +1348,7 @@ const TAB_CONFIG: {
   { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
   { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
   { id: 'replay',   label: 'Replay',        question: 'What happened, in the order it happened', icon: Play },
+  { id: 'manual',   label: 'How to navigate', question: 'Keys, gestures, and what the four words mean', icon: HelpCircle },
   // Not layers. The machinery underneath.
   { id: 'console',  label: 'Console',      question: 'Issue a token, draft a policy', icon: Bot },
   { id: 'system',   label: 'System health', question: 'The suite that runs the stack', icon: Server },
@@ -1586,6 +1641,7 @@ export default function App() {
       case 'policies' as TrustLayer: return <><ConstraintsPanel /><Obligations /></>;
       case 'unknowns' as TrustLayer: return <UnknownsPanel />;
       case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} />;
+      case 'manual' as TrustLayer: return <Manual />;
       case 'console' as TrustLayer: return <AIStudioTab />;
       case 'system' as TrustLayer: return <MachineRoom services={services} error={error} />;
       case 'settings' as TrustLayer: return <SettingsTab services={services} />;
@@ -1630,12 +1686,14 @@ export default function App() {
         <div className="fixed bottom-8 right-6 z-50 max-w-sm w-[92%] sm:w-auto">
           {!connected && services.every(service => service.status !== 'up') ? (
             <NoticeCard
+              collapsible
               tone="info"
               title="No instance connected"
               message="This is the Trust Operations Center with nothing behind it. Every reading shows UNKNOWN because nothing has been asked, not because anything failed — the room will not invent a figure to fill a gap. Point it at a running ABSuite instance and the same screen fills with real evidence."
             />
           ) : (
             <NoticeCard
+              collapsible
               tone="error"
               title="A service is not answering"
               message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}

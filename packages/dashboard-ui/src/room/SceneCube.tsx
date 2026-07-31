@@ -383,7 +383,16 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         * interchangeable. Turning it brings the opposite pair forward, so which
         * layers you are looking at changes even though the silhouette does not.
         */}
-      <group ref={cubeRef} rotation={[0, (5 * Math.PI) / 4 - Math.PI / 9, 0]}>
+      {/*
+        * Scaled to 0.86.
+        *
+        * The seven stations sit on a ring around the core, and at full size the
+        * cube crowded them — the labels and their readings had to be read past
+        * the corners rather than beside them. The cube is still the largest
+        * thing on screen and still the thing you steer; it simply stops
+        * competing with the stations for the same band of space.
+        */}
+      <group ref={cubeRef} scale={0.86} rotation={[0, (5 * Math.PI) / 4 - Math.PI / 9, 0]}>
         {!isArbitrate && (
           /* The faint lattice. Subdivided, so its diagonals read as a mesh
              rather than as stray lines, and left as a wireframe for that
