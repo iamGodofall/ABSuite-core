@@ -30,7 +30,8 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrustCube, type Integrity } from '../components/TrustCube';
+import { type Integrity } from '../components/TrustCube';
+import { CoreCube } from './CoreCube';
 import { CommandLine } from './CommandLine';
 import { cn } from '../utils';
 
@@ -477,16 +478,16 @@ export const Environment = ({
           );
         })}
 
-        {/* The reactor core. Roughly half the field. */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-          <TrustCube
-            connected={connected}
+        {/* The reactor core — a real object, roughly half the field. */}
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ width: coreSize * 1.5, height: coreSize * 1.5 }}
+        >
+          <CoreCube
             integrity={integrity}
-            arrivals={arrivals}
-            verifying={verifying}
-            orientTo={attention}
-            variant="centre"
-            size={coreSize}
+            attending={attention}
+            connected={connected}
+            arrivalKey={arrivals[0]?.id ?? null}
           />
         </div>
 

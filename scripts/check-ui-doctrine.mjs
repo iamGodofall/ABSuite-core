@@ -85,7 +85,10 @@ const environment = code.find(source => /room\/Environment\.tsx$/.test(source.fi
 if (!environment) {
   failures.push('No shell environment found at src/room/Environment.tsx. The cube must be mounted by the shell.');
 } else {
-  const mounted = /<TrustCube\b/.test(environment.text);
+  // Named by role, not by file. The doctrine is that the shell mounts the
+  // core — it does not care whether that core is CSS 3D or WebGL, and pinning
+  // the check to one filename made it fail the moment the cube got better.
+  const mounted = /<(?:TrustCube|CoreCube)\b/.test(environment.text);
   const steerable = /onPointerUp|onWheel|onDoubleClick|wheel/.test(environment.text);
   // The call is usually conditional — commit(dx > 0 ? 'verify' : 'govern') —
   // so match a layer name anywhere in the argument rather than only at its head.
@@ -93,7 +96,7 @@ if (!environment) {
 
   if (mounted && steerable && commits) passes.push('the cube is mounted by the shell and drives navigation');
   else {
-    if (!mounted) failures.push('The shell does not mount TrustCube. The cube is the operating system, not a component a page may choose to include.');
+    if (!mounted) failures.push('The shell does not mount the core cube. The cube is the operating system, not a component a page may choose to include.');
     if (!steerable) failures.push('The shell mounts the cube but binds no gesture to it. A cube nobody can steer is decoration.');
     if (!commits) failures.push('No gesture resolves to a layer. Manipulating the cube must be how you enter Observe, Verify, Explain and Govern.');
   }
