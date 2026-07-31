@@ -6,6 +6,64 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Added — an instance you can reach, and a check on the files that claim to deploy it
+
+`deploy/Dockerfile` builds all six services and the room into one image;
+`deploy/serve-all.mjs` runs them side by side with the orchestrator pointed at
+loopback. Nothing is stubbed — the same `dist/server.js` binaries compose runs,
+the same SQLite file, the same routes. Only the addresses change, and those come
+from the environment, so no source file carries a deployment branch. `fly.toml`,
+`render.yaml` and `k8s/absuite.yaml` declare the same instance for three hosts.
+
+`ABSUITE_PUBLIC_PASSWORD` gates every route including the static bundle, which
+is the authenticating proxy `server.ts` has always told operators to put in
+front of it and which no managed platform gives you a place to put. `/health`
+stays open, because a platform health check cannot carry credentials.
+
+`scripts/gen-deploy-secrets.mjs` prints the five secrets an instance needs and
+explains what each one does when it is missing.
+
+### Fixed — four things that were true and looked fine
+
+The test count was not reproducible. Root jest globs the whole tree, so a stale
+`dist/` was collected as a suite — compiled tests, three days old, asserting
+against output no current source produces. A clean checkout counted 495 and a
+working copy counted 497. Those tests passed, and would have kept passing after
+their source was deleted.
+
+The deployment container would never have started: `NODE_ENV=production` without
+`CAPKIT_HMAC_SECRET` kills capkit on boot. And had it started, it would have
+broken its own chain — without `CAPKIT_TRACE_PRIVATE_KEY` traces are signed with
+a key regenerated at every restart, while both host configs mount a volume.
+Three traces went from `{"valid":true,"checked":3}` to
+`{"determination":"FAILED","brokenAt":1}` across one restart. The diagnosis is
+exact rather than a false tampering claim, but a trust product reporting its own
+record as unverifiable is not a state to ship.
+
+`ABSUITE_ADMIN_API_KEY` appeared in no deployment file. Twenty-eight read routes
+sit behind it; without it an instance is healthy and reports UNKNOWN for
+everything — which is what "why is it showing offline" turned out to mean.
+
+### Removed — a chart that deployed nothing
+
+`helm-chart/` had no `templates/` directory. Its 265-line values file configured
+autoscaling, LDAP, SIEM export and a 99.9% uptime target for resources that were
+never rendered; `helm install` created zero objects. `k8s/` covered two of six
+services, set three environment variables nothing reads, pulled an image nobody
+publishes, and ran CapKit at two replicas with an autoscaler to ten against a
+single-writer ReadWriteOnce volume.
+
+`k8s/` is now one Deployment on the all-in-one image, which is the shape the
+product has: a single-writer store does not scale horizontally however the YAML
+is written, and the manifest says so instead of implying otherwise.
+
+`pnpm check:deploy` enforces this against `docker-compose.yml`, `server.ts` and
+`cd.yml` rather than a list kept inside the check. Re-run against the deleted
+files, it reports all seven original defects.
+
+Two existing checks could pass while reading nothing — a moved directory
+produced "0 files scanned" and exit 0. Both now fail on an empty scan.
+
 ### Added — the Trust Operations Center is a room, and it runs with one command
 
 `pnpm room` starts all six services and the orchestrator, waits until each

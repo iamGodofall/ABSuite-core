@@ -35,7 +35,7 @@
     "check:motion": "node scripts/check-motion-is-evidence.mjs",
     "check:layers": "node scripts/gen-architecture-layers.mjs --check",
     "gen:layers": "node scripts/gen-architecture-layers.mjs",
-    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine",
+    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine && pnpm check:ui && pnpm check:fabrication && pnpm check:doctrine-ui && pnpm check:motion && pnpm check:layers && pnpm check:deploy",
     "check:live": "node scripts/check-live-routes.mjs",
     "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",
     "bench:doc": "node scripts/gen-performance-doc.mjs",
