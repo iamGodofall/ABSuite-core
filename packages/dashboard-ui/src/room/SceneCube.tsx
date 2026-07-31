@@ -376,36 +376,40 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
 
             <group ref={innerCubeRef}>
               {/*
-                * The inner block, as ice.
+                * The inner block, as ice — and nothing else inside it.
                 *
-                * This was five stacked wireframes around empty space — an
-                * outline of a cube rather than a cube. It is a solid now, and
-                * frostier than the outer shell: the outer one is a window you
-                * look through, this one is the object you look at. The core
-                * sits inside it, so its light is refracted and scattered by
-                * the block containing it rather than simply drawn in front.
+                * This was five stacked wireframes around empty space: an
+                * outline of a cube rather than a cube, each one subdivided
+                * three ways so the interior was a cage of lines. Once the
+                * block became a solid those lines stopped being structure and
+                * started competing with it — refraction is read from how the
+                * things behind a surface bend, and a lattice sitting in the
+                * same volume gives the eye a flat grid to lock onto instead.
+                * The ice reads as a solid now because there is nothing in it
+                * but the core.
                 *
-                * No fallback here. Where refraction is unavailable the
-                * wireframes below already describe this cube, and a second
-                * additive box would only wash them out.
+                * The wireframes survive as the fallback, which is the one
+                * place they are still doing a job: where the machine cannot
+                * refract there is no block, and an outline is better than an
+                * absence.
                 */}
-              <GlassShell
-                color={color}
-                supported={glass}
-                isIdle={isIdle}
-                size={1.8}
-                roughness={0.22}
-                emissive={0.06}
-                fallback={false}
-              />
-
-              {/* Inner structural wireframe - Cubist element */}
-              {[1.78, 1.79, 1.8, 1.81, 1.82].map((scale, i) => (
-                <mesh key={i} scale={scale}>
-                  <boxGeometry args={[1, 1, 1, 2, 2, 2]} />
-                  <meshBasicMaterial color={scale === 1.8 ? glowColor : color} transparent opacity={scale === 1.8 ? 0.5 : 0.1} wireframe={true} blending={THREE.AdditiveBlending} />
-                </mesh>
-              ))}
+              {glass ? (
+                <GlassShell
+                  color={color}
+                  supported
+                  isIdle={isIdle}
+                  size={1.8}
+                  roughness={0.22}
+                  emissive={0.06}
+                />
+              ) : (
+                [1.78, 1.79, 1.8, 1.81, 1.82].map((scale, i) => (
+                  <mesh key={i} scale={scale}>
+                    <boxGeometry args={[1, 1, 1, 2, 2, 2]} />
+                    <meshBasicMaterial color={scale === 1.8 ? glowColor : color} transparent opacity={scale === 1.8 ? 0.5 : 0.1} wireframe={true} blending={THREE.AdditiveBlending} />
+                  </mesh>
+                ))
+              )}
               
               {/*
                 * The two diagonal cross-sections are gone.
