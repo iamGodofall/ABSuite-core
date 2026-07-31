@@ -24,6 +24,31 @@ Ask what Verify does and the answer is "it stops moving". Ask what Arbitrate
 does and the answer is "it splits itself in half". That is a language, not a
 legend, and it is the point at which documentation stops being necessary.
 
+### The three truths of the cube
+
+The cube is not an arbitrary shape with an interesting material on it. It has
+three layers, and each one is a claim the product makes about itself.
+
+| | Layer | Material | What it stands for |
+| --- | --- | --- | --- |
+| Outer | Trust | Glass, refracting | **Transparency** — you can see in |
+| Middle | Systems | Physical solid | **Structure** — there is something holding it |
+| Inner | Foundation | Opaque, emitting | **Truth** — a source, not a reflection |
+
+**The cube is composed of three truths: transparency, structure, and
+foundation. If any one is removed, the instrument ceases to function.**
+
+Remove the glass and it is a box with a light in it — opaque software.
+Remove the structure and it is a glow in a shell — a claim with nothing behind
+it. Remove the core and it is an empty vitrine — transparency about nothing.
+
+The arrangement is also literally how the renderer works, which is the part
+worth keeping. Only opaque objects enter the buffer a refracting surface reads,
+so the core has to be solid for the glass to show it at all. A source of truth
+that is not solid cannot be seen through anything.
+
+---
+
 ### The eighth state: Witness
 
 Not a layer — a state. When a record is replayed, the observatory dims, all

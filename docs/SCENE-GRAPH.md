@@ -184,14 +184,57 @@ scene; `<Html>` is the lower-risk first move.
 
 ---
 
+## The resolution: one glass, one solid, one source
+
+Nesting was settled by building it rather than by testing the material. Two
+transmissive surfaces cannot see one another, so the answer is not two pieces
+of glass — it is **one**:
+
+```
+Outer   MeshTransmissionMaterial      glass, refracting
+Inner   MeshPhysicalMaterial          opacity 0.15, roughness 0 — no transmission
+Core    opaque + emissive + light     enters the transmission buffer
+```
+
+Verified: the core now renders *inside* the ice rather than on top of it.
+Confirmed the rule — **only opaque things exist to a refracting surface.**
+
+The centre should evolve as the architecture does: icosahedron for foundation,
+cube for trust, dodecahedron for identity, hex lattice for governance, a
+dynamic field for autonomy, a multi-agent graph for collective intelligence, a
+shell for civilization. The core becomes the roadmap, the way the corners
+already are.
+
+## Capabilities, granular
+
+One boolean is too coarse. Bloom, depth of field, HDR and transmission fail
+independently, so they are probed independently and the room degrades by
+feature rather than all at once.
+
+```ts
+const capabilities = { transmission: true, bloom: false, dof: false, hdr: false };
+```
+
+Low end: particles, glass, lights. High end: adds bloom, depth of field,
+volumetrics, refraction.
+
 ## Order of work
 
-1. `MeshTransmissionMaterial` nesting test — one build, decides note 1.
-2. Opaque core + `pointLight` — fixes the light reading as on top.
-3. Post-processing behind the capability probe.
-4. Nodes onto splines.
-5. Particle field scaled by the same probe.
-6. GSAP camera states.
+1. Opaque core ✔
+2. Single transmission cube ✔
+3. Orbit rings
+4. Seven orbital nodes
+5. Camera states (GSAP)
+6. Particle field
+7. Vertex layers ✔
+8. Capability probe — granular
+9. Composer, behind the probe
+10. Volumetrics
+
+Then Identity, Autonomy, Governance.
+
+Node migration runs DOM → `<Html>` → `<Text>` → SDF, because operators need to
+read them at every stage.
 
 Nothing in this list is speculative. Each step has a way to be wrong that a
 screenshot will show.

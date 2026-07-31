@@ -315,31 +315,14 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         {!isArbitrate && (
           <group>
             {/*
-              * The outer shell stays a hologram, for now.
+              * The single transmission surface.
               *
-              * Glass inside glass does not work: a transmissive surface is
-              * excluded from another transmissive surface's render pass, so an
-              * ice block placed inside a refracting shell simply is not there
-              * when you look through the shell. Making both of them glass gets
-              * you one piece of glass and a missing one.
-              *
-              * The inner block is the piece worth holding, so it takes the
-              * refraction and the outer surface goes back to the additive
-              * plane that lets you see straight into it. Turning the outer
-              * shell to ice as well means solving the nesting — most likely by
-              * giving the outer surface a thin refractive rim rather than a
-              * full transmissive volume — and that is its own piece of work.
+              * One piece of glass, not two. Everything inside it is opaque or
+              * ordinarily transparent, which is what lets the renderer place it
+              * in the buffer this surface refracts. Glass shell, physical
+              * interior, living core.
               */}
-            <mesh>
-              <boxGeometry args={[2.5, 2.5, 2.5]} />
-              <meshBasicMaterial
-                color={color}
-                transparent
-                opacity={activeLayer === 'observe' ? 0.05 : 0.08}
-                depthWrite={false}
-                blending={THREE.AdditiveBlending}
-              />
-            </mesh>
+            <GlassShell color={color} supported={glass} isIdle={isIdle} />
             
             {/*
               * Twelve edges, not eighteen.
@@ -376,32 +359,29 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
 
             <group ref={innerCubeRef}>
               {/*
-                * The inner block, as ice — and nothing else inside it.
+                * The middle: physical, not transmissive.
                 *
-                * This was five stacked wireframes around empty space: an
-                * outline of a cube rather than a cube, each one subdivided
-                * three ways so the interior was a cage of lines. Once the
-                * block became a solid those lines stopped being structure and
-                * started competing with it — refraction is read from how the
-                * things behind a surface bend, and a lattice sitting in the
-                * same volume gives the eye a flat grid to lock onto instead.
-                * The ice reads as a solid now because there is nothing in it
-                * but the core.
-                *
-                * The wireframes survive as the fallback, which is the one
-                * place they are still doing a job: where the machine cannot
-                * refract there is no block, and an outline is better than an
-                * absence.
+                * Two transmissive surfaces cannot see one another — the inner
+                * is excluded from the outer's pass and simply is not there. So
+                * this is an ordinary physical solid at low opacity: it has
+                * surface, specular and structure, and it costs no second
+                * render. Glass shell, physical interior, living core.
                 */}
               {glass ? (
-                <GlassShell
-                  color={color}
-                  supported
-                  isIdle={isIdle}
-                  size={1.8}
-                  roughness={0.22}
-                  emissive={0.06}
-                />
+                <mesh>
+                  <boxGeometry args={[1.8, 1.8, 1.8]} />
+                  <meshPhysicalMaterial
+                    color={color}
+                    transparent
+                    opacity={0.15}
+                    metalness={0}
+                    roughness={0}
+                    clearcoat={1}
+                    clearcoatRoughness={0}
+                    side={THREE.DoubleSide}
+                    depthWrite={false}
+                  />
+                </mesh>
               ) : (
                 [1.78, 1.79, 1.8, 1.81, 1.82].map((scale, i) => (
                   <mesh key={i} scale={scale}>
@@ -499,12 +479,25 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
       
       {/* Super-bright inner core - Cubist / Sacred Geometry style */}
       <group ref={coreRef}>
+        {/*
+          * The core is opaque, and that is the whole point.
+          *
+          * Three builds the transmission buffer from opaque objects only. An
+          * additive, transparent core never entered the buffer the glass
+          * refracts, so it was drawn afterwards, on top of the surface — which
+          * is exactly what it looked like. Solid and emissive, it sits inside
+          * the ice and bends with it.
+          */}
         <mesh>
-          <icosahedronGeometry args={[0.2, 0]} />
-          {/* The centre, at twice its former output. Everything in this group
-              was doubled together so the falloff between the shells is
-              unchanged — a brighter core, not a differently shaped one. */}
-          <meshBasicMaterial color={'#FFFFFF'} transparent opacity={0.8} blending={THREE.AdditiveBlending} />
+          <icosahedronGeometry args={[0.34, 0]} />
+          <meshStandardMaterial
+            color={'#04180F'}
+            emissive={color}
+            emissiveIntensity={6}
+            toneMapped={false}
+            roughness={0.35}
+            metalness={0}
+          />
         </mesh>
         <mesh>
           <dodecahedronGeometry args={[0.4, 0]} />
