@@ -53,9 +53,21 @@ const RULES = [
     why: 'A literal if (false) is a switch someone can flip. Demo mode was deleted; the branches it left behind still contained fabricated tokens and policies.',
   },
   {
+    /**
+     * Randomness in anything that becomes a displayed value.
+     *
+     * Scattering points in a particle field is geometry, not data, and banning
+     * it outright would forbid drawing a starfield. The allowance is narrow and
+     * must be claimed in writing: a line assigning to a geometry buffer, a
+     * position, or a scale may use it. Everything else may not.
+     */
     id: 'randomness',
     pattern: /\bMath\.random\s*\(/g,
-    why: 'Randomness has no honest use in an interface whose claim is that every figure came from a record. Use crypto.randomUUID() for identity.',
+    why: 'Randomness has no honest use in a value a reader will see. Use crypto.randomUUID() for identity; if this is scatter geometry rather than data, say so with an allow comment.',
+    exempt: (text, index) => {
+      const line = text.slice(text.lastIndexOf('\n', index) + 1, text.indexOf('\n', index));
+      return /\b(?:position|positions|pos|rotation|scale|radius|angle|offset|jitter|geometry|vertex|vertices|particle)\b/i.test(line);
+    },
   },
   {
     id: 'demo-identifier',
@@ -115,8 +127,47 @@ const RULES = [
      * carries a `{`, so honest code passes untouched.
      */
     id: 'asserted-state',
-    pattern: />[^<>{}\n]*\b(?:intact|scoped|demonstrated|healthy|verified|hash[ -]chained|services answered|\d+\/\d+\s+services)\b[^<>{}\n]*</gi,
+    pattern: />[^<>{}\n]*\b(?:intact|scoped|demonstrated|healthy|verified|hash[ -]chained|no violations|connected|responding|\d+\/\d+\s*(?:services|responding|answered|healthy|up)?)\b[^<>{}\n]*</gi,
     why: 'A determination written as literal text with no expression behind it. On screen this is indistinguishable from a measured one, which is exactly what the critical rule forbids.',
+  },
+  {
+    /**
+     * A figure with units, written as literal text.
+     *
+     * Found by running a supplied R3F package through this file: it reported
+     * `UPTIME 99.999%`, `LATENCY 12ms` and `ACTIVE RECORDS 482` and none of the
+     * rules noticed, because a bare number is lexically indistinguishable from
+     * a legitimate constant.
+     *
+     * This catches the shapes a measurement takes — a percentage, a duration, a
+     * rate — when they appear as text with no expression behind them. It cannot
+     * catch every invented number, and the file header says so: a lexical check
+     * sees shape, never provenance.
+     */
+    id: 'asserted-measurement',
+    pattern: />[^<>{}\n]*\b\d[\d,.]*\s*(?:%|ms|s\b|req\/s|rps|\/sec|k\b|K\b)[^<>{}\n]*</g,
+    why: 'A measurement written as literal text. A percentage, a duration or a rate with no expression behind it was not measured — it was typed.',
+  },
+  {
+    /**
+     * A metric declared as a literal in a config object.
+     *
+     * The shape the supplied package used: a LAYERS array where each entry
+     * carried `metric: '482'`, `metric: 'INTACT'`, `metric: '12 QUEUED'`. None
+     * of the text rules see it, because it never appears as JSX text — it is
+     * data, and it is invented data, which is the worst of both.
+     *
+     * A field named for a reading must not be assigned a literal. Bind it to
+     * something, or leave it out and let the component say the reading is
+     * absent.
+     */
+    id: 'literal-metric-field',
+    pattern: /\b(?:metric|reading|value|count|total|headline)\s*:\s*['"`][^'"`]+['"`]/g,
+    why: 'A field named for a reading, assigned a literal. Bind it to a source, or omit it so the component can say the reading is absent.',
+    exempt: (text, index, matched) =>
+      // A label or a placeholder is not a reading; only flag values that look
+      // like measurements — digits, or a determination word.
+      !/\d|intact|scoped|demonstrated|healthy|verified|unknown|absent|failed|queued|idle/i.test(matched),
   },
 ];
 
