@@ -27,7 +27,7 @@ import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import { LayerVertices } from './LayerVertices';
-import { createCausticTexture } from './iceTextures';
+import { createCausticTexture, createPointSprite } from './iceTextures';
 import { GlassShell } from './GlassShell';
 import * as THREE from 'three';
 
@@ -119,6 +119,10 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
     }
     return pos;
   }, []);
+
+  /** Round, lit from the middle. Shared by the field and the bubbles. */
+  const sprite = useMemo(() => (typeof document === 'undefined' ? null : createPointSprite()), []);
+  useEffect(() => () => sprite?.dispose(), [sprite]);
 
   /** Light the block has bent, arriving on the floor. */
   const caustics = useMemo(() => (typeof document === 'undefined' ? null : createCausticTexture()), []);
@@ -405,10 +409,12 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                     <bufferAttribute attach="attributes-position" args={[bubbles, 3]} />
                   </bufferGeometry>
                   <pointsMaterial
-                    size={0.028}
+                    size={0.055}
+                    map={sprite ?? undefined}
+                    alphaMap={sprite ?? undefined}
                     color="#DFF6FF"
                     transparent
-                    opacity={0.55}
+                    opacity={0.6}
                     sizeAttenuation
                     depthWrite={false}
                   />
@@ -424,6 +430,16 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                     opacity={0.15}
                     metalness={0}
                     roughness={0}
+                    /*
+                     * A faint light in the material itself, not a lamp shining
+                     * on it. The block should look like it is holding the
+                     * core's light rather than merely standing next to it —
+                     * which is the difference between a lit object and a
+                     * glowing one.
+                     */
+                    emissive={color}
+                    emissiveIntensity={0.22}
+                    toneMapped={false}
                     clearcoat={1}
                     clearcoatRoughness={0}
                     side={THREE.DoubleSide}
@@ -439,6 +455,50 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                 ))
               )}
               
+              {/*
+                * The source, inside the block that contains it.
+                *
+                * This group sat as a sibling of the whole cube — at the centre
+                * by coincidence of position rather than by belonging to
+                * anything. It did not move with the cube, did not scale with
+                * the inner block, and on the refracting path that reads as a
+                * highlight lying on the surface rather than as a light held
+                * within it.
+                *
+                * It is a child of the inner cube now. Glass shell, physical
+                * interior, living core — nested in the scene graph the way the
+                * doctrine says they are nested, so the geometry states the
+                * relationship instead of merely suggesting it.
+                *
+                * The radius is up from 0.34 to 0.42 because this group now
+                * inherits the inner cube's 0.8 scale, and the intent was the
+                * size it looked before, not the number it was written as.
+                */}
+              <group ref={coreRef}>
+                <mesh>
+                  <icosahedronGeometry args={[0.42, 0]} />
+                  {/*
+                    * Opaque, and that is the whole point. Three builds the
+                    * transmission buffer from opaque objects only, so an
+                    * additive transparent core never enters the buffer the
+                    * glass refracts and gets drawn on top of the surface
+                    * instead of inside it.
+                    */}
+                  <meshStandardMaterial
+                    color={'#04180F'}
+                    emissive={color}
+                    emissiveIntensity={6}
+                    toneMapped={false}
+                    roughness={0.35}
+                    metalness={0}
+                  />
+                </mesh>
+
+                {/* The lamps travel with the source. */}
+                <pointLight color={color} intensity={isIdle ? 2 : 4} distance={8} decay={2} />
+                <pointLight color={glowColor} intensity={isIdle ? 1 : 2} distance={4} decay={2} />
+              </group>
+
               {/*
                 * The two diagonal cross-sections are gone.
                 *
@@ -525,47 +585,19 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
             args={[particleColors, 3]}
           />
         </bufferGeometry>
-        <pointsMaterial size={0.03} vertexColors transparent opacity={0.8} blending={THREE.AdditiveBlending} depthWrite={false} />
+        {/* A disc with a soft centre, not a square. See createPointSprite. */}
+        <pointsMaterial
+          size={0.075}
+          map={sprite ?? undefined}
+          alphaMap={sprite ?? undefined}
+          vertexColors
+          transparent
+          opacity={0.85}
+          sizeAttenuation
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
       </points>
-      
-      {/* Super-bright inner core - Cubist / Sacred Geometry style */}
-      <group ref={coreRef}>
-        {/*
-          * The core is opaque, and that is the whole point.
-          *
-          * Three builds the transmission buffer from opaque objects only. An
-          * additive, transparent core never entered the buffer the glass
-          * refracts, so it was drawn afterwards, on top of the surface — which
-          * is exactly what it looked like. Solid and emissive, it sits inside
-          * the ice and bends with it.
-          */}
-        <mesh>
-          <icosahedronGeometry args={[0.34, 0]} />
-          <meshStandardMaterial
-            color={'#04180F'}
-            emissive={color}
-            emissiveIntensity={6}
-            toneMapped={false}
-            roughness={0.35}
-            metalness={0}
-          />
-        </mesh>
-        {/*
-          * The three wireframe shells are gone.
-          *
-          * A dodecahedron, an icosahedron and an octahedron in wireframe, all
-          * turning together on their own axes inside the block. They were the
-          * only thing in the core still rotating continuously, and once the
-          * block became ice they stopped reading as structure: a tangle of
-          * lines revolving behind a refracting surface competes with the
-          * refraction for the same job, which is telling you there is depth
-          * here. The eye ends up tracking the lines instead of the volume.
-          *
-          * What is left is the source itself — one opaque emissive solid, in
-          * the middle of the ice, lighting it from within. That is the whole
-          * claim the centre is meant to make.
-          */}
-      </group>
       
       {/*
         * The caustic floor.
@@ -590,8 +622,14 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         </mesh>
       )}
 
-      {/* Center light */}
-      <pointLight color={color} intensity={isIdle ? 2 : 4} distance={8} />
+      {/*
+        * The far pair only.
+        *
+        * The lamps that lit the centre have moved inside the inner cube with
+        * the core, because that is where the light is coming from. These two
+        * stay in world space: they rake the block from above and below and are
+        * lighting the outside of it, not the inside.
+        */}
       <pointLight color={color} intensity={isIdle ? 1 : 2} distance={15} position={[0, 5, 0]} />
       <pointLight color={color} intensity={isIdle ? 1 : 2} distance={15} position={[0, -5, 0]} />
     </group>

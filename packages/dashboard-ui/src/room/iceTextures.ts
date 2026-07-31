@@ -182,6 +182,42 @@ export function createCausticTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
+/**
+ * A round particle with its light on the inside.
+ *
+ * `pointsMaterial` draws squares. Every point in this scene was a little
+ * rectangle, which at small sizes reads as pixel noise rather than as anything
+ * physical — and a square is the one shape that cannot be a mote of light.
+ *
+ * This is a radial falloff: a bright centre, a soft shoulder, transparent at
+ * the rim. That does two jobs at once — the alpha makes the point circular, and
+ * the gradient gives it the inner glow, so each particle looks lit from within
+ * rather than filled in flat. One texture, no shader, no asset.
+ */
+export function createPointSprite(): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const c = size / 2;
+
+  const gradient = ctx.createRadialGradient(c, c, 0, c, c, c);
+  // A small, near-solid core so the point still has a definite centre...
+  gradient.addColorStop(0.0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.22, 'rgba(255,255,255,0.85)');
+  // ...then a long soft shoulder, which is what reads as glow rather than blur.
+  gradient.addColorStop(0.55, 'rgba(255,255,255,0.28)');
+  gradient.addColorStop(1.0, 'rgba(255,255,255,0)');
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export function createIceMaps(): IceMaps {
   const height = fractalNoise(SIZE, 0x1CE);
 
