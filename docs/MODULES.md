@@ -175,10 +175,28 @@ Tools are filtered by the caller's actual scopes, so an agent is never shown a
 tool it cannot use — advertising one wastes its context and invites a failed
 attempt.
 
-## Dashboard
+## Trust Operations Center
 
-A React control plane on port 3001: live service health, token issuance through
-CapKit, proof verification, streaming logs over WebSocket, and benchmark history.
+The interface, on port 3001. It replaced the dashboard — there is no dashboard
+any more, and `src/tabs/Operations.tsx` was deleted rather than kept alongside.
 
-It is a convenience, not a dependency. Everything it does is available over the
-HTTP API and in the packages above.
+A dashboard is a set of pages with a standing list of destinations down one
+side. This is a room: one canvas, a cube at the centre whose eight vertices are
+the eight architectural layers of `CONSTITUTION.md`, and you enter a layer by
+manipulating the cube rather than by choosing it from a menu. `App.tsx` opens
+with no tab selected, because a room opens on the room.
+
+Four rules are enforced at build time by `scripts/check-ui-doctrine.mjs`, each
+phrased as an absence, because an absence is far harder to satisfy by accident:
+no permanent navigation, no document-flow primary layout, the cube is the
+primary interaction model, and state precedes explanation on every station.
+Two further checks govern what it may claim —
+`check-no-fabrication.mjs` (no invented figure may reach the screen) and
+`check-motion-is-evidence.mjs` (every perpetual animation must name the state
+that earns it, or it fails the build).
+
+It reads the five services and a socket, and reports `UNKNOWN` for anything it
+cannot reach rather than substituting a figure. Which is why it is not a
+convenience: it is the only surface on which the system's own evidence is
+visible as evidence, and the doctrine it enforces is the product's argument.
+Everything it *reads* remains available over the HTTP API.

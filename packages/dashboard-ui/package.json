@@ -1,7 +1,7 @@
 {
   "name": "@absuitecore/dashboard-ui",
   "version": "1.1.0",
-  "description": "ABSuite dashboard \u2014 service health, token issuance and proof verification. Not published; runs from this repository.",
+  "description": "ABSuite Trust Operations Center — the interface. Replaced the dashboard; enforced by scripts/check-ui-doctrine.mjs. Not published; runs from this repository.",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc && vite build",

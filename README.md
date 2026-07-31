@@ -416,7 +416,8 @@ rather than in a gateway, because a gateway leaves each service unguarded to
 anything that reaches it directly.
 
 As services, they listen on 8081 (CapKit), 8082 (Edge-Run), 8083 (QuickBench),
-8084 (Connector-Starter), 8085 (Trust) and 3001 (Dashboard). Full design in
+8084 (Connector-Starter), 8085 (Trust) and 3001 (the Trust Operations Center —
+the interface, which replaced the dashboard). Full design in
 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ---

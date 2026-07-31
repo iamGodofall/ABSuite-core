@@ -243,7 +243,11 @@ services:
     networks:
       - absuite-net
 
-  # ---- Dashboard ----
+  # ---- Trust Operations Center (the interface; replaced the dashboard) ----
+  #
+  # The service id stays `dashboard`: server.ts types it in its ServiceName
+  # union, the other containers resolve it by that hostname, and CD publishes
+  # the image under it. The name is an address, not a description.
 
   dashboard:
     build:
