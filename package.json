@@ -9,6 +9,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "start": "docker compose -f docker-compose.yml up -d",
+    "room": "node scripts/run-room.mjs",
     "stop": "docker compose -f docker-compose.yml down",
     "restart": "docker compose -f docker-compose.yml restart",
     "test": "jest",

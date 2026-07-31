@@ -334,8 +334,20 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
 
   return (
     <group>
-      {/* The Core Reactor Cube */}
-      <group ref={cubeRef}>
+      {/*
+        * The Core Reactor Cube.
+        *
+        * Turned a quarter turn about the vertical, so an edge faces you rather
+        * than a face. Square-on, a cube reads as a square — the silhouette is
+        * flat and the eye has no depth cue at all. From the corner you see two
+        * faces receding at once, which is the view that says "solid" before
+        * anything else in the scene has to.
+        *
+        * Vertical is untouched deliberately: tilting it as well would take the
+        * top away, and the top is where the eight corners read most clearly.
+        * One rotation, on one axis, held as the resting attitude.
+        */}
+      <group ref={cubeRef} rotation={[0, Math.PI / 4, 0]}>
         {!isArbitrate && (
           /* The faint lattice. Subdivided, so its diagonals read as a mesh
              rather than as stray lines, and left as a wireframe for that

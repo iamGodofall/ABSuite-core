@@ -53,10 +53,21 @@ export const ActLayer = () => {
   const [queue, setQueue] = useState<QueueState | null>(null);
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const [connectors, setConnectors] = useState<Connector[] | null>(null);
+  /** False until a read has finished, whether or not it succeeded. */
+  const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setError('');
+    /*
+     * Whether the read completed at all.
+     *
+     * These three panels sat on "Reading the queue…" forever whenever Edge-Run
+     * was unreachable — a loading state is a claim that something is in
+     * progress, and nothing was. Null meant both "not fetched yet" and "fetch
+     * failed", which are different facts and were being told the same way.
+     */
+    setAttempted(false);
     try {
       const [q, s, c] = await Promise.all([
         fetch('/edge/queue', { headers: adminHeaders() }),
@@ -73,6 +84,8 @@ export const ActLayer = () => {
       if (c.ok) setConnectors(((await c.json()) as { connectors: Connector[] }).connectors ?? []);
     } catch {
       setError('Edge-Run is unreachable, so what is running cannot be stated.');
+    } finally {
+      setAttempted(true);
     }
   }, []);
 
@@ -110,7 +123,9 @@ export const ActLayer = () => {
         </div>
 
         {!queue ? (
-          <p className="text-sm text-text-muted">Reading the queue…</p>
+          <p className="text-sm text-text-muted">
+            {attempted ? 'The queue could not be read. Edge-Run did not answer.' : 'Reading the queue…'}
+          </p>
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-y-4 py-3 rounded-lg border border-border bg-bg-primary/40">
@@ -165,7 +180,9 @@ export const ActLayer = () => {
         </p>
 
         {!schedules ? (
-          <p className="text-sm text-text-muted">Reading the schedule…</p>
+          <p className="text-sm text-text-muted">
+            {attempted ? 'The schedule could not be read. Edge-Run did not answer.' : 'Reading the schedule…'}
+          </p>
         ) : schedules.length === 0 ? (
           <p className="text-sm text-text-muted">
             Nothing is scheduled. No recurring work exists on this instance.
@@ -201,7 +218,9 @@ export const ActLayer = () => {
         </p>
 
         {!connectors ? (
-          <p className="text-sm text-text-muted">Reading the registry…</p>
+          <p className="text-sm text-text-muted">
+            {attempted ? 'The connector registry could not be read. Edge-Run did not answer.' : 'Reading the registry…'}
+          </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {[...reachable, ...unreachable].map(connector => (

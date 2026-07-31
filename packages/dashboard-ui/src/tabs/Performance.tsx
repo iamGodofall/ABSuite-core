@@ -96,7 +96,35 @@ export const PerformanceTab = () => {
   const load = useCallback(async () => {
     try {
       const res = await fetch('/bench/core');
-      const data = await res.json();
+      /*
+       * The body may not be JSON, and the parser's complaint is not a message.
+       *
+       * This surfaced `Unexpected token 'o', "not found " is not valid JSON` to
+       * the operator — a JavaScript parse error standing in for an explanation.
+       * When a route is missing or a service is down the response is plain
+       * text, and the honest report is what actually happened, not what the
+       * parser thought of it.
+       */
+      const body = await res.text();
+      // Shaped loosely on purpose: this is an unvalidated wire payload, and
+      // every field below is read defensively.
+      let data: {
+        error?: string;
+        measured?: boolean;
+        howTo?: string;
+        reason?: string;
+        report?: BenchReport;
+        source?: string;
+      };
+      try {
+        data = JSON.parse(body);
+      } catch {
+        throw new Error(
+          res.ok
+            ? 'QuickBench answered with something that was not a measurement.'
+            : `QuickBench answered ${res.status} and not a measurement, so nothing about performance can be stated.`,
+        );
+      }
       if (!res.ok) {
         setState({ status: 'error', message: data?.error ?? `Could not reach QuickBench (${res.status}).` });
         return;
@@ -107,6 +135,10 @@ export const PerformanceTab = () => {
           howTo: data.howTo ?? 'pnpm bench:core',
           reason: data.reason ?? 'No benchmark has been run on this machine.',
         });
+        return;
+      }
+      if (!data.report) {
+        setState({ status: 'error', message: 'QuickBench reported a measurement with no report in it.' });
         return;
       }
       setState({ status: 'measured', report: data.report, source: data.source ?? 'unknown' });
