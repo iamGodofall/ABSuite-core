@@ -1649,7 +1649,7 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-[60] bg-ab-bg/97 backdrop-blur-md overflow-y-auto px-8 py-6"
+            className="fixed inset-0 z-[60] bg-ab-bg/[0.97] backdrop-blur-md overflow-y-auto px-8 py-6"
           >
             <button
               type="button"

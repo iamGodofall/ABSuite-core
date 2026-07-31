@@ -68,6 +68,80 @@ const BEAT_MS = 900;
 
 const shortHash = (h?: string) => (h ? `${h.slice(0, 10)}…${h.slice(-6)}` : '—');
 
+/**
+ * A transport key, round and raised.
+ *
+ * These were flat rounded-md squares, which is the shape of a toolbar. A
+ * transport is hardware — the one control in this interface a person expects to
+ * have a physical answer, because they have pressed this exact arrangement of
+ * keys on every tape machine and every player they have ever used. Round and
+ * embossed says "press me" without a label, and the whole point of the row is
+ * that it needs no explaining.
+ *
+ * The emboss is three shadows doing separate jobs: a hairline inset highlight
+ * along the top edge where the light would catch, a darker inset along the
+ * bottom for the far wall, and an outer drop shadow beneath the key to lift it
+ * off the panel. Pressing swaps the inset pair and drops the key a pixel, so
+ * the light lands where it would if the key had actually moved.
+ *
+ * `active:` handles the press. There is no perpetual animation here and there
+ * should not be — a key that pulses on its own would be claiming something.
+ */
+function TransportKey({
+  children, onClick, label, title, primary = false, lit = false,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  label: string;
+  title?: string;
+  /** The play key: larger, and the only one that carries colour at rest. */
+  primary?: boolean;
+  /** Currently running in this direction — the key stays depressed. */
+  lit?: boolean;
+}) {
+  const size = primary ? 'w-14 h-14' : 'w-11 h-11';
+
+  /*
+   * Written as whole class names, on one line each, deliberately.
+   *
+   * The first version built these by concatenating two string literals to keep
+   * the line short. Tailwind finds classes by scanning source text, so it saw
+   * two fragments and no class, generated no rule, and the keys rendered
+   * perfectly round and completely flat — with every element in the DOM looking
+   * exactly as intended. A split class name is invisible in the source and
+   * invisible in the output; the only way it surfaces is by reading the
+   * computed style, which is how this one did.
+   */
+  const raised = 'shadow-[0_1px_0_rgba(0,0,0,0.7),0_5px_12px_-2px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.10),inset_0_-2px_2px_-1px_rgba(0,0,0,0.65)]';
+  const pressed = 'shadow-[inset_0_2px_5px_rgba(0,0,0,0.75),inset_0_-1px_0_rgba(255,255,255,0.06)]';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={lit}
+      title={title}
+      className={cn(
+        size,
+        'rounded-full flex items-center justify-center shrink-0 select-none',
+        'bg-gradient-to-b transition-[box-shadow,transform,border-color,color] duration-100',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-ab-green/60 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+        'active:translate-y-px',
+        primary
+          ? 'from-[#0e2a1e] to-[#04120c] border border-ab-green/40 text-ab-green'
+          : 'from-[#141a17] to-[#070b09] border border-ab-white/10 text-text-muted hover:text-ab-white hover:border-ab-white/25',
+        lit ? pressed : raised,
+        lit ? 'text-ab-green' : '',
+        !lit && 'active:shadow-[inset_0_2px_5px_rgba(0,0,0,0.75)]',
+        primary && !lit && 'hover:shadow-[0_1px_0_rgba(0,0,0,0.7),0_6px_16px_-2px_rgba(0,245,140,0.28),inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-2px_2px_-1px_rgba(0,0,0,0.65)]',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 const elapsed = (ms: number) => {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
@@ -192,32 +266,33 @@ export function Replay({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
     <div className="space-y-4">
       {/* ── Transport ─────────────────────────────────────────────────────── */}
       <div className="glass-card p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            type="button"
+        <div className="flex items-center gap-3 mb-5">
+          <TransportKey
             onClick={() => { setDirection(-1); setPlaying(p => !(p && direction === -1)); }}
-            className="p-2 rounded-md border border-ab-white/15 hover:border-ab-green/50 transition-colors"
-            aria-label="Play backwards"
+            label="Play backwards"
             title="Rewind — the head hash returns to what it was"
+            lit={playing && direction === -1}
           >
             <Rewind className="w-4 h-4" />
-          </button>
-          <button type="button" onClick={() => step(-1)} aria-label="Previous instant"
-            className="p-2 rounded-md border border-ab-white/15 hover:border-ab-green/50 transition-colors">
+          </TransportKey>
+
+          <TransportKey onClick={() => step(-1)} label="Previous instant" title="Previous recorded instant">
             <SkipBack className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
+          </TransportKey>
+
+          <TransportKey
             onClick={() => { setDirection(1); setPlaying(p => !p); }}
-            className="p-3 rounded-md border border-ab-green/50 text-ab-green hover:bg-ab-green/10 transition-colors"
-            aria-label={playing ? 'Pause' : 'Play'}
+            label={playing ? 'Pause' : 'Play'}
+            title={playing ? 'Pause' : 'Play forwards, one instant per beat'}
+            primary
+            lit={playing && direction === 1}
           >
-            {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </button>
-          <button type="button" onClick={() => step(1)} aria-label="Next instant"
-            className="p-2 rounded-md border border-ab-white/15 hover:border-ab-green/50 transition-colors">
+            {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 translate-x-px" />}
+          </TransportKey>
+
+          <TransportKey onClick={() => step(1)} label="Next instant" title="Next recorded instant">
             <SkipForward className="w-4 h-4" />
-          </button>
+          </TransportKey>
 
           <div className="ml-auto text-right font-mono text-[11px] text-text-muted">
             <div>instant {index + 1} / {instants.length}</div>
@@ -232,7 +307,7 @@ export function Replay({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
           * a worse instrument.
           */}
         <div className="relative h-12">
-          <div className="absolute inset-x-0 top-5 h-px bg-ab-white/12" />
+          <div className="absolute inset-x-0 top-5 h-px bg-ab-white/10" />
           {instants.map((moment, i) => {
             const left = ((moment.at - first) / span) * 100;
             const isRecord = moment.kind === 'record';

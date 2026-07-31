@@ -116,6 +116,13 @@ jobs:
       - name: The deployment manifests can deploy
         run: pnpm check:deploy
 
+      # A class name that generates no CSS. Three have shipped: five undefined
+      # keyframes, a class split across concatenated literals, and an opacity
+      # step outside the scale. Each rendered valid DOM and did nothing, and
+      # each was found by looking at the screen rather than by any test.
+      - name: Every class name generates a rule
+        run: pnpm check:styles
+
   test:
     name: Test
     runs-on: ubuntu-latest
