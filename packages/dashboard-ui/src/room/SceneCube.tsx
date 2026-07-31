@@ -27,6 +27,7 @@ import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import { LayerVertices } from './LayerVertices';
+import { GlassShell } from './GlassShell';
 import * as THREE from 'three';
 
 export type TrustLayer =
@@ -48,9 +49,11 @@ interface TrustCubeProps {
   isIdle?: boolean;
   /** False when the socket is down: a system that is not observing holds still. */
   connected?: boolean;
+  /** True when this machine can refract. See glass.ts. */
+  glass?: boolean;
 }
 
-export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubeProps) {
+export function SceneCube({ activeLayer, isIdle, connected = true, glass = false }: TrustCubeProps) {
   const cubeRef = useRef<THREE.Group>(null);
   const innerCubeRef = useRef<THREE.Mesh>(null);
   const leftHalfRef = useRef<THREE.Mesh>(null);
@@ -305,11 +308,9 @@ export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubePr
         
         {!isArbitrate && (
           <group>
-            {/* Outer holographic shell */}
-            <mesh>
-              <boxGeometry args={[2.5, 2.5, 2.5]} />
-              <meshBasicMaterial color={color} transparent opacity={activeLayer === 'observe' ? 0.05 : 0.08} wireframe={false} depthWrite={false} blending={THREE.AdditiveBlending} />
-            </mesh>
+            {/* The outer shell — glass where the machine can refract, the
+                original additive plane where it cannot. */}
+            <GlassShell color={color} supported={glass} isIdle={isIdle} />
             
             {/* Thickened glowing edges using multiple overlapping wireframes */}
             <group>

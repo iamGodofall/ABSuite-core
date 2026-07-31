@@ -1,4 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber';
+import { useState } from 'react';
+import { probeGlassSupport, type GlassSupport } from './glass';
 import { SceneCube, type TrustLayer } from './SceneCube';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
@@ -55,6 +57,15 @@ function CameraController({ activeLayer }: { activeLayer: TrustLayer }) {
 }
 
 export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
+  /*
+   * Asked once, when the context exists, and never again.
+   *
+   * Probing per frame would be a per-frame allocation for an answer that
+   * cannot change; probing before the canvas mounts is impossible, because the
+   * question is about a renderer that does not exist yet.
+   */
+  const [glass, setGlass] = useState<GlassSupport | null>(null);
+
   return (
     <div className="absolute inset-0 z-0 pointer-events-none">
       {/*
@@ -78,7 +89,10 @@ export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
          * was a scene that rendered without error and showed almost nothing.
          */
         gl={{ alpha: false, antialias: true, toneMapping: THREE.NoToneMapping }}
-        onCreated={({ gl }) => gl.setClearColor('#05070A', 1)}
+        onCreated={({ gl }) => {
+          gl.setClearColor('#05070A', 1);
+          setGlass(probeGlassSupport(gl));
+        }}
       >
         <fog attach="fog" args={['#000000', 5, 25]} />
         <ambientLight intensity={0.2} />
@@ -89,7 +103,18 @@ export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
         {/* Background Grid */}
         <gridHelper args={[100, 100, '#00F58C', '#00F58C']} material-opacity={0.03} material-transparent rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -15]} />
         
-        <SceneCube activeLayer={activeLayer} isIdle={isIdle} connected={connected} />
+        {/* Lights the glass needs. The additive shell needed none, so these
+            arrive with refraction: a key to catch the near faces and a cold
+            rim to separate the far edge from the field behind it. */}
+        <directionalLight position={[4, 6, 5]} intensity={isIdle ? 0.5 : 1.15} color="#DFFFF2" />
+        <directionalLight position={[-6, -2, -4]} intensity={isIdle ? 0.2 : 0.5} color="#3FE8FF" />
+
+        <SceneCube
+          activeLayer={activeLayer}
+          isIdle={isIdle}
+          connected={connected}
+          glass={glass?.supported ?? false}
+        />
         <CameraController activeLayer={activeLayer} />
         
         {/*
