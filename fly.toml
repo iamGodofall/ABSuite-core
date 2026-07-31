@@ -1,0 +1,53 @@
+# Fly.io — the public instance.
+#
+# `app` is a placeholder; `fly launch --no-deploy` rewrites it with the name you
+# choose and adds nothing else, because everything else is already here.
+
+app = "absuite"
+primary_region = "jnb"
+
+[build]
+  dockerfile = "deploy/Dockerfile"
+
+[env]
+  PORT = "3001"
+  NODE_ENV = "production"
+  ABSUITE_DB_PATH = "/data/absuite.db"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  # Zero would make the instance cold on every visit and the room would take
+  # thirty seconds to answer the first request. One machine, always warm.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+# Records survive deploys. Without this the SQLite file is inside the container
+# filesystem and every release starts empty — which is honest, but makes the
+# chain impossible to demonstrate because nothing is ever more than a minute
+# old.
+[[mounts]]
+  source = "absuite_data"
+  destination = "/data"
+
+[[vm]]
+  # Six node processes in one container. 1GB is a starting estimate, not a
+  # measurement — nothing has been deployed yet to measure. If the machine is
+  # OOM-killed on first boot this is the number to raise.
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[checks.health]
+  type = "http"
+  port = 3001
+  path = "/health"
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "45s"

@@ -510,6 +510,11 @@ it reports *No instance connected* rather than a failure — it reads live
 services and shows UNKNOWN for anything it cannot reach, and never substitutes a
 figure for a gap.
 
+To put an instance at a public address, `deploy/Dockerfile` builds all six
+services and the room into a single container — `fly deploy`, a Render
+blueprint, or `docker run` anywhere. Set `ABSUITE_PUBLIC_PASSWORD` first: that
+process holds the key that mints capability tokens. See **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+
 It is installable. Nobody outside the project has used it yet — that is the
 honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 

@@ -1,0 +1,31 @@
+# Render — the same instance, for a host that wants a blueprint instead of a CLI.
+#
+# One service, because deploy/Dockerfile already contains all six. Connect the
+# repository as a Blueprint and Render reads this file; nothing is typed into a
+# web form, so what is deployed is what is in git.
+
+services:
+  - type: web
+    name: absuite
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: ABSUITE_DB_PATH
+        value: /data/absuite.db
+      # Generated once by Render and never printed in a build log. Read it from
+      # the dashboard's Environment tab; the username is `absuite`.
+      - key: ABSUITE_PUBLIC_PASSWORD
+        generateValue: true
+      - key: CAPKIT_ADMIN_KEY
+        generateValue: true
+    disk:
+      name: absuite-data
+      mountPath: /data
+      sizeGB: 1

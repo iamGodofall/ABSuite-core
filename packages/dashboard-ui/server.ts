@@ -4,6 +4,7 @@ import { Server, Socket } from 'socket.io';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 const SERVICES = ['capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard', 'absuite-db'] as const;
 type ServiceName = typeof SERVICES[number];
@@ -128,6 +129,53 @@ function requireAdminAccess(req: express.Request, res: express.Response, next: e
 }
 
 app.use(createRateLimiter(60_000, 180));
+
+/**
+ * A password on the whole surface, for an instance with a public address.
+ *
+ * The bind warning at the bottom of this file says to put an authenticating
+ * proxy in front before exposing this process, because it holds the key that
+ * mints capability tokens and it can control services. On a platform that
+ * terminates TLS and routes straight to the container there is no proxy to put
+ * anything in — so the advice, followed literally, means "do not deploy", and
+ * what actually happens instead is that someone deploys it anyway.
+ *
+ * This is the smallest thing that makes the advice followable. Set
+ * ABSUITE_PUBLIC_PASSWORD and every route, including the static bundle, needs
+ * it. Leave it unset and nothing changes, which keeps `pnpm room` and the
+ * compose file exactly as they were — both bind loopback, where a password
+ * protects against nobody.
+ *
+ * Basic auth is chosen for being the only scheme a browser will prompt for
+ * without a login page to maintain. It is not an identity system and does not
+ * pretend to be one: it gates a demonstration instance, and the moment this
+ * holds records that matter it should be replaced by the real thing.
+ */
+const publicPassword = (process.env.ABSUITE_PUBLIC_PASSWORD || '').trim();
+if (publicPassword) {
+  const expected = Buffer.from(`absuite:${publicPassword}`).toString('base64');
+  app.use((req, res, next) => {
+    // The health endpoint stays open: platform health checks cannot carry
+    // credentials, and a gated one makes the host declare the container dead.
+    if (req.path === '/health') return next();
+
+    const header = req.header('authorization') || '';
+    const provided = header.startsWith('Basic ') ? header.slice(6) : '';
+    // Length is compared first because timingSafeEqual throws on a mismatch,
+    // and the comparison is constant-time so a wrong password leaks nothing
+    // about how much of it was right.
+    const ok =
+      provided.length === expected.length &&
+      crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+
+    if (!ok) {
+      res.set('WWW-Authenticate', 'Basic realm="ABSuite", charset="UTF-8"');
+      return res.status(401).send('Authentication required.');
+    }
+    return next();
+  });
+}
+
 app.use(express.static('dist'));
 app.use(express.json({ limit: '256kb' }));
 
