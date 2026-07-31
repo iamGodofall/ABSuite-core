@@ -425,9 +425,9 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                 <mesh>
                   <boxGeometry args={[1.8, 1.8, 1.8]} />
                   <meshPhysicalMaterial
-                    color={color}
+                    color={'#04140D'}
                     transparent
-                    opacity={0.15}
+                    opacity={0.3}
                     metalness={0}
                     roughness={0}
                     /*
@@ -437,9 +437,18 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                      * which is the difference between a lit object and a
                      * glowing one.
                      */
-                    emissive={color}
-                    emissiveIntensity={0.22}
-                    toneMapped={false}
+                    /*
+                     * Dark, and translucent, and not lit.
+                     *
+                     * This carried its own emissive, so the whole volume glowed
+                     * and there was no dark left for the core's light to sit
+                     * in. A light with nothing dark around it is not a light,
+                     * it is a fill. The block is smoke-dark now, the only
+                     * source inside it is the core, and the darkness between
+                     * the two is what makes the core read as a source.
+                     */
+                    attenuationColor={'#02100A'}
+                    attenuationDistance={0.85}
                     clearcoat={1}
                     clearcoatRoughness={0}
                     side={THREE.DoubleSide}
@@ -483,7 +492,7 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   * an additive core is drawn over the ice instead of inside it.
                   */}
                 <mesh>
-                  <icosahedronGeometry args={[0.3, 1]} />
+                  <icosahedronGeometry args={[0.19, 1]} />
                   <meshStandardMaterial
                     color={'#04180F'}
                     emissive={color}
@@ -511,10 +520,9 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   * silhouette.
                   */}
                 {[
-                  { r: 0.40, o: 0.30 },
-                  { r: 0.54, o: 0.16 },
-                  { r: 0.70, o: 0.085 },
-                  { r: 0.88, o: 0.04 },
+                  { r: 0.26, o: 0.34 },
+                  { r: 0.34, o: 0.15 },
+                  { r: 0.44, o: 0.055 },
                 ].map(shell => (
                   <mesh key={shell.r}>
                     <sphereGeometry args={[shell.r, 28, 28]} />
@@ -528,35 +536,6 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                     />
                   </mesh>
                 ))}
-
-                {/*
-                  * The dark ring.
-                  *
-                  * Everything in this block emits, and a volume with no dark in
-                  * it has no depth — the eye needs something occluding to know
-                  * there is space between things. This is a solid, unlit torus
-                  * sitting in the radiance: it takes a rim highlight on the
-                  * side facing the source and goes black on the side away from
-                  * it, which is the gradient asked for, and it silhouettes as
-                  * two dark points wherever it crosses the glow.
-                  *
-                  * Opaque on purpose. It is the one part of the core that must
-                  * be genuinely inside the ice rather than composited over it,
-                  * and opaque is the only thing a refracting surface can see.
-                  * Tilted off every axis so it never lines up with the cube and
-                  * reads as a plate.
-                  */}
-                <mesh rotation={[Math.PI / 2.7, 0.22, Math.PI / 9]}>
-                  <torusGeometry args={[0.62, 0.045, 14, 96]} />
-                  <meshStandardMaterial
-                    color={'#01100A'}
-                    roughness={0.28}
-                    metalness={0.15}
-                    emissive={color}
-                    emissiveIntensity={0.12}
-                    toneMapped={false}
-                  />
-                </mesh>
 
                 {/* The lamps travel with the source. */}
                 <pointLight color={color} intensity={isIdle ? 2 : 4} distance={8} decay={2} />
