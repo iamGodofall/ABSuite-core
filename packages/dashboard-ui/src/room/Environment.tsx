@@ -484,6 +484,7 @@ export const Environment = ({
             integrity={integrity}
             arrivals={arrivals}
             verifying={verifying}
+            orientTo={attention}
             variant="centre"
             size={coreSize}
           />

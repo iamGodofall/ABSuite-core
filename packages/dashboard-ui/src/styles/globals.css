@@ -540,30 +540,10 @@
    verification that ran, a record that arrived. Nothing loops for atmosphere.
    ------------------------------------------------------------------------- */
 
-/* The cube. Not a logo — the visual representation of trust, and it only turns
-   while the socket is connected, so a dead connection is visible as stillness. */
-@keyframes ops-cube-turn {
-  from { transform: rotateX(-22deg) rotateY(0deg); }
-  to   { transform: rotateX(-22deg) rotateY(360deg); }
-}
-
-.ops-cube-scene { perspective: 900px; }
-
-.ops-cube {
-  position: relative;
-  transform-style: preserve-3d;
-  animation: ops-cube-turn 18s linear infinite;
-}
-
-.ops-cube.is-still { animation-play-state: paused; }
-
-.ops-cube-face {
-  position: absolute;
-  inset: 0;
-  border: 1px solid hsl(var(--accent-primary) / 0.35);
-  background: linear-gradient(140deg, hsl(var(--accent-primary) / 0.05), transparent 60%);
-  box-shadow: inset 0 0 30px hsl(var(--accent-primary) / 0.08);
-}
+/* The old Operations cube lived here: a class nobody rendered any more,
+   spinning on an eighteen-second loop in dead CSS. Found by
+   check-motion-is-evidence, which does not care whether a perpetual animation
+   is reachable — only whether someone can name the state it reports. */
 
 /* Rings: one per verification pass. Slow and wide, so the eye reads structure
    rather than activity. */
@@ -615,14 +595,38 @@
 .trust-cube-scene { perspective: 700px; }
 .trust-cube-centre { perspective: 900px; }
 
-.trust-cube {
+/*
+ * The cube does not spin.
+ *
+ * It drifts at roughly 0.05 degrees per second — one revolution every two
+ * hours — which is below the threshold at which the eye reads motion. It holds
+ * station like a satellite rather than turning like an ornament. Everything
+ * else the cube does is caused by an event: it orients toward the station where
+ * something happened, and stops there.
+ *
+ * If nothing happened, nothing moves.
+ */
+@keyframes trust-cube-drift {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(360deg); }
+}
+
+.trust-cube-drift {
   position: relative;
   transform-style: preserve-3d;
-  animation: ops-cube-turn 18s linear infinite;
+  animation: trust-cube-drift 7200s linear infinite;
 }
 
 /* Not connected means not observing, and the cube says so by stopping. */
-.trust-cube.is-still { animation-play-state: paused; }
+.trust-cube-drift.is-still { animation-play-state: paused; }
+
+.trust-cube {
+  position: relative;
+  transform-style: preserve-3d;
+  /* Orientation changes are transitions, not loops — they run once, when
+     something asked for them. */
+  transition: transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
 .trust-cube-face {
   position: absolute;
@@ -638,8 +642,7 @@
    because unresolved is not wrong. ABSENT dims rather than disappearing. */
 .trust-cube.cube-intact    { --cube-line: hsl(var(--accent-primary) / 0.4);  --cube-wash: hsl(var(--accent-primary) / 0.06); }
 .trust-cube.cube-broken    { --cube-line: hsl(0 84% 60% / 0.55);             --cube-wash: hsl(0 84% 60% / 0.08); }
-.trust-cube.cube-unchecked { --cube-line: hsl(38 92% 55% / 0.45);            --cube-wash: hsl(38 92% 55% / 0.06);
-                             animation: ops-cube-turn 18s linear infinite, cube-unresolved 2.6s ease-in-out infinite; }
+.trust-cube.cube-unchecked { --cube-line: hsl(38 92% 55% / 0.45);            --cube-wash: hsl(38 92% 55% / 0.06); }
 .trust-cube.cube-empty     { --cube-line: hsl(var(--text-muted) / 0.25);     --cube-wash: transparent; opacity: 0.45; }
 
 @keyframes cube-unresolved { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }

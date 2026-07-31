@@ -9,8 +9,13 @@
  *
  * Every motion it makes is caused by something that actually happened:
  *
- *   Rotation      — turns only while the socket is connected. A dead connection
- *                   reads as stillness, not as a stale figure.
+ *   Rotation      — the cube does not spin. At rest it drifts at roughly 0.05
+ *                   degrees per second, which is a full turn every two hours
+ *                   and is not perceptible as motion — it reads as a satellite
+ *                   holding station. It *orients*: when a record arrives or a
+ *                   station is attended, it turns to face that station and
+ *                   stops there. Movement means something happened. If nothing
+ *                   happened, nothing moves.
  *   Face colour   — the chain's integrity, in the four-state language. Green is
  *                   verified intact, red is a broken link, amber is not
  *                   checked, dim is nothing recorded yet.
@@ -51,11 +56,29 @@ const FACE_TONE: Record<Integrity, string> = {
   ABSENT: 'cube-empty',
 };
 
+/**
+ * Where the cube looks when it is attending to a station.
+ *
+ * Not arbitrary: each is the face that station's evidence would enter through,
+ * and Verify is square-on because verification is the one act that requires the
+ * thing to hold still while it is inspected.
+ */
+const FACING: Record<string, { x: number; y: number }> = {
+  observe:   { x: -26, y: 0 },
+  verify:    { x: 0,   y: 0 },
+  explain:   { x: 26,  y: 0 },
+  govern:    { x: 0,   y: -40 },
+  arbitrate: { x: 14,  y: 40 },
+  act:       { x: -14, y: -40 },
+  learn:     { x: -20, y: 34 },
+};
+
 export const TrustCube = ({
   connected,
   integrity,
   arrivals = [],
   verifying = false,
+  orientTo = null,
   variant = 'ambient',
   size,
 }: {
@@ -63,6 +86,14 @@ export const TrustCube = ({
   integrity: Integrity;
   /** True only while a verification request is genuinely outstanding. */
   verifying?: boolean;
+  /**
+   * The station the cube should face, or null to hold its last orientation.
+   *
+   * Null does not mean "return to centre". A cube that snapped back whenever
+   * attention lapsed would be moving because nothing happened, which is the one
+   * thing this component must never do.
+   */
+  orientTo?: string | null;
   /** Ids of records that genuinely arrived, newest first. */
   arrivals?: { id: string; outcome?: string }[];
   variant?: 'ambient' | 'centre';
@@ -73,6 +104,29 @@ export const TrustCube = ({
 
   const [particles, setParticles] = useState<Particle[]>([]);
   const seen = useRef<Set<string>>(new Set());
+
+  /**
+   * The orientation the cube holds.
+   *
+   * It changes only when something asks it to — a station attended, a record
+   * arriving. Between those it does not return, reset or wander. Holding a
+   * position is itself a report: the last thing that happened is still the last
+   * thing that happened.
+   */
+  const [facing, setFacing] = useState({ x: -22, y: 0 });
+  useEffect(() => {
+    if (!orientTo) return;
+    const target = FACING[orientTo];
+    if (target) setFacing(target);
+  }, [orientTo]);
+
+  // A record arriving turns the cube toward Observe, because that is where
+  // evidence enters. Nothing else about the cube moves on its own.
+  useEffect(() => {
+    if (arrivals.some(record => !seen.current.has(record.id))) {
+      setFacing(FACING.observe!);
+    }
+  }, [arrivals]);
 
   /**
    * Spawn one particle per record the shell has not already drawn.
@@ -109,11 +163,24 @@ export const TrustCube = ({
       style={{ width: edge, height: edge }}
       aria-hidden="true"
     >
+      {/* Outer: the resting drift. 0.05 degrees per second — a full turn every
+          two hours, below the threshold of perceived motion. Paused entirely
+          when the socket is down, because a disconnected system is not
+          observing and must not look as though it is. */}
       <div
-        className={cn('trust-cube', FACE_TONE[integrity], !connected && 'is-still')}
+        className={cn('trust-cube-drift', !connected && 'is-still')}
         style={{ width: edge, height: edge }}
       >
-        {[
+        {/* Inner: the orientation, which changes only on an event. */}
+        <div
+          className={cn('trust-cube', FACE_TONE[integrity])}
+          style={{
+            width: edge,
+            height: edge,
+            transform: `rotateX(${facing.x}deg) rotateY(${facing.y}deg)`,
+          }}
+        >
+          {[
           `translateZ(${half}px)`,
           `rotateY(180deg) translateZ(${half}px)`,
           `rotateY(90deg) translateZ(${half}px)`,
@@ -121,8 +188,9 @@ export const TrustCube = ({
           `rotateX(90deg) translateZ(${half}px)`,
           `rotateX(-90deg) translateZ(${half}px)`,
         ].map(transform => (
-          <div key={transform} className="trust-cube-face" style={{ transform }} />
-        ))}
+            <div key={transform} className="trust-cube-face" style={{ transform }} />
+          ))}
+        </div>
       </div>
 
       {/* Present exactly as long as the request is. */}

@@ -1,4 +1,109 @@
-# ABSuite is not software you browse. It is evidence you inhabit.
+# ABSuite is not software. It is a place where evidence becomes understanding.
+
+**ABSuite is not software you browse. It is evidence you inhabit.**
+
+---
+
+## The seven layers are the lifecycle of truth
+
+They were never navigation, never pages, never features. They answer seven
+questions in order, and each one *behaves* like its answer — which is why the
+interface needs no legend:
+
+| Layer | Question | What it does |
+| --- | --- | --- |
+| 1 · Observe | What happened? | **Receives.** Fastest layer; every event lands here first. |
+| 2 · Verify | Can you prove it? | **Becomes still.** Verification requires the thing to hold steady while it is inspected. |
+| 3 · Explain | Why did it happen? | **Reveals connections.** |
+| 4 · Govern | Was it allowed? | **Draws boundaries.** Rigid, symmetrical, predictable. |
+| 5 · Arbitrate | Does anyone disagree? | **Splits in two.** A dispute is two positions in tension — accepted doctrine. |
+| 6 · Act | What happens next? | **Expels energy.** |
+| 7 · Learn | What did we learn? | **Grows.** |
+
+Ask what Verify does and the answer is "it stops moving". Ask what Arbitrate
+does and the answer is "it splits itself in half". That is a language, not a
+legend, and it is the point at which documentation stops being necessary.
+
+### The eighth state: Witness
+
+Not a layer — a state. When a record is replayed, the observatory dims, all
+motion stops, and the evidence retraces its own path. For those seconds the
+system is not observing. **It is remembering.**
+
+ABSuite observes, verifies, explains, governs, arbitrates, acts and learns. And
+sometimes it remembers.
+
+---
+
+## The Articles
+
+These govern the machine, not merely the interface:
+
+| | |
+| --- | --- |
+| **I** | No determination shall appear more certain than the evidence supporting it. |
+| **II** | Unknown is not an error. |
+| **III** | Motion shall always represent state. |
+| **IV** | Every action shall identify its authority. |
+| **V** | Evidence is immutable. |
+| **VI** | Truth is observed, not generated. |
+
+---
+
+## The ten rules
+
+1. If nothing happened, nothing moves.
+2. Motion is evidence.
+3. The cube is not a logo.
+4. Every visual state must correspond to system state.
+5. There are no pages.
+6. There are no dashboards.
+7. The user enters rooms.
+8. Truth travels.
+9. Unknown is a first-class citizen.
+10. Silence is a valid state.
+
+**A determination is a liability.** `<span>INTACT</span>` is a claim from
+nowhere; `<span>{chainState}</span>` is a reading; `<TrustCube state={system} />`
+is the instrument reporting itself. The end state is a screen someone can read
+from ten metres away — healthy, arbitrating, unknowns growing, breach detected —
+without reading a single word. At that point the telemetry line becomes optional.
+
+**A lexical check sees shape, never provenance.** True of software, and true of
+people: we are excellent at recognising confidence and terrible at recognising
+evidence. ABSuite exists because of that fact.
+
+---
+
+## Rule zero: motion is evidence
+
+> **If nothing happened, nothing moves.**
+
+Current software opens and the ornaments start: a cube spinning forever,
+particles drifting forever, things glowing forever. That is animation. This is
+behaviour:
+
+    Nothing happens. The cube rests. The system breathes slowly.
+    One record enters. The machine responds.
+
+The cube does not rotate by itself. At rest it drifts at 0.05°/sec — one
+revolution every two hours, below the threshold at which the eye reads motion —
+and it stops entirely when the socket drops. It does not spin. **It orients.**
+When something happens it turns to face where it happened, and stops there. It
+does not return to centre afterwards, because returning would be movement
+caused by nothing.
+
+This is enforced. `scripts/check-motion-is-evidence.mjs` holds the complete
+inventory of every perpetual animation in the product, each with the state that
+earns it. Adding one without declaring it fails the build; declaring one costs a
+sentence naming what it reports, and that sentence is where someone notices they
+cannot name a state and deletes the animation instead. A declaration for motion
+that no longer runs fails too.
+
+The rule exists because eventually someone proposes ambient animation, and the
+answer has to already be written down.
+
+---
 
 **Build the room people will sit in when intelligence becomes infrastructure.**
 
