@@ -165,6 +165,11 @@ const RULES = [
     pattern: /\b(?:metric|reading|value|count|total|headline)\s*:\s*['"`][^'"`]+['"`]/g,
     why: 'A field named for a reading, assigned a literal. Bind it to a source, or omit it so the component can say the reading is absent.',
     exempt: (text, index, matched) =>
+      // A template literal with an interpolation is bound to a source by
+      // construction — `${failures} DISPUTES` cannot be invented data, because
+      // the number comes from a variable. Only the constant part is a literal.
+      // A template with no interpolation, `482 records`, is still caught.
+      /\$\{/.test(matched) ||
       // A label or a placeholder is not a reading; only flag values that look
       // like measurements — digits, or a determination word.
       !/\d|intact|scoped|demonstrated|healthy|verified|unknown|absent|failed|queued|idle/i.test(matched),

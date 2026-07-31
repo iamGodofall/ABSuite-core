@@ -194,10 +194,34 @@ const VERIFIABLE = [
     met: () => /particle/i.test(css),
   },
   {
+    /**
+     * Tested as a property of the shell, not as an import.
+     *
+     * This read `/CubeConnections/` across the source — and the ledger below
+     * records what that bought us: it verified a component was imported, not
+     * that anything connected back to anything. It passed for months while the
+     * interface was a sidebar with a decorative cube, and it failed the day
+     * the room finally existed, because the room did not happen to use that
+     * component. Exactly backwards on both occasions.
+     *
+     * What the promise actually claims is that the cube is the thing you go
+     * through. So that is what gets tested: the shell mounts the core, and
+     * manipulating it is what resolves to a layer.
+     */
     promise: 'Everything connects back to the cube',
-    met: () => uiFiles.some(file => /CubeConnections/.test(readFileSync(file, 'utf8'))),
+    met: () => uiFiles.some(file => {
+      const text = readFileSync(file, 'utf8');
+      if (!/room\//.test(file) || !/<(?:Scene|TrustCube|CoreCube|SceneCube)\b/.test(text)) return false;
+      return /onPointerDown|onWheel|onDoubleClick/.test(text) &&
+             /commit\([^)]*['"](?:observe|verify|explain|govern)['"]/.test(text);
+    }),
   },
   {
+    /**
+     * Still pinned to a component, and deliberately so: unlike the promise
+     * above, this one names a specific piece of motion that either exists or
+     * does not. It does not. See the ledger.
+     */
     promise: 'Evidence chains forming as motion',
     met: () => uiFiles.some(file => /ChainForming/.test(readFileSync(file, 'utf8'))),
   },

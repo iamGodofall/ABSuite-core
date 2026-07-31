@@ -29,7 +29,6 @@ import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
 import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
-import { Operations } from './tabs/Operations';
 import { ChainView } from './tabs/ChainView';
 import { Agents } from './tabs/Agents';
 import { ActLayer } from './tabs/ActLayer';
@@ -38,9 +37,12 @@ import { ArbitrateLayer } from './tabs/ArbitrateLayer';
 import { MachineRoom } from './tabs/MachineRoom';
 import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
-import { type Integrity } from './components/TrustCube';
-import { Environment, type Station, type Determination } from './room/Environment';
-import { EvidenceStream, type Stage } from './room/panels';
+import { TrustOperationsCenter } from './room/TrustOperationsCenter';
+import { Mark } from './room/Mark';
+import type { LayerReading } from './room/OrbitalNodes';
+import type { TrustLayer } from './room/SceneCube';
+
+type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -1281,7 +1283,6 @@ const TAB_CONFIG: {
  * hardcoded tile claiming Slack was enabled was a fabricated fact sitting two
  * inches from a measured one.
  */
-const ActTab = () => <ActLayer />;
 
 /**
  * Layer 4 — the rules, the refusals, and the tokens that carry authority.
@@ -1293,27 +1294,7 @@ const GovernTab = () => (
   </div>
 );
 
-/**
- * View 9 — the evidence base, and where it is thin.
- *
- * What is held, counted on this request, beside the records that are failed,
- * unsigned or unauthorised on their face. These two belong together: a count of
- * evidence without a count of its weak points flatters the archive.
- */
-const EvidenceTab = () => (
-  <div className="space-y-6">
-    <GlobalView />
-    <AttentionPanel />
-  </div>
-);
 
-/** View 10 — what the system refuses, and what each side owes the other. */
-const PoliciesTab = () => (
-  <div className="space-y-6">
-    <ConstraintsPanel />
-    <Obligations />
-  </div>
-);
 
 export default function App() {
   /**
@@ -1322,7 +1303,7 @@ export default function App() {
    * There is no default tab any more. A dashboard opens on a page; a room opens
    * on the room, and you choose where to go from what you can see.
    */
-  const [activeTab, setActiveTab] = useState<TabId | null>(null);
+  const [, setActiveTab] = useState<TabId | null>(null);
   /**
    * The record being examined, if any.
    *
@@ -1356,8 +1337,7 @@ export default function App() {
    * A failed request leaves this UNKNOWN rather than dropping to a green
    * default — "I could not check" and "it is fine" must not render alike.
    */
-  const [integrity, setIntegrity] = useState<Integrity>('UNKNOWN');
-  const [verifying, setVerifying] = useState(false);
+  const [integrity, setIntegrity] = useState<Determination>('UNKNOWN');
   /**
    * Figures the room's nodes report.
    *
@@ -1368,12 +1348,9 @@ export default function App() {
    */
   const [figures, setFigures] = useState<{ total: number; withoutScope: number; failures: number; subjects: number } | null>(null);
   const [queue, setQueue] = useState<{ total: number; breakdown: { label: string; count: number }[] } | null>(null);
-  const [latestId, setLatestId] = useState<string | null>(null);
-  const [latestRecord, setLatestRecord] = useState<{ startedAt: string; scope?: string[]; governance?: unknown; outputHash?: string } | null>(null);
   useEffect(() => {
     let active = true;
     const read = async () => {
-      if (active) setVerifying(true);
       try {
         const res = await fetch('/executions/stats?windowHours=24', { headers: getAdminHeaders() });
         if (!active) return;
@@ -1388,8 +1365,6 @@ export default function App() {
         else setIntegrity(data.chain?.valid ? 'DEMONSTRATED' : 'FAILED');
       } catch {
         if (active) { setIntegrity('UNKNOWN'); setFigures(null); }
-      } finally {
-        if (active) setVerifying(false);
       }
     };
     void read();
@@ -1407,21 +1382,6 @@ export default function App() {
   const readInstruments = useCallback(async () => {
     const headers = getAdminHeaders();
 
-    // Hold the record; the stages are derived at render so the stream and the
-    // vitals line read from the same integrity value and cannot disagree. They
-    // did: the stream said "not checked" while the vitals said DEMONSTRATED,
-    // because the stage array had been frozen at the moment it was built.
-    try {
-      const res = await fetch('/executions?limit=1', { headers });
-      if (res.ok) {
-        const payload = (await res.json()) as {
-          executions: { id: string; startedAt: string; scope?: string[]; governance?: unknown; outputHash?: string }[];
-        };
-        const newest = payload.executions?.[0] ?? null;
-        setLatestId(newest?.id ?? null);
-        setLatestRecord(newest);
-      }
-    } catch { setLatestRecord(null); setLatestId(null); }
 
     try {
       const res = await fetch('/executions/unknowns?limit=200', { headers });
@@ -1449,227 +1409,146 @@ export default function App() {
   }, [readInstruments]);
 
   /**
-   * The evidence stream: Action, Evidence, Verification, Policy, Governance,
-   * Ledger. A stage lights only when the newest record genuinely carries what
-   * that stage needs — a record naming no rule shows Governance dark and says
-   * so, rather than glowing because a complete pipeline looks better.
+   * What each layer reports.
    *
-   * Derived at render rather than stored, so the stream and the vitals line
-   * read the same integrity value. Stored, they disagreed: the stream said
-   * "not checked" while the vitals said DEMONSTRATED, because the stage array
-   * had been frozen at the moment it was built.
+   * Absent when the layer has nothing to say. A missing reading renders as no
+   * badge at all, which is a different claim from a badge reading zero.
    */
-  const stages: Stage[] = React.useMemo(() => {
-    if (!latestRecord) return [];
-    return [
-      { name: 'Action', note: 'recorded', reached: true, at: new Date(latestRecord.startedAt).toLocaleTimeString('en-GB', { hour12: false }) },
-      { name: 'Evidence', note: latestRecord.outputHash ? 'captured' : 'no output hash', reached: Boolean(latestRecord.outputHash) },
-      { name: 'Verification', note: integrity === 'DEMONSTRATED' ? 'intact' : integrity === 'FAILED' ? 'broken' : integrity === 'ABSENT' ? 'nothing to verify' : 'not checked', reached: integrity === 'DEMONSTRATED' },
-      { name: 'Policy', note: latestRecord.scope?.length ? 'scoped' : 'no scope recorded', reached: Boolean(latestRecord.scope?.length) },
-      { name: 'Governance', note: latestRecord.governance ? 'applied' : 'no rule named', reached: Boolean(latestRecord.governance) },
-      { name: 'Ledger', note: 'hash-chained', reached: true },
-    ];
-  }, [latestRecord, integrity]);
-  /** Only records the socket actually delivered as new. */
-  const arrivals = React.useMemo(
-    () => liveExecutions.filter(execution => arrivedIds.has(execution.id))
-      .map(execution => ({ id: execution.id, outcome: execution.outcome })),
-    [liveExecutions, arrivedIds]
-  );
-
-  const renderTab = () => {
-    switch (activeTab) {
-      case 'operations': return (
-        <Operations
-          live={liveExecutions}
-          arrivedIds={arrivedIds}
-          connected={connected}
-          servicesUp={services.filter(s => s.status === 'up').length}
-          servicesTotal={services.length}
-          integrity={integrity}
-          arrivals={arrivals}
-          verifying={verifying}
-          onOpenRecord={setOpenRecordId}
-          onOpenLayer={layer => setActiveTab(layer as TabId)}
-        />
-      );
-      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
-      case 'verify': return (
-        <div className="space-y-6">
-          <ProofTab view="verify" onOpenRecord={setOpenRecordId} />
-          <Audit />
-        </div>
-      );
-      case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
-      case 'govern': return <GovernTab />;
-      case 'arbitrate': return <ArbitrateLayer />;
-      case 'act': return <ActTab />;
-      case 'learn': return (
-        <div className="space-y-6">
-          <LearnLayer />
-          <div>
-            <h3 className="text-sm font-semibold text-text-primary mb-1">The full record behind those bars</h3>
-            <p className="text-xs text-text-muted mb-3 max-w-3xl leading-relaxed">
-              Same measurement, nothing withheld: warmup discarded, failures, standard deviation,
-              concurrency and the exact workload each figure describes.
-            </p>
-            <PerformanceTab />
-          </div>
-        </div>
-      );
-      case 'evidence': return <EvidenceTab />;
-      case 'agents': return <Agents onOpenRecord={setOpenRecordId} />;
-      case 'policies': return <PoliciesTab />;
-      case 'unknowns': return <UnknownsPanel />;
-      case 'system': return <MachineRoom services={services} error={error} />;
-      case 'settings': return <SettingsTab services={services} />;
-      default: return null;
-    }
-  };
-
-  /**
-   * The room's nodes, carrying live state.
-   *
-   * A node's determination is read from the same figures the layer itself
-   * reports — never assumed. Where nothing is known yet the node is UNKNOWN,
-   * and where nothing exists it is ABSENT. Neither renders green.
-   */
-  /**
-   * The stations, leading with state.
-   *
-   * A station's headline is the figure it actually holds; its purpose is
-   * secondary and only surfaces on hover. Mission Control does not explain what
-   * fuel is before showing you how much there is.
-   */
-  const stations: Station[] = React.useMemo(() => {
-    const chainState: Determination =
-      integrity === 'DEMONSTRATED' ? 'DEMONSTRATED'
-        : integrity === 'FAILED' ? 'FAILED'
-        : integrity === 'ABSENT' ? 'ABSENT' : 'UNKNOWN';
-
+  const readings: Record<string, LayerReading | undefined> = React.useMemo(() => {
     const upCount = services.filter(service => service.status === 'up').length;
+    const held = figures?.total ?? null;
+    const unscoped = figures?.withoutScope ?? 0;
+    const failures = figures?.failures ?? 0;
+
     const servicesState: Determination =
       services.length === 0 ? 'UNKNOWN'
         : upCount === services.length ? 'DEMONSTRATED'
         : upCount === 0 ? 'FAILED' : 'UNKNOWN';
 
-    const held = figures?.total ?? null;
-    const unscoped = figures?.withoutScope ?? 0;
-    const failures = figures?.failures ?? 0;
-
     /** No figure of its own means UNKNOWN, never ABSENT. Different claims. */
     const unchecked: Determination = held === null ? 'UNKNOWN' : held > 0 ? 'UNKNOWN' : 'ABSENT';
 
-    const meta: Record<string, Partial<Station>> = {
-      observe: {
-        state: held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT',
-        headline: held === null ? undefined : String(held),
-        detail: held === null ? undefined : [
-          `${held === 1 ? 'record' : 'records'}`,
-          ...(unscoped > 0 ? [`${unscoped} unscoped`] : []),
-        ],
-      },
+    return {
+      observe: held === null
+        ? { state: 'UNKNOWN' }
+        : { state: held > 0 ? 'DEMONSTRATED' : 'ABSENT', metric: held > 0 ? String(held) : undefined },
       verify: {
-        state: chainState,
-        headline: chainState === 'DEMONSTRATED' ? 'INTACT'
-          : chainState === 'FAILED' ? 'BROKEN'
-          : chainState === 'ABSENT' ? 'EMPTY' : 'UNCHECKED',
-        detail: held !== null && held > 0 ? [`${held} links`] : undefined,
+        state: integrity,
+        metric: integrity === 'DEMONSTRATED' ? 'INTACT'
+          : integrity === 'FAILED' ? 'BROKEN'
+          : integrity === 'ABSENT' ? undefined : 'UNCHECKED',
       },
-      explain: {
-        state: held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT',
-        headline: held !== null && held > 0 ? 'DERIVED' : undefined,
-        detail: held !== null && held > 0 ? ['no model used'] : undefined,
-      },
-      govern: {
-        state: held === null ? 'UNKNOWN' : held === 0 ? 'ABSENT' : unscoped > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
-        headline: held === null ? undefined : unscoped > 0 ? String(unscoped) : 'SCOPED',
-        detail: unscoped > 0 ? ['with no authority'] : undefined,
-      },
-      arbitrate: {
-        state: failures > 0 ? 'FAILED' : unchecked,
-        headline: figures === null ? undefined : String(failures),
-        detail: figures === null ? undefined : [failures === 1 ? 'dispute' : 'disputes'],
-      },
-      act: {
-        state: servicesState,
-        headline: services.length ? `${upCount}/${services.length}` : undefined,
-        detail: services.length ? ['surfaces up'] : undefined,
-      },
-      learn: {
-        state: unchecked,
-        headline: undefined,
-      },
-      system: { state: servicesState, headline: services.length ? `${upCount}/${services.length}` : undefined },
-      unknowns: { state: queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
-                  headline: queue === null ? undefined : String(queue.total) },
-      agents: { state: unchecked, headline: figures?.subjects ? String(figures.subjects) : undefined },
+      explain: held === null
+        ? { state: 'UNKNOWN' }
+        : { state: held > 0 ? 'DEMONSTRATED' : 'ABSENT', metric: held > 0 ? 'DERIVED' : undefined },
+      govern: held === null
+        ? { state: 'UNKNOWN' }
+        : held === 0 ? { state: 'ABSENT' }
+        : unscoped > 0
+          ? { state: 'UNKNOWN', metric: `${unscoped} UNSCOPED` }
+          // absuite-allow-fabrication: a determination label, not a measurement — this branch is only reachable when held > 0 and unscoped === 0, so the word is what the comparison concluded.
+          : { state: 'DEMONSTRATED', metric: 'SCOPED' },
+      arbitrate: figures === null
+        ? { state: 'UNKNOWN' }
+        : { state: failures > 0 ? 'FAILED' : unchecked, metric: `${failures} DISPUTE${failures === 1 ? '' : 'S'}` },
+      act: services.length === 0
+        ? { state: 'UNKNOWN' }
+        : { state: servicesState, metric: `${upCount}/${services.length} UP` },
+      learn: { state: unchecked },
     };
+  }, [integrity, services, figures]);
 
-    return TAB_CONFIG.filter(tab => tab.id !== 'operations').map(tab => ({
-      id: tab.id,
-      label: tab.label,
-      purpose: tab.question,
-      layer: tab.layer,
-      state: (meta[tab.id]?.state ?? unchecked) as Determination,
-      headline: meta[tab.id]?.headline,
-      detail: meta[tab.id]?.detail,
-    }));
-  }, [integrity, services, figures, queue]);
+  /** The vitals line: state first, no card around it. */
+  const vitals = (
+    <div className="absolute top-0 inset-x-0 h-20 flex items-center gap-8 px-8 z-20 pointer-events-none flex-wrap">
+      <span className="flex items-center gap-2.5 leading-none">
+        <Mark size={30} />
+        <span>
+          <span className="block text-base font-bold text-ab-white tracking-widest">ABSuite</span>
+          <span className="block text-[8px] font-mono uppercase tracking-[0.22em] text-ab-white/50 mt-1">
+            Trust Operations Center
+          </span>
+        </span>
+      </span>
 
-  /**
-   * The vitals line.
-   *
-   * Chain, governance, unknowns, services, actions, evidence — state first,
-   * across the top, with no card around any of it. This is what a control room
-   * leads with.
-   */
-  const vitals = React.useMemo(() => {
-    const upCount = services.filter(service => service.status === 'up').length;
-    const held = figures?.total ?? null;
-    const unscoped = figures?.withoutScope ?? 0;
-    return [
-      { label: 'Chain', value: integrity, state: (integrity === 'DEMONSTRATED' ? 'DEMONSTRATED' : integrity === 'FAILED' ? 'FAILED' : integrity === 'ABSENT' ? 'ABSENT' : 'UNKNOWN') as Determination },
-      { label: 'Governance', value: held === null ? 'UNKNOWN' : unscoped > 0 ? `${unscoped} UNSCOPED` : 'SCOPED',
-        state: (held === null ? 'UNKNOWN' : unscoped > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
-      { label: 'Unknowns', value: queue === null ? '—' : String(queue.total),
-        state: (queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
-      { label: 'Services', value: services.length ? `${upCount}/${services.length}` : '—',
-        state: (services.length === 0 ? 'UNKNOWN' : upCount === services.length ? 'DEMONSTRATED' : 'FAILED') as Determination },
-      { label: 'Evidence held', value: held === null ? '—' : String(held),
-        state: (held === null ? 'UNKNOWN' : held > 0 ? 'DEMONSTRATED' : 'ABSENT') as Determination },
-      { label: 'Observed', value: connected ? 'LIVE' : 'OFFLINE',
-        state: (connected ? 'DEMONSTRATED' : 'FAILED') as Determination },
-    ];
-  }, [integrity, services, figures, queue, connected]);
+      <span className="flex items-center gap-8 flex-wrap text-[9px] font-mono uppercase tracking-widest">
+        {[
+          { label: 'Chain', value: integrity, tone: integrity },
+          { label: 'Governance', value: figures === null ? 'UNKNOWN' : figures.withoutScope > 0 ? `${figures.withoutScope} UNSCOPED` : 'SCOPED',
+            tone: (figures === null ? 'UNKNOWN' : figures.withoutScope > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
+          { label: 'Unknowns', value: queue === null ? '—' : String(queue.total),
+            tone: (queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED') as Determination },
+          { label: 'Evidence held', value: figures === null ? '—' : String(figures.total),
+            tone: (figures === null ? 'UNKNOWN' : figures.total > 0 ? 'DEMONSTRATED' : 'ABSENT') as Determination },
+          { label: 'Observed', value: connected ? 'LIVE' : 'OFFLINE',
+            tone: (connected ? 'DEMONSTRATED' : 'FAILED') as Determination },
+        ].map(item => (
+          <span key={item.label} className="flex flex-col items-start gap-1">
+            <span className="text-ab-white/40">{item.label}</span>
+            <span className={cn(
+              item.tone === 'DEMONSTRATED' ? 'text-ab-green'
+                : item.tone === 'FAILED' ? 'text-ab-red'
+                : item.tone === 'ABSENT' ? 'text-ab-gray' : 'text-ab-amber')}>
+              {item.value}
+            </span>
+          </span>
+        ))}
+      </span>
+
+      {/*
+        * The masthead's third line, set far right rather than under the
+        * wordmark so it reads as a signature instead of crowding the identity.
+        * docs/UI-PHILOSOPHY.md § Header requires it: the Final Test is that a
+        * stranger ten feet away can name what this is.
+        */}
+      <span className="ml-auto hidden lg:block text-[9px] font-mono uppercase tracking-[0.28em] text-ab-green/50">
+        The Future Is Accountable.
+      </span>
+    </div>
+  );
+
+  /** The real surface behind each layer. */
+  const surface = (layer: TrustLayer) => {
+    switch (layer) {
+      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
+      case 'verify': return <><ProofTab view="verify" onOpenRecord={setOpenRecordId} /><Audit /></>;
+      case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
+      case 'govern': return <GovernTab />;
+      case 'arbitrate': return <ArbitrateLayer />;
+      case 'act': return <ActLayer />;
+      case 'learn': return <><LearnLayer /><PerformanceTab /></>;
+      // The standing views. Not stages — the things the stages act on. They
+      // have no orbital node in this shell, so the command palette is how you
+      // reach them, and TAB_CONFIG below is what names them.
+      case 'evidence' as TrustLayer: return <><GlobalView /><AttentionPanel /></>;
+      case 'agents' as TrustLayer: return <Agents onOpenRecord={setOpenRecordId} />;
+      case 'policies' as TrustLayer: return <><ConstraintsPanel /><Obligations /></>;
+      case 'unknowns' as TrustLayer: return <UnknownsPanel />;
+      case 'system' as TrustLayer: return <MachineRoom services={services} error={error} />;
+      case 'settings' as TrustLayer: return <SettingsTab services={services} />;
+      default: return null;
+    }
+  };
 
   return (
     <div className={cn(theme)}>
-      <Environment
-        stations={stations}
+      <TrustOperationsCenter
+        readings={readings}
         vitals={vitals}
-        active={openRecordId ? null : activeTab}
-        onEnter={id => { setActiveTab(id as TabId); setOpenRecordId(null); }}
-        onLeave={() => { setActiveTab(null); setOpenRecordId(null); }}
         connected={connected}
-        integrity={integrity}
-        arrivals={arrivals}
-        verifying={verifying}
-        unknowns={queue?.total ?? null}
-        onOpenUnknowns={() => setActiveTab('unknowns')}
+        surface={surface}
+        onLayerChange={(layer: TrustLayer) => setActiveTab(layer === 'overview' ? null : (layer as TabId))}
+        /* TAB_CONFIG names all thirteen views; check-ui-philosophy reads it. */
+        views={TAB_CONFIG.map(tab => ({ id: tab.id, label: tab.label, question: tab.question }))}
         onOpenRecord={setOpenRecordId}
-        stream={
-          <EvidenceStream
-            stages={stages}
-            latest={latestId}
-            onOpen={() => latestId && setOpenRecordId(latestId)}
-          />
-        }
-        body={activeTab ? renderTab() : null}
       />
 
       {error && (
-        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[92%]">
+        /* Bottom-right, not bottom-centre. Centred it covered Arbitrate and
+           Govern — the two stations most likely to matter when a service has
+           stopped answering. A notice about the room must not sit on top of
+           the room. */
+        <div className="fixed bottom-8 right-6 z-50 max-w-sm w-[92%] sm:w-auto">
           <NoticeCard
             tone="error"
             title="A service is not answering"
@@ -1681,16 +1560,16 @@ export default function App() {
       <AnimatePresence>
         {openRecordId && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-40 bg-[#05070A]/97 backdrop-blur-md overflow-y-auto px-8 py-6"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-[60] bg-ab-bg/97 backdrop-blur-md overflow-y-auto px-8 py-6"
           >
             <button
               type="button"
               onClick={() => setOpenRecordId(null)}
-              className="text-[10px] font-mono uppercase tracking-[0.24em] text-text-muted hover:text-[#00F58C] transition-colors mb-4"
+              className="text-[10px] font-mono uppercase tracking-[0.24em] text-ab-white/40 hover:text-ab-green transition-colors mb-4"
             >
-              ← {activeTab ?? 'the centre'}
+              ← back
             </button>
             <RecordDetail id={openRecordId} onClose={() => setOpenRecordId(null)} />
           </motion.div>

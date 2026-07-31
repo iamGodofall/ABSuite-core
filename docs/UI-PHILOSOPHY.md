@@ -356,11 +356,22 @@ built must be removed. Neither drift survives a build.
 
 | Promise | State | Recorded |
 | --- | --- | --- |
+| Evidence chains forming as motion | Not built | 2026-07-31 |
+
+**Evidence chains forming as motion.** The chain is verified and its result is
+shown — a link the last pass confirmed is marked as sealed, and a broken chain
+says so. What does not exist is the *forming*: the moment a new record hashes
+onto the end of the chain, drawn as motion rather than as a row appearing. The
+component that once carried this promise drew the animation on a loop whether
+or not a link had been sealed, which made it an ornament claiming an event, so
+it was deleted rather than kept. Building it properly means driving it from the
+arrival of a real link, which is a socket change this shell does not yet
+subscribe to. Listed here rather than quietly dropped.
 
 **Determination: RESOLVED.**
 
 The sidebar, the page router and the scrolling card column are deleted. The
-shell is now `src/room/Room.tsx`: a cube at the centre, the seven layers and the
+shell is now `src/room/TrustOperationsCenter.tsx`: a cube at the centre, the seven layers and the
 standing views around it at fixed positions, and descent — room → layer →
 record — instead of navigation between pages. Escape climbs. Clicking the cube
 returns you to the room. Verified against the running instance: zero `nav`

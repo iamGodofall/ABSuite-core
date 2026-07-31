@@ -223,6 +223,7 @@ export function SceneCube({ activeLayer, isIdle, connected = true }: TrustCubePr
       const angle = Math.random() * Math.PI * 2;
       const radius = 3.5 + Math.random() * 8; // Spread out more, away from core
       const x = Math.cos(angle) * radius;
+      // absuite-allow-fabrication: the vertical coordinate of a scatter point in the particle field — where a dot sits, not a value anyone reads.
       const y = (Math.random() - 0.5) * 8;
       const z = Math.sin(angle) * radius;
       pos.push(x, y, z);

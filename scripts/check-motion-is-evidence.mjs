@@ -26,12 +26,24 @@
  * beacon beats once per unknown and rests. Justifying motion that does not
  * happen is how an inventory rots into a formality, so a stale entry fails too.
  */
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const css = readFileSync(join(root, 'packages/dashboard-ui/src/styles/globals.css'), 'utf8');
+const uiSrc = join(root, 'packages/dashboard-ui/src');
+const css = readFileSync(join(uiSrc, 'styles/globals.css'), 'utf8');
+
+/** Every component file, for the two places motion hides outside the stylesheet. */
+const componentFiles = [];
+(function walk(dir) {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full);
+    else if (/\.tsx?$/.test(entry) && !/\.test\./.test(entry)) componentFiles.push(full);
+  }
+})(uiSrc);
+const components = componentFiles.map(file => ({ file: relative(root, file), text: readFileSync(file, 'utf8') }));
 
 /**
  * Every perpetual animation, and the state that earns it.
@@ -54,6 +66,14 @@ const DECLARED = {
   'chain-sealed': { gate: 'link verified on the last pass', why: 'Applied per link, only to links the chain check confirmed.' },
   'governance-breach': { gate: 'a governance violation exists', why: 'One pulse every five seconds — rare enough not to be tuned out, applied only where a breach was recorded.' },
   'spin': { gate: 'an operation is in flight', why: 'The standard busy indicator, mounted only while something is loading.' },
+  'node-observe': { gate: 'Observe reported DEMONSTRATED', why: 'The character motion of a live station, applied only while that station is demonstrating. A layer that is UNKNOWN, FAILED or ABSENT does not get it.' },
+  'node-verify': { gate: 'Verify reported DEMONSTRATED', why: 'As above. Verify barely moves — a two-pixel lift over nine seconds — because stability is the thing it reports.' },
+  'node-explain': { gate: 'Explain reported DEMONSTRATED', why: 'As above.' },
+  'node-arbitrate': { gate: 'Arbitrate reported DEMONSTRATED', why: 'As above. Rotates briefly once per eleven seconds rather than continuously — a dispute resolves, it does not churn.' },
+  'node-act': { gate: 'Act reported DEMONSTRATED', why: 'As above. A single snap per cycle: execution is discrete, not sustained.' },
+  'node-learn': { gate: 'Learn reported DEMONSTRATED', why: 'As above.' },
+  'node-unresolved': { gate: 'the layer reported UNKNOWN', why: 'The amber pulse the rest of the product uses for a question nothing has answered. Unresolved, not wrong.' },
+  'evidence-travel': { gate: 'Observe reported DEMONSTRATED', why: 'One record travelling the seven stations. Mounted only when Observe is demonstrating, because a record in transit requires records; with nothing observed the particle is not rendered at all.' },
   'progress-shimmer': { gate: 'a determinate operation is running', why: 'Applied to a progress bar that is reporting real progress.' },
   'skeleton-shimmer': { gate: 'content is loading', why: 'A placeholder that exists only while a fetch is outstanding.' },
 };
@@ -75,7 +95,51 @@ for (const match of css.matchAll(/animation(?:-name)?\s*:\s*([^;]+);/g)) {
   }
 }
 
+/**
+ * Motion declared outside the stylesheet.
+ *
+ * This check read globals.css and nothing else for its whole first life, and a
+ * supplied package walked straight through the gap: seven layer nodes each
+ * carrying animate-[float-stable_1s_ease-in-out_infinite] in JSX, plus an
+ * evidence particle with an inline style={{ animation: '... infinite' }}. Eight
+ * perpetual animations, none of them visible to a checker that only reads CSS.
+ *
+ * Worse, five of those keyframes did not exist. The class names compiled, the
+ * browser silently ignored them, and the result was a scene where most nodes
+ * were frozen and one particle flew forever — which is what "the animation is
+ * glitching" turned out to mean. So this also verifies that every animation
+ * named anywhere resolves to a real @keyframes block: an animation name with
+ * no keyframes behind it is a claim with nothing behind it, which is the same
+ * failure this repo checks for everywhere else.
+ */
+const declaredOutsideCss = new Map();
+for (const source of components) {
+  // Tailwind arbitrary values: animate-[name_1s_ease-in-out_infinite]
+  for (const match of source.text.matchAll(/animate-\[([a-zA-Z][\w-]*)_[^\]]*\]/g)) {
+    if (/infinite/.test(match[0])) declaredOutsideCss.set(match[1], source.file);
+  }
+  // Inline styles: animation: 'name 10s linear infinite'
+  for (const match of source.text.matchAll(/animation\s*:\s*['"`]([a-zA-Z][\w-]*)[^'"`]*['"`]/g)) {
+    if (/infinite/.test(match[0])) declaredOutsideCss.set(match[1], source.file);
+  }
+}
+for (const name of declaredOutsideCss.keys()) used.add(name);
+
+/** Every @keyframes block available to the interface. */
+const keyframes = new Set([...css.matchAll(/@keyframes\s+([a-zA-Z][\w-]*)/g)].map(m => m[1]));
+// Tailwind ships a handful of its own; they are real even though they are not
+// in our stylesheet.
+for (const builtin of ['spin', 'ping', 'pulse', 'bounce']) keyframes.add(builtin);
+
 for (const name of [...used].sort()) {
+  if (!keyframes.has(name)) {
+    const where = declaredOutsideCss.get(name);
+    failures.push(
+      `"${name}" is applied${where ? ` in ${where}` : ''} but no @keyframes block defines it.\n` +
+      `      The browser ignores it silently, so the element sits still while the code\n` +
+      `      claims it is animating. Define the keyframes or remove the class.`
+    );
+  }
   const entry = DECLARED[name];
   if (entry) passes.push(`${name} — ${entry.gate}`);
   else {

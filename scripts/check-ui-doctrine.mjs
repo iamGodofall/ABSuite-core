@@ -81,22 +81,35 @@ else failures.push('The shell lays itself out as a scrolling document (min-h-scr
 // is not enough — a cube nobody can steer is decoration, which is the state
 // this interface spent several revisions in.
 
-const environment = code.find(source => /room\/Environment\.tsx$/.test(source.file));
+/*
+ * The shell is found by role, not by filename.
+ *
+ * This resolved `src/room/Environment.tsx` by path for its whole first life,
+ * and the day the shell was replaced with a better one the check did not
+ * report a violation — it reported that the file was missing, which is a
+ * different and much weaker claim. A doctrine check that only works while the
+ * implementation it was written against still exists is a check that retires
+ * itself the first time someone improves the interface.
+ *
+ * The shell is now whatever room module mounts the core. That is the actual
+ * definition, and it survives renaming.
+ */
+const CORE = /<(?:Scene|TrustCube|CoreCube|SceneCube)\b/;
+const shellCandidates = code.filter(source => /room\//.test(source.file) && CORE.test(source.text));
+// The scene component mounts the cube too; the shell is the one that is not
+// itself the scene — it is the module the app renders as its root.
+const environment = shellCandidates.find(source => !/room\/Scene\.tsx$/.test(source.file));
+
 if (!environment) {
-  failures.push('No shell environment found at src/room/Environment.tsx. The cube must be mounted by the shell.');
+  failures.push('No shell mounts the core. Some module under src/room must render the cube as the root of the interface — the cube is the operating system, not a component a page may choose to include.');
 } else {
-  // Named by role, not by file. The doctrine is that the shell mounts the
-  // core — it does not care whether that core is CSS 3D or WebGL, and pinning
-  // the check to one filename made it fail the moment the cube got better.
-  const mounted = /<(?:TrustCube|CoreCube)\b/.test(environment.text);
-  const steerable = /onPointerUp|onWheel|onDoubleClick|wheel/.test(environment.text);
+  const steerable = /onPointerUp|onWheel|onDoubleClick|onPointerDown/.test(environment.text);
   // The call is usually conditional — commit(dx > 0 ? 'verify' : 'govern') —
   // so match a layer name anywhere in the argument rather than only at its head.
   const commits = /commit\([^)]*['"](?:observe|verify|explain|govern)['"]/.test(environment.text);
 
-  if (mounted && steerable && commits) passes.push('the cube is mounted by the shell and drives navigation');
+  if (steerable && commits) passes.push(`the cube is mounted by the shell and drives navigation (${environment.file})`);
   else {
-    if (!mounted) failures.push('The shell does not mount the core cube. The cube is the operating system, not a component a page may choose to include.');
     if (!steerable) failures.push('The shell mounts the cube but binds no gesture to it. A cube nobody can steer is decoration.');
     if (!commits) failures.push('No gesture resolves to a layer. Manipulating the cube must be how you enter Observe, Verify, Explain and Govern.');
   }
@@ -108,15 +121,21 @@ if (!environment) {
 // headline must appear earlier in the component than the purpose text, because
 // order in the source is order on the screen.
 
-if (environment) {
-  const headlineAt = environment.text.indexOf('station.headline');
-  const purposeAt = environment.text.indexOf('station.purpose', headlineAt === -1 ? 0 : headlineAt);
-  const purposeFirst = environment.text.indexOf('station.purpose');
+// Checked where the stations are actually drawn, which is the node layer —
+// again by role rather than by the field names one implementation happened to
+// use. A station shows what it read before it explains what it is for.
+const stations = code.find(source => /reading\?\.(?:metric|state)/.test(source.text) && /\.desc\b/.test(source.text));
 
-  if (headlineAt === -1 || purposeFirst === -1) {
-    failures.push('A station must render both a headline (its state) and a purpose (its explanation). One of them is missing.');
-  } else if (headlineAt < purposeAt) {
-    passes.push('state precedes explanation on every station');
+if (!stations) {
+  failures.push('No component renders a station with both a reading and a purpose. A station must show what it measured and what it is for.');
+} else {
+  const readingAt = stations.text.indexOf('reading?.metric');
+  const purposeAt = stations.text.indexOf('layer.desc');
+
+  if (readingAt === -1 || purposeAt === -1) {
+    failures.push('A station must render both a reading (its state) and a purpose (its explanation). One of them is missing.');
+  } else if (readingAt < purposeAt) {
+    passes.push(`state precedes explanation on every station (${stations.file})`);
   } else {
     failures.push('A station renders its purpose before its state. Mission Control leads with the reading, not with a sentence about what the reading is for.');
   }

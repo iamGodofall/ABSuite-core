@@ -93,8 +93,30 @@ export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
         <SceneCube activeLayer={activeLayer} isIdle={isIdle} connected={connected} />
         <CameraController activeLayer={activeLayer} />
         
+        {/*
+          * Bloom, with a threshold that actually thresholds.
+          *
+          * The supplied settings were tuned against ACES filmic tone mapping,
+          * which rolls the top of the range off before the composer ever sees
+          * it. This canvas has tone mapping disabled — it had to be, or the
+          * additive materials composited to black — so nothing rolls off, and
+          * a luminance threshold of 0.1 meant every one of the five stacked
+          * wireframes, all four orbital rings and the entire starfield cleared
+          * the bar. Everything bloomed, so nothing read as bright: the core
+          * came out as a solid green mass with no edges in it.
+          *
+          * Threshold raised to 0.62 with smoothing, intensity cut. Only the
+          * genuine highlights — the ×2 glow edge and the white core — bloom
+          * now, which is what gives the cube its structure back.
+          */}
         <EffectComposer>
-          <Bloom luminanceThreshold={0.1} mipmapBlur intensity={isIdle ? 0.5 : 1.2} radius={0.8} />
+          <Bloom
+            luminanceThreshold={0.62}
+            luminanceSmoothing={0.28}
+            mipmapBlur
+            intensity={isIdle ? 0.35 : 0.75}
+            radius={0.72}
+          />
         </EffectComposer>
       </Canvas>
     </div>

@@ -8,6 +8,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        /*
+         * The supplied design system, ported from its Tailwind v4 @theme block.
+         *
+         * Every component under src/room is written against these names. Without
+         * them the whole scene renders unstyled — which is exactly what was wrong
+         * with the first port: the components were here, the tokens were not, and
+         * the result was a fight between two half-applied systems.
+         */
+        'ab-bg': '#000000',
+        'ab-panel': 'rgba(2, 6, 4, 0.6)',
+        'ab-border': 'rgba(0, 245, 140, 0.15)',
+        'ab-green': '#00F58C',
+        'ab-green-dim': 'rgba(0, 245, 140, 0.1)',
+        'ab-amber': '#F59E0B',
+        'ab-purple': '#8B5CF6',
+        'ab-red': '#EF4444',
+        'ab-white': '#F4F7FA',
+        'ab-gray': '#6B7280',
+
         // shadcn-ui base colors
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
