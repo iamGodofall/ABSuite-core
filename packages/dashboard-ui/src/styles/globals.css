@@ -14,11 +14,30 @@
        the blue secondary that used to live here read as a generic admin
        template; the ground is now the same #040706 as the verifier and the
        landing page, so the three surfaces look like one product. */
-    --bg-primary: 213 33% 3%;     /* #05070A — the operations ground */
-    --bg-secondary: 210 24% 6%;   /* #0B1117 — the grid, per the specification */
-    --bg-tertiary: 158 16% 8%;    /* #101A16 — raised */
-    --border-color: 158 30% 14%;  /* emerald-tinted hairline */
-    --text-primary: 210 26% 96%;  /* #F4F7FA — the specification's white */
+    /*
+     * Bound to the supplied design system.
+     *
+     * These were a separate palette — #0B1117 panels, grey-blue hairlines, a
+     * 0.75rem corner radius — and every surface behind a layer inherited them,
+     * which is why entering Govern left the room and arrived in a SaaS admin
+     * panel. The supplied system was applied to the shell only, so the product
+     * was running two palettes at once and the seam was the whole screen.
+     *
+     * There is one palette now, and it is the supplied one: #000000 ground,
+     * near-black green-tinted panels, and the emerald hairline at 15%. Every
+     * component written against --bg-secondary or --border picks it up without
+     * being touched, which is what makes this a replacement rather than a
+     * second system layered over the first.
+     */
+    --bg-primary: 0 0% 0%;        /* #000000 — --color-ab-bg */
+    --bg-secondary: 150 60% 2%;   /* #020805 — the ab-panel ground */
+    --bg-tertiary: 150 45% 4%;    /* raised, same hue family */
+    /* The supplied hairline is rgba(0,245,140,0.15) over the panel ground.
+       Resolved to its composite here rather than carried as alpha, because
+       several rules already apply their own opacity to this variable and a
+       nested slash would break them. */
+    --border-color: 152 91% 9%;   /* #022C19 — ab-green at 15% over #020805 */
+    --text-primary: 210 26% 96%;  /* #F4F7FA — --color-ab-white */
     /*
      * #FFFFFF — reserved for peak emphasis only.
      *
@@ -61,7 +80,9 @@
     --border: var(--border-color);
     --input: var(--bg-tertiary);
     --ring: var(--accent-primary);
-    --radius: 0.75rem;
+    /* The supplied panel is rounded-sm. A 12px corner is what made every
+       surface behind a layer read as a card in a dashboard. */
+    --radius: 2px;
     
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
@@ -856,4 +877,75 @@
   12.75% { top: 58%; left: 13%; box-shadow: 0 0 10px #8B5CF6, 0 0 20px #8B5CF6; }
   14.25% { top: 26%; left: 20%; opacity: 1; box-shadow: 0 0 10px #00F58C, 0 0 20px #00F58C; }
   15%, 100% { top: 26%; left: 20%; opacity: 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   The layer surfaces, brought into the supplied design system.
+
+   The room adopted the supplied system; everything behind a layer did not.
+   Entering Govern left the operations centre and arrived in a SaaS admin
+   panel: 12px rounded cards, a solid emerald "Generate Token" button, form
+   dropdowns, a section headed "AI Studio" with a robot icon. Two design
+   systems in one product, with the seam running down the middle of the screen.
+
+   The palette above now resolves to the supplied one, which converts colour
+   everywhere at once. What the variables cannot reach is the geometry and the
+   weight — `rounded-xl`, `font-semibold`, solid accent fills — because those
+   are literal utility classes spread across every surface. They are corrected
+   here, scoped to the surface, rather than by rewriting a thousand class
+   attributes into the same result.
+
+   This is the language of the supplied panel: a 2px corner, a hairline at 15%
+   emerald, mono uppercase headings, and no filled buttons — an instrument is
+   read, not operated by a call to action.
+   ------------------------------------------------------------------------- */
+
+.ab-surface :is([class*="rounded-xl"], [class*="rounded-lg"], [class*="rounded-2xl"], [class*="rounded-md"]) {
+  border-radius: 2px;
+}
+
+/* Panels take the supplied panel: near-black, blurred, hairline, faint inner
+   emerald. The dashboard's raised greys are gone. */
+.ab-surface :is([class*="bg-bg-secondary"], [class*="bg-bg-tertiary"]) {
+  background-color: rgba(2, 8, 5, 0.6);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 245, 140, 0.02);
+}
+
+.ab-surface [class*="border-border"] {
+  border-color: rgba(0, 245, 140, 0.15);
+}
+
+/* Headings read as instrument labels, not as page titles. */
+.ab-surface :is(h2, h3) {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgb(244 247 250 / 0.6);
+}
+
+/* No solid accent fills. A filled emerald button is the loudest thing on a
+   screen whose brightest element should be the evidence. */
+.ab-surface button:is([class*="bg-emerald-500"], [class*="bg-teal-500"]) {
+  background-color: rgba(0, 245, 140, 0.06);
+  border: 1px solid rgba(0, 245, 140, 0.3);
+  color: #00F58C;
+  font-weight: 400;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.ab-surface button:is([class*="bg-emerald-500"], [class*="bg-teal-500"]):hover:not(:disabled) {
+  background-color: rgba(0, 245, 140, 0.14);
+}
+
+/* Inputs are fields on an instrument: flat, hairline, monospaced. */
+.ab-surface :is(input, select, textarea) {
+  background-color: rgba(0, 0, 0, 0.5);
+  border-color: rgba(0, 245, 140, 0.15);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
 }

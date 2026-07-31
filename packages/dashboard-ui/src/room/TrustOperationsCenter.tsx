@@ -38,7 +38,9 @@ function LayerSurface({ layer, onClose, children }: {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto hidden-scrollbar pr-1">{children}</div>
+        {/* ab-surface converts everything rendered inside into the supplied
+            design system — see the surface layer in globals.css. */}
+        <div className="ab-surface flex-1 overflow-y-auto hidden-scrollbar pr-1">{children}</div>
       </div>
     </div>
   );
