@@ -235,5 +235,27 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
+/*
+ * A check that checked nothing did not pass.
+ *
+ * `scanned` is printed in the success line, and for a long time nothing read
+ * it. Move or rename the interface directory and this walks an empty tree,
+ * finds no fabrications because it read no files, and reports success in the
+ * same words it uses when it has genuinely cleared two hundred. Every other
+ * check in this repository has the same shape and the same hole.
+ *
+ * The floor is deliberately low. It is not a coverage target; it is the
+ * difference between "found nothing" and "looked nowhere".
+ */
+if (scanned === 0) {
+  console.error(
+    '\n✗ No interface source files were scanned.\n' +
+    `      Expected them under ${relative(root, uiRoot)}.\n` +
+    '      This check found no fabrications because it read no files, which is not\n' +
+    '      the same thing and must not report as though it were.\n',
+  );
+  process.exit(1);
+}
+
 console.log(`✓ ${scanned} interface source file(s) scanned, no fabricated data found.`);
 console.log(`  Rules: ${RULES.map(rule => rule.id).join(', ')}`);

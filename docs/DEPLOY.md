@@ -33,15 +33,55 @@ cannot scale independently. For an instance whose job is to be looked at, that
 is the right trade. For an installation holding records that matter, run the
 compose file.
 
+### The five secrets
+
+```
+node scripts/gen-deploy-secrets.mjs
+```
+
+Prints all five, shell-ready, and writes nothing to disk. Four are random
+strings. The fifth is not, and the difference matters:
+
+| | |
+|---|---|
+| `CAPKIT_HMAC_SECRET` | Signs capability tokens. capkit **refuses to start** without it when `NODE_ENV=production`, so a container missing it never reaches a health check. |
+| `CAPKIT_ADMIN_KEY` | Mints the first token. Without it nothing can be recorded and every layer stays legitimately empty. |
+| `ABSUITE_ADMIN_API_KEY` | Reads the record. Twenty-eight routes sit behind it. Without it the instance answers `/status` and returns 503 to everything else — perfectly healthy, reporting `UNKNOWN` across the board. |
+| `ABSUITE_PUBLIC_PASSWORD` | The basic-auth gate. Required for any public address. |
+| `CAPKIT_TRACE_PRIVATE_KEY` | Ed25519, signs execution traces. **Keep it forever and back it up.** |
+
+That last one is the one that looks optional and is not. capkit runs happily
+without it, signing with an ephemeral key regenerated at every start. With a
+mounted volume — which both host configs below create, because records that
+vanish on every deploy are not much of a demonstration — the traces outlive the
+key that signed them.
+
+Measured, not assumed. Three traces recorded, then a restart:
+
+```
+before restart   {"valid":true,  "checked":3}
+after restart    {"valid":false, "determination":"FAILED", "brokenAt":1}
+```
+
+The library's diagnosis is exact — *"the content still matches its hash, so this
+record was not edited; it was signed by a different key"* — so this is not a
+false accusation of tampering. It is still a trust product reporting its own
+record as unverifiable, on an instance whose entire purpose is to show that the
+record can be verified.
+
+`deploy/serve-all.mjs` refuses to start in that configuration rather than
+letting it happen later.
+
 ### Fly
 
 ```
 fly launch --no-deploy      # names the app, keeps fly.toml
 fly volumes create absuite_data --size 1
-fly secrets set ABSUITE_PUBLIC_PASSWORD="$(openssl rand -base64 24)" \
-                CAPKIT_ADMIN_KEY="$(openssl rand -base64 32)"
+node scripts/gen-deploy-secrets.mjs > secrets.env
+fly secrets import < secrets.env
+rm secrets.env
 fly deploy
-fly secrets list            # confirm both are set
+fly secrets list            # five names, no values
 ```
 
 `fly.toml` sets one always-warm machine, because `auto_stop_machines` would
@@ -51,15 +91,43 @@ while it was in fact asleep.
 ### Render
 
 Connect the repository as a Blueprint. `render.yaml` declares one Docker
-service with a 1GB disk at `/data`, and generates both secrets for you — read
-them from the service's Environment tab.
+service with a 1GB disk at `/data`, and generates the four random secrets for
+you — read them from the service's Environment tab. The trace key it cannot
+generate: paste that one in from `gen-deploy-secrets.mjs`.
+
+### Kubernetes
+
+```
+kubectl apply -f k8s/absuite.yaml
+kubectl -n absuite create secret generic absuite-secrets \
+  --from-env-file=<(node scripts/gen-deploy-secrets.mjs) --dry-run=client -o yaml \
+  | kubectl apply -f -
+```
+
+One Deployment, one replica, one `ReadWriteOnce` volume — the shape the product
+actually has. The manifests this replaced ran capkit at two replicas with an
+autoscaler to ten against that same single-writer volume, which cannot work:
+the volume mounts on one node, and SQLite permits one writer. ABSuite does not
+scale horizontally until the storage layer does, and the manifest says so
+rather than implying otherwise.
+
+`helm-chart/` was removed in the same pass. It had no `templates/` directory,
+so `helm install` created nothing, while its 265-line values file configured
+autoscaling, LDAP, SIEM export and a 99.9% uptime target. It is in git history
+if it is ever wanted as a starting point.
+
+**Not applied to a cluster.** There is no `kubectl` in the environment this was
+written in. Every image, variable and port was checked against `cd.yml`,
+`server.ts` and `docker-compose.yml` by `pnpm check:deploy`, and the YAML
+parses — but the first `kubectl apply` is the real test.
 
 ### Anywhere that runs a container
 
 ```
 docker build -f deploy/Dockerfile -t absuite .
-docker run -p 3001:3001 -v absuite-data:/data \
-  -e ABSUITE_PUBLIC_PASSWORD=... -e CAPKIT_ADMIN_KEY=... absuite
+node scripts/gen-deploy-secrets.mjs > secrets.env
+docker run -p 3001:3001 -v absuite-data:/data --env-file secrets.env absuite
+rm secrets.env
 ```
 
 ## The password is not optional
@@ -78,6 +146,9 @@ gated behind HTTP basic auth. The username is `absuite`. `/health` stays open,
 because a platform health check cannot carry credentials and a gated one makes
 the host declare the container dead.
 
+Verified: 401 with no credentials, 401 with a wrong password, 200 with the
+right one, and `/health` 200 either way.
+
 Leave it unset and nothing changes — no gate, same as `pnpm room` and the same
 as compose, both of which bind loopback where a password protects nobody.
 
@@ -89,7 +160,8 @@ it with the real thing.
 
 A deployed instance reports `LIVE`, `6/6 responding`, `CONNECTED`, and the
 notice card is absent. The eight vertices show what `docs/CONSTITUTION.md` says
-is built — five with evidence behind them, three without — because
+is built — three built, three partly, two not, six of them naming a file and
+two naming nothing — because
 `gen-architecture-layers.mjs` runs during the image build rather than trusting
 whatever JSON happened to be committed.
 

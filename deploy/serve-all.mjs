@@ -104,6 +104,61 @@ async function answers(port, attempts = 60) {
   return false;
 }
 
+/**
+ * Refuse to start on a configuration that cannot work, before spawning anything.
+ *
+ * Both of these were found by running this file for the first time rather than
+ * by reading it, and neither is theoretical.
+ *
+ * capkit throws on a missing CAPKIT_HMAC_SECRET when NODE_ENV=production, which
+ * is right — but the supervisor spawned six children first, so the operator got
+ * a stack trace from a child process instead of a sentence about a variable.
+ *
+ * The trace key is worse, because nothing throws. Without it capkit signs with
+ * an ephemeral key regenerated at every start. With a mounted volume — which is
+ * exactly what fly.toml and render.yaml configure — the records outlive the key,
+ * and after the first restart every one of them fails verification at once. The
+ * instance would report its own chain as BROKEN, correctly, about records nobody
+ * touched. For a product whose entire claim is that the record can be checked,
+ * shipping a default that manufactures a false tampering result is not a rough
+ * edge; it is the worst outcome available.
+ *
+ * So a durable volume without a durable key is refused. A container with no
+ * volume may run without one, because there the records die with the key and
+ * nothing is ever falsely reported.
+ */
+const required = [
+  {
+    name: 'CAPKIT_HMAC_SECRET',
+    why: 'capkit refuses to start without it when NODE_ENV=production. It signs capability tokens.',
+    when: () => true,
+  },
+  {
+    name: 'CAPKIT_TRACE_PRIVATE_KEY',
+    why:
+      'Traces are persisted to a volume, so an ephemeral signing key would make every existing\n' +
+      '      record fail verification after the first restart — the room would report the chain as\n' +
+      '      BROKEN about records nobody altered.',
+    when: () => Boolean(process.env.ABSUITE_PERSISTENT_DATA ?? true),
+  },
+  {
+    name: 'ABSUITE_ADMIN_API_KEY',
+    why:
+      'Twenty-eight read routes sit behind it — executions, chain verification, the queue, the\n' +
+      '      disputes, the unknowns. Without it the instance answers /status and returns 503 to\n' +
+      '      everything else, so the room reports UNKNOWN everywhere while being perfectly healthy.',
+    when: () => true,
+  },
+];
+
+const missing = required.filter(entry => entry.when() && !(process.env[entry.name] || '').trim());
+if (missing.length > 0) {
+  console.error('\nRefusing to start. Missing configuration:\n');
+  for (const entry of missing) console.error(`  ✗ ${entry.name}\n      ${entry.why}\n`);
+  console.error('Generate all of them with:\n\n  node scripts/gen-deploy-secrets.mjs\n');
+  process.exit(1);
+}
+
 console.log(`Starting ABSuite — five services on loopback, the room on :${PUBLIC_PORT}.\n`);
 
 for (const service of SERVICES) {

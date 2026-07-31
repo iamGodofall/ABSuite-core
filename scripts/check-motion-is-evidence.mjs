@@ -78,6 +78,24 @@ const DECLARED = {
   'skeleton-shimmer': { gate: 'content is loading', why: 'A placeholder that exists only while a fetch is outstanding.' },
 };
 
+/*
+ * Nothing to read is not a pass.
+ *
+ * This walks the interface for animation declarations. If that tree moved, the
+ * walk returns nothing, every declared animation looks stale, and the failure
+ * that surfaces is a confusing list of "no longer runs anywhere" rather than
+ * the true one. If the stylesheet were also empty it would simply report
+ * success over an empty set.
+ */
+if (components.length === 0) {
+  console.error(
+    `\n✗ No interface component files were found under ${relative(root, uiSrc)}.\n` +
+    '      Motion declared in JSX would be invisible to this check, so it cannot\n' +
+    '      report on what it did not read.\n',
+  );
+  process.exit(1);
+}
+
 const failures = [];
 const passes = [];
 

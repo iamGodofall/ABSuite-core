@@ -23,8 +23,24 @@ services:
       # the dashboard's Environment tab; the username is `absuite`.
       - key: ABSUITE_PUBLIC_PASSWORD
         generateValue: true
+      # Mints capability tokens.
       - key: CAPKIT_ADMIN_KEY
         generateValue: true
+      # Reads the record. Twenty-eight routes sit behind it; without it the
+      # instance is healthy and reports UNKNOWN for everything.
+      - key: ABSUITE_ADMIN_API_KEY
+        generateValue: true
+      # capkit refuses to start without this when NODE_ENV=production.
+      - key: CAPKIT_HMAC_SECRET
+        generateValue: true
+      # Signs execution traces. NOT generated here: it is an Ed25519 private
+      # key, it has structure, and it must stay the same forever — a new one
+      # makes every existing record fail verification. Generate it once with
+      # `node scripts/gen-deploy-secrets.mjs` and paste it in.
+      - key: CAPKIT_TRACE_PRIVATE_KEY
+        sync: false
+      - key: CAPKIT_TRACE_KEY_ID
+        sync: false
     disk:
       name: absuite-data
       mountPath: /data

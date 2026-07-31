@@ -1,0 +1,199 @@
+# ABSuite on Kubernetes — one workload, because that is what the product is.
+#
+# The manifests this replaces described a different system: six independently
+# scaled Deployments, an autoscaler taking capkit to ten replicas, and a
+# ReadWriteOnce volume underneath all of it. Those cannot all be true at once.
+# ABSuite's services share one SQLite file, SQLite has one writer, and an RWO
+# volume mounts on one node — so the second replica either corrupts the first
+# one's database or never schedules. The autoscaler was configuration for an
+# architecture the product does not have.
+#
+# It also pulled `absuite/dashboard:latest`, an image nobody publishes, and set
+# EDGERUN_URL and DATABASE_URL, which nothing reads. None of it had ever run.
+#
+# What is here now is the shape the product actually has: the single-container
+# image CD builds from deploy/Dockerfile, one replica, one volume. It is honest
+# about the ceiling — this does not scale horizontally until the storage layer
+# does, and pretending otherwise in YAML does not make it so.
+#
+# VERIFICATION: this parses as YAML and every image, environment variable and
+# port in it was checked against cd.yml, packages/dashboard-ui/server.ts and
+# docker-compose.yml by scripts/check-deployment-manifests.mjs. It has NOT been
+# applied to a cluster — there is no kubectl in the environment it was written
+# in. Treat the first `kubectl apply` as the real test.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: absuite
+  labels:
+    name: absuite
+    app.kubernetes.io/name: absuite
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: absuite-config
+  namespace: absuite
+data:
+  # Only variables the code reads. The ConfigMap this replaces carried
+  # seventeen keys, thirteen of which no service has ever looked at — including
+  # JWT_SECRET and HMAC_SECRET, in plaintext, in a ConfigMap, which is both the
+  # wrong object and the wrong names. Real secrets are in the Secret below.
+  NODE_ENV: "production"
+  PORT: "3001"
+  ABSUITE_DB_PATH: "/data/absuite.db"
+  ABSUITE_BIND: "0.0.0.0"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: absuite-secrets
+  namespace: absuite
+type: Opaque
+stringData:
+  # Deliberately empty. Generate real values with
+  #
+  #     node scripts/gen-deploy-secrets.mjs
+  #
+  # and load them without writing them into a file that git can see:
+  #
+  #     kubectl -n absuite create secret generic absuite-secrets \
+  #       --from-env-file=<(node scripts/gen-deploy-secrets.mjs)
+  #
+  # CAPKIT_TRACE_PRIVATE_KEY is the one to back up. It signs execution traces,
+  # and replacing it makes every record already on the volume fail
+  # verification — measured, not assumed: three traces went from
+  # {"valid":true,"checked":3} to {"determination":"FAILED","brokenAt":1}
+  # across a restart with a new key.
+  CAPKIT_HMAC_SECRET: ""
+  CAPKIT_ADMIN_KEY: ""
+  ABSUITE_ADMIN_API_KEY: ""
+  ABSUITE_PUBLIC_PASSWORD: ""
+  CAPKIT_TRACE_PRIVATE_KEY: ""
+  CAPKIT_TRACE_KEY_ID: ""
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: absuite-data
+  namespace: absuite
+spec:
+  accessModes:
+    # One writer, matching SQLite. This is not a limitation to be worked around
+    # with a larger access mode; it is the storage model the record is built on.
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: absuite
+  namespace: absuite
+  labels:
+    app: absuite
+spec:
+  # One. Not a default to be raised later — see the header.
+  replicas: 1
+  strategy:
+    # The volume is ReadWriteOnce, so a rolling update would deadlock: the new
+    # pod cannot mount until the old one lets go, and the old one does not let
+    # go until the new one is ready.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: absuite
+  template:
+    metadata:
+      labels:
+        app: absuite
+    spec:
+      securityContext:
+        runAsNonRoot: false
+        fsGroup: 1000
+      containers:
+        - name: absuite
+          # Built by cd.yml from deploy/Dockerfile. :latest moves deliberately
+          # here and nowhere else — this image holds all six services, so there
+          # is only ever one version of it to move to. Pin the sha for
+          # production.
+          image: ghcr.io/iamgodofall/absuite-allinone:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: absuite-config
+            - secretRef:
+                name: absuite-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              # Six node processes in one container. An estimate, not a
+              # measurement — raise it if the pod is OOMKilled on first boot.
+              memory: "1536Mi"
+              cpu: "1500m"
+          # /health is the only route the basic-auth gate lets through
+          # unauthenticated, precisely so a probe can reach it.
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            # Five services start in sequence before the room binds; a liveness
+            # probe alone would kill the pod during a normal start.
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: absuite-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: absuite
+  namespace: absuite
+spec:
+  selector:
+    app: absuite
+  ports:
+    - name: http
+      port: 3001
+      targetPort: http
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: absuite
+  namespace: absuite
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    # Replace with your own host before applying.
+    - host: absuite.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: absuite
+                port:
+                  name: http

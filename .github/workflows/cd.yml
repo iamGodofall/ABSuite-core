@@ -165,6 +165,32 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    # Every service and the room in one image.
+    #
+    # The six above are the real topology and are what docker-compose.yml
+    # composes. This is the one a person can actually run: a single container,
+    # a single port, no network to declare — which is what every free host and
+    # the k8s manifests in k8s/ expect, and what someone evaluating the product
+    # reaches for before they are willing to stand up seven of anything.
+    #
+    # Tagged :latest as well as :<sha>, deliberately and only here. The
+    # per-service images stay sha-only because a moving tag on a component is
+    # how a cluster ends up running six versions that were never tested
+    # together; this image contains all six by construction, so there is only
+    # ever one version of it to move to.
+    - name: Build and push the single-container image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./deploy/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-allinone:${{ github.sha }}
+          ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-allinone:latest
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
   deploy-guard:
     name: Are deployment credentials configured?
     needs: build

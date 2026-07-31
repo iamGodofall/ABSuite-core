@@ -108,6 +108,14 @@ jobs:
       - name: The interface keeps what the philosophy promises
         run: pnpm check:ui
 
+      # The deployment files, which no check read until they had drifted far
+      # enough to be unusable: a Helm chart with no templates, k8s manifests
+      # for a third of the services, environment variables the code never
+      # reads, and images nobody publishes. Checked against docker-compose.yml,
+      # server.ts and cd.yml rather than against a list kept here.
+      - name: The deployment manifests can deploy
+        run: pnpm check:deploy
+
   test:
     name: Test
     runs-on: ubuntu-latest
