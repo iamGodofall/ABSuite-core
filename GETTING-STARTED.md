@@ -68,6 +68,36 @@ recorded from anywhere, one chain to verify.
 
 ### Run one service directly
 
+## The whole thing, in one command
+
+If what you want is the Trust Operations Center with everything behind it —
+rather than a single service — start there and come back to the rest:
+
+```bash
+git clone https://github.com/iamGodofall/ABSuite-core.git
+cd ABSuite-core
+corepack enable && pnpm install && pnpm build
+pnpm room
+```
+
+That starts all six services and the orchestrator, waits until each one actually
+answers rather than guessing at a delay, and tells you which did not come up if
+any did not. Then open **http://localhost:3001**.
+
+It sets a local `CAPKIT_ADMIN_KEY` for you, because without one CapKit refuses
+to mint the first capability token — nothing can be recorded, every layer stays
+empty, and it looks exactly like a bug. Override it in anything that is not your
+own machine.
+
+The room reads six services over HTTP and a socket, and shows UNKNOWN for every
+figure it cannot reach. A copy opened with nothing behind it says **No instance
+connected**, which is not a failure — it is a console that has not been pointed
+at anything. Nothing on that screen is ever invented to fill a gap.
+
+---
+
+## One service, by hand
+
 ```bash
 git clone https://github.com/iamGodofall/ABSuite-core.git
 cd ABSuite-core

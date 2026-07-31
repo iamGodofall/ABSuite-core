@@ -26,7 +26,7 @@ This document is measured in **days**. The decade-scale view lives in
 | Governance Components | Complete |
 | Explainability | Complete |
 
-496 tests. 103 API endpoints. 7 npm packages on npm. 6 HTTP services and an MCP
+495 tests. 103 API endpoints. 7 npm packages on npm. 6 HTTP services and an MCP
 server.
 
 The sentence that used to sit here — *"nothing is installable and nobody has
@@ -118,7 +118,7 @@ and 46 documented GET routes were confirmed answering against a live suite. The
 open question is a different one, and no amount of further building settles it —
 *can someone else understand this in five minutes?*
 
-Nobody adopts a project because it has 496 tests. They adopt it because they
+Nobody adopts a project because it has 495 tests. They adopt it because they
 opened the dashboard and understood what it was. That makes the interface the
 highest-leverage work in the repository right now, ahead of any remaining layer.
 

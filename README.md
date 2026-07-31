@@ -491,12 +491,24 @@ can be proven*.
 ## Status
 
 ```text
-496 tests                    103 API endpoints
+495 tests                    103 API endpoints
 7 npm packages on npm         6 HTTP services + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```
 
 Numbers are generated, not claimed: run `pnpm test` and `pnpm docs:check`.
+
+## Run the room
+
+```bash
+pnpm install && pnpm build && pnpm room
+```
+
+Starts all six services and the orchestrator, then serves the Trust Operations
+Center at **http://localhost:3001**. A copy of the interface with nothing behind
+it reports *No instance connected* rather than a failure — it reads live
+services and shows UNKNOWN for anything it cannot reach, and never substitutes a
+figure for a gap.
 
 It is installable. Nobody outside the project has used it yet — that is the
 honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.

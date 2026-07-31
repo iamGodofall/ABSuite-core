@@ -6,6 +6,72 @@ All notable changes to ABSuite. Format follows
 
 ## [Unreleased]
 
+### Added — the Trust Operations Center is a room, and it runs with one command
+
+`pnpm room` starts all six services and the orchestrator, waits until each
+actually answers rather than guessing at a delay, and reports which did not come
+up. It sets a local `CAPKIT_ADMIN_KEY`, because without one CapKit refuses to
+mint the first capability token, nothing can ever be recorded, and every layer
+stays empty for a reason that looks exactly like a bug.
+
+The eight architectural layers now appear in the interface, on the cube's eight
+corners, generated from the roadmap table in `docs/CONSTITUTION.md` rather than
+typed into a component. A corner is bright because the Constitution says that
+layer is built and goes dark the moment it says otherwise; `pnpm check:layers`
+fails the build if the two drift apart. The seven operations orbit the cube
+because they are what happens; the eight layers sit on its structure because
+they are what the thing is.
+
+The core is glass. One transmission surface, a physical interior, and an opaque
+emissive source inside it — which turned out to be both the render order the GPU
+requires and the doctrine the product argues, since only opaque objects enter a
+refracting surface's buffer. Recorded in `docs/UI-PHILOSOPHY.md` as the three
+truths of the cube: transparency, structure, foundation.
+
+`docs/SCENE-GRAPH.md` records the target architecture for the room together with
+what has already been tried against a running renderer — including three results
+that contradict the obvious approach and are invisible to code review.
+
+### Fixed — six things that claimed more than they knew
+
+- The Observe feed announced **LIVE observing** with a pulsing indicator
+  whenever it rendered. `connected` was passed as `Boolean(live)`, and
+  `Boolean([])` is `true`, so an empty array counted as a live socket — under a
+  masthead reading OFFLINE. It reads the socket now.
+- Six of the seven orbital nodes referenced `@keyframes` that existed nowhere.
+  The class names compiled, the browser found nothing to animate, and those
+  nodes sat frozen while the one defined animation ran forever. `pnpm
+  check:motion` now also fails on any animation name with no keyframes behind
+  it.
+- The particle field rebuilt both of its `Float32Array`s on every render — the
+  memo was keyed on a `THREE.Color` reconstructed each pass — so the frame
+  loop's motion was discarded and restarted several times a second.
+- The Act layer sat on *"Reading the queue…"* indefinitely when Edge-Run was
+  unreachable. A loading state is a claim that something is in progress; `null`
+  meant both "not fetched yet" and "fetch failed", two different facts told the
+  same way.
+- The Learn layer surfaced a raw `JSON.parse` error to the operator where an
+  explanation belonged.
+- An interface with no instance behind it reported **"A service is not
+  answering"**. That is a fault; an unconnected console is not. It now says **No
+  instance connected** and explains that every reading shows UNKNOWN because
+  nothing has been asked.
+
+### Fixed — the CLI test suite compiles
+
+`packages/cli/tsconfig.json` declared `"types": ["node"]`, which excludes jest,
+so `describe`, `test` and `expect` were unknown identifiers and the suite failed
+to compile before running a single case. Three tests now run. The repository
+total is 495 across eight packages.
+
+### Changed — four build gates now run in CI
+
+`check:fabrication`, `check:motion`, `check:doctrine-ui` and `check:ui` existed
+but were never wired into the workflow. They ran only when someone remembered,
+which makes them preferences rather than gates — the exact failure they were
+written to prevent, one level up.
+
+
 ### Added — the replay engine and the forensic timeline finally have an interface
 
 The README claims four pillars: attestation, enforcement, replay, independent
