@@ -60,3 +60,6 @@ __pycache__/
 
 # Benchmark history is local; the published measurement is bench/core-latest.json
 bench/history/
+
+# Single-file build for sharing the room without a backend.
+packages/dashboard-ui/dist-artifact/

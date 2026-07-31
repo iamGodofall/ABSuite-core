@@ -9,6 +9,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "start": "docker compose -f docker-compose.yml up -d",
+    "room": "node scripts/run-room.mjs",
     "stop": "docker compose -f docker-compose.yml down",
     "restart": "docker compose -f docker-compose.yml restart",
     "test": "jest",
@@ -30,6 +31,10 @@
     "check:doctrine": "node scripts/check-doctrine.mjs",
     "check:ui": "node scripts/check-ui-philosophy.mjs",
     "check:fabrication": "node scripts/check-no-fabrication.mjs",
+    "check:doctrine-ui": "node scripts/check-ui-doctrine.mjs",
+    "check:motion": "node scripts/check-motion-is-evidence.mjs",
+    "check:layers": "node scripts/gen-architecture-layers.mjs --check",
+    "gen:layers": "node scripts/gen-architecture-layers.mjs",
     "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine",
     "check:live": "node scripts/check-live-routes.mjs",
     "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",

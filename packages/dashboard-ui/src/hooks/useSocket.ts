@@ -69,6 +69,19 @@ export function useSocket() {
       setIsConnected(false);
     });
 
+    /**
+     * The browser knows it is offline before the heartbeat does.
+     *
+     * Without this, losing the network leaves the console claiming a live
+     * connection until the ping times out. The cube would keep turning, and
+     * turning is this interface's way of saying "I am observing". Saying that
+     * while observing nothing is the animated version of a fabricated number.
+     */
+    const goneOffline = () => setIsConnected(false);
+    const backOnline = () => setIsConnected(socket.connected);
+    window.addEventListener('offline', goneOffline);
+    window.addEventListener('online', backOnline);
+
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err);
       setError('Failed to connect to real-time updates');
@@ -95,6 +108,8 @@ export function useSocket() {
     socket.emit('get-status');
 
     return () => {
+      window.removeEventListener('offline', goneOffline);
+      window.removeEventListener('online', backOnline);
       socket.disconnect();
     };
   }, []);

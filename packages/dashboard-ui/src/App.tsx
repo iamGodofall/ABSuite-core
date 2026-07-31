@@ -12,10 +12,10 @@
  * furniture, and they live at the bottom of a layer called Act.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bot, Menu, Zap, Shield, Bell, ChevronLeft, ChevronRight,
+  Bot, Zap, Shield,
   Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
   Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
   Layers, Scale, HelpCircle
@@ -29,9 +29,7 @@ import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
 import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
-import { Operations } from './tabs/Operations';
 import { ChainView } from './tabs/ChainView';
-import { AskBar } from './tabs/AskBar';
 import { Agents } from './tabs/Agents';
 import { ActLayer } from './tabs/ActLayer';
 import { LearnLayer } from './tabs/LearnLayer';
@@ -39,6 +37,13 @@ import { ArbitrateLayer } from './tabs/ArbitrateLayer';
 import { MachineRoom } from './tabs/MachineRoom';
 import { Audit } from './tabs/Audit';
 import { Obligations } from './tabs/Obligations';
+import { TrustOperationsCenter } from './room/TrustOperationsCenter';
+import { VITAL_ICONS, type Vital } from './room/TopBar';
+import { Mark } from './room/Mark';
+import type { LayerReading } from './room/OrbitalNodes';
+import type { TrustLayer } from './room/SceneCube';
+
+type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
 
 import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
@@ -68,6 +73,8 @@ type TabId =
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
   // The four standing views. Not stages — the things the stages act on.
   | 'evidence' | 'policies' | 'agents' | 'unknowns'
+  // The operator console. Not a layer and not evidence — a place you act from.
+  | 'console'
   | 'system' | 'settings';
 
 interface RecentGeneration { id: string; type: 'token' | 'policy'; provider: string; preview: string; timestamp: string; }
@@ -641,10 +648,12 @@ type Verdict = { valid: boolean; reason?: string; contentIntact: boolean | null;
  * different panels, so the record you select in Observe is the record you
  * verify and the record you explain.
  */
-const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
+const ProofTab = ({ view, live, arrivedIds, connected = false, onOpenRecord }: {
   view: 'observe' | 'verify' | 'explain';
   live?: import('./hooks/useSocket').LiveExecution[];
   arrivedIds?: Set<string>;
+  /** The socket, as the socket reports itself. Not inferred from anything. */
+  connected?: boolean;
   onOpenRecord?: (id: string) => void;
 }) => {
   const [traces, setTraces] = useState<Trace[]>([]);
@@ -851,7 +860,14 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
         <div className="rounded-xl border border-border bg-bg-secondary p-4">
           <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1">Records held</div>
           <div className="text-xl font-bold text-text-primary">{traces.length}</div>
-          <div className="text-xs text-text-muted mt-1">signed and hash-chained</div>
+          {/* Derived, not asserted. "Hash-chained" is a claim about whether the
+              links were checked on this request, not a property to be printed
+              under any number. */}
+          <div className="text-xs text-text-muted mt-1">
+            {chain === null ? 'signed · chain not yet checked'
+              : chain.valid ? `signed · ${chain.checked} link(s) verified`
+              : `signed · chain broken at #${chain.brokenAt}`}
+          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-bg-secondary p-4">
@@ -870,7 +886,17 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
         <LiveFeed
           executions={live ?? []}
           arrivedIds={arrivedIds ?? new Set()}
-          connected={Boolean(live)}
+          /*
+           * The socket, not the shape of a prop.
+           *
+           * This read Boolean(live) — and Boolean([]) is true, so an empty
+           * array counted as a live connection. The panel announced "LIVE
+           * observing" with a pulsing green dot while the masthead three
+           * inches above it said OFFLINE, on a machine that had never
+           * answered. A connection indicator inferred from the existence of a
+           * variable is not an indicator.
+           */
+          connected={connected}
           onSelect={execution => onOpenRecord?.(execution.id)}
         />
       )}
@@ -946,11 +972,16 @@ const ProofTab = ({ view, live, arrivedIds, onOpenRecord }: {
             </div>
           )}
 
+          {/*
+            * The chain action lives in ChainView, at the top of this surface,
+            * where the chain is explained. A second "Verify the entire chain"
+            * down here did the same work under a different name — two buttons
+            * for one act, which reads as two different acts. The result is kept
+            * because a reader who has scrolled this far should not have to
+            * scroll back to see whether the sweep passed.
+            */}
           {view === 'verify' && (
           <div className="mt-4 pt-3 border-t border-border">
-            <button className="px-4 py-2 rounded-lg bg-bg-primary border border-border hover:border-border-strong text-text-primary font-semibold text-sm transition-all disabled:opacity-50" onClick={() => void verifyChain()} disabled={busy}>
-              Verify the entire chain
-            </button>
             {chain && (
               <p className={cn('text-xs mt-2', chain.valid ? 'text-emerald-500' : 'text-red-500')}>
                 {chain.valid
@@ -1259,6 +1290,7 @@ const TAB_CONFIG: {
   { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
   { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
   // Not layers. The machinery underneath.
+  { id: 'console',  label: 'Console',      question: 'Issue a token, draft a policy', icon: Bot },
   { id: 'system',   label: 'System health', question: 'The suite that runs the stack', icon: Server },
   { id: 'settings', label: 'Settings',     question: 'Keys and configuration',        icon: Wrench },
 ];
@@ -1272,42 +1304,37 @@ const TAB_CONFIG: {
  * hardcoded tile claiming Slack was enabled was a fabricated fact sitting two
  * inches from a measured one.
  */
-const ActTab = () => <ActLayer />;
 
 /**
- * Layer 4 — the rules, the refusals, and the tokens that carry authority.
+ * Layer 4 — the rules and the authority actually exercised.
+ *
+ * The AI Studio console used to open here: a token-generation form with two
+ * dropdowns and a Generate button, and a policy generator with a textarea. It
+ * is a good console and it does real work, but it is a console — a place you
+ * operate the system from — and Govern is a place you read what the system
+ * did. Putting them together is what made entering a layer feel like leaving
+ * the operations centre for an admin panel.
+ *
+ * It is not deleted. It moved to its own standing view, reachable from the
+ * command palette, where an operator tool belongs. Govern now answers only the
+ * question it is named for: what is it allowed to do, and what did it do.
  */
 const GovernTab = () => (
   <div className="space-y-6">
     <AuthorityPanel />
-    <AIStudioTab />
   </div>
 );
 
-/**
- * View 9 — the evidence base, and where it is thin.
- *
- * What is held, counted on this request, beside the records that are failed,
- * unsigned or unauthorised on their face. These two belong together: a count of
- * evidence without a count of its weak points flatters the archive.
- */
-const EvidenceTab = () => (
-  <div className="space-y-6">
-    <GlobalView />
-    <AttentionPanel />
-  </div>
-);
 
-/** View 10 — what the system refuses, and what each side owes the other. */
-const PoliciesTab = () => (
-  <div className="space-y-6">
-    <ConstraintsPanel />
-    <Obligations />
-  </div>
-);
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('operations');
+  /**
+   * Which layer has been entered, or null when standing in the room.
+   *
+   * There is no default tab any more. A dashboard opens on a page; a room opens
+   * on the room, and you choose where to go from what you can see.
+   */
+  const [, setActiveTab] = useState<TabId | null>(null);
   /**
    * The record being examined, if any.
    *
@@ -1317,382 +1344,287 @@ export default function App() {
    * console feel like a set of pages instead of a system.
    */
   const [openRecordId, setOpenRecordId] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  /**
-   * Notifications, from events that actually happened.
-   *
-   * This list used to be three hardcoded strings, one of which claimed a
-   * QuickBench health check had passed. It may never have run. That was invented
-   * evidence in the first thing anyone sees, in the product whose root principle
-   * is that nothing may look more certain than it is — and every check we built
-   * looks at code and docs, never at the interface, which is why it survived.
-   *
-   * Now it is empty until something happens, and what happens is a signed record
-   * arriving.
-   */
-  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; time: string; read: boolean; type: 'info' | 'success' | 'warn' }>>([]);
-  const unreadCount = notifications.filter(n => !n.read).length;
   const { theme } = useTheme();
-  const { services, loading, error } = useServices();
+  const { services, error } = useServices();
 
-  // Close notification panel on outside click
-  useEffect(() => {
-    if (!notifOpen) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.notif-panel') && !target.closest('.notif-trigger')) setNotifOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [notifOpen]);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!notifOpen) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setNotifOpen(false); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [notifOpen]);
+  /**
+   * There is no notification bell.
+   *
+   * A bell is a dashboard's answer to "something happened while you were
+   * looking elsewhere" — it exists because a dashboard can only show you one
+   * page at a time. In a room you are already looking at the whole thing: an
+   * arrival is a particle converging on the cube, and a layer that changes
+   * state changes colour where it stands. Both are visible from wherever you
+   * are, which is what the bell was compensating for.
+   */
 
   const { connected, executions: liveExecutions, arrivedIds } = useSocket();
 
-  // Real arrivals become notifications. Nothing else does.
-  const lastNotifiedRef = React.useRef<string | null>(null);
+  /**
+   * The chain's integrity, held by the shell because the cube is now a shell
+   * element and must be able to state it on every view.
+   *
+   * Four states, never three: intact, broken, not-checked, and nothing-recorded.
+   * A failed request leaves this UNKNOWN rather than dropping to a green
+   * default — "I could not check" and "it is fine" must not render alike.
+   */
+  const [integrity, setIntegrity] = useState<Determination>('UNKNOWN');
+  /**
+   * Figures the room's nodes report.
+   *
+   * These were briefly derived from the socket buffer, which holds only what
+   * arrived since this tab connected. With eight records on disk and none
+   * streamed yet, Observe rendered ABSENT — "nothing recorded" — about a log
+   * that was not empty. Understating is still misstating.
+   */
+  const [figures, setFigures] = useState<{ total: number; withoutScope: number; failures: number; subjects: number } | null>(null);
+  const [queue, setQueue] = useState<{ total: number; breakdown: { label: string; count: number }[] } | null>(null);
   useEffect(() => {
-    const newest = liveExecutions[0];
-    if (!newest || !arrivedIds.has(newest.id) || lastNotifiedRef.current === newest.id) return;
-    lastNotifiedRef.current = newest.id;
-    setNotifications(current => [
-      {
-        id: newest.id,
-        message: `${newest.subject} ${newest.outcome === 'failure' ? 'failed' : 'performed'} "${newest.action}"`,
-        time: 'just now',
-        read: false,
-        type: (newest.outcome === 'failure' ? 'warn' : 'success') as 'warn' | 'success',
-      },
-      ...current,
-    ].slice(0, 20));
-  }, [liveExecutions, arrivedIds]);
+    let active = true;
+    const read = async () => {
+      try {
+        const res = await fetch('/executions/stats?windowHours=24', { headers: getAdminHeaders() });
+        if (!active) return;
+        if (!res.ok) { setIntegrity('UNKNOWN'); return; }
+        const data = (await res.json()) as {
+          total: number; withoutScope: number; failures: number; subjects: number;
+          chain: { valid: boolean; checkable?: boolean };
+        };
+        setFigures({ total: data.total, withoutScope: data.withoutScope ?? 0, failures: data.failures ?? 0, subjects: data.subjects ?? 0 });
+        if (data.total === 0) setIntegrity('ABSENT');
+        else if (data.chain?.checkable === false) setIntegrity('UNKNOWN');
+        else setIntegrity(data.chain?.valid ? 'DEMONSTRATED' : 'FAILED');
+      } catch {
+        if (active) { setIntegrity('UNKNOWN'); setFigures(null); }
+      }
+    };
+    void read();
+    const timer = window.setInterval(read, 10_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [liveExecutions.length]);
 
-  const renderTab = () => {
-    if (openRecordId) {
-      return <RecordDetail id={openRecordId} onClose={() => setOpenRecordId(null)} />;
+  /**
+   * What the instruments read.
+   *
+   * Every panel in the design carried an illustrative figure. These are the
+   * real ones. Where an endpoint does not answer the panel says so rather than
+   * falling back to a plausible number.
+   */
+  const readInstruments = useCallback(async () => {
+    const headers = getAdminHeaders();
+
+
+    try {
+      const res = await fetch('/executions/unknowns?limit=200', { headers });
+      if (!res.ok) { setQueue(null); return; }
+      const payload = (await res.json()) as { queue?: { resolution: string; examples?: string[] }[] };
+      const items = payload.queue ?? [];
+      setQueue({
+        total: items.reduce((sum, item) => sum + (item.examples?.length ?? 0), 0),
+        breakdown: items.slice(0, 5).map(item => ({
+          label: item.resolution,
+          count: item.examples?.length ?? 0,
+        })),
+      });
+    } catch {
+      // Unreachable is UNKNOWN, not zero. A queue that cannot be read is not
+      // an empty queue, and the vitals line renders the difference.
+      setQueue(null);
     }
-    switch (activeTab) {
-      case 'operations': return (
-        <Operations
-          live={liveExecutions}
-          arrivedIds={arrivedIds}
-          connected={connected}
-          servicesUp={services.filter(s => s.status === 'up').length}
-          servicesTotal={services.length}
-          onOpenRecord={setOpenRecordId}
-          onOpenLayer={layer => setActiveTab(layer as TabId)}
-        />
-      );
-      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} onOpenRecord={setOpenRecordId} />;
-      case 'verify': return (
-        <div className="space-y-6">
-          <ProofTab view="verify" onOpenRecord={setOpenRecordId} />
-          <Audit />
-        </div>
-      );
+  }, []);
+
+  useEffect(() => {
+    void readInstruments();
+    const timer = window.setInterval(() => void readInstruments(), 8000);
+    return () => window.clearInterval(timer);
+  }, [readInstruments]);
+
+  /**
+   * What each layer reports.
+   *
+   * Absent when the layer has nothing to say. A missing reading renders as no
+   * badge at all, which is a different claim from a badge reading zero.
+   */
+  const readings: Record<string, LayerReading | undefined> = React.useMemo(() => {
+    const upCount = services.filter(service => service.status === 'up').length;
+    const held = figures?.total ?? null;
+    const unscoped = figures?.withoutScope ?? 0;
+    const failures = figures?.failures ?? 0;
+
+    const servicesState: Determination =
+      services.length === 0 ? 'UNKNOWN'
+        : upCount === services.length ? 'DEMONSTRATED'
+        : upCount === 0 ? 'FAILED' : 'UNKNOWN';
+
+    /** No figure of its own means UNKNOWN, never ABSENT. Different claims. */
+    const unchecked: Determination = held === null ? 'UNKNOWN' : held > 0 ? 'UNKNOWN' : 'ABSENT';
+
+    return {
+      observe: held === null
+        ? { state: 'UNKNOWN' }
+        : { state: held > 0 ? 'DEMONSTRATED' : 'ABSENT', metric: held > 0 ? String(held) : undefined },
+      verify: {
+        state: integrity,
+        metric: integrity === 'DEMONSTRATED' ? 'INTACT'
+          : integrity === 'FAILED' ? 'BROKEN'
+          : integrity === 'ABSENT' ? undefined : 'UNCHECKED',
+      },
+      explain: held === null
+        ? { state: 'UNKNOWN' }
+        : { state: held > 0 ? 'DEMONSTRATED' : 'ABSENT', metric: held > 0 ? 'DERIVED' : undefined },
+      govern: held === null
+        ? { state: 'UNKNOWN' }
+        : held === 0 ? { state: 'ABSENT' }
+        : unscoped > 0
+          ? { state: 'UNKNOWN', metric: `${unscoped} UNSCOPED` }
+          // absuite-allow-fabrication: a determination label, not a measurement — this branch is only reachable when held > 0 and unscoped === 0, so the word is what the comparison concluded.
+          : { state: 'DEMONSTRATED', metric: 'SCOPED' },
+      arbitrate: figures === null
+        ? { state: 'UNKNOWN' }
+        : { state: failures > 0 ? 'FAILED' : unchecked, metric: `${failures} DISPUTE${failures === 1 ? '' : 'S'}` },
+      act: services.length === 0
+        ? { state: 'UNKNOWN' }
+        : { state: servicesState, metric: `${upCount}/${services.length} UP` },
+      learn: { state: unchecked },
+    };
+  }, [integrity, services, figures]);
+
+  /*
+   * The masthead's columns, as data.
+   *
+   * These were markup here — my own vitals row, built after deleting the
+   * supplied TopBar. The supplied masthead is back and this is what feeds it:
+   * five readings, each with the determination that decides its colour, and
+   * a dash wherever the instance has not been able to ask. The supplied file
+   * carried `482 (+18m)` and `NO VIOLATIONS` as literals; those are the only
+   * part of it that could not be adopted.
+   */
+  const vitals: Vital[] = [
+    {
+      label: 'Services',
+      value: services.length === 0 ? '—' : `${services.filter(s => s.status === 'up').length}/${services.length} responding`,
+      tone: services.length === 0 ? 'UNKNOWN'
+        : services.every(s => s.status === 'up') ? 'DEMONSTRATED'
+        : services.some(s => s.status === 'up') ? 'UNKNOWN' : 'FAILED',
+      icon: VITAL_ICONS.Network,
+    },
+    {
+      label: 'Chain integrity',
+      value: integrity === 'DEMONSTRATED' ? 'Intact'
+        : integrity === 'FAILED' ? 'Broken'
+        : integrity === 'ABSENT' ? 'Nothing held' : 'Unchecked',
+      tone: integrity,
+      icon: VITAL_ICONS.ShieldCheck,
+    },
+    {
+      label: 'Evidence held',
+      value: figures === null ? '—' : String(figures.total),
+      tone: figures === null ? 'UNKNOWN' : figures.total > 0 ? 'DEMONSTRATED' : 'ABSENT',
+      icon: VITAL_ICONS.Database,
+    },
+    {
+      label: 'Constitution',
+      value: figures === null ? '—' : figures.withoutScope > 0 ? `${figures.withoutScope} unscoped` : 'No violations',
+      tone: figures === null ? 'UNKNOWN' : figures.withoutScope > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
+      icon: VITAL_ICONS.Star,
+    },
+    {
+      label: 'Unknowns',
+      value: queue === null ? '—' : String(queue.total),
+      tone: queue === null ? 'UNKNOWN' : queue.total > 0 ? 'UNKNOWN' : 'DEMONSTRATED',
+    },
+  ];
+
+  /** The real surface behind each layer. */
+  const surface = (layer: TrustLayer) => {
+    switch (layer) {
+      case 'observe': return <ProofTab view="observe" live={liveExecutions} arrivedIds={arrivedIds} connected={connected} onOpenRecord={setOpenRecordId} />;
+      case 'verify': return <><ProofTab view="verify" onOpenRecord={setOpenRecordId} /><Audit /></>;
       case 'explain': return <ProofTab view="explain" onOpenRecord={setOpenRecordId} />;
       case 'govern': return <GovernTab />;
       case 'arbitrate': return <ArbitrateLayer />;
-      case 'act': return <ActTab />;
-      case 'learn': return (
-        <div className="space-y-6">
-          <LearnLayer />
-          <div>
-            <h3 className="text-sm font-semibold text-text-primary mb-1">The full record behind those bars</h3>
-            <p className="text-xs text-text-muted mb-3 max-w-3xl leading-relaxed">
-              Same measurement, nothing withheld: warmup discarded, failures, standard deviation,
-              concurrency and the exact workload each figure describes.
-            </p>
-            <PerformanceTab />
-          </div>
-        </div>
-      );
-      case 'evidence': return <EvidenceTab />;
-      case 'agents': return <Agents onOpenRecord={setOpenRecordId} />;
-      case 'policies': return <PoliciesTab />;
-      case 'unknowns': return <UnknownsPanel />;
-      case 'system': return <MachineRoom services={services} error={error} />;
-      case 'settings': return <SettingsTab services={services} />;
+      case 'act': return <ActLayer />;
+      case 'learn': return <><LearnLayer /><PerformanceTab /></>;
+      // The standing views. Not stages — the things the stages act on. They
+      // have no orbital node in this shell, so the command palette is how you
+      // reach them, and TAB_CONFIG below is what names them.
+      case 'evidence' as TrustLayer: return <><GlobalView /><AttentionPanel /></>;
+      case 'agents' as TrustLayer: return <Agents onOpenRecord={setOpenRecordId} />;
+      case 'policies' as TrustLayer: return <><ConstraintsPanel /><Obligations /></>;
+      case 'unknowns' as TrustLayer: return <UnknownsPanel />;
+      case 'console' as TrustLayer: return <AIStudioTab />;
+      case 'system' as TrustLayer: return <MachineRoom services={services} error={error} />;
+      case 'settings' as TrustLayer: return <SettingsTab services={services} />;
+      default: return null;
     }
   };
 
   return (
-    <div className={cn('min-h-screen bg-bg-primary text-text-primary', theme)}>
-      <div className="flex h-screen overflow-hidden">
-        {/* Sidebar */}
-        <motion.aside
-          animate={{ width: sidebarCollapsed ? 72 : 260 }}
-          className="glass-panel h-full flex flex-col shrink-0 overflow-hidden"
-        >
-          {/* Logo */}
-          <div className="h-16 flex items-center px-4 border-b border-border/40 gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 shrink-0">
-              <Hexagon className="w-5 h-5 text-emerald-400" />
-            </div>
-            {!sidebarCollapsed && (
-              <span className="leading-tight">
-                <span className="block font-bold text-[#FFFFFF]">ABSuite</span>
-                <span className="block text-[9px] font-mono uppercase tracking-[0.22em] text-[#00D9FF]/70">
-                  Trust Operations Center
-                </span>
-                <span className="block text-[9px] text-text-muted/60 italic mt-0.5">
-                  The Future Is Accountable.
-                </span>
-              </span>
-            )}
-          </div>
+    <div className={cn(theme)}>
+      <TrustOperationsCenter
+        readings={readings}
+        vitals={vitals}
+        connected={connected}
+        version={__APP_VERSION__}
+        surface={surface}
+        onLayerChange={(layer: TrustLayer) => setActiveTab(layer === 'overview' ? null : (layer as TabId))}
+        /* TAB_CONFIG names all thirteen views; check-ui-philosophy reads it. */
+        views={TAB_CONFIG.map(tab => ({ id: tab.id, label: tab.label, question: tab.question }))}
+        onOpenRecord={setOpenRecordId}
+      />
 
-          {/* Nav — the stack, in order. */}
-          <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-            {TAB_CONFIG.map(({ id, label, layer, question, icon: Icon }) => (
-              <React.Fragment key={id}>
-                {/* Operations is the room; the seven are the stack inside it. */}
-                {layer === 1 && !sidebarCollapsed && (
-                  <div className="px-3 pt-3 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
-                    The stack
-                  </div>
-                )}
-                {/* The four standing views sit between the loop and the plumbing. */}
-                {id === 'evidence' && !sidebarCollapsed && (
-                  <div className="px-3 pt-4 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
-                    The record
-                  </div>
-                )}
-                {layer === undefined && id === 'system' && (
-                  <div className={cn('pt-3 mt-2 border-t border-border/40', sidebarCollapsed && 'mx-2')}>
-                    {!sidebarCollapsed && (
-                      <div className="px-3 pb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-text-muted/70">
-                        Underneath
-                      </div>
-                    )}
-                  </div>
-                )}
-                <button
-                  onClick={() => { setActiveTab(id); setOpenRecordId(null); setMobileMenuOpen(false); }}
-                  title={sidebarCollapsed ? `${label} — ${question}` : question}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-                    activeTab === id
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
-                      : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50',
-                    sidebarCollapsed && 'justify-center px-0'
-                  )}
-                >
-                  <Icon className={cn('w-5 h-5 shrink-0', activeTab === id ? 'text-emerald-400' : '')} />
-                  {!sidebarCollapsed && (
-                    <span className="flex-1 text-left flex items-baseline gap-2">
-                      <span>{label}</span>
-                      {layer !== undefined && (
-                        <span className="text-[10px] font-mono text-text-muted/60">{layer}</span>
-                      )}
-                    </span>
-                  )}
-                </button>
-              </React.Fragment>
-            ))}
-          </nav>
-
-          {!sidebarCollapsed && (
-            <div className="px-4 py-3 mx-3 mb-2 rounded-xl border border-border/60 bg-bg-primary/40">
-              <p className="text-[11px] text-text-muted leading-relaxed italic">
-                “Tell me what happened. Prove it. Tell me whether I should worry.”
-              </p>
-              <p className="text-[10px] text-text-muted/60 mt-1.5">
-                The three questions. ABSuite answers the first two and shows you what the third rests on.
-              </p>
-            </div>
+      {error && (
+        /*
+         * Two different situations were wearing the same red notice.
+         *
+         * "A service is not answering" is correct when there is an instance and
+         * one part of it has stopped responding. It is misleading when there is
+         * no instance at all — a copy of this interface opened with nothing
+         * behind it, where every call fails because there is nothing to call.
+         * That is not a fault, it is an unconnected console, and reporting it
+         * as a failure makes a working product look broken to anyone you show
+         * it to.
+         *
+         * The two are distinguishable by whether anything at all has answered:
+         * the socket is down and not one service is up. A partial failure still
+         * has something responding and still deserves the red card.
+         *
+         * Bottom-right, not bottom-centre — centred it covered Arbitrate and
+         * Govern, the two stations most likely to matter when something has
+         * stopped answering.
+         */
+        <div className="fixed bottom-8 right-6 z-50 max-w-sm w-[92%] sm:w-auto">
+          {!connected && services.every(service => service.status !== 'up') ? (
+            <NoticeCard
+              tone="info"
+              title="No instance connected"
+              message="This is the Trust Operations Center with nothing behind it. Every reading shows UNKNOWN because nothing has been asked, not because anything failed — the room will not invent a figure to fill a gap. Point it at a running ABSuite instance and the same screen fills with real evidence."
+            />
+          ) : (
+            <NoticeCard
+              tone="error"
+              title="A service is not answering"
+              message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}
+            />
           )}
-
-          {/* Collapse Toggle */}
-          <div className="p-3 border-t border-border/40">
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed(c => !c)}
-              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-bg-tertiary transition-all text-sm"
-            >
-              {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /> <span>Collapse</span></>}
-            </button>
-          </div>
-        </motion.aside>
-
-        {/* Main */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Top Bar */}
-          <header className="h-16 glass-panel border-b border-border/40 flex items-center px-5 gap-4 shrink-0">
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open navigation menu"
-              title="Open navigation menu"
-              className="lg:hidden p-2 rounded-lg hover:bg-bg-tertiary transition-colors"
-            >
-              <Menu className="w-5 h-5 text-text-muted" />
-            </button>
-
-            {/* A control that looked capable and did nothing is the same failure
-                as a number that looks measured and is not. It asks the log now. */}
-            <div className="hidden md:flex flex-1">
-              <AskBar onOpenRecord={setOpenRecordId} />
-            </div>
-
-            <div className="flex items-center gap-3 ml-auto">
-
-              {/* Connection Status */}
-              <div className="flex items-center gap-2 min-w-[120px]">
-                <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', connected ? 'bg-emerald-400 live-pulse' : 'bg-red-400')} />
-                <span className="hidden sm:block text-xs text-text-muted truncate">{loading ? 'Syncing' : connected ? 'Socket Connected' : 'Socket Disconnected'}</span>
-              </div>
-
-              <button
-                type="button"
-                aria-label="Open notifications"
-                title="Open notifications"
-                onClick={() => setNotifOpen(o => !o)}
-                className="notif-trigger p-2 rounded-lg hover:bg-bg-tertiary transition-colors relative"
-              >
-                <Bell className="w-5 h-5 text-text-muted" />
-{unreadCount > 0 && <span className="notification-badge" />}
-              </button>
-
-            </div>
-          </header>
-
-          {/* Content */}
-          <main className="flex-1 overflow-y-auto p-5 dot-grid-bg">
-            {/* Which layer you are standing in, and the question it answers. A
-                tab label alone leaves the reader to guess what this screen is
-                for; the question is the whole reason they clicked. */}
-            {(() => {
-              const current = TAB_CONFIG.find(tab => tab.id === activeTab);
-              if (!current) return null;
-              // Operations states its own identity in the centre of the room.
-              if (current.id === 'operations' && !openRecordId) return null;
-              return (
-                <div className="mb-5">
-                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-500/70 mb-1">
-                    {current.layer !== undefined
-                      ? `Layer ${current.layer} of 7`
-                      : current.id === 'operations'
-                        ? 'Trust Operations Center'
-                        : current.id === 'system' || current.id === 'settings'
-                          ? 'Underneath the stack'
-                          : 'The record'}
-                  </div>
-                  <h1 className="text-2xl font-bold text-text-primary leading-tight">{current.label}</h1>
-                  <p className="text-sm text-text-muted mt-0.5">{current.question}</p>
-                </div>
-              );
-            })()}
-
-            {/* Demo mode is worth announcing anywhere, because it changes what the
-                numbers mean. "Live mode enabled" is a statement about service
-                health, so it belongs on the tabs about service health — on the
-                Evidence tab it pushed the answer the reader came for below a
-                banner telling them something they did not ask. An actual error
-                still surfaces everywhere. */}
-            {error && activeTab !== 'system' && (
-              <div className="mb-4">
-                <NoticeCard
-                  tone="error"
-                  title="A service is not answering"
-                  message={`${error} Nothing is being substituted — a service that cannot be reached is reported as unreachable, not as healthy and not as down.`}
-                />
-              </div>
-            )}
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-              >
-                {renderTab()}
-              </motion.div>
-            </AnimatePresence>
-          </main>
         </div>
-      </div>
-
-      {/* Notification Panel */}
-      {notifOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
-          <div className="notif-panel fixed top-16 right-4 z-50 w-80 glass-panel p-0 overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-border/40">
-              <div>
-                <h3 className="font-semibold text-text-primary text-sm">Notifications</h3>
-                {unreadCount > 0 && <p className="text-xs text-text-muted">{unreadCount} unread</p>}
-              </div>
-              <button
-                onClick={() => { setNotifications(ns => ns.map(n => ({ ...n, read: true }))); setNotifOpen(false); }}
-                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-              >
-                Clear all
-              </button>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <p className="text-sm text-text-muted text-center py-8">No notifications</p>
-              ) : (
-                notifications.map(n => (
-                  <div key={n.id} className={cn('flex items-start gap-3 px-4 py-3 border-b border-border/30 hover:bg-bg-tertiary/50 transition-colors', !n.read && 'bg-emerald-500/5')}>
-                    <div className={cn('mt-0.5 w-2 h-2 rounded-full shrink-0', n.type === 'success' && 'bg-emerald-400', n.type === 'info' && 'bg-teal-400', n.type === 'warn' && 'bg-amber-400')} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-text-primary leading-snug">{n.message}</p>
-                      <p className="text-xs text-text-muted mt-0.5">{n.time}</p>
-                    </div>
-                    {!n.read && <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </>
       )}
 
-      {/* Mobile Menu Overlay */}
       <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 lg:hidden" onClick={() => setMobileMenuOpen(false)}>
-            <motion.div initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="w-72 h-full glass-panel" onClick={e => e.stopPropagation()}>
-              <div className="h-16 flex items-center px-4 border-b border-border/40 gap-3">
-                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                  <Hexagon className="w-5 h-5 text-emerald-400" />
-                </div>
-                <span className="font-bold text-text-primary">ABSuite</span>
-              </div>
-              <nav className="py-4 px-3 space-y-1">
-                {TAB_CONFIG.map(({ id, label, layer, question, icon: Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => { setActiveTab(id); setOpenRecordId(null); setMobileMenuOpen(false); }}
-                    className={cn('w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all', activeTab === id ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'text-text-muted hover:text-text-primary')}
-                  >
-                    <Icon className="w-5 h-5 shrink-0 mt-0.5" />
-                    <span className="text-left">
-                      <span className="flex items-baseline gap-2">
-                        {label}
-                        {layer !== undefined && <span className="text-[10px] font-mono opacity-60">{layer}</span>}
-                      </span>
-                      <span className="block text-[11px] font-normal opacity-70 leading-snug">{question}</span>
-                    </span>
-                  </button>
-                ))}
-              </nav>
-            </motion.div>
+        {openRecordId && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-[60] bg-ab-bg/97 backdrop-blur-md overflow-y-auto px-8 py-6"
+          >
+            <button
+              type="button"
+              onClick={() => setOpenRecordId(null)}
+              className="text-[10px] font-mono uppercase tracking-[0.24em] text-ab-white/40 hover:text-ab-green transition-colors mb-4"
+            >
+              ← back
+            </button>
+            <RecordDetail id={openRecordId} onClose={() => setOpenRecordId(null)} />
           </motion.div>
         )}
       </AnimatePresence>

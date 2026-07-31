@@ -13,13 +13,29 @@
  *
  * Exits non-zero on any drift.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const doc = readFileSync(join(root, 'docs/UI-PHILOSOPHY.md'), 'utf8');
-const app = readFileSync(join(root, 'packages/dashboard-ui/src/App.tsx'), 'utf8');
+/**
+ * "The shell" is App.tsx plus the room, not App.tsx alone.
+ *
+ * The masthead moved into src/room/Room.tsx when the sidebar was deleted, and
+ * this check failed on the header identity even though every line was still on
+ * screen — it was reading one file and calling it the shell. A check whose
+ * scope drifts behind the code reports absence where there is only relocation.
+ */
+const shellFiles = [join(root, 'packages/dashboard-ui/src/App.tsx')];
+const roomDir = join(root, 'packages/dashboard-ui/src/room');
+try {
+  for (const entry of readdirSync(roomDir)) {
+    if (/\.tsx?$/.test(entry)) shellFiles.push(join(roomDir, entry));
+  }
+} catch { /* No room directory yet; App.tsx alone is the shell. */ }
+
+const app = shellFiles.map(file => readFileSync(file, 'utf8')).join('\n');
 const css = readFileSync(join(root, 'packages/dashboard-ui/src/styles/globals.css'), 'utf8');
 
 const failures = [];
@@ -121,6 +137,130 @@ if (/@media\s*\(\s*prefers-reduced-motion/.test(css)) {
   passes.push('motion yields to prefers-reduced-motion');
 } else {
   failures.push('globals.css defines state animations but honours no prefers-reduced-motion query.');
+}
+
+// ── 6. Promises must be kept or listed as unkept ────────────────────────────
+//
+// This check passed for a whole session while the interface violated the
+// document's centerpiece section outright: "The cube is always present" was
+// true of one view out of thirteen. It passed because it only checked what was
+// cheap to check — names, hexes, header strings — and never the claims that
+// actually describe what the thing feels like.
+//
+// A check that certifies compliance with a document nobody is complying with is
+// worse than no check, because it converts an open question into a green tick.
+// That is precisely the failure this product exists to argue against, committed
+// by the tool built to prevent it.
+//
+// So the verifiable claims are verified, and anything unmet must appear in the
+// "What is not built yet" ledger. Both directions are enforced: an unmet
+// promise missing from the ledger fails, and a ledger entry that has since been
+// built also fails, so the list cannot rot into an excuse.
+
+const ledger = section('## What is not built yet');
+const ledgerRows = [...ledger.matchAll(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|/gm)]
+  .map(match => match[1].trim())
+  .filter(entry => entry && !/^-+$/.test(entry) && entry.toLowerCase() !== 'promise');
+
+const uiFiles = [];
+const collect = (dir) => {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) { collect(full); continue; }
+    if (/\.tsx$/.test(entry) && !/\.test\./.test(entry)) uiFiles.push(full);
+  }
+};
+collect(join(root, 'packages/dashboard-ui/src'));
+
+/**
+ * Claims this script can actually settle by reading the source.
+ *
+ * `met()` must be a real test, not a proxy. Where a claim cannot be settled
+ * mechanically — "familiar and impossible at the same time" — it is left to a
+ * human and deliberately not asserted here, because a check that pretends to
+ * measure taste is the same lie in a different costume.
+ */
+const VERIFIABLE = [
+  {
+    promise: 'The cube is always present',
+    met: () => {
+      const withCube = uiFiles.filter(file => /cube/i.test(readFileSync(file, 'utf8')));
+      // "Always present" means the shell, not one tab.
+      return withCube.some(file => /App\.tsx$/.test(file));
+    },
+  },
+  {
+    promise: 'Particle fields, particle convergence on evidence created',
+    met: () => /particle/i.test(css),
+  },
+  {
+    /**
+     * Tested as a property of the shell, not as an import.
+     *
+     * This read `/CubeConnections/` across the source — and the ledger below
+     * records what that bought us: it verified a component was imported, not
+     * that anything connected back to anything. It passed for months while the
+     * interface was a sidebar with a decorative cube, and it failed the day
+     * the room finally existed, because the room did not happen to use that
+     * component. Exactly backwards on both occasions.
+     *
+     * What the promise actually claims is that the cube is the thing you go
+     * through. So that is what gets tested: the shell mounts the core, and
+     * manipulating it is what resolves to a layer.
+     */
+    promise: 'Everything connects back to the cube',
+    met: () => uiFiles.some(file => {
+      const text = readFileSync(file, 'utf8');
+      if (!/room\//.test(file) || !/<(?:Scene|TrustCube|CoreCube|SceneCube)\b/.test(text)) return false;
+      return /onPointerDown|onWheel|onDoubleClick/.test(text) &&
+             /commit\([^)]*['"](?:observe|verify|explain|govern)['"]/.test(text);
+    }),
+  },
+  {
+    /**
+     * Still pinned to a component, and deliberately so: unlike the promise
+     * above, this one names a specific piece of motion that either exists or
+     * does not. It does not. See the ledger.
+     */
+    promise: 'Evidence chains forming as motion',
+    met: () => uiFiles.some(file => /ChainForming/.test(readFileSync(file, 'utf8'))),
+  },
+  {
+    promise: 'Trace line animation while verification runs',
+    met: () => /trust-sweep/.test(css),
+  },
+  {
+    /**
+     * The claim the other four were mistaken for.
+     *
+     * Every promise above can be satisfied while the interface remains a
+     * dashboard, because each names a component and this one names the model.
+     * A shell that navigates by sidebar is document navigation whatever is
+     * drawn inside it, so that is what gets tested: the absence of the nav
+     * list, not the presence of a cube.
+     */
+    promise: 'The interaction model is spatial, not document navigation',
+    met: () => !/<nav\b/.test(readFileSync(join(root, 'packages/dashboard-ui/src/App.tsx'), 'utf8')),
+  },
+];
+
+for (const claim of VERIFIABLE) {
+  const isMet = claim.met();
+  const isListed = ledgerRows.some(row => row.toLowerCase() === claim.promise.toLowerCase());
+
+  if (isMet && isListed) {
+    failures.push(`"${claim.promise}" is built, but still listed under "What is not built yet". Remove the row — a stale ledger becomes an excuse.`);
+  } else if (!isMet && !isListed) {
+    failures.push(`"${claim.promise}" is promised by this document, is not implemented, and is not listed under "What is not built yet". Build it or record it.`);
+  } else {
+    passes.push(isMet ? `promise kept: ${claim.promise}` : `promise recorded as unbuilt: ${claim.promise}`);
+  }
+}
+
+// An empty ledger is the goal, not an error — but the section must still exist,
+// so the next unkept promise has somewhere to be written down.
+if (!/## What is not built yet/.test(doc)) {
+  failures.push('docs/UI-PHILOSOPHY.md: the "What is not built yet" section is missing. It must remain even when empty, or the next unkept promise has nowhere to be recorded.');
 }
 
 // ── 6. The critical rule outranks the rest ──────────────────────────────────

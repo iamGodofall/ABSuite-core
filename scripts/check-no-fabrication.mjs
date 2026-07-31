@@ -53,9 +53,21 @@ const RULES = [
     why: 'A literal if (false) is a switch someone can flip. Demo mode was deleted; the branches it left behind still contained fabricated tokens and policies.',
   },
   {
+    /**
+     * Randomness in anything that becomes a displayed value.
+     *
+     * Scattering points in a particle field is geometry, not data, and banning
+     * it outright would forbid drawing a starfield. The allowance is narrow and
+     * must be claimed in writing: a line assigning to a geometry buffer, a
+     * position, or a scale may use it. Everything else may not.
+     */
     id: 'randomness',
     pattern: /\bMath\.random\s*\(/g,
-    why: 'Randomness has no honest use in an interface whose claim is that every figure came from a record. Use crypto.randomUUID() for identity.',
+    why: 'Randomness has no honest use in a value a reader will see. Use crypto.randomUUID() for identity; if this is scatter geometry rather than data, say so with an allow comment.',
+    exempt: (text, index) => {
+      const line = text.slice(text.lastIndexOf('\n', index) + 1, text.indexOf('\n', index));
+      return /\b(?:position|positions|pos|rotation|scale|radius|angle|offset|jitter|geometry|vertex|vertices|particle)\b/i.test(line);
+    },
   },
   {
     id: 'demo-identifier',
@@ -69,6 +81,98 @@ const RULES = [
     // merely mentions the word is not matched.
     pattern: /['"`](?:ck_)?(?:demo|mock|fake|sample)[_:-][^'"`]*['"`]/gi,
     why: 'A string literal shaped like a fabricated value. The token generator shipped `ck_demo_<random>` inside a dead branch for months.',
+  },
+  {
+    /**
+     * The specification forbids four figures outright, whatever the layout:
+     * a trust score, a confidence value, a count of attacks prevented, and an
+     * intelligence rating. Each is a judgement wearing a decimal point, and
+     * none is a thing this system measures.
+     *
+     * They are banned as rendered strings rather than as variable names,
+     * because the harm is done when a reader sees them — the label is the lie,
+     * not the identifier behind it.
+     */
+    id: 'forbidden-metric',
+    pattern: /['"`>][^'"`<]*\b(?:trust score|confidence score|confidence:\s*0\.|attacks? prevented|tampering prevented|intelligence rating)\b/gi,
+    why: 'Forbidden by the specification: trust scores, confidence figures, attacks prevented and intelligence ratings are judgements this system does not measure.',
+    /**
+     * Refusing a thing is not doing it.
+     *
+     * This rule's first run flagged Agents.tsx, whose copy reads "Not a trust
+     * score. Trust is not a quantity this system computes." That sentence is
+     * the product's argument, and a check that cannot tell an assertion from a
+     * refusal would delete the clearest statement of the principle it exists to
+     * enforce. Matches preceded by a negation are left alone.
+     */
+    exempt: (text, index, matched) =>
+      // The negation usually sits inside the match — "Not a trust score" —
+      // because the match starts at the enclosing quote or tag.
+      /\b(?:not|no|never|without|refus\w*|nor)\b/i.test(matched) ||
+      /\b(?:not|no|never|without|refus\w*|nor)\b[^.]{0,40}$/i.test(text.slice(Math.max(0, index - 60), index)),
+  },
+  {
+    /**
+     * A state claim written as literal text, with nothing behind it.
+     *
+     * Found by running this check against a supplied UI blueprint, which it
+     * passed while containing `6/6 SERVICES ANSWERED`, `VERIFICATION → intact`
+     * and `POLICY → scoped` as hardcoded strings. Every earlier rule looks for
+     * things that are obviously fictional — a name containing DEMO, a random
+     * call. This is the subtler and more dangerous shape: a sentence that is
+     * simply asserted, indistinguishable on screen from one that was measured.
+     *
+     * The test is interpolation. A JSX text node that states a determination
+     * and contains no expression is stating it from nowhere. Anything derived
+     * carries a `{`, so honest code passes untouched.
+     */
+    id: 'asserted-state',
+    pattern: />[^<>{}\n]*\b(?:intact|scoped|demonstrated|healthy|verified|hash[ -]chained|no violations|connected|responding|\d+\/\d+\s*(?:services|responding|answered|healthy|up)?)\b[^<>{}\n]*</gi,
+    why: 'A determination written as literal text with no expression behind it. On screen this is indistinguishable from a measured one, which is exactly what the critical rule forbids.',
+  },
+  {
+    /**
+     * A figure with units, written as literal text.
+     *
+     * Found by running a supplied R3F package through this file: it reported
+     * `UPTIME 99.999%`, `LATENCY 12ms` and `ACTIVE RECORDS 482` and none of the
+     * rules noticed, because a bare number is lexically indistinguishable from
+     * a legitimate constant.
+     *
+     * This catches the shapes a measurement takes — a percentage, a duration, a
+     * rate — when they appear as text with no expression behind them. It cannot
+     * catch every invented number, and the file header says so: a lexical check
+     * sees shape, never provenance.
+     */
+    id: 'asserted-measurement',
+    pattern: />[^<>{}\n]*\b\d[\d,.]*\s*(?:%|ms|s\b|req\/s|rps|\/sec|k\b|K\b)[^<>{}\n]*</g,
+    why: 'A measurement written as literal text. A percentage, a duration or a rate with no expression behind it was not measured — it was typed.',
+  },
+  {
+    /**
+     * A metric declared as a literal in a config object.
+     *
+     * The shape the supplied package used: a LAYERS array where each entry
+     * carried `metric: '482'`, `metric: 'INTACT'`, `metric: '12 QUEUED'`. None
+     * of the text rules see it, because it never appears as JSX text — it is
+     * data, and it is invented data, which is the worst of both.
+     *
+     * A field named for a reading must not be assigned a literal. Bind it to
+     * something, or leave it out and let the component say the reading is
+     * absent.
+     */
+    id: 'literal-metric-field',
+    pattern: /\b(?:metric|reading|value|count|total|headline)\s*:\s*['"`][^'"`]+['"`]/g,
+    why: 'A field named for a reading, assigned a literal. Bind it to a source, or omit it so the component can say the reading is absent.',
+    exempt: (text, index, matched) =>
+      // A template literal with an interpolation is bound to a source by
+      // construction — `${failures} DISPUTES` cannot be invented data, because
+      // the number comes from a variable. Only the constant part is a literal.
+      // A template with no interpolation, `482 records`, is still caught.
+      /\$\{/.test(matched) ||
+      // A label or a placeholder is not a reading; only flag values that look
+      // like measurements — digits, or a determination word.
+      !/\d|intact|scoped|demonstrated|healthy|verified|unknown|absent|failed|queued|idle/i.test(matched),
   },
 ];
 
@@ -107,6 +211,7 @@ for (const file of sources) {
       // keeps the justification next to the thing it justifies.
       const previous = lines[line - 2] ?? '';
       if (/absuite-allow-fabrication:/.test(previous)) continue;
+      if (rule.exempt?.(text, match.index, match[0])) continue;
 
       failures.push({
         file: relative(root, file),

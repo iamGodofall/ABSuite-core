@@ -24,6 +24,22 @@ const adminApiKey = (process.env.ABSUITE_ADMIN_API_KEY || '').trim();
 const capkitAdminKey = (process.env.CAPKIT_ADMIN_KEY || process.env.ABSUITE_ADMIN_API_KEY || '').trim();
 
 const io = new Server(server, {
+  /**
+   * Detect a dead connection in seconds, not in most of a minute.
+   *
+   * Socket.io's defaults (25s ping interval, 20s timeout) mean a client can go
+   * offline and keep asserting "Socket Connected" for up to 45 seconds. That
+   * matters more here than in most products: the cube stops turning when the
+   * socket drops, and the screen says stillness means nothing is being
+   * observed. With the defaults that claim was false for the better part of a
+   * minute — the interface insisting it was watching while it was not.
+   *
+   * 5s + 5s puts the worst case near ten seconds. The cost is a heartbeat every
+   * five seconds per client, which for an operations console with few viewers
+   * is a fair price for a claim that holds.
+   */
+  pingInterval: 5_000,
+  pingTimeout: 5_000,
   cors: {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
