@@ -1,11 +1,13 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useState } from 'react';
 import { probeGlassSupport, type GlassSupport } from './glass';
-import { SceneCube, type TrustLayer } from './SceneCube';
+import { SceneCube, type TrustLayer, type CubeEvidenceState } from './SceneCube';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface SceneProps {
+  /** The claim the core expresses. Passed straight through to the cube. */
+  evidence?: CubeEvidenceState;
   activeLayer: TrustLayer;
   isIdle?: boolean;
   connected?: boolean;
@@ -56,7 +58,7 @@ function CameraController({ activeLayer }: { activeLayer: TrustLayer }) {
   return null;
 }
 
-export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
+export function Scene({ activeLayer, isIdle, connected = true, evidence }: SceneProps) {
   /*
    * Asked once, when the context exists, and never again.
    *
@@ -120,6 +122,7 @@ export function Scene({ activeLayer, isIdle, connected = true }: SceneProps) {
         <directionalLight position={[-6, -2, -4]} intensity={isIdle ? 0.2 : 0.5} color="#3FE8FF" />
 
         <SceneCube
+          evidence={evidence}
           activeLayer={activeLayer}
           isIdle={isIdle}
           connected={connected}

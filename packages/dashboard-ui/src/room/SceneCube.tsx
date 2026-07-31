@@ -76,6 +76,55 @@ const EDGE_BEAMS: { position: [number, number, number]; scale: [number, number, 
 /** 0.05 degrees per second, in radians. The resting drift. */
 const REST_DRIFT = (0.05 * Math.PI) / 180;
 
+/**
+ * What the core is for.
+ *
+ * The centre of the cube shall always represent the strongest claim the system
+ * can presently defend.
+ *
+ * Not the most certain — there are days when the strongest defensible claim is
+ * UNKNOWN, and days when it is FAILED. The core does not promise certainty. It
+ * faithfully expresses the best statement available, including when that
+ * statement is that nothing has been recorded.
+ *
+ * Until this existed the core was the brightest object in the room and reported
+ * nothing: it took activeLayer, isIdle, connected and glass — all of them
+ * interface state — and glowed at full intensity whether the instance held a
+ * verified chain of nine records or nothing at all. An empty instance looked
+ * exactly as complete as a full one, which is the first constitutional line
+ * broken by the largest element on screen.
+ *
+ * This type is deliberately about evidence and not about trust. The renderer
+ * should know nothing of trust; it renders a determination and a count. That
+ * keeps the same core usable for a single trace, a whole chain, a federation,
+ * or anything later that can produce a defensible claim.
+ */
+export interface CubeEvidenceState {
+  determination: 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
+  /** How many records stood up to checking. */
+  verifiedRecords: number;
+  /** Sequence number of the first record that failed, when one did. */
+  firstFailure?: number;
+  /** False when the build cannot check at all — different from checking and failing. */
+  checkable: boolean;
+}
+
+/**
+ * How each determination looks and moves.
+ *
+ * Failure is not excitement. Nothing speeds up because something broke — the
+ * pulse stops, which is what a stopped heart looks like and what a broken chain
+ * deserves. A room that got livelier on failure would be rewarding the worst
+ * thing that can happen to it.
+ */
+const EVIDENCE_CORE = {
+  DEMONSTRATED: { hex: '#00F58C', intensity: 9,    pulse: 'steady'    },
+  UNKNOWN:      { hex: '#F59E0B', intensity: 4.2,  pulse: 'irregular' },
+  FAILED:       { hex: '#DC2626', intensity: 5.5,  pulse: 'stopped'   },
+  // Almost black. A faint ember so the cube still has a centre, and nothing more.
+  ABSENT:       { hex: '#0A1712', intensity: 0.35, pulse: 'stopped'   },
+} as const;
+
 interface TrustCubeProps {
   activeLayer: TrustLayer;
   isIdle?: boolean;
@@ -83,9 +132,26 @@ interface TrustCubeProps {
   connected?: boolean;
   /** True when this machine can refract. See glass.ts. */
   glass?: boolean;
+  /**
+   * The claim the core expresses. Absent while the instance is still asking,
+   * which is treated as UNKNOWN rather than as nothing.
+   */
+  evidence?: CubeEvidenceState;
 }
 
-export function SceneCube({ activeLayer, isIdle, connected = true, glass = false }: TrustCubeProps) {
+export function SceneCube({ activeLayer, isIdle, connected = true, glass = false, evidence }: TrustCubeProps) {
+  /*
+   * The core's own colour, kept separate from the layer palette on purpose.
+   *
+   * `glowColor` below tints the edges, rings and particles, and it follows
+   * whichever layer you are standing in. That is navigation, and it should keep
+   * doing exactly what it does. The core does not follow you around the room —
+   * it reports the record. Two different questions, two different colours, and
+   * the glass between them stays the colour of glass.
+   */
+  const determination = evidence?.determination ?? 'UNKNOWN';
+  const core = EVIDENCE_CORE[determination];
+  const coreColor = useMemo(() => new THREE.Color(core.hex), [core.hex]);
   const cubeRef = useRef<THREE.Group>(null);
   const innerCubeRef = useRef<THREE.Mesh>(null);
   const leftHalfRef = useRef<THREE.Mesh>(null);
@@ -232,18 +298,29 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         coreRef.current.rotation.y -= delta * 0.3;
         coreRef.current.rotation.z += delta * 0.1;
         
-        // Dynamic scaling based on layer and time
-        let coreScale = 1;
-        if (activeLayer === 'act') {
-          coreScale = 1.2 + Math.sin(t * 15) * 0.2; // Rapid pulsing
-        } else if (activeLayer === 'govern') {
-          coreScale = 0.8 + Math.sin(t * 5) * 0.1; // Slower pulsing
-        } else if (activeLayer === 'arbitrate') {
-          coreScale = 1 + Math.sin(t * 8) * 0.15; // Unstable pulsing
+        /*
+         * The pulse belongs to the evidence, not to the open tab.
+         *
+         * This used to beat faster in Act, slower in Govern and unstably in
+         * Arbitrate — three different heartbeats reporting nothing but which
+         * panel happened to be open. Navigation is not a vital sign.
+         *
+         * Steady when the chain verified. Irregular when nothing has been
+         * resolved — two frequencies beating against each other, which reads as
+         * searching rather than as rhythm. Stopped when it failed, and stopped
+         * when there is nothing: a system with no record has nothing to beat
+         * about.
+         */
+        let coreScale: number;
+        if (core.pulse === 'steady') {
+          coreScale = 1 + Math.sin(t * 2) * 0.06;
+        } else if (core.pulse === 'irregular') {
+          coreScale = 1 + Math.sin(t * 1.3) * 0.05 + Math.sin(t * 0.61) * 0.035;
         } else {
-          coreScale = 1 + Math.sin(t * 2) * 0.05; // Normal breathing
+          // Stopped. ABSENT also sits smaller — dormant, not merely dark.
+          coreScale = determination === 'ABSENT' ? 0.82 : 1;
         }
-        
+
         coreRef.current.scale.lerp(new THREE.Vector3(coreScale, coreScale, coreScale), delta * 4);
       }
 
@@ -260,7 +337,20 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
     }
     
     if (ringsRef.current) {
-      ringsRef.current.rotation.y -= effectiveDelta * 0.05;
+      /*
+       * The orbits slow to a stop when the chain fails.
+       *
+       * Not faster — failure is interruption, not excitement. A room that got
+       * livelier the moment its record broke would be rewarding the worst thing
+       * that can happen to it. On a demonstrated chain the ring drifts with the
+       * core's own rhythm, so the structure and the claim move together.
+       */
+      const orbit =
+        determination === 'FAILED' ? 0.004
+        : determination === 'ABSENT' ? 0
+        : determination === 'DEMONSTRATED' ? 0.05 * (1 + Math.sin(t * 2) * 0.12)
+        : 0.03;
+      ringsRef.current.rotation.y -= effectiveDelta * orbit;
       
       if (activeLayer === 'learn') {
          ringsRef.current.scale.lerp(new THREE.Vector3(1.5, 1.5, 1.5), delta * 2);
@@ -270,6 +360,13 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
     }
     
     if (particlesRef.current) {
+      /*
+       * The field is evidence in transit. With nothing recorded there is
+       * nothing travelling, so the room is simply still — the same reason the
+       * evidence particle in the orbital ring is not rendered when Observe has
+       * nothing to report.
+       */
+      particlesRef.current.visible = determination !== 'ABSENT';
       particlesRef.current.rotation.y -= effectiveDelta * 0.05;
       const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
 
@@ -553,8 +650,8 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   <icosahedronGeometry args={[0.19, 1]} />
                   <meshStandardMaterial
                     color={'#04180F'}
-                    emissive={color}
-                    emissiveIntensity={9}
+                    emissive={coreColor}
+                    emissiveIntensity={core.intensity}
                     toneMapped={false}
                     roughness={0.35}
                     metalness={0}
@@ -597,7 +694,7 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
 
                 {/* The lamps travel with the source. */}
                 <pointLight color={color} intensity={isIdle ? 2 : 4} distance={8} decay={2} />
-                <pointLight color={glowColor} intensity={isIdle ? 1 : 2} distance={4} decay={2} />
+                <pointLight color={coreColor} intensity={(isIdle ? 1 : 2) * (core.intensity / 9)} distance={4} decay={2} />
               </group>
 
               {/*
@@ -651,7 +748,7 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   drawn circle. */}
               <mesh rotation={[-Math.PI / 2, 0, 0]}>
                 <torusGeometry args={[radius, 0.015, 8, 128]} />
-                <meshBasicMaterial color={glowColor} transparent opacity={0.15 + (i * 0.05)} blending={THREE.AdditiveBlending} />
+                <meshBasicMaterial color={coreColor} transparent opacity={(0.15 + (i * 0.05)) * (core.intensity / 9)} blending={THREE.AdditiveBlending} />
               </mesh>
               {i > 1 && (
                 <mesh rotation={[-Math.PI / 2, 0, 0]}>

@@ -5,7 +5,7 @@ import { OrbitalNodes, type LayerReading } from './OrbitalNodes';
 import { CommandPalette } from './CommandPalette';
 import { TopBar, type Vital } from './TopBar';
 import { BottomBar } from './BottomBar';
-import type { TrustLayer } from './SceneCube';
+import type { TrustLayer, CubeEvidenceState } from './SceneCube';
 
 /**
  * The layer surface.
@@ -117,7 +117,7 @@ function LayerSurface({ layer, reading, question, onClose, children }: {
 /** The ring, in the order the stations sit on it. Dragging walks this. */
 const ORBIT: TrustLayer[] = ['observe', 'verify', 'explain', 'govern', 'arbitrate', 'act', 'learn'];
 
-export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views }: {
+export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views, evidence }: {
   /** Live readings per layer. Absent when the layer has nothing to report. */
   readings: Record<string, LayerReading | undefined>;
   /** The masthead's metric columns, each bound to what the instance holds. */
@@ -131,6 +131,8 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
   onOpenRecord?: (id: string) => void;
   /** Every reachable view, for the command palette. */
   views: { id: string; label: string; question: string }[];
+  /** The strongest claim the instance can defend. The core expresses it. */
+  evidence?: CubeEvidenceState;
 }) {
   const [activeLayer, setActiveLayerState] = useState<TrustLayer>('overview');
   /** Entering a layer. Every route into a layer goes through this. */
@@ -244,7 +246,7 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
     <div className="relative w-screen h-screen overflow-hidden bg-ab-bg text-ab-white font-sans selection:bg-ab-green-dim selection:text-ab-green">
       
       {/* 3D Scene Layer */}
-      <Scene activeLayer={activeLayer} isIdle={isIdle} connected={connected} />
+      <Scene activeLayer={activeLayer} isIdle={isIdle} connected={connected} evidence={evidence} />
 
       {/*
         * The gesture surface.

@@ -1660,6 +1660,19 @@ export default function App() {
         onLayerChange={(layer: TrustLayer) => setActiveTab(layer === 'overview' ? null : (layer as TabId))}
         /* TAB_CONFIG names all thirteen views; check-ui-philosophy reads it. */
         views={TAB_CONFIG.map(tab => ({ id: tab.id, label: tab.label, question: tab.question }))}
+        /*
+         * The strongest claim this instance can presently defend.
+         *
+         * Assembled from what it already knows rather than from a new fetch:
+         * `integrity` is the chain's own verdict and `figures.total` is how many
+         * records stood behind it. Both were already on screen as small text in
+         * the masthead while the largest object in the room reported nothing.
+         */
+        evidence={{
+          determination: integrity,
+          verifiedRecords: figures?.total ?? 0,
+          checkable: integrity !== 'UNKNOWN',
+        }}
         onOpenRecord={setOpenRecordId}
       />
 

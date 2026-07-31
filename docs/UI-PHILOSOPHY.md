@@ -574,3 +574,44 @@ This is not aspiration filed away. Five things hold it in place:
 - **Anything this document asks for that the system cannot honestly show is
   recorded as unbuilt rather than mocked.** The status of each view is tracked
   in `docs/ROADMAP.md`, not simulated on screen.
+
+
+## The core states the strongest defensible claim
+
+> The centre of the cube shall always represent the strongest claim the system
+> can presently defend.
+
+Not the most certain. There are days when the strongest defensible claim is
+UNKNOWN, and days when it is FAILED. The core does not promise certainty — it
+faithfully expresses the best statement available, including when that statement
+is that nothing has been recorded.
+
+For a long time it promised nothing of the kind. `SceneCube` took `activeLayer`,
+`isIdle`, `connected` and `glass` — all interface state — and the core glowed at
+full intensity whether the instance held a verified chain of nine records or
+none at all. The largest and brightest object in the room reported nothing, and
+an empty instance looked exactly as complete as a full one. Measured after
+binding it: the centre of the canvas reads a mean luminance of 38.8 on an empty
+instance against 70.6 on a seeded one. It used to be the same number.
+
+| Determination | The core | The room |
+|---|---|---|
+| `DEMONSTRATED` | Bright emerald, steady rhythm | Orbits drift with the pulse |
+| `UNKNOWN` | Warm amber, two frequencies beating against each other — searching, not rhythm | Orbits slow |
+| `FAILED` | Deep red, **the pulse stops** | Orbits nearly freeze |
+| `ABSENT` | Almost black, a faint ember so the cube still has a centre | Nothing in the air; the field is not rendered |
+
+**Failure is interruption, not excitement.** Nothing in this room speeds up
+because something broke. A system that got livelier the moment its record failed
+would be rewarding the worst thing that can happen to it.
+
+**The glass never changes colour.** Only the core does. The shell is the
+architecture and the architecture does not become red because evidence failed —
+the evidence changed; the structure did not. Colouring the whole object would
+say the opposite.
+
+The renderer knows nothing about trust. `CubeEvidenceState` carries a
+determination, a count of verified records, the sequence number of the first
+failure and whether the chain was checkable at all — and nothing else. That
+keeps the same core honest for a single trace, a whole chain, a federation of
+instances, or anything later that can produce a claim worth defending.
