@@ -42,6 +42,37 @@ const PARTICLE_COUNT = 1200;
  *  before it wraps. Wrapping by exactly this keeps the drift continuous. */
 const FIELD_HEIGHT = 8;
 
+/**
+ * The twelve edges of the 2.5 cube, as boxes.
+ *
+ * Half the edge length is 1.25; the beams are 0.05 across, which is thick
+ * enough to read as structure at the resting camera distance and thin enough
+ * not to close the faces in. Each entry is a position and a non-uniform scale
+ * — one axis long, two axes square.
+ */
+const EDGE_HALF = 1.25;
+const BEAM = 0.05;
+const EDGE_BEAMS: { position: [number, number, number]; scale: [number, number, number] }[] = (() => {
+  const beams: { position: [number, number, number]; scale: [number, number, number] }[] = [];
+  const span = EDGE_HALF * 2;
+  for (const y of [-EDGE_HALF, EDGE_HALF]) {
+    for (const z of [-EDGE_HALF, EDGE_HALF]) {
+      beams.push({ position: [0, y, z], scale: [span, BEAM, BEAM] });   // along X
+    }
+  }
+  for (const x of [-EDGE_HALF, EDGE_HALF]) {
+    for (const z of [-EDGE_HALF, EDGE_HALF]) {
+      beams.push({ position: [x, 0, z], scale: [BEAM, span, BEAM] });   // along Y
+    }
+  }
+  for (const x of [-EDGE_HALF, EDGE_HALF]) {
+    for (const y of [-EDGE_HALF, EDGE_HALF]) {
+      beams.push({ position: [x, y, 0], scale: [BEAM, BEAM, span] });   // along Z
+    }
+  }
+  return beams;
+})();
+
 /** 0.05 degrees per second, in radians. The resting drift. */
 const REST_DRIFT = (0.05 * Math.PI) / 180;
 
@@ -91,9 +122,6 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
    * down still visibly dims the core.
    */
   const glowColor = baseColor.clone().multiplyScalar(isIdle ? 1.0 : 2.8);
-
-  /** Built once and shared by the five edge passes. */
-  const shellEdges = useMemo(() => new THREE.BoxGeometry(2.5, 2.5, 2.5), []);
 
   /*
    * Air trapped in the ice.
@@ -379,34 +407,32 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
             <GlassShell color={color} supported={glass} isIdle={isIdle} />
             
             {/*
-              * Twelve edges, not eighteen.
+              * Twelve edges, as solid beams.
               *
-              * These were `wireframe` boxes, and a wireframe draws the
-              * geometry's triangulation — every square face of a box is two
-              * triangles, so each face came with a diagonal across it. Six
-              * extra lines cutting corner to corner, belonging to nothing,
-              * which is exactly what they looked like. `edgesGeometry` keeps
-              * only the twelve real edges of the shape.
+              * `lineWidth` is ignored by every WebGL renderer — a line is one
+              * pixel wide and no material property changes that, which is why
+              * the previous version stacked five passes a hair apart to fake
+              * weight. Real thickness needs real geometry, so each of the
+              * twelve edges is a thin box: a frame you could put your hand
+              * around rather than a drawing of one.
               *
-              * The stack of five at slightly different scales is unchanged:
-              * additive lines a hair apart is what makes an edge read as
-              * thick and lit rather than as a one-pixel line.
+              * And quieter with it. Substance and loudness are different
+              * things — the beams read as the wall of the cube precisely
+              * because they have volume, so they no longer need brightness to
+              * be legible. Down from 0.42 to 0.24, roughly forty per cent.
               */}
             <group>
-              {[0.98, 0.99, 1.0, 1.01, 1.02].map((scale, i) => (
-                <lineSegments key={i} scale={scale}>
-                  <edgesGeometry args={[shellEdges]} />
-                  <lineBasicMaterial
-                    color={scale === 1.0 ? glowColor : color}
+              {EDGE_BEAMS.map((beam, i) => (
+                <mesh key={i} position={beam.position} scale={beam.scale}>
+                  <boxGeometry args={[1, 1, 1]} />
+                  <meshBasicMaterial
+                    color={glowColor}
                     transparent
-                    /* Quieter. The edges describe where the block is; they are
-                       not the subject, and at full strength they were louder
-                       than the thing they contain. */
-                    opacity={scale === 1.0 ? 0.42 : 0.08}
+                    opacity={isIdle ? 0.12 : 0.24}
                     depthWrite={false}
                     blending={THREE.AdditiveBlending}
                   />
-                </lineSegments>
+                </mesh>
               ))}
             </group>
             

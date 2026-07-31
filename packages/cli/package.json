@@ -1,7 +1,7 @@
 {
   "name": "@absuitecore/cli",
   "version": "1.0.3",
-  "description": "Command-line interface for ABSuite — issue capability tokens, record and verify execution traces, and run the local stack.",
+  "description": "Command-line interface for ABSuite \u2014 issue capability tokens, record and verify execution traces, and run the local stack.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -28,6 +28,7 @@
   ],
   "dependencies": {},
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/node": "^22.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.7.0"
