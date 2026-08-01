@@ -1,7 +1,7 @@
 {
   "name": "absuite-core",
   "version": "1.0.0",
-  "description": "ABSuite — Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
+  "description": "ABSuite \u2014 Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -35,14 +35,16 @@
     "check:motion": "node scripts/check-motion-is-evidence.mjs",
     "check:layers": "node scripts/gen-architecture-layers.mjs --check",
     "gen:layers": "node scripts/gen-architecture-layers.mjs",
-    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine && pnpm check:ui && pnpm check:fabrication && pnpm check:doctrine-ui && pnpm check:motion && pnpm check:layers && pnpm check:deploy && pnpm check:styles",
+    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine && pnpm check:ui && pnpm check:fabrication && pnpm check:doctrine-ui && pnpm check:motion && pnpm check:layers && pnpm check:deploy && pnpm check:styles && pnpm check:map",
     "check:live": "node scripts/check-live-routes.mjs",
     "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",
     "bench:doc": "node scripts/gen-performance-doc.mjs",
     "check:deploy": "node scripts/check-deployment-manifests.mjs",
     "deploy:secrets": "node scripts/gen-deploy-secrets.mjs",
     "seed": "node scripts/seed-scenario.mjs",
-    "check:styles": "node scripts/check-styles-are-real.mjs"
+    "check:styles": "node scripts/check-styles-are-real.mjs",
+    "docs:map": "node scripts/gen-system-map.mjs",
+    "check:map": "node scripts/gen-system-map.mjs --check"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"
