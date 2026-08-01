@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CANONICAL_VERSION } from './trace';
 
 /**
  * Run the real HTTP server and talk to it over the network.
@@ -181,6 +182,57 @@ describe('the running CapKit server', () => {
     expect(JSON.stringify(body)).not.toContain('BATCH-1');
   });
 
+  test('attributes spend to the agent that caused it, with its coverage', async () => {
+    const token = await issue(['execution:record', 'execution:read']);
+    const auth = { authorization: `Bearer ${token}` };
+
+    await post('/executions', {
+      subject: 'agent:spender', scope: ['llm:call'], module: 'llm', action: 'completion',
+      input: { prompt: 'x' }, outcome: 'success',
+      cost: { amount: 1420, currency: 'USD', source: 'provider-usage-api', unit: 'tokens', quantity: 8_200_000 },
+    }, auth);
+    // Same agent, no figure recorded. This is the one the coverage must expose.
+    await post('/executions', {
+      subject: 'agent:spender', scope: ['llm:call'], module: 'llm', action: 'completion',
+      input: { prompt: 'y' }, outcome: 'success',
+    }, auth);
+
+    const body = (await (await fetch(`${base}/executions/cost`, { headers: { 'x-absuite-admin-key': ADMIN } })).json()) as {
+      coverage: { records: number; priced: number; unpriced: number; meaning: string };
+      totals: { currency: string; amount: number }[];
+      subjects: { subject: string; priced: number; unpriced: number; currencies: { currency: string; amount: number }[] }[];
+    };
+
+    const spender = body.subjects.find(entry => entry.subject === 'agent:spender')!;
+    expect(spender.currencies).toContainEqual({ currency: 'USD', amount: 1420, executions: 1 });
+    expect(spender.priced).toBe(1);
+    expect(spender.unpriced).toBe(1);
+
+    expect(body.totals.find(total => total.currency === 'USD')!.amount).toBeGreaterThanOrEqual(1420);
+    // Never a bare total: the share of the log it covers travels with it.
+    expect(body.coverage.unpriced).toBeGreaterThan(0);
+    expect(body.coverage.meaning).toMatch(/nothing here knows/);
+  });
+
+  test('refuses a cost it would have to guess at, and says which part', async () => {
+    const token = await issue(['execution:record']);
+    const auth = { authorization: `Bearer ${token}` };
+    const execution = {
+      subject: 'agent:sloppy', scope: ['llm:call'], module: 'llm', action: 'completion',
+      input: { prompt: 'x' }, outcome: 'success',
+    };
+
+    // A float would have to be rounded, and rounding money is the caller's call.
+    const fractional = await post('/executions', { ...execution, cost: { amount: 14.2, currency: 'USD', source: 'm' } }, auth);
+    expect(fractional.status).toBe(400);
+    expect(JSON.stringify(fractional.body)).toMatch(/integer number of minor units/);
+
+    // A figure with nobody behind it is a rumour carrying a signature.
+    const anonymous = await post('/executions', { ...execution, cost: { amount: 1420, currency: 'USD' } }, auth);
+    expect(anonymous.status).toBe(400);
+    expect(JSON.stringify(anonymous.body)).toMatch(/cost.source is required/);
+  });
+
   /**
    * Every report can be read by someone who has only the report.
    *
@@ -201,6 +253,7 @@ describe('the running CapKit server', () => {
       '/executions/attention',
       '/executions/unknowns',
       '/executions/authority',
+      '/executions/cost',
       `/executions/${String(recorded.id)}/conditions`,
       `/executions/${String(recorded.id)}/explain`,
     ];
@@ -210,7 +263,7 @@ describe('the running CapKit server', () => {
 
     for (const path of reports) {
       const body = (await (await fetch(`${base}${path}`, { headers })).json()) as {
-        generated?: { service: string; version: string; at: string; canonicalVersion: number; scope: string };
+        generated?: { service: string; version: string; at: string; canonicalVersion: number; canonicalVersionsVerified: number[]; scope: string };
       };
 
       expect(body.generated).toBeDefined();
@@ -219,8 +272,11 @@ describe('the running CapKit server', () => {
       // version with confidence is the failure this project argues against.
       expect(body.generated!.version).toBe(manifest.version);
       expect(Date.parse(body.generated!.at)).not.toBeNaN();
-      // Which rules the records underneath were verified against.
-      expect(body.generated!.canonicalVersion).toBe(1);
+      // The newest form this build writes, and every form it can still verify.
+      // Reporting only the newest would imply the log is uniform; it is not, and
+      // a reader holding just this file has no other way to find out.
+      expect(body.generated!.canonicalVersion).toBe(CANONICAL_VERSION);
+      expect(body.generated!.canonicalVersionsVerified).toContain(1);
       // Scope is prose because a future reader is a person, not a parser.
       expect(body.generated!.scope.length).toBeGreaterThan(10);
     }

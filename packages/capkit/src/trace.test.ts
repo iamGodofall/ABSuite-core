@@ -13,6 +13,9 @@ import {
   CANONICAL_VERSION,
   SUPPORTED_CANONICAL_VERSIONS,
   canonicalVersionOf,
+  minimumCanonicalVersion,
+  normaliseCost,
+  InvalidCost,
   type ExecutionTrace,
 } from './trace';
 
@@ -741,5 +744,196 @@ describe('SigningKey.createPair', () => {
     const trace = traces.record({ subject: 'a', scope: [], module: 'm', action: 'x', input: {}, outcome: 'success' });
 
     expect(trace.keyId).toBe('billing-2026-q3');
+  });
+});
+
+describe('cost on the record', () => {
+  const cost = { amount: 1420, currency: 'USD', source: 'anthropic-usage-api' };
+
+  test('is signed with everything else, so it cannot be revised afterwards', () => {
+    const { traces, key } = freshStore();
+    const trace = traces.record({ ...sampleExecution(), cost });
+
+    expect(trace.cost).toEqual(cost);
+    expect(verifyTrace(trace, key!.publicKeyPem).valid).toBe(true);
+
+    // The point of putting it inside the signature: changing the figure must
+    // break the record, or the figure was never evidence.
+    const cheaper = { ...trace, cost: { ...cost, amount: 1 } };
+    expect(verifyTrace(cheaper, key!.publicKeyPem).contentIntact).toBe(false);
+
+    // And so must removing it. A spend that can be silently deleted is a spend
+    // nobody can be held to.
+    const { cost: _removed, ...stripped } = trace;
+    expect(verifyTrace(stripped as ExecutionTrace, key!.publicKeyPem).contentIntact).toBe(false);
+  });
+
+  test('a record without one is still written as v1, byte for byte', () => {
+    const { traces } = freshStore();
+    const plain = traces.record(sampleExecution());
+
+    // Upgrading the library must not change what an untouched record hashes to,
+    // or every existing deployment's archive needs a new verifier for nothing.
+    expect(plain.canonicalVersion).toBeUndefined();
+    expect(canonicalVersionOf(plain)).toBe(1);
+    expect(minimumCanonicalVersion(plain)).toBe(1);
+  });
+
+  test('a costed record declares v2, and only a costed record does', () => {
+    const { traces } = freshStore();
+    const costed = traces.record({ ...sampleExecution(), cost });
+
+    expect(costed.canonicalVersion).toBe(2);
+    expect(SUPPORTED_CANONICAL_VERSIONS).toContain(2);
+    expect(CANONICAL_VERSION).toBe(2);
+  });
+
+  test('the version marker is inside the hash', () => {
+    const { traces } = freshStore();
+    const costed = traces.record({ ...sampleExecution(), cost });
+    const { hash, signature, ...unhashed } = costed;
+
+    expect(hashTrace(unhashed)).toBe(hash);
+    // Downgrading the marker must not produce a record that verifies under v1.
+    expect(canonicalTrace({ ...unhashed })).toContain('"USD"');
+    const downgraded = { ...unhashed, canonicalVersion: undefined };
+    expect(() => hashTrace(downgraded)).toThrow(/no slot for one/);
+  });
+
+  test('v1 refuses to hash a costed record rather than dropping the figure', () => {
+    const forged = {
+      ...sampleExecution(),
+      cost,
+      inputHash: 'a'.repeat(64),
+      steps: [],
+      prevHash: GENESIS_HASH,
+      id: 'exec_1',
+      hash: 'x',
+    } as unknown as ExecutionTrace;
+
+    // Not "invalid" and not "tampered" — unhashable, and said in those words.
+    const verdict = verifyTrace(forged);
+    expect(verdict.valid).toBe(false);
+    expect(verdict.checkable).toBe(false);
+    expect(verdict.contentIntact).toBeNull();
+    expect(verdict.reason).toMatch(/must declare v2/);
+  });
+
+  test('both forms verify from the same store, in one chain', () => {
+    const { traces, key } = freshStore();
+    traces.record(sampleExecution());
+    traces.record({ ...sampleExecution(), cost });
+    traces.record(sampleExecution());
+
+    const chain = traces.verifyChain(key!.publicKeyPem);
+    expect(chain.valid).toBe(true);
+    expect(chain.checked).toBe(3);
+  });
+});
+
+describe('what a cost is allowed to say', () => {
+  test.each([
+    [{ amount: 14.2, currency: 'USD', source: 'x' }, /integer number of minor units/],
+    [{ amount: -1, currency: 'USD', source: 'x' }, /its own execution, not a negative one/],
+    [{ amount: Number.NaN, currency: 'USD', source: 'x' }, /finite number of minor units/],
+    [{ amount: 1, currency: 'usd', source: 'x' }, /ISO-4217/],
+    [{ amount: 1, currency: 'DOLLARS', source: 'x' }, /ISO-4217/],
+    [{ amount: 1, currency: 'USD' }, /cost.source is required/],
+    [{ amount: 1, currency: 'USD', source: '  ' }, /cost.source is required/],
+    [{ amount: 1, currency: 'USD', source: 'x', unit: 'tokens' }, /travel together/],
+    [{ amount: 1, currency: 'USD', source: 'x', quantity: 10 }, /travel together/],
+    [{ amount: 1, currency: 'USD', source: 'x', unit: 'tokens', quantity: -3 }, /non-negative/],
+  ])('refuses %j', (input, message) => {
+    expect(() => normaliseCost(input)).toThrow(message as RegExp);
+    expect(() => normaliseCost(input)).toThrow(InvalidCost);
+  });
+
+  test('zero is a cost; it is not the same as no cost', () => {
+    expect(normaliseCost({ amount: 0, currency: 'USD', source: 'cached' }).amount).toBe(0);
+
+    const { traces } = freshStore();
+    const free = traces.record({ ...sampleExecution(), cost: { amount: 0, currency: 'USD', source: 'cached' } });
+    const unpriced = traces.record(sampleExecution());
+
+    // "It was free, and here is who says so" and "nobody recorded a cost" are
+    // different claims, and the store must keep them apart.
+    expect(free.cost).toEqual({ amount: 0, currency: 'USD', source: 'cached' });
+    expect(unpriced.cost).toBeUndefined();
+    expect(traces.stats().withoutCost).toBe(1);
+  });
+
+  test('a bad cost is refused before the chain moves', () => {
+    const { traces } = freshStore();
+    const before = traces.headHash;
+
+    expect(() => traces.record({ ...sampleExecution(), cost: { amount: 1.5, currency: 'USD', source: 'x' } })).toThrow(InvalidCost);
+    expect(traces.headHash).toBe(before);
+    expect(traces.stats().total).toBe(0);
+  });
+
+  test('keeps the metered unit alongside the money', () => {
+    const priced = normaliseCost({ amount: 1420, currency: 'USD', source: 'meter', unit: ' tokens ', quantity: 8_200_000 });
+    expect(priced).toEqual({ amount: 1420, currency: 'USD', source: 'meter', unit: 'tokens', quantity: 8_200_000 });
+  });
+});
+
+describe('spend attributed to the agent that caused it', () => {
+  const costed = (subject: string, amount: number, currency = 'USD') => ({
+    ...sampleExecution(),
+    subject,
+    cost: { amount, currency, source: 'provider-invoice' },
+  });
+
+  test('groups by subject and reports coverage beside the total', () => {
+    const { traces } = freshStore();
+    traces.record(costed('agent:writer', 1200));
+    traces.record(costed('agent:writer', 300));
+    traces.record({ ...sampleExecution(), subject: 'agent:writer' });
+    traces.record(costed('agent:auditor', 50));
+
+    const spend = traces.costBySubject();
+    expect(spend).toHaveLength(2);
+
+    const writer = spend.find(entry => entry.subject === 'agent:writer')!;
+    expect(writer.currencies).toEqual([{ currency: 'USD', amount: 1500, executions: 2 }]);
+    expect(writer.executions).toBe(3);
+    expect(writer.priced).toBe(2);
+    // The finding is not $15.00. The finding is that a third of what this agent
+    // did carries no figure at all.
+    expect(writer.unpriced).toBe(1);
+    expect(writer.sources).toEqual(['provider-invoice']);
+  });
+
+  test('never adds two currencies together', () => {
+    const { traces } = freshStore();
+    traces.record(costed('agent:a', 1000, 'USD'));
+    traces.record(costed('agent:a', 2000, 'ZAR'));
+
+    const [entry] = traces.costBySubject();
+    expect(entry!.currencies).toEqual([
+      { currency: 'ZAR', amount: 2000, executions: 1 },
+      { currency: 'USD', amount: 1000, executions: 1 },
+    ]);
+    expect(traces.stats().cost).toEqual([
+      { currency: 'ZAR', amount: 2000, executions: 1 },
+      { currency: 'USD', amount: 1000, executions: 1 },
+    ]);
+  });
+
+  test('a subject that has never carried a cost still appears, at zero coverage', () => {
+    const { traces } = freshStore();
+    traces.record({ ...sampleExecution(), subject: 'agent:quiet' });
+
+    const [entry] = traces.costBySubject();
+    // Omitting it would hide an agent that is acting and unaccounted for, which
+    // is the one this call most needs to surface.
+    expect(entry).toMatchObject({ subject: 'agent:quiet', executions: 1, priced: 0, unpriced: 1, currencies: [] });
+  });
+
+  test('reports nothing for a store that has recorded nothing', () => {
+    const { traces } = freshStore();
+    expect(traces.costBySubject()).toEqual([]);
+    expect(traces.stats().cost).toEqual([]);
+    expect(traces.stats().withoutCost).toBe(0);
   });
 });

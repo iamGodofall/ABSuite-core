@@ -131,6 +131,10 @@ const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
   // Null means canonical form v1. Added ahead of any v2 so that changing the
   // canonical form is a code change, not a schema migration during an upgrade.
   ['executions', 'canonical_version', 'INTEGER'],
+  // What an action cost, as the caller claimed it — stored as the signed JSON
+  // and deliberately not also as a numeric column, so no total can be edited
+  // without breaking the hash that proves it.
+  ['executions', 'cost', 'TEXT'],
 ];
 
 export class Storage {

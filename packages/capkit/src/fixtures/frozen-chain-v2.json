@@ -1,0 +1,105 @@
+{
+  "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAHP2e8qpc7ms14xV1s3JT0DtoeFpFZs63IdzxsdAcY9E=\n-----END PUBLIC KEY-----\n",
+  "records": [
+    {
+      "id": "exec_be0cd9e2f63a4e928bbccfeab12c724f",
+      "subject": "agent:reconciler",
+      "jti": "tok_frozen_1",
+      "scope": [
+        "ledger:read"
+      ],
+      "module": "edge-run",
+      "action": "http:GET https://api.example.com/ledger",
+      "inputHash": "362f03294e3b4df6861bfd7b3cad434439b92d8a7f809c0fa36551df4aae456e",
+      "outputHash": "6cbf438f86ce100feb216af0629e565a0a33a1a43ee225f8c877632fe24f727f",
+      "outcome": "success",
+      "startedAt": "2026-08-01T09:00:00.000Z",
+      "completedAt": "2026-08-01T09:00:02.500Z",
+      "durationMs": 2500,
+      "steps": [
+        {
+          "seq": 1,
+          "name": "queued",
+          "at": "2026-08-01T09:00:00.000Z"
+        }
+      ],
+      "prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "hash": "1eaa3e6fa96d37efbc6043031a4cf636f859bca7e8ecd23bbb2b332ff9d84d91",
+      "signature": "F0AImAbHOp6BKTIDjl0iuyY0Y8sT0dB4zvJidTSWNIFldHG+WcOwLBfwvJ1u99HcBAV1xGCyN6qVPcJ7l1TWBA==",
+      "keyId": "frozen-v2-2026-08"
+    },
+    {
+      "id": "exec_9276baeddb814de7843f09a211e82b52",
+      "subject": "agent:writer",
+      "jti": "tok_frozen_2",
+      "scope": [
+        "draft:write"
+      ],
+      "module": "llm",
+      "action": "completion",
+      "inputHash": "7f7ff74f10b652e35823d4676d01b614c88e1ef7046042b4eb66b3f74214d935",
+      "outputHash": "d79ad54c1c3bd137f4c197a560bfbb3c2dc6d4888191d01c6a06c6ff281a0822",
+      "outcome": "success",
+      "startedAt": "2026-08-01T09:05:00.000Z",
+      "completedAt": "2026-08-01T09:05:41.000Z",
+      "durationMs": 41000,
+      "steps": [],
+      "cost": {
+        "amount": 1420,
+        "currency": "USD",
+        "source": "provider-usage-api",
+        "unit": "tokens",
+        "quantity": 8200000
+      },
+      "canonicalVersion": 2,
+      "prevHash": "1eaa3e6fa96d37efbc6043031a4cf636f859bca7e8ecd23bbb2b332ff9d84d91",
+      "hash": "3ac7a51f8be9ad41b85e4755e3327c6b08a0cf681bbc5fa4161d442d48795dc3",
+      "signature": "GpdNIX6+qHH3reOPbiGgqB+XiVh4Se6ynSN1sZ5VJ1NCp3hlLZFEdjIX7SlJUddakorxaPly3Pl4Wx2yhL2pAA==",
+      "keyId": "frozen-v2-2026-08"
+    },
+    {
+      "id": "exec_8f78516282bd4710a562dbddf4a8cdb8",
+      "subject": "agent:payments",
+      "jti": "tok_frozen_3",
+      "scope": [
+        "pay:approve"
+      ],
+      "module": "commerce",
+      "action": "refund",
+      "inputHash": "2c80a7f273f52813da7e3706d6711902a2ca8d759738d1311c1252e31087e3c4",
+      "outputHash": "d7f8be82cb3ec4c1a4c405f65c72943bd80e60d19c9ca3f1489a3bef32b404f6",
+      "outcome": "success",
+      "startedAt": "2026-08-01T09:12:00.000Z",
+      "completedAt": "2026-08-01T09:12:00.800Z",
+      "durationMs": 800,
+      "steps": [
+        {
+          "seq": 1,
+          "name": "policy evaluated",
+          "at": "2026-08-01T09:12:00.100Z",
+          "detail": "under 10000"
+        }
+      ],
+      "governance": {
+        "policyRef": "finance.refunds.max-10000",
+        "policyVersion": "2.1.4",
+        "decision": "PERMITTED",
+        "evidence": [
+          "amountCents 4500 <= 10000",
+          "subject holds pay:approve"
+        ],
+        "evaluatedBy": "finance-policy-service"
+      },
+      "cost": {
+        "amount": 3,
+        "currency": "ZAR",
+        "source": "internal-meter"
+      },
+      "canonicalVersion": 2,
+      "prevHash": "3ac7a51f8be9ad41b85e4755e3327c6b08a0cf681bbc5fa4161d442d48795dc3",
+      "hash": "71253bd330aae2072ea577847ab0f8d52148a71f8bd9b5bd78d33def3c8cc10a",
+      "signature": "URLvXesRapkdQwmXd8JFFr6efINO0p5gIOTLxhkUFVsikIikjYwPYdjvvmNGf6j5hfVL5KVPiJtZiJ9B8PR+Cw==",
+      "keyId": "frozen-v2-2026-08"
+    }
+  ]
+}

@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
+import { formatMoney } from '../money';
 
 type Determination = 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT';
 
@@ -31,6 +32,7 @@ interface Trace {
   durationMs?: number;
   steps?: { seq: number; name: string; at: string; detail?: string }[];
   governance?: { policyRef: string; policyVersion: string; decision: string; evidence: string[]; evaluatedBy?: string };
+  cost?: { amount: number; currency: string; source: string; unit?: string; quantity?: number };
   prevHash: string;
   hash: string;
   signature?: string;
@@ -429,7 +431,37 @@ export const RecordDetail = ({ id, onClose }: { id: string; onClose: () => void 
                   : <span className="text-text-muted">none recorded</span>}
               </dd>
             </div>
+            {/*
+              Cost sits with authority rather than in a panel of its own, because
+              the useful question is not "what did this cost" but "which governed
+              action consumed it, under which authorization". Separating the two
+              turns a governance record back into a billing line.
+            */}
+            <div className="flex gap-3">
+              <dt className="text-text-muted w-28 shrink-0">Cost</dt>
+              <dd className="text-text-primary font-mono tabular-nums">
+                {trace.cost
+                  ? formatMoney(trace.cost.amount, trace.cost.currency)
+                  : <span className="text-text-muted">none recorded</span>}
+              </dd>
+            </div>
           </dl>
+
+          {trace.cost && (
+            <div className="mt-3 rounded-lg border border-border bg-bg-primary/40 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-text-muted mb-1.5">Where the figure came from</div>
+              <p className="text-[11px] text-text-muted font-mono">· claimed by {trace.cost.source}</p>
+              {trace.cost.unit && trace.cost.quantity !== undefined && (
+                <p className="text-[11px] text-text-muted font-mono">
+                  · {trace.cost.quantity.toLocaleString('en-US')} {trace.cost.unit}
+                </p>
+              )}
+              <p className="text-[11px] text-text-muted/80 mt-2 leading-snug">
+                ABSuite measured none of this. The figure is a claim recorded by the caller and signed with
+                the rest of the record — so it is attributable, and changing it now breaks the chain.
+              </p>
+            </div>
+          )}
 
           {trace.governance && (
             <div className="mt-3 rounded-lg border border-border bg-bg-primary/40 p-3">

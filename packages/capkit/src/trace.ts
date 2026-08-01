@@ -56,6 +56,41 @@ export interface GovernanceRecord {
   evaluatedBy?: string;
 }
 
+/**
+ * What an action cost, and who says so.
+ *
+ * ABSuite meters nothing. It does not watch a GPU, hold a billing account, or
+ * know what a provider charges. So a cost here is not a measurement — it is a
+ * *claim*, made by whoever recorded the execution, signed into the record so
+ * that the claim can be attributed later and cannot be quietly revised.
+ *
+ * That is the entire value on offer, and it is narrower and more useful than a
+ * dashboard of gauges: not "what is the cluster spending", which somebody else's
+ * product already answers, but **which governed action consumed this, under
+ * which authorization, producing which outcome** — with a record that proves the
+ * figure has not moved since it was written.
+ *
+ * `source` is required for that reason. A number with no author is a rumour.
+ */
+export interface CostRecord {
+  /**
+   * Integer minor units of `currency` — 1420 is $14.20.
+   *
+   * Money is never a float here. `0.1 + 0.2` is the oldest bug in accounting
+   * software, and a spend figure that drifts in the eleventh decimal is a spend
+   * figure an auditor is entitled to reject.
+   */
+  amount: number;
+  /** ISO-4217 alphabetic code, uppercase. A number without one is not a cost. */
+  currency: string;
+  /** Who asserted the figure — a provider, a meter, a finance system, a person. */
+  source: string;
+  /** What was metered, when the caller knows: "tokens", "gpu-seconds", "calls". */
+  unit?: string;
+  /** How many of `unit`. Present only with a unit; neither implies the other's value. */
+  quantity?: number;
+}
+
 export interface ExecutionTrace {
   id: string;
   tenantId?: string;
@@ -76,6 +111,8 @@ export interface ExecutionTrace {
   steps: ExecutionStep[];
   /** The rule that permitted this, when the caller recorded one. */
   governance?: GovernanceRecord;
+  /** What it cost, when the caller recorded a figure. Signed with the rest. */
+  cost?: CostRecord;
   /**
    * Canonical form this record was written with. Absent means v1.
    *
@@ -125,10 +162,27 @@ function canonicalReplacer(_key: string, value: unknown): unknown {
  * below, plus governance appended only when present. Nothing may be reordered,
  * removed or defaulted into it, ever.
  */
-export const CANONICAL_VERSION = 1;
+export const CANONICAL_VERSION = 2;
 
 /** Every form this build can verify. Old versions are never dropped. */
-export const SUPPORTED_CANONICAL_VERSIONS: readonly number[] = [1];
+export const SUPPORTED_CANONICAL_VERSIONS: readonly number[] = [1, 2];
+
+/**
+ * The smallest form that can express a record.
+ *
+ * A record is written in the oldest canonical form capable of carrying its
+ * fields, not in the newest form this build knows. That distinction matters to
+ * everyone already running ABSuite: upgrading the library must not silently
+ * start writing records their existing auditors, verifiers and archived copies
+ * of capkit can no longer read.
+ *
+ * So a record with no cost is still v1 — byte-identical to what this build
+ * wrote yesterday — and only a record that actually uses v2's one new field
+ * asks for a v2 verifier. Nobody pays for a feature they did not use.
+ */
+export function minimumCanonicalVersion(trace: { cost?: CostRecord }): number {
+  return trace.cost ? 2 : 1;
+}
 
 /**
  * Which canonical form a record was written with.
@@ -155,6 +209,21 @@ export class UnsupportedCanonicalVersion extends Error {
 }
 
 /**
+ * Thrown when a record's declared form cannot express the record's own fields.
+ *
+ * Distinct from `UnsupportedCanonicalVersion` on purpose. That one means "this
+ * build is too old to read you". This one means "you are internally
+ * inconsistent" — and a reader must never confuse the two, because the first is
+ * fixed by upgrading and the second by whoever wrote the record.
+ */
+export class MalformedCanonicalRecord extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MalformedCanonicalRecord';
+  }
+}
+
+/**
  * Canonical form of a trace, in a fixed field order.
  *
  * `hash` and `signature` are excluded — they are derived from this, so
@@ -169,11 +238,23 @@ export function canonicalTrace(trace: Omit<ExecutionTrace, 'hash' | 'signature'>
   if (!SUPPORTED_CANONICAL_VERSIONS.includes(version)) {
     throw new UnsupportedCanonicalVersion(version);
   }
-  return canonicalV1(trace);
+  return version === 1 ? canonicalV1(trace) : canonicalV2(trace);
 }
 
 /** v1 — frozen January 2026. Never edit this function. */
 function canonicalV1(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string {
+  // A form must refuse what it cannot express. v1 has no slot for cost, so
+  // canonicalising a costed record as v1 would leave the figure outside the
+  // hash — signed nowhere, removable by anyone, and still displayed as evidence.
+  // Silently dropping a field is the worst available outcome; this is the whole
+  // reason a version marker exists.
+  if (trace.cost) {
+    throw new MalformedCanonicalRecord(
+      'This record carries a cost but declares canonical form v1, which has no slot for one. ' +
+        'Hashing it as v1 would leave the figure outside the signature. A costed record must declare v2.'
+    );
+  }
+
   const fields: unknown[] = [
     trace.id,
     trace.tenantId ?? null,
@@ -213,6 +294,62 @@ function canonicalV1(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string 
   }
 
   return JSON.stringify(fields);
+}
+
+/**
+ * v2 — adds cost. Frozen on the day the first v2 record was signed.
+ *
+ * Two things changed from v1, and both are deliberate.
+ *
+ * The version number is the **first element**, so it is inside the hash and
+ * therefore inside the signature. An unsigned version marker would let anyone
+ * change how a record is verified by editing one integer, which is the same as
+ * having no marker at all.
+ *
+ * Every slot is **always present**, `null` when empty — no conditional appends.
+ * v1 grew governance by appending it only when it existed, which was the only
+ * safe move against records already in the wild but leaves the array length
+ * carrying meaning. With optional fields at two slots that stops being
+ * unambiguous, so v2 fixes the shape at nineteen elements and never varies it.
+ */
+function canonicalV2(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string {
+  return JSON.stringify([
+    2,
+    trace.id,
+    trace.tenantId ?? null,
+    trace.subject,
+    trace.jti ?? null,
+    [...trace.scope].sort(),
+    trace.module,
+    trace.action,
+    trace.inputHash,
+    trace.outputHash ?? null,
+    trace.outcome,
+    trace.error ?? null,
+    trace.startedAt,
+    trace.completedAt ?? null,
+    trace.durationMs ?? null,
+    trace.steps.map(step => [step.seq, step.name, step.at, step.detail ?? null]),
+    trace.prevHash,
+    trace.governance
+      ? [
+          trace.governance.policyRef,
+          trace.governance.policyVersion,
+          trace.governance.decision,
+          [...trace.governance.evidence],
+          trace.governance.evaluatedBy ?? null,
+        ]
+      : null,
+    trace.cost
+      ? [
+          trace.cost.amount,
+          trace.cost.currency,
+          trace.cost.source,
+          trace.cost.unit ?? null,
+          trace.cost.quantity ?? null,
+        ]
+      : null,
+  ]);
 }
 
 export function hashTrace(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): string {
@@ -275,6 +412,81 @@ export class SigningKey {
   }
 }
 
+/** Thrown when a cost cannot be recorded as stated. Carries a sentence, not a code. */
+export class InvalidCost extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidCost';
+  }
+}
+
+/**
+ * Check a cost claim before it is signed into a record that cannot be edited.
+ *
+ * Everything here is refused rather than repaired. A cost is about to become
+ * permanent evidence, and the moment this function starts guessing — rounding a
+ * float, defaulting a currency, inferring a source — the record stops being a
+ * statement the caller made and becomes one this library made up on their
+ * behalf. Every rejection below names what was wrong and what to send instead.
+ */
+export function normaliseCost(value: unknown): CostRecord {
+  if (!value || typeof value !== 'object') {
+    throw new InvalidCost('cost must be an object with amount, currency and source.');
+  }
+  const { amount, currency, source, unit, quantity } = value as Record<string, unknown>;
+
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+    throw new InvalidCost('cost.amount must be a finite number of minor units — 1420 for $14.20.');
+  }
+  if (!Number.isInteger(amount)) {
+    // Not rounded for them. Whoever holds the invoice decides how a fraction of
+    // a cent becomes a cent; a library that picks silently is inventing money.
+    throw new InvalidCost(
+      `cost.amount must be an integer number of minor units, and ${amount} is not. ` +
+        'Money is never stored as a float here. Round it yourself, so the rounding is your decision and not this library\'s.'
+    );
+  }
+  if (amount < 0) {
+    // A refund is a thing that happened, so it is its own execution with its own
+    // authorization. Folding it into a negative here would let spend be reduced
+    // by rewriting history rather than by recording an event.
+    throw new InvalidCost('cost.amount cannot be negative. A credit or refund is its own execution, not a negative one.');
+  }
+
+  if (typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency)) {
+    throw new InvalidCost(
+      `cost.currency must be a three-letter ISO-4217 code in upper case, such as USD or ZAR. Received ${JSON.stringify(currency)}. ` +
+        'An amount with no currency cannot be added to anything.'
+    );
+  }
+
+  if (typeof source !== 'string' || source.trim() === '') {
+    throw new InvalidCost(
+      'cost.source is required: name who asserted this figure — a provider, a meter, a finance system. ' +
+        'ABSuite measures nothing, so an unattributed number would be a rumour carrying a signature.'
+    );
+  }
+
+  const hasUnit = unit !== undefined && unit !== null;
+  const hasQuantity = quantity !== undefined && quantity !== null;
+  if (hasUnit !== hasQuantity) {
+    throw new InvalidCost('cost.unit and cost.quantity travel together: a quantity of nothing, or a unit of no amount, states nothing.');
+  }
+  if (hasUnit && (typeof unit !== 'string' || unit.trim() === '')) {
+    throw new InvalidCost('cost.unit must name what was metered, such as "tokens" or "gpu-seconds".');
+  }
+  if (hasQuantity && (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity < 0)) {
+    throw new InvalidCost('cost.quantity must be a finite, non-negative number.');
+  }
+
+  return {
+    amount,
+    currency,
+    source: source.trim(),
+    ...(hasUnit ? { unit: (unit as string).trim(), quantity: quantity as number } : {}),
+  };
+}
+
 export function verifySignature(hashHex: string, signatureBase64: string, publicKeyPem: string): boolean {
   try {
     return cryptoVerify(
@@ -334,6 +546,12 @@ export function verifyTrace(trace: ExecutionTrace, publicKeyPem?: string): Trace
         contentIntact: null,
         signatureValid: null,
       };
+    }
+    if (error instanceof MalformedCanonicalRecord) {
+      // Also not tampering, and also not a verdict on the content — this record
+      // never had a well-defined hash to check against. Saying "invalid" without
+      // saying why would send someone looking for an intruder.
+      return { valid: false, checkable: false, reason: error.message, contentIntact: null, signatureValid: null };
     }
     throw error;
   }
@@ -451,6 +669,11 @@ export class TraceStore {
       ? input.durationMs
       : elapsedBetween(startedAt, input.completedAt);
 
+    // Validated before anything is chained, so a rejected cost cannot leave a
+    // half-written record or advance the chain head.
+    const cost = input.cost === undefined || input.cost === null ? undefined : normaliseCost(input.cost);
+    const canonicalVersion = minimumCanonicalVersion({ ...(cost ? { cost } : {}) });
+
     return this.storage.transaction(() => {
       const { hash: prevHash, seq } = this.headHashAndSeq();
 
@@ -474,9 +697,14 @@ export class TraceStore {
         // everything else. A policy reference nobody could verify would be a
         // claim about authority with no more standing than a log line.
         ...(input.governance ? { governance: input.governance } : {}),
-        // Deliberately omitted at v1: absence is v1, which keeps every record
-        // written before versioning existed byte-identical.
-        ...(CANONICAL_VERSION > 1 ? { canonicalVersion: CANONICAL_VERSION } : {}),
+        // Signed with everything else. A cost outside the signature would be a
+        // spend figure anyone could revise after the fact, which is precisely
+        // the number nobody would then be able to rely on.
+        ...(cost ? { cost } : {}),
+        // Omitted at v1: absence *is* v1, which keeps every record written
+        // before versioning existed byte-identical. Written only when this
+        // record actually needs a newer form to express itself.
+        ...(canonicalVersion > 1 ? { canonicalVersion } : {}),
         prevHash,
       };
 
@@ -491,13 +719,19 @@ export class TraceStore {
       };
 
       this.storage.run(
-        `INSERT INTO executions (id, seq, tenant_id, subject, jti, scope, module, action, input_hash, output_hash, outcome, error, started_at, completed_at, duration_ms, steps, governance, canonical_version, prev_hash, hash, signature, key_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        // Cost is stored once, as the signed JSON, and never also as a numeric
+        // column. A denormalised total would be faster to sum and free to edit —
+        // and an operator who changed it would move every figure this product
+        // reports while the chain still verified perfectly. Aggregation reads
+        // the evidence itself or it is not evidence.
+        `INSERT INTO executions (id, seq, tenant_id, subject, jti, scope, module, action, input_hash, output_hash, outcome, error, started_at, completed_at, duration_ms, steps, governance, cost, canonical_version, prev_hash, hash, signature, key_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         trace.id, seq + 1, trace.tenantId ?? null, trace.subject, trace.jti ?? null,
         JSON.stringify(trace.scope), trace.module, trace.action, trace.inputHash,
         trace.outputHash ?? null, trace.outcome, trace.error ?? null,
         trace.startedAt, trace.completedAt ?? null, trace.durationMs ?? null,
         JSON.stringify(trace.steps), trace.governance ? JSON.stringify(trace.governance) : null,
+        trace.cost ? JSON.stringify(trace.cost) : null,
         trace.canonicalVersion ?? null, trace.prevHash, trace.hash,
         trace.signature ?? null, trace.keyId ?? null
       );
@@ -552,6 +786,8 @@ export class TraceStore {
     oldest?: string;
     newest?: string;
     withoutScope: number;
+    withoutCost: number;
+    cost: { currency: string; amount: number; executions: number }[];
   } {
     const since = new Date(Date.now() - windowHours * 3600_000).toISOString();
     const one = <T>(sql: string, ...params: unknown[]): T =>
@@ -574,7 +810,116 @@ export class TraceStore {
       // checked".
       withoutScope:
         one<number>("SELECT COUNT(*) AS value FROM executions WHERE scope IS NULL OR scope = '' OR scope = '[]'") ?? 0,
+      // The same reasoning as withoutScope, applied to money. A spend total is
+      // only as meaningful as the share of the log it covers, so the two are
+      // returned together and neither is available without the other.
+      withoutCost: one<number>('SELECT COUNT(*) AS value FROM executions WHERE cost IS NULL') ?? 0,
+      cost: this.costTotals(),
     };
+  }
+
+  /** Signed spend, one total per currency. Never converted, never combined. */
+  private costTotals(): { currency: string; amount: number; executions: number }[] {
+    const totals = new Map<string, { amount: number; executions: number }>();
+
+    for (const row of this.storage.all<Record<string, unknown>>('SELECT cost FROM executions WHERE cost IS NOT NULL')) {
+      const cost = safeParse<CostRecord | null>(row.cost, null);
+      if (!cost || !Number.isInteger(cost.amount) || typeof cost.currency !== 'string') continue;
+      const bucket = totals.get(cost.currency) ?? { amount: 0, executions: 0 };
+      bucket.amount += cost.amount;
+      bucket.executions += 1;
+      totals.set(cost.currency, bucket);
+    }
+
+    return [...totals.entries()]
+      .map(([currency, bucket]) => ({ currency, ...bucket }))
+      .sort((a, b) => b.amount - a.amount || a.currency.localeCompare(b.currency));
+  }
+
+  /**
+   * Spend, attributed to the agent that caused it.
+   *
+   * This is the question a compute dashboard cannot answer and a governance log
+   * can: not *what did the cluster cost*, but **which agent spent it, under
+   * which scope, and how much of the bill can be attributed at all**.
+   *
+   * Three rules hold here, and each exists because the obvious shortcut is a lie:
+   *
+   * **Currencies are never merged.** Totals come back one per currency, because
+   * nothing in a record states an exchange rate, and a converted figure would be
+   * a number ABSuite invented at read time from a rate nobody signed.
+   *
+   * **Coverage is reported beside every total.** `priced` and `unpriced` are the
+   * point of this call, not a footnote: a spend figure covering 12 of 4,000
+   * executions is not a small figure, it is an unknown one. Anything that shows
+   * the total without the coverage is showing a number that reads as complete.
+   *
+   * **Nothing is projected.** No monthly run rate, no annualisation, no
+   * forecast. Those are all this record multiplied by an assumption.
+   */
+  costBySubject(): {
+    subject: string;
+    executions: number;
+    priced: number;
+    unpriced: number;
+    lastSeen: string;
+    currencies: { currency: string; amount: number; executions: number }[];
+    sources: string[];
+  }[] {
+    const rows = this.storage.all<Record<string, unknown>>(
+      'SELECT subject, cost, started_at FROM executions'
+    );
+
+    type Entry = {
+      executions: number;
+      priced: number;
+      lastSeen: string;
+      currencies: Map<string, { amount: number; executions: number }>;
+      sources: Set<string>;
+    };
+    const bySubject = new Map<string, Entry>();
+
+    for (const row of rows) {
+      const subject = String(row.subject);
+      const entry = bySubject.get(subject) ?? {
+        executions: 0, priced: 0, lastSeen: '', currencies: new Map(), sources: new Set<string>(),
+      };
+
+      entry.executions += 1;
+      const startedAt = String(row.started_at ?? '');
+      if (startedAt > entry.lastSeen) entry.lastSeen = startedAt;
+
+      const cost = row.cost ? safeParse<CostRecord | null>(row.cost, null) : null;
+      // A cost that will not parse, or that lost a field, is counted as
+      // unpriced rather than as zero. Zero is a claim that it was free.
+      if (cost && Number.isInteger(cost.amount) && typeof cost.currency === 'string') {
+        entry.priced += 1;
+        const bucket = entry.currencies.get(cost.currency) ?? { amount: 0, executions: 0 };
+        bucket.amount += cost.amount;
+        bucket.executions += 1;
+        entry.currencies.set(cost.currency, bucket);
+        if (cost.source) entry.sources.add(cost.source);
+      }
+
+      bySubject.set(subject, entry);
+    }
+
+    return [...bySubject.entries()]
+      .map(([subject, entry]) => ({
+        subject,
+        executions: entry.executions,
+        priced: entry.priced,
+        unpriced: entry.executions - entry.priced,
+        lastSeen: entry.lastSeen,
+        currencies: [...entry.currencies.entries()]
+          .map(([currency, bucket]) => ({ currency, ...bucket }))
+          .sort((a, b) => b.amount - a.amount || a.currency.localeCompare(b.currency)),
+        sources: [...entry.sources].sort(),
+      }))
+      // Ordered by the largest single-currency total a subject carries. Sorting
+      // by a summed total would require adding currencies together, which is the
+      // one thing this method refuses to do — even invisibly, even just to sort.
+      .sort((a, b) => (b.currencies[0]?.amount ?? -1) - (a.currencies[0]?.amount ?? -1) || a.subject.localeCompare(b.subject));
   }
 
   /**
@@ -762,6 +1107,7 @@ function rowToTrace(row: Record<string, unknown>): ExecutionTrace {
     ...(row.duration_ms !== null && row.duration_ms !== undefined ? { durationMs: Number(row.duration_ms) } : {}),
     steps: safeParse<ExecutionStep[]>(row.steps, []),
     ...(row.governance ? { governance: safeParse<GovernanceRecord>(row.governance, undefined as never) } : {}),
+    ...(row.cost ? { cost: safeParse<CostRecord>(row.cost, undefined as never) } : {}),
     ...(row.canonical_version ? { canonicalVersion: Number(row.canonical_version) } : {}),
     prevHash: String(row.prev_hash),
     hash: String(row.hash),

@@ -101,6 +101,9 @@ const DAY = [
     input: { query: 'supplier insolvency filings Q3' },
     output: { results: 12 },
     steps: ['plan_query', 'fetch', 'rank'],
+    // Costed, and attributed to whoever said so. ABSuite meters nothing; the
+    // figure is a claim the caller recorded, signed with the rest of the record.
+    cost: { amount: 84, currency: 'USD', source: 'provider-usage-api', unit: 'tokens', quantity: 41_200 },
   },
   {
     // No scope recorded. Govern reports this as unscoped rather than hiding it,
@@ -110,6 +113,10 @@ const DAY = [
     input: { documents: 12 },
     output: { summary: 'sha256-only' },
     steps: ['collect', 'summarise'],
+    // The expensive one, and the one with no scope. That pairing is the whole
+    // argument for putting cost on the record: this agent's largest spend is
+    // also the action nobody can show was permitted.
+    cost: { amount: 1_812, currency: 'USD', source: 'provider-usage-api', unit: 'tokens', quantity: 884_000 },
   },
   {
     // No steps. A record can be honest and still be thin, and the timeline
@@ -119,6 +126,9 @@ const DAY = [
     input: { day: '2026-07-29' },
     output: { discrepancies: 0 },
     steps: [],
+    // A second currency, never added to the first. No record carries an
+    // exchange rate, so nothing here may combine them.
+    cost: { amount: 3_450, currency: 'ZAR', source: 'internal-meter', unit: 'gpu-seconds', quantity: 128 },
   },
   {
     subject: 'agent:reconciler', scope: ['ledger:read', 'ledger:flag'], module: 'ledger',
@@ -150,6 +160,10 @@ for (const act of DAY) {
     // Steps land a few seconds apart, so the gaps between them are real
     // intervals a timeline can show rather than evenly spaced decoration.
     steps: act.steps.map((name, i) => ({ seq: i + 1, name, at: at(act.offset + i * 3 + 1) })),
+    // Only some records carry one — six of the nine do not. An instance where
+    // every action is priced would show a spend total that looks complete, and
+    // hide the reading that actually matters: how much of the log it covers.
+    ...(act.cost ? { cost: act.cost } : {}),
   });
   n += 1;
 }
@@ -160,4 +174,9 @@ console.log(`  outcomes  : ${DAY.filter(a => a.outcome === 'success').length} su
 console.log(`  unscoped  : ${DAY.filter(a => a.scope.length === 0).length}`);
 console.log(`  steps      : ${DAY.reduce((t, a) => t + a.steps.length, 0)} across ${DAY.filter(a => a.steps.length).length} records`);
 console.log(`  chain     : ${chain.valid ? 'valid' : 'BROKEN'}, ${chain.checked} verified`);
+const costed = DAY.filter(a => a.cost);
+const byCurrency = new Map();
+for (const a of costed) byCurrency.set(a.cost.currency, (byCurrency.get(a.cost.currency) ?? 0) + a.cost.amount);
+console.log(`  cost      : ${costed.length} of ${DAY.length} records priced, in ${[...byCurrency].map(([c, amount]) => `${(amount / 100).toFixed(2)} ${c}`).join(' and ')}`);
+
 console.log(`\nThe events are fictional. The signatures are not — edit any record and the chain names it.`);

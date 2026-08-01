@@ -22,6 +22,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
+import { formatMoney } from '../money';
+
+interface SubjectSpend {
+  subject: string;
+  priced: number;
+  unpriced: number;
+  currencies: { currency: string; amount: number; executions: number }[];
+  sources: string[];
+}
 
 interface SubjectAuthority {
   subject: string;
@@ -46,6 +55,14 @@ interface Row {
   ungoverned: number;
   scopes: { scope: string; count: number }[];
   unproven: number;
+  spend?: SubjectSpend;
+}
+
+interface Coverage {
+  records: number;
+  priced: number;
+  unpriced: number;
+  meaning: string;
 }
 
 const adminHeaders = (): HeadersInit => {
@@ -58,14 +75,16 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
   const [rows, setRows] = useState<Row[] | null>(null);
   const [records, setRecords] = useState<Record_[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const [authorityRes, recordsRes] = await Promise.all([
+      const [authorityRes, recordsRes, costRes] = await Promise.all([
         fetch('/executions/authority', { headers: adminHeaders() }),
         fetch('/executions?limit=200', { headers: adminHeaders() }),
+        fetch('/executions/cost', { headers: adminHeaders() }),
       ]);
 
       if (!authorityRes.ok) {
@@ -77,6 +96,15 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
       const authority = ((await authorityRes.json()) as { subjects: SubjectAuthority[] }).subjects ?? [];
       const all = recordsRes.ok ? ((await recordsRes.json()) as { executions: Record_[] }).executions ?? [] : [];
       setRecords(all);
+
+      // Spend is loaded beside authority, not instead of it. If this call fails
+      // the screen still answers its own question; it simply says nothing about
+      // money rather than reporting zero, which would be a different claim.
+      const spend = costRes.ok
+        ? ((await costRes.json()) as { coverage: Coverage; subjects: SubjectSpend[] })
+        : null;
+      setCoverage(spend?.coverage ?? null);
+      const spendBySubject = new Map((spend?.subjects ?? []).map(entry => [entry.subject, entry]));
 
       const built = authority.map(entry => {
         const mine = all.filter(record => record.subject === entry.subject);
@@ -91,6 +119,7 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
           ungoverned,
           scopes: entry.scopes,
           unproven: entry.unscoped + failures + ungoverned,
+          ...(spendBySubject.has(entry.subject) ? { spend: spendBySubject.get(entry.subject)! } : {}),
         };
       });
 
@@ -117,6 +146,31 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
           judgement, not ABSuite's.
         </p>
       </div>
+
+      {/*
+        Spend, stated as coverage first.
+        A figure on its own reads as the bill. This one is a sum over whichever
+        records happened to carry a cost, and the share it covers is the part a
+        reader needs before the amount means anything — so the sentence comes
+        before the number, and the number never appears without it.
+      */}
+      {coverage && coverage.records > 0 && (
+        <div className="rounded-xl border border-border bg-bg-secondary p-4">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className="text-sm font-semibold text-text-primary">What it cost, and who spent it</h3>
+            <span className="text-[11px] font-mono text-text-muted">
+              {coverage.priced.toLocaleString('en-US')} of {coverage.records.toLocaleString('en-US')} records priced
+            </span>
+          </div>
+          <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-3xl">{coverage.meaning}</p>
+          <p className="text-[11px] text-text-muted/70 mt-2 leading-relaxed max-w-3xl">
+            ABSuite meters nothing. Every figure below is a claim the caller recorded, attributed to the
+            source named on it and signed into the record — so it can be pointed at later, and cannot be
+            revised afterwards without breaking the chain. Currencies are shown separately; no record
+            carries an exchange rate, so there is no combined total to give.
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.06] p-4">
@@ -162,6 +216,23 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
                     </span>
 
                     <span className="ml-auto flex items-center gap-2 flex-wrap">
+                      {/*
+                        One badge per currency, never a sum across them. The
+                        unpriced count sits beside the money deliberately: an
+                        agent showing $18.12 over two of its nine actions has not
+                        been shown to have spent $18.12.
+                      */}
+                      {row.spend?.currencies.map(total => (
+                        <span key={total.currency}
+                          className="text-[10px] font-mono px-2 py-0.5 rounded border border-[#00D9FF]/30 text-[#00D9FF] tabular-nums">
+                          {formatMoney(total.amount, total.currency)}
+                        </span>
+                      ))}
+                      {row.spend && row.spend.priced > 0 && row.spend.unpriced > 0 && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border text-text-muted">
+                          {row.spend.unpriced} unpriced
+                        </span>
+                      )}
                       {row.unscoped > 0 && (
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-amber-500/30 text-amber-400">
                           {row.unscoped} unscoped
@@ -184,6 +255,12 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
                       )}
                     </span>
                   </div>
+
+                  {row.spend && row.spend.sources.length > 0 && (
+                    <div className="mt-2 pl-5 text-[10px] font-mono text-text-muted/70">
+                      figures from {row.spend.sources.join(', ')}
+                    </div>
+                  )}
 
                   {row.scopes.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2 pl-5">

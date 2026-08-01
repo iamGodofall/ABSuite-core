@@ -79,3 +79,91 @@ describe('records signed by an earlier version of ABSuite', () => {
     expect(verifyTrace(stripped as ExecutionTrace, fixture.publicKeyPem).contentIntact).toBe(false);
   });
 });
+
+/**
+ * The same promise, made again for canonical form v2.
+ *
+ * v2 added cost. These three records were signed on the day it shipped and are
+ * never regenerated, for exactly the reason above — and for one more that only
+ * applies from v2 onward.
+ *
+ * v2 is the first form that is *chosen* rather than assumed. A record is written
+ * as v1 unless it carries a cost, so the first record here is v1 and the other
+ * two are v2, in one chain, verified by one walk. If a future change ever starts
+ * writing v2 for everything, this fixture's first record still says v1 and every
+ * old deployment's archive stays readable. That is the whole point of freezing a
+ * mixed chain rather than three identical records.
+ */
+const v2 = JSON.parse(
+  readFileSync(join(__dirname, 'fixtures', 'frozen-chain-v2.json'), 'utf8')
+) as { publicKeyPem: string; records: ExecutionTrace[] };
+
+describe('records signed under canonical form v2', () => {
+  test('still verify, content and signature', () => {
+    expect(v2.records).toHaveLength(3);
+
+    for (const record of v2.records) {
+      const verdict = verifyTrace(record, v2.publicKeyPem);
+      expect(verdict.contentIntact).toBe(true);
+      expect(verdict.signatureValid).toBe(true);
+      expect(verdict.valid).toBe(true);
+    }
+  });
+
+  test('their hashes are byte-for-byte what was recorded', () => {
+    for (const record of v2.records) {
+      const { hash, signature, ...unhashed } = record;
+      expect(signature).toBeTruthy();
+      expect(hashTrace(unhashed)).toBe(hash);
+    }
+  });
+
+  test('one chain holds both forms, and links across the boundary', () => {
+    expect(v2.records.map(record => record.canonicalVersion ?? 1)).toEqual([1, 2, 2]);
+
+    let expectedPrev = GENESIS_HASH;
+    for (const record of v2.records) {
+      expect(record.prevHash).toBe(expectedPrev);
+      expectedPrev = record.hash;
+    }
+  });
+
+  test('a record that carries no cost was written as v1, and must stay that way', () => {
+    const uncosted = v2.records[0]!;
+
+    // Upgrading capkit must not change the form of a record that uses nothing
+    // new. If this ever fails, every existing deployment has just started
+    // writing records their own auditors cannot read.
+    expect(uncosted.cost).toBeUndefined();
+    expect(uncosted.canonicalVersion).toBeUndefined();
+  });
+
+  test('the cost is inside the signature, not beside it', () => {
+    const costed = v2.records[1]!;
+    expect(costed.cost).toEqual({
+      amount: 1420, currency: 'USD', source: 'provider-usage-api', unit: 'tokens', quantity: 8_200_000,
+    });
+
+    // Revising the figure after the fact must break the record.
+    const cheaper = { ...costed, cost: { ...costed.cost!, amount: 1 } };
+    expect(verifyTrace(cheaper as ExecutionTrace, v2.publicKeyPem).contentIntact).toBe(false);
+
+    // So must deleting it. Spend that can be quietly dropped is not evidence.
+    const { cost, ...stripped } = costed;
+    expect(cost).toBeDefined();
+    expect(verifyTrace(stripped as ExecutionTrace, v2.publicKeyPem).contentIntact).toBe(false);
+  });
+
+  test('a v2 record carries governance and cost at fixed slots, not by length', () => {
+    const both = v2.records[2]!;
+    expect(both.governance?.policyRef).toBe('finance.refunds.max-10000');
+    expect(both.cost).toEqual({ amount: 3, currency: 'ZAR', source: 'internal-meter' });
+
+    // Either one removed alone must break it. Under v1 the two would have shared
+    // a slot by position; under v2 they cannot be confused for one another.
+    const { governance, ...withoutRule } = both;
+    const { cost, ...withoutCost } = both;
+    expect(verifyTrace(withoutRule as ExecutionTrace, v2.publicKeyPem).contentIntact).toBe(false);
+    expect(verifyTrace(withoutCost as ExecutionTrace, v2.publicKeyPem).contentIntact).toBe(false);
+  });
+});

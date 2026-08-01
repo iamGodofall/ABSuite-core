@@ -19,7 +19,7 @@ import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
 import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './billing';
 import { createServiceMetrics } from './metrics';
-import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, CANONICAL_VERSION, type GovernanceRecord } from './trace';
+import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord } from './trace';
 import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
 import { determineTrace } from './determination';
@@ -177,15 +177,21 @@ function generated(scope: string): {
   version: string;
   at: string;
   canonicalVersion: number;
+  canonicalVersionsVerified: readonly number[];
   scope: string;
 } {
   return {
     service: 'capkit',
     version: VERSION,
     at: new Date().toISOString(),
-    // Which canonical form this build writes, so a future reader knows what
-    // rules the records underneath were verified against.
+    // The newest form this build writes. Not every record underneath is in it —
+    // a record is written in the oldest form that can carry its fields — so this
+    // is the ceiling, not a description of the log.
     canonicalVersion: CANONICAL_VERSION,
+    // What the records underneath were actually verified against. Reporting only
+    // the ceiling would imply a uniformity the log does not have, and a reader in
+    // 2046 holding just this file needs to know which rules were in play.
+    canonicalVersionsVerified: SUPPORTED_CANONICAL_VERSIONS,
     scope,
   };
 }
@@ -575,7 +581,7 @@ app.get('/executions/public-key', (_req, res) => {
 });
 
 app.post('/executions', authorise('execution:record'), (req, res) => {
-  const { subject, jti, scope, module, action, input, output, outcome, error, startedAt, completedAt, durationMs, steps, governance } = req.body ?? {};
+  const { subject, jti, scope, module, action, input, output, outcome, error, startedAt, completedAt, durationMs, steps, governance, cost } = req.body ?? {};
 
   if (!subject || !module || !action || !outcome) {
     return fail(res, 400, 'INVALID_REQUEST', 'subject, module, action and outcome are required');
@@ -605,6 +611,19 @@ app.post('/executions', authorise('execution:record'), (req, res) => {
     };
   }
 
+  // What it cost, when the caller states one. Rejected loudly rather than
+  // coerced: the figure is about to be signed into a record that cannot be
+  // edited, and normaliseCost already carries the sentence explaining what was
+  // wrong with it, so it is passed straight through to the caller.
+  let costRecord: CostRecord | undefined;
+  if (cost !== undefined && cost !== null) {
+    try {
+      costRecord = normaliseCost(cost);
+    } catch (invalid) {
+      return fail(res, 400, 'INVALID_REQUEST', (invalid as Error).message);
+    }
+  }
+
   const tenant = (req as TenantRequest).tenant;
 
   const trace = traces.record({
@@ -626,6 +645,7 @@ app.post('/executions', authorise('execution:record'), (req, res) => {
     ...(durationMs !== undefined ? { durationMs: Number(durationMs) } : {}),
     steps: Array.isArray(steps) ? steps : [],
     ...(governanceRecord ? { governance: governanceRecord } : {}),
+    ...(costRecord ? { cost: costRecord } : {}),
   });
 
   metrics.increment('absuite_executions_total', { outcome: trace.outcome, module: trace.module });
@@ -678,6 +698,52 @@ app.get('/executions/stats', authorise('execution:read'), (req, res) => {
       { field: 'activeAgents', because: 'A subject that acted once is not an agent that is running. Nothing here reports liveness.' },
       { field: 'incidents', because: 'An incident is a judgement. ABSuite records what happened and flags what warrants a look; it does not declare incidents.' },
       { field: 'openDisputes', because: 'Arbitrations are answered on request and not persisted, so there is no count to give.' },
+    ],
+  });
+});
+
+/**
+ * Spend, attributed to the agent that caused it.
+ *
+ * The question this exists to answer is *"which agent spent that, and under what
+ * authority?"* — not *"what is the cluster costing?"*. The difference is the
+ * whole product: a utilisation gauge tells an operator a number, and this tells
+ * them a subject, a scope, and a signed record they can hand to someone else.
+ *
+ * The response leads with coverage rather than with the total, deliberately.
+ * Sending a figure first invites it to be read as the bill; every deployment
+ * starts with zero costed records, and a screen that says "$0.00" when it means
+ * "nobody has recorded a cost yet" is the exact failure this repository exists
+ * to refuse.
+ */
+app.get('/executions/cost', authorise('execution:read'), (_req, res) => {
+  const subjects = traces.costBySubject();
+  const stats = traces.stats();
+  const priced = stats.total - stats.withoutCost;
+
+  res.status(200).json({
+    generated: generated(`${priced} of ${stats.total} record(s) that carry a signed cost`),
+    coverage: {
+      records: stats.total,
+      priced,
+      unpriced: stats.withoutCost,
+      // Said in words as well as numbers, because the ratio is the finding.
+      meaning: stats.total === 0
+        ? 'Nothing has been recorded yet, so there is nothing to attribute.'
+        : priced === 0
+          ? 'No record carries a cost. Nothing here can be attributed to spend until one does.'
+          : priced === stats.total
+            ? 'Every record held carries a cost, so these totals cover the whole log.'
+            : `These totals cover ${priced} of ${stats.total} records. The other ${stats.withoutCost} may have cost something; nothing here knows.`,
+    },
+    // One per currency, never summed together — no exchange rate appears in any
+    // record, so a combined figure would be invented at read time.
+    totals: stats.cost,
+    subjects,
+    unverifiable: [
+      { field: 'measured', because: 'ABSuite meters nothing. Every figure here is a claim recorded by the caller, attributed to the source named on it.' },
+      { field: 'projected', because: 'No run rate, forecast or annualisation is offered. Those are this record multiplied by an assumption.' },
+      { field: 'converted', because: 'Currencies are reported separately. Combining them needs an exchange rate, and no record carries one.' },
     ],
   });
 });

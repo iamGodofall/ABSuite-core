@@ -669,6 +669,18 @@ app.get('/executions/authority', requireAdminAccess, async (_req, res) => {
   }
 });
 
+/** Spend attributed to the subject that caused it, with the coverage beside it. */
+app.get('/executions/cost', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/cost`, {
+      headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {},
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 /**
  * The trace-signing public key.
  *

@@ -79,6 +79,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/executions/:id/replay` | `execution:read` | — |
 | GET | `/executions/attention` | `execution:read` | — |
 | GET | `/executions/authority` | `execution:read` | — |
+| GET | `/executions/cost` | `execution:read` | — |
 | GET | `/executions/public-key` | _public_ | — |
 | GET | `/executions/stats` | `execution:read` | — |
 | GET | `/executions/unknowns` | `execution:read` | — |
@@ -268,4 +269,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_103 HTTP endpoints across 5 services. Generated from source._
+_104 HTTP endpoints across 5 services. Generated from source._
