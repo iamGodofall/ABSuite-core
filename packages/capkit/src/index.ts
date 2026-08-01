@@ -95,6 +95,14 @@ export {
 } from './identity';
 
 export {
+  ProvenanceGraph,
+  lineageOf,
+  type Lineage,
+  type LineageNode,
+  type LineageEdge,
+} from './provenance';
+
+export {
   TraceStore,
   SigningKey,
   hashPayload,

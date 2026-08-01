@@ -260,6 +260,7 @@ describe('the running CapKit server', () => {
       '/executions/unknowns',
       '/executions/authority',
       '/executions/cost',
+      '/executions/provenance',
       `/executions/${String(recorded.id)}/conditions`,
       `/executions/${String(recorded.id)}/explain`,
     ];

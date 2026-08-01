@@ -23,6 +23,7 @@ import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, has
 import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
 import { IdentityRegistry, IdentityError } from './identity';
+import { ProvenanceGraph } from './provenance';
 import { determineTrace } from './determination';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
 import { TenantRateLimiter } from './rate-limit';
@@ -107,6 +108,10 @@ const traces = new TraceStore(storage, signingKey);
 // Layer 1. Subjects enrolled against public keys they hold the private half of,
 // so `subject` on a record stops being a string the caller typed.
 const identities = new IdentityRegistry(storage);
+
+// Which agent handed work to which, computed from the hashes already recorded.
+// Nothing new is stored for this — the graph was always latent in the data.
+const provenance = new ProvenanceGraph(storage);
 
 // Annotated explicitly so the emitted declaration file does not need to name
 // a transitive @types/express-serve-static-core path.
@@ -880,6 +885,55 @@ app.get('/executions/cost', authorise('execution:read'), (_req, res) => {
       { field: 'projected', because: 'No run rate, forecast or annualisation is offered. Those are this record multiplied by an assumption.' },
       { field: 'converted', because: 'Currencies are reported separately. Combining them needs an exchange rate, and no record carries one.' },
     ],
+  });
+});
+
+
+/**
+ * What one agent handed to another.
+ *
+ * The gap this closes: agent A writes a bad summary, agent B consumes it, agent
+ * C acts on it, and the log shows three successes. Each record is individually
+ * signed and verifiable, and the failure lives entirely in the seam between
+ * them.
+ *
+ * The edges are computed from content hashes already on every record — when B's
+ * input hash equals A's output hash, B consumed byte for byte what A produced.
+ * That is content identity under SHA-256, not a log line somebody wrote.
+ *
+ * `coverage` leads, for the usual reason: a graph with two edges over four
+ * hundred records is not a tidy system, it is one whose handoffs are going
+ * unrecorded, and printing the graph without that reading would hide it.
+ */
+app.get('/executions/provenance', authorise('execution:read'), (_req, res) => {
+  const summary = provenance.summary();
+  res.status(200).json({
+    generated: generated(`${summary.edges} traced handoff(s) across ${summary.records} record(s)`),
+    coverage: {
+      records: summary.records,
+      linked: summary.linked,
+      unlinked: summary.unlinked,
+      meaning: summary.meaning,
+    },
+    edges: provenance.edges(),
+    // Failures whose output something else went on to consume. The single most
+    // misleading row in any agent log is a success that ate a failure.
+    failuresWithConsumers: summary.failuresWithConsumers,
+    unverifiable: [
+      { field: 'causation', because: 'An edge shows the same content moved between two records. Two agents reading one source produce the same hash without either feeding the other, so this is evidence of flow, never proof of intent.' },
+      { field: 'unrecorded handoffs', because: 'Anything passed between agents without recording an execution is invisible here, and no honest count can include it.' },
+    ],
+  });
+});
+
+/** One record's ancestry and descendants, plus any failure it inherited. */
+app.get('/executions/:id/lineage', authorise('execution:read'), (req, res) => {
+  const lineage = provenance.lineage(String(req.params.id));
+  if (!lineage) return fail(res, 404, 'NOT_FOUND', 'No such execution');
+  return res.status(200).json({
+    generated: generated(`the flow around execution ${req.params.id}`),
+    ...lineage,
+    blastRadius: provenance.blastRadius(String(req.params.id)),
   });
 });
 

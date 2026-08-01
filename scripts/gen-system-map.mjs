@@ -138,6 +138,18 @@ const api = read('docs/API.md');
 const ROUTES = [...api.matchAll(/^\|\s*(GET|POST|DELETE|PUT|PATCH)\s*\|\s*`([^`]+)`/gm)].length;
 
 const STATUS_TONE = { 'Built': 'built', 'Partly built': 'partial', 'Not built': 'planned' };
+
+/*
+ * Two kinds of "not built", and collapsing them misleads.
+ *
+ * Most unbuilt things are unbuilt because nobody has written them yet. The last
+ * two layers are different in kind: they cannot be written at all. Collective
+ * Intelligence needs deployments that are not ours, and Civilization is simply
+ * what the lower seven become at scale. Labelling those the same way as a
+ * pending feature invites the reader to ask when they ship, and the honest
+ * answer is that shipping is not the mechanism.
+ */
+const ACCRUES = /accrues with (adoption|use)/i;
 const CELL_TONE = { '●': 'built', '◐': 'partial', '○': 'planned', '': 'none' };
 
 const esc = (value) => String(value)
@@ -237,6 +249,7 @@ const page = `<!doctype html>
   .tag.built   { color: var(--green);     border-color: rgba(0,245,140,0.35); }
   .tag.partial { color: var(--amber);     border-color: rgba(246,177,0,0.35); }
   .tag.planned { color: var(--muted);     border-color: rgba(124,147,137,0.3); }
+  .tag.accrues { color: var(--turquoise); border-color: rgba(45,212,191,0.35); }
   .detail {
     border-left: 1px solid var(--line); margin: 0.15rem 0 0.15rem 1.6rem; padding: 0.5rem 0 0.5rem 1.2rem;
     font-family: var(--mono); font-size: 11.5px; color: var(--muted);
@@ -271,7 +284,8 @@ const page = `<!doctype html>
       A diagram nobody can check is a picture that misleads everyone who trusts it.
     </p>
     <div class="counts">
-      <span class="count"><b>${LAYERS.filter(l => l.status === 'Built').length}</b> of ${LAYERS.length} layers built</span>
+      <span class="count"><b>${LAYERS.filter(l => l.status === 'Built').length}</b> of ${LAYERS.filter(l => !ACCRUES.test(l.promise)).length} buildable layers built</span>
+      <span class="count"><b>${LAYERS.filter(l => ACCRUES.test(l.promise)).length}</b> accrue with use</span>
       <span class="count"><b>${OPERATIONS.length}</b> operations</span>
       <span class="count"><b>${PACKAGES.filter(p => p.published).length}</b> packages published</span>
       <span class="count"><b>${ROUTES}</b> documented routes</span>
@@ -326,11 +340,13 @@ const page = `<!doctype html>
             <span class="name">${esc(layer.name)}</span>
             <span class="promise">${esc(layer.promise)}</span>
           </span>
-          <span class="tag ${STATUS_TONE[layer.status]}">${esc(layer.status)}</span>
+          <span class="tag ${ACCRUES.test(layer.promise) ? 'accrues' : STATUS_TONE[layer.status]}">${ACCRUES.test(layer.promise) ? 'Accrues with use' : esc(layer.status)}</span>
         </button>
         <div class="detail" id="layer-${layer.n}" hidden>
           ${layer.evidence && layer.evidence !== '—'
             ? `implemented by <code>${esc(layer.evidence)}</code>`
+            : ACCRUES.test(layer.promise)
+            ? 'Nothing to build here, and that is not an excuse. This layer is not a feature waiting on engineering time &mdash; it is what the layers below become once enough independent deployments exist. Writing code toward it today would be building for a network that has no other members yet.'
             : 'No file claims this layer. It is on the roadmap and nothing pretends otherwise — <code>check:doctrine</code> fails the build if a layer marked not built starts claiming evidence.'}
         </div>
       </div>`).join('')}

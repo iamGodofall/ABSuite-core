@@ -46,6 +46,17 @@ if (key.ephemeral) {
   );
 }
 
+/*
+ * The two payloads that travel between agents.
+ *
+ * Declared once and referenced as both an output and the next record's input,
+ * because the provenance graph joins on the hash of the content itself. Writing
+ * them out twice would work until somebody edited one copy, and then the chain
+ * of custody would quietly disappear from the demonstration.
+ */
+const RESEARCH_FINDINGS = { results: 12, sources: 3, note: 'partial: two sources timed out' };
+const SUPPLIER_SUMMARY = { suppliers: 12, flagged: 0, conclusion: 'no insolvency signals found' };
+
 /** A fixed morning, so runs are comparable and the timeline is legible. */
 const T0 = Date.parse('2026-07-30T08:14:00Z');
 const at = (offsetSeconds) => new Date(T0 + offsetSeconds * 1000).toISOString();
@@ -97,10 +108,22 @@ const DAY = [
     steps: ['scan_candidates', 'score_similarity', 'merge', 'reindex'],
   },
   {
+    /*
+     * The start of a handoff, and it fails.
+     *
+     * What follows is the shape this whole product exists for and the one no
+     * per-record log can show: this fails, the next agent consumes its output
+     * and succeeds, and a third consumes that and moves money. Two of the three
+     * records read perfectly clean. The failure is in the seam.
+     *
+     * `output` here is the exact object the next record takes as `input`, so
+     * the provenance graph joins them on a content hash rather than on a claim.
+     */
     subject: 'agent:research', scope: ['search:read'], module: 'search',
-    action: 'web_query', outcome: 'success', offset: 505,
+    action: 'web_query', outcome: 'failure', offset: 505,
+    error: 'Two of five filing sources timed out; results are partial and were returned anyway.',
     input: { query: 'supplier insolvency filings Q3' },
-    output: { results: 12 },
+    output: RESEARCH_FINDINGS,
     steps: ['plan_query', 'fetch', 'rank'],
     // Costed, and attributed to whoever said so. ABSuite meters nothing; the
     // figure is a claim the caller recorded, signed with the rest of the record.
@@ -111,8 +134,10 @@ const DAY = [
     // which is what the "N UNSCOPED" reading in the masthead is counting.
     subject: 'agent:research', scope: [], module: 'search',
     action: 'summarise_findings', outcome: 'success', offset: 588,
-    input: { documents: 12 },
-    output: { summary: 'sha256-only' },
+    // Consumes exactly what the failed query produced. Nothing about this record
+    // is wrong; everything about its ancestry is.
+    input: RESEARCH_FINDINGS,
+    output: SUPPLIER_SUMMARY,
     steps: ['collect', 'summarise'],
     // The expensive one, and the one with no scope. That pairing is the whole
     // argument for putting cost on the record: this agent's largest spend is
@@ -134,7 +159,9 @@ const DAY = [
   {
     subject: 'agent:reconciler', scope: ['ledger:read', 'ledger:flag'], module: 'ledger',
     action: 'flag_variance', outcome: 'success', offset: 771,
-    input: { account: 'ACC-3391', variance: 118.4 },
+    // Third hop. Reads clean, is signed, is scoped, is governed — and inherits a
+    // failure two steps back that only the lineage view can show it.
+    input: SUPPLIER_SUMMARY,
     output: { flagged: true, ticket: 'REC-8812' },
     steps: ['load_ledger', 'compare', 'flag'],
   },
@@ -193,6 +220,7 @@ for (const act of DAY) {
     module: act.module,
     action: act.action,
     outcome: act.outcome,
+    ...(act.error ? { error: act.error } : {}),
     input: act.input,
     output: act.output,
     startedAt: at(act.offset),
@@ -214,6 +242,10 @@ console.log(`  unscoped  : ${DAY.filter(a => a.scope.length === 0).length}`);
 console.log(`  steps      : ${DAY.reduce((t, a) => t + a.steps.length, 0)} across ${DAY.filter(a => a.steps.length).length} records`);
 console.log(`  chain     : ${chain.valid ? 'valid' : 'BROKEN'}, ${chain.checked} verified`);
 console.log(`  identity  : ${ENROLLED.length} of 4 agents enrolled and proven; the other 2 read UNKNOWN, which is what they are`);
+
+const { ProvenanceGraph } = require('../packages/capkit/dist/index.js');
+const flow = new ProvenanceGraph(storage).summary();
+console.log(`  handoffs  : ${flow.edges} traced; ${flow.failuresWithConsumers.length} failure(s) whose output a later success consumed`);
 const costed = DAY.filter(a => a.cost);
 const byCurrency = new Map();
 for (const a of costed) byCurrency.set(a.cost.currency, (byCurrency.get(a.cost.currency) ?? 0) + a.cost.amount);
