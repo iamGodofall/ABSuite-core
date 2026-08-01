@@ -22,6 +22,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
 import type { Service } from '../hooks/useServices';
+import { Panel } from '../surface/Surface';
 
 const TONE: Record<Service['status'], { dot: string; text: string; word: string }> = {
   up:       { dot: 'bg-[#00FF88]',    text: 'text-[#00FF88]', word: 'answered' },
@@ -53,22 +54,11 @@ export const MachineRoom = ({ services, error }: { services: Service[]; error: s
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-bg-secondary p-4">
-        <h3 className="text-sm font-semibold text-text-primary">
-          Which processes answered when asked
-        </h3>
-        <p className="text-xs text-text-muted mt-1 max-w-3xl leading-relaxed">
-          This is the deployment, not the product. Whether a container is up says nothing about
-          whether an agent stayed inside its authority — that question lives in Observe, Verify and
-          Govern, and it is answered from signed records rather than from a health check.
-        </p>
-        <p className="text-[11px] text-text-muted/70 mt-2 leading-relaxed">
-          There are no start, stop or restart controls here. Turning a process off from a browser tab
-          is an administration function; this room is for reading the state of the stack, and a
-          console that can silently restart the thing producing the evidence is a console you have to
-          trust twice.
-        </p>
-      </div>
+      <Panel
+        title="Which processes answered when asked"
+        subtitle="This is the deployment, not the product. Whether a container is up says nothing about whether an agent stayed inside its authority — that question lives in Observe, Verify and Govern, and it is answered from signed records rather than from a health check."
+        footnote="There are no start, stop or restart controls here. Turning a process off from a browser tab is an administration function; this room is for reading the state of the stack, and a console that can silently restart the thing producing the evidence is a console you have to trust twice."
+      />
 
       {error && (
         <div className="rounded-xl border border-red-500/40 bg-red-500/[0.06] p-4">

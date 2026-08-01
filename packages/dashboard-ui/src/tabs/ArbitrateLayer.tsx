@@ -13,6 +13,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
+import { Panel } from '../surface/Surface';
 
 interface Position {
   agentId: string; answer: string; family?: string;
@@ -91,14 +92,10 @@ export const ArbitrateLayer = () => {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-bg-secondary p-4">
-        <h3 className="text-sm font-semibold text-text-primary">Agreement between correlated voices is not corroboration</h3>
-        <p className="text-xs text-text-muted mt-1 max-w-3xl leading-relaxed">
-          Two models of the same family fail the same way, so their agreement counts once rather than
-          twice. Every discount below is drawn — raw weight, then what it actually counted for — with
-          the reason beside it. Confidence never decides the answer.
-        </p>
-      </div>
+      <Panel
+        title="Agreement between correlated voices is not corroboration"
+        subtitle="Two models of the same family fail the same way, so their agreement counts once rather than twice. Every discount below is drawn — raw weight, then what it actually counted for — with the reason beside it. Confidence never decides the answer."
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="rounded-xl border border-border bg-bg-secondary p-4">

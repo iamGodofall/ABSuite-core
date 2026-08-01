@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
+import { Panel, Problem } from '../surface/Surface';
 
 interface Entry {
   id: string;
@@ -91,15 +92,10 @@ export const Audit = () => {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-bg-secondary p-4">
-        <h3 className="text-sm font-semibold text-text-primary">Who asked this system for what</h3>
-        <p className="text-xs text-text-muted mt-1 max-w-3xl leading-relaxed">
-          Not the agents' record — this console's. Every authorisation decision CapKit has made,
-          hash-chained so that altering one entry breaks every link after it. A system that keeps a
-          tamper-evident log of what the agents did, and no visible record of who has been reading
-          it, is asking for a trust it does not extend.
-        </p>
-      </div>
+      <Panel
+        title="Who asked this system for what"
+        subtitle="Not the agents' record — this console's. Every authorisation decision CapKit has made, hash-chained so that altering one entry breaks every link after it. A system that keeps a tamper-evident log of what the agents did, and no visible record of who has been reading it, is asking for a trust it does not extend."
+      />
 
       {/* ── The integrity claim, in the four-state language ────────────────── */}
       <div className={cn('rounded-xl border p-4',
@@ -146,9 +142,7 @@ export const Audit = () => {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.06] p-4">
-          <p className="text-xs text-amber-400 leading-relaxed">{error}</p>
-        </div>
+        <Problem what={error} />
       )}
 
       <div className="rounded-xl border border-border bg-bg-secondary overflow-hidden">

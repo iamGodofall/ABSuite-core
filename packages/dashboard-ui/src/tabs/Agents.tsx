@@ -23,6 +23,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
 import { formatMoney } from '../money';
+import { Panel, Empty, Problem, Loading, Badge, Note } from '../surface/Surface';
 
 interface SubjectSpend {
   subject: string;
@@ -133,19 +134,11 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-bg-secondary p-4">
-        <h3 className="text-sm font-semibold text-text-primary">Agents, by what cannot be shown about them</h3>
-        <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-3xl">
-          Not a trust score. Trust is not a quantity this system computes, and a leaderboard of
-          percentages would be a judgement wearing a decimal point — nobody audits a 98.7, they act on
-          it. These are counts of things that exist: actions with no recorded authority, failures, and
-          actions with no governing rule. Argue with any line of it.
-        </p>
-        <p className="text-[11px] text-text-muted/70 mt-2">
-          Ordered by how much is unproven. Ordering is not ranking — which of these matters is your
-          judgement, not ABSuite's.
-        </p>
-      </div>
+      <Panel
+        title="Agents, by what cannot be shown about them"
+        subtitle="Not a trust score. Trust is not a quantity this system computes, and a leaderboard of percentages would be a judgement wearing a decimal point — nobody audits a 98.7, they act on it. These are counts of things that exist: actions with no recorded authority, failures, and actions with no governing rule. Argue with any line of it."
+        footnote="Ordered by how much is unproven. Ordering is not ranking — which of these matters is your judgement, not ABSuite's."
+      />
 
       {/*
         Spend, stated as coverage first.
@@ -155,39 +148,23 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
         before the number, and the number never appears without it.
       */}
       {coverage && coverage.records > 0 && (
-        <div className="rounded-xl border border-border bg-bg-secondary p-4">
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold text-text-primary">What it cost, and who spent it</h3>
-            <span className="text-[11px] font-mono text-text-muted">
-              {coverage.priced.toLocaleString('en-US')} of {coverage.records.toLocaleString('en-US')} records priced
-            </span>
-          </div>
-          <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-3xl">{coverage.meaning}</p>
-          <p className="text-[11px] text-text-muted/70 mt-2 leading-relaxed max-w-3xl">
-            ABSuite meters nothing. Every figure below is a claim the caller recorded, attributed to the
-            source named on it and signed into the record — so it can be pointed at later, and cannot be
-            revised afterwards without breaking the chain. Currencies are shown separately; no record
-            carries an exchange rate, so there is no combined total to give.
-          </p>
-        </div>
+        <Panel
+          title="What it cost, and who spent it"
+          subtitle={coverage.meaning}
+          actions={<Badge>{coverage.priced.toLocaleString('en-US')} of {coverage.records.toLocaleString('en-US')} priced</Badge>}
+          footnote="ABSuite meters nothing. Every figure below is a claim the caller recorded, attributed to the source named on it and signed into the record — so it can be pointed at later, and cannot be revised afterwards without breaking the chain. Currencies are shown separately; no record carries an exchange rate, so there is no combined total to give."
+        />
       )}
 
-      {error && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.06] p-4">
-          <p className="text-xs text-amber-400">{error}</p>
-        </div>
-      )}
+      {error && <Problem what={error} />}
 
-      {!rows && !error && (
-        <div className="rounded-xl border border-border bg-bg-secondary p-6 text-sm text-text-muted">
-          Reading the record…
-        </div>
-      )}
+      {!rows && !error && <Loading what="Reading the record…" />}
 
       {rows && rows.length === 0 && (
-        <div className="rounded-xl border border-border bg-bg-secondary p-6 text-sm text-text-muted">
-          No subject has acted yet. Nothing has been exercised, so there is nothing to review.
-        </div>
+        <Empty
+          because="No subject has acted yet. Nothing has been exercised, so there is nothing to review."
+          resolvedBy="Record an execution and the subject appears here — this view is built from what happened, not from tokens that were issued."
+        />
       )}
 
       {rows && rows.length > 0 && (
@@ -313,10 +290,10 @@ export const Agents = ({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
       )}
 
       {rows && rows.length > 0 && (
-        <p className="text-[10px] text-text-muted/60 leading-snug px-1">
+        <Note>
           Derived from executions that happened, not from tokens that were issued. A capability nobody
           used does not appear here, and a subject that has never acted does not exist to this screen.
-        </p>
+        </Note>
       )}
     </div>
   );

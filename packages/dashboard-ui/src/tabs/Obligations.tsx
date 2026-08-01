@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
+import { Problem } from '../surface/Surface';
 
 interface Obligation {
   id: string;
@@ -122,9 +123,7 @@ export const Obligations = () => {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.06] p-4">
-          <p className="text-xs text-amber-400">{error}</p>
-        </div>
+        <Problem what={error} />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -15,6 +15,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { cn } from '../utils';
+import { Problem } from '../surface/Surface';
 
 interface Stats {
   total: number;
@@ -90,10 +91,7 @@ export const GlobalView = () => {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.06] p-4">
-        <p className="text-sm font-semibold text-amber-400 mb-1">Counts unavailable</p>
-        <p className="text-xs text-text-muted">{error}</p>
-      </div>
+      <Problem title="Counts unavailable" what={error} />
     );
   }
 

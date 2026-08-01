@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../utils';
+import { Problem } from '../surface/Surface';
 
 interface QueueTask {
   id: string; name?: string; status: string; attempts?: number;
@@ -102,9 +103,7 @@ export const ActLayer = () => {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.06] p-3">
-          <p className="text-xs text-amber-400">{error}</p>
-        </div>
+        <Problem what={error} />
       )}
 
       {/* ── Work in flight ────────────────────────────────────────────────── */}
