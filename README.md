@@ -250,6 +250,34 @@ their resolutions; priorities, values, policy and judgement are yours.
 
 ---
 
+## A format, not just a library
+
+The thing worth adopting here is not the TypeScript. It is the record format.
+
+**[docs/PROTOCOL.md](docs/PROTOCOL.md)** specifies it independently of any
+implementation: the canonical byte string a record hashes to, the chain rule,
+the signature, and the exact verification procedure — enough to write a Python or
+Go implementation that interoperates with this one without either side running
+the same software.
+
+Six records signed in January are the conformance suite. An implementation that
+verifies them from the published public key alone, produces byte-identical
+hashes, refuses a costed record as v1, reports an unknown version as *unreadable*
+rather than *invalid*, and emits no score, interoperates. `pnpm check:protocol`
+asserts every normative claim in that document against this codebase, so the
+specification cannot quietly drift from the code.
+
+This matters because of what it makes possible. ABSuite does not want to replace
+the framework you build agents with. It wants to be the layer underneath several
+of them at once — so that an agent written with one toolkit, calling a model from
+one provider, running on one cloud, can hand work to an agent built on none of
+those things, and both sides can prove what happened to somebody who trusts
+neither of them.
+
+**No second implementation exists yet.** Until one does, this is a careful
+description of one codebase rather than a protocol, and §9 of the specification
+says so in those words.
+
 ## Verify it yourself, right now
 
 [**iamgodofall.github.io/ABSuite-core/verify.html**](https://iamgodofall.github.io/ABSuite-core/verify.html)
