@@ -1,0 +1,42 @@
+{
+  "name": "@absuitecore/notary",
+  "version": "1.0.0",
+  "description": "A disinterested witness to a chain head. Counter-signs the head of a hash chain so that rewriting history becomes detectable by someone with no stake in the answer.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts",
+    "test": "jest -c ../../jest.config.js --rootDir ../.. --testPathPatterns packages/notary"
+  },
+  "keywords": [
+    "notary",
+    "timestamping",
+    "hash-chain",
+    "tamper-evidence",
+    "ai-governance",
+    "audit",
+    "ed25519"
+  ],
+  "dependencies": {
+    "express": "^4.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": { "node": ">=22.5.0" },
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamGodofall/ABSuite-core.git",
+    "directory": "packages/notary"
+  },
+  "homepage": "https://github.com/iamGodofall/ABSuite-core#readme",
+  "bugs": { "url": "https://github.com/iamGodofall/ABSuite-core/issues" }
+}

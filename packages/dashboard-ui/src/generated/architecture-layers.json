@@ -45,7 +45,7 @@
     {
       "index": 7,
       "name": "Collective Intelligence",
-      "property": "Independent deployments verify each other's records without merging them *(accrues with adoption — the protocol is buildable, the network is not; it needs deployments that are not ours)*",
+      "property": "Independent deployments verify each other's records without merging them *(accrues with adoption — one mechanism now exists, `@absuitecore/notary`, but the layer is the network and the network needs deployments that are not ours)*",
       "status": "NOT_BUILT",
       "evidence": null
     },

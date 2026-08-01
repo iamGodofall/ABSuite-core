@@ -91,7 +91,7 @@ interface. That is real work, and it is the gate on this whole line item.
 `packages/capkit/src/tenancy.ts` and `billing.ts` already exist, so metering and
 plans are not the missing piece. Storage is.
 
-### 2.2 The notary — **Near**, and the most distinctive idea here
+### 2.2 The notary — **Built**, and the most distinctive idea here
 
 A tiny hosted service that does one thing: **counter-sign chain heads**.
 
@@ -109,6 +109,16 @@ built around.
 - Priced per counter-signature, or flat per month.
 - Costs almost nothing to run: it stores 32 bytes and a timestamp.
 - Cannot read anything. It never sees a payload, only a hash.
+
+**Now built** as `@absuitecore/notary`, with no dependency on capkit — a notary
+that imported the thing it witnesses would be a component of it. `witness()`
+issues a signed receipt; `auditAgainstReceipts()` is where the value is, because
+a chain is append-only and every head a notary ever saw must still be in it, at
+the same position, forever. A rewritten chain verifies perfectly against itself
+and fails that audit.
+
+What remains before it earns money is not code. It is somebody other than us
+running one.
 
 ### 2.3 Long-term evidence custody — **Far**
 
