@@ -272,3 +272,47 @@ export function createIceMaps(): IceMaps {
     },
   };
 }
+
+/**
+ * A radial falloff on black, for geometry that has to be opaque.
+ *
+ * three builds the transmission buffer from opaque objects only, so everything
+ * transparent is invisible through a refracting surface. The core's three
+ * additive shells are exactly that — they carry the whole gradient that makes it
+ * read as a light rather than a painted disc, and on a machine where glass
+ * actually renders, none of them exist. What arrives through the ice is the one
+ * opaque sphere at the centre: a hard-edged white blob.
+ *
+ * This is the way round it. A radial gradient that reaches pure black at its
+ * rim, drawn on an opaque billboard, is indistinguishable from a glow against a
+ * dark ground — and being opaque, it enters the buffer and survives the glass.
+ * The falloff is in the pixels rather than in the blending, which is the only
+ * kind a transmission pass can see.
+ */
+export function createRadianceMap(): THREE.CanvasTexture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const c = size / 2;
+
+  // Black first, and everywhere: the rim must reach the scene's own ground or
+  // the billboard's square edge becomes visible as a dark panel.
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, size, size);
+
+  const gradient = ctx.createRadialGradient(c, c, 0, c, c, c);
+  gradient.addColorStop(0.0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.12, 'rgba(255,255,255,0.92)');
+  // The long shoulder is what reads as radiance. A short one reads as a ball.
+  gradient.addColorStop(0.34, 'rgba(255,255,255,0.34)');
+  gradient.addColorStop(0.62, 'rgba(255,255,255,0.08)');
+  gradient.addColorStop(1.0, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}

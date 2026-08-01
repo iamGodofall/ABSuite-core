@@ -27,7 +27,7 @@ import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import { LayerVertices } from './LayerVertices';
-import { createCausticTexture, createPointSprite } from './iceTextures';
+import { createCausticTexture, createPointSprite, createRadianceMap } from './iceTextures';
 import { GlassShell } from './GlassShell';
 import * as THREE from 'three';
 
@@ -167,6 +167,23 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
   const determination = evidence?.determination ?? 'UNKNOWN';
   const core = EVIDENCE_CORE[determination];
   const coreColor = useMemo(() => new THREE.Color(core.hex), [core.hex]);
+
+  /*
+   * The radiance, as something the glass can actually see.
+   *
+   * The additive shells below stay — without glass they are what the core's
+   * falloff is made of, and they look right there. But transparent objects are
+   * excluded from the transmission buffer, so on a machine that renders glass
+   * none of them exist and the core arrives through the ice as a hard white
+   * blob with no gradient at all. Every opacity tuned on those shells was tuned
+   * on something half the audience cannot see.
+   *
+   * This is an opaque billboard carrying the falloff in its pixels instead of
+   * in its blending. Black at the rim, so against the room's ground its square
+   * edge is invisible, and opaque, so the glass transmits it.
+   */
+  const radiance = useMemo(() => createRadianceMap(), []);
+  const radianceRef = useRef<THREE.Mesh>(null);
   const cubeRef = useRef<THREE.Group>(null);
   const innerCubeRef = useRef<THREE.Mesh>(null);
   const leftHalfRef = useRef<THREE.Mesh>(null);
@@ -319,6 +336,9 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         governEdgesRef.current.rotation.y += delta * 0.03;
       }
       
+      // A billboard is only a billboard while it faces the camera.
+      if (radianceRef.current) radianceRef.current.quaternion.copy(state.camera.quaternion);
+
       if (coreRef.current) {
         coreRef.current.rotation.x += delta * 0.2;
         coreRef.current.rotation.y -= delta * 0.3;
@@ -672,6 +692,17 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   * opaque objects enter the buffer a refracting surface reads —
                   * an additive core is drawn over the ice instead of inside it.
                   */}
+                {/* Opaque, and therefore present inside the glass. */}
+                <mesh ref={radianceRef}>
+                  <planeGeometry args={[1.15, 1.15]} />
+                  <meshBasicMaterial
+                    map={radiance}
+                    color={coreColor}
+                    toneMapped={false}
+                    depthWrite={false}
+                  />
+                </mesh>
+
                 <mesh>
                   <icosahedronGeometry args={[0.19, 1]} />
                   <meshStandardMaterial
