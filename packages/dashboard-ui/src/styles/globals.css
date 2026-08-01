@@ -971,6 +971,44 @@
  */
 .node-witness { opacity: 0.55; }
 
+/* ---------------------------------------------------------------------------
+   A link being sealed. Once, for a link that was actually sealed.
+
+   The component this replaces looped, drawing evidence forming continuously
+   whether or not anything had been recorded. Motion reads as activity, and a
+   viewer believes a moving diagram over a static number every time — so a
+   perpetual version of this animation is not a lesser feature, it is a lie.
+
+   Nothing here is `infinite`. There is no perpetual animation to register with
+   check-motion-is-evidence, because the animation *is* the event: it runs when
+   a record arrives over the socket and then it is gone.
+   ------------------------------------------------------------------------- */
+
+@keyframes seal-in {
+  0%   { opacity: 0; transform: translateY(6px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  82%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-3px); }
+}
+
+/* The link drawn left to right — the geometry of the claim, not decoration
+   placed near it. It reaches full width and holds there, because the link does
+   not un-seal. */
+@keyframes seal-link {
+  0%   { width: 0; }
+  55%  { width: 100%; }
+  100% { width: 100%; }
+}
+
+.ab-seal { animation: seal-in 2.6s ease-out forwards; }
+.ab-seal-link { animation: seal-link 2.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The information still arrives; only the travel is removed. */
+  .ab-seal { animation: none; }
+  .ab-seal-link { animation: none; width: 100%; }
+}
+
 /* FAILED holds full contrast without blinking: an alarm that flashes gets
    muted like any other alarm. ABSENT dims and is still. */
 .node-failed { opacity: 1; }

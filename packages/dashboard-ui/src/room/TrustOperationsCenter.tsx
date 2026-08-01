@@ -5,6 +5,7 @@ import { OrbitalNodes, type LayerReading } from './OrbitalNodes';
 import { CommandPalette } from './CommandPalette';
 import { TopBar, type Vital } from './TopBar';
 import { BottomBar } from './BottomBar';
+import { ChainSeal } from './ChainSeal';
 import type { TrustLayer, CubeEvidenceState } from './SceneCube';
 
 /**
@@ -146,7 +147,7 @@ function LayerSurface({ layer, reading, question, onClose, children }: {
 /** The ring, in the order the stations sit on it. Dragging walks this. */
 const ORBIT: TrustLayer[] = ['observe', 'verify', 'explain', 'govern', 'arbitrate', 'act', 'learn'];
 
-export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views, evidence, witnessing = false }: {
+export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views, evidence, witnessing = false, live }: {
   /** Live readings per layer. Absent when the layer has nothing to report. */
   readings: Record<string, LayerReading | undefined>;
   /** The masthead's metric columns, each bound to what the instance holds. */
@@ -171,6 +172,8 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
    * on screen — which is the correct hierarchy while the subject is the past.
    */
   witnessing?: boolean;
+  /** The live feed, so the room can draw a link at the moment it is sealed. */
+  live?: { executions: import('../hooks/useSocket').LiveExecution[]; arrivedIds: Set<string> };
 }) {
   const [activeLayer, setActiveLayerState] = useState<TrustLayer>('overview');
   /** Entering a layer. Every route into a layer goes through this. */
@@ -299,6 +302,17 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
         * subject on screen is the past; the live room behind it should recede,
         * and the sentence says plainly what has stopped and what has not.
         */}
+      {/*
+        * Evidence forming, drawn once per record that actually arrived.
+        *
+        * Suppressed during a replay: the room has stopped watching in order to
+        * remember, and a new link sealing in the corner would be the one thing
+        * on screen still claiming the present tense.
+        */}
+      {!witnessing && live && (
+        <ChainSeal executions={live.executions} arrivedIds={live.arrivedIds} />
+      )}
+
       {witnessing && (
         <div
           className="absolute inset-0 z-[6] pointer-events-none transition-opacity duration-700 bg-ab-bg/70"

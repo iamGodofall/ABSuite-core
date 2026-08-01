@@ -1669,6 +1669,7 @@ export default function App() {
         /* TAB_CONFIG names all thirteen views; check-ui-philosophy reads it. */
         views={TAB_CONFIG.map(tab => ({ id: tab.id, label: tab.label, question: tab.question }))}
         witnessing={witnessing}
+        live={{ executions: liveExecutions, arrivedIds }}
         /*
          * The strongest claim this instance can presently defend.
          *

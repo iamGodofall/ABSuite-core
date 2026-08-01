@@ -22,6 +22,15 @@ export interface LiveExecution {
   startedAt: string;
   durationMs?: number;
   hash: string;
+  /**
+   * The hash this record closes over.
+   *
+   * Already on the wire — the server forwards whole traces from /executions —
+   * and simply missing from this interface, so nothing could read it. A field
+   * that arrives and is not declared is invisible in exactly the way that looks
+   * like the server is not sending it.
+   */
+  prevHash?: string;
   keyId?: string;
   governance?: { policyRef: string; policyVersion: string; decision: string };
   steps?: { seq: number; name: string; at: string }[];
