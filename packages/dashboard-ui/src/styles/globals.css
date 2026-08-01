@@ -778,23 +778,117 @@
    renders unstyled.
    ------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+   Radius, as one system rather than a number per element.
+
+   The corners went 2px → 14px once already, which fixed "unfinished" and left
+   the room reading as merely *softened*. What was actually wanted is a shape
+   language, and a shape language needs two sizes that agree, not one:
+
+   Anything a hand operates is a **capsule** — buttons, chips, badges, fields,
+   key caps. A capsule is unambiguous at any size, it reads as pressable
+   without a fill, and it is the one radius that never looks arbitrary because
+   it has no chosen value.
+
+   Anything a person **reads inside** takes a large, finite corner instead.
+   A container at 9999px is not a rounder panel, it is a lozenge: the radius
+   resolves to half the height, the corners eat the first and last lines of
+   text, and nothing can sit near them. The pill is right for the control and
+   wrong for the container, and the way that is expressed properly is
+   concentrically — the outer corner larger than the inner one, so a capsule
+   sitting inside a panel looks nested rather than coincidental.
+   ------------------------------------------------------------------------- */
+:root {
+  --ab-radius-panel: 26px;   /* the outer container */
+  --ab-radius-card: 18px;    /* a card inside one */
+  --ab-radius-pill: 9999px;  /* anything operated */
+}
+
 .ab-panel {
   background: rgba(2, 8, 5, 0.6);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(0, 245, 140, 0.1);
-  /*
-   * Rounded, deliberately.
-   *
-   * A 2px radius was the instrument-panel look: hard corners, machined edges,
-   * nothing soft. It reads as precise on a schematic and as unfinished on a
-   * panel you sit and read. Everything a person actually dwells in — the layer
-   * surfaces, the palette, the cards inside them — is softened here in one
-   * place rather than a hundred.
-   */
-  border-radius: 14px;
+  border-radius: var(--ab-radius-panel);
   padding: 1rem;
   position: relative;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 0 20px rgba(0, 245, 140, 0.02);
+}
+
+/*
+ * Declared after .ab-panel, and that is load-bearing.
+ *
+ * Both are single-class selectors, so specificity ties and source order decides
+ * — the same collision that once shipped a layer surface forty percent
+ * transparent, because .ab-panel's `background` shorthand was written after
+ * Tailwind's `background-color`. .ab-glass overrides backdrop-filter and
+ * box-shadow, so moving this block above .ab-panel silently returns the palette
+ * to plain blur with no error anywhere. It is measured in the browser, not read.
+ */
+/* ---------------------------------------------------------------------------
+   Glass, and the reason it is allowed here.
+
+   A blurred translucent panel is the most over-applied effect of the decade
+   and most uses of it are decoration: a frosted rectangle over a flat page has
+   nothing behind it to be glass *over*, so it costs a compositing layer and
+   returns a texture.
+
+   This room is the exception, and for a specific reason. Behind these panels is
+   a live scene with a lamp in it, and that lamp is not ornamental — the core
+   carries the strongest claim the system can presently defend, green when it is
+   DEMONSTRATED, turquoise while it is UNKNOWN, red on FAILED, nearly black when
+   there is nothing to show. `saturate()` on the backdrop means the glass picks
+   that colour up. So the chrome of an empty instance goes grey and the chrome
+   of a verified one warms very slightly green, and neither is a thing anyone
+   drew: it is the evidence state, showing through the furniture.
+
+   What is deliberately *not* attempted: refraction. Real liquid glass bends
+   what is behind it, and CSS cannot — the honest approximations are an SVG
+   displacement map over a live WebGL canvas, which is both expensive and
+   visibly wrong at the edges. Blur, saturation, a specular top edge and a rim
+   are the parts that can be done properly, so those are the parts done.
+   ------------------------------------------------------------------------- */
+.ab-glass {
+  position: relative;
+  /* Saturation is what makes it glass rather than fog: the core's colour comes
+     through the medium instead of being averaged away by the blur. */
+  backdrop-filter: blur(28px) saturate(165%);
+  -webkit-backdrop-filter: blur(28px) saturate(165%);
+  box-shadow:
+    /* Depth: the panel sits above the scene rather than being painted on it. */
+    0 8px 40px rgba(0, 0, 0, 0.55),
+    /* The specular edge — one hairline of light along the top, which is what
+       reads as a thickness rather than a border. */
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.10),
+    /* The rim, in the room's own green rather than white, so the glass belongs
+       to this product and not to an operating system. */
+    inset 0 0 0 1px rgba(0, 245, 140, 0.09),
+    /* A faint bounce off the lower inside edge. */
+    inset 0 -1px 0 0 rgba(0, 245, 140, 0.05);
+}
+
+/* The sheen. A single soft diagonal, stopping well before the middle — a full
+   sweep reads as a gradient overlay, and a short one reads as light catching an
+   edge. Pointer-events off so it never intercepts a click. */
+.ab-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(147deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.012) 34%, transparent 62%);
+}
+
+/*
+ * Where the effect cannot be delivered, it is not faked.
+ *
+ * Without backdrop-filter the panel would be a flat translucent rectangle over
+ * a live 3D scene — the text sits directly on the cube and becomes unreadable.
+ * So the fallback is not a lesser glass, it is an opaque panel: the same
+ * refusal the rest of this product makes about figures it cannot compute.
+ */
+@supports not (backdrop-filter: blur(1px)) {
+  .ab-glass { background-color: rgba(2, 8, 5, 0.97) !important; }
+  .ab-glass::before { display: none; }
 }
 
 .ab-panel-header {
@@ -910,7 +1004,7 @@
    ------------------------------------------------------------------------- */
 
 .ab-surface :is([class*="rounded-xl"], [class*="rounded-lg"], [class*="rounded-2xl"], [class*="rounded-md"], [class*="rounded-sm"], [class*="rounded"]) {
-  border-radius: 12px;
+  border-radius: var(--ab-radius-card);
 }
 
 /* Panels take the supplied panel: near-black, blurred, hairline, faint inner
@@ -973,18 +1067,75 @@
 
 
 /*
- * Controls inside a layer surface are rounded too.
+ * Everything operated is a capsule.
  *
- * The panels were softened above and their buttons and fields were not, which
- * left hard-edged controls sitting inside soft containers — the one combination
- * that looks like two designs meeting rather than one.
+ * The panels were softened first and their controls were not, which left hard
+ * corners inside soft containers — the one combination that reads as two designs
+ * meeting rather than one. They then went to 10px, which agreed with the panel
+ * without ever saying anything.
+ *
+ * A capsule says it: this is a control. It is legible as pressable with no fill
+ * behind it, which matters on a surface where a solid accent button is banned,
+ * and it stays right at every size because it has no chosen radius to get wrong.
+ *
+ * The counting badges are the exception that proves it — `w-2 h-2 rounded-full`
+ * dots are already capsules and are untouched, because a capsule of a square is
+ * a circle and that is the correct shape for a state light.
  */
 .ab-surface button:not([class*="rounded-full"]) {
-  border-radius: 10px;
+  border-radius: var(--ab-radius-pill);
 }
 .ab-surface :is(input, select, textarea) {
-  border-radius: 10px;
+  border-radius: var(--ab-radius-pill);
 }
 .ab-surface :is(kbd, code) {
-  border-radius: 6px;
+  border-radius: var(--ab-radius-pill);
+}
+
+/*
+ * A padded box that happens to be a button is a card.
+ *
+ * The provider chooser in the console is three 103px-tall buttons, each holding
+ * a title, a status chip and two lines of description. The capsule rule above
+ * gave them 51px corners — a lozenge with paragraphs in it, which is the exact
+ * "trying too hard" result a shape language is supposed to prevent.
+ *
+ * The test is the author's own markup rather than a guess: a button that
+ * declares a container radius *and* carries all-round padding was written as a
+ * box, not as a control. A row is `px-4 py-3` and stays a capsule; a card is
+ * `rounded-xl p-3` and takes the card corner. Found by measuring every rendered
+ * button in the browser, because no amount of reading the stylesheet shows you
+ * a corner radius resolving against a height.
+ */
+.ab-surface button:is([class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-lg"]):is(
+  [class*=" p-2"], [class*=" p-3"], [class*=" p-4"], [class*=" p-5"], [class*=" p-6"],
+  [class^="p-2"], [class^="p-3"], [class^="p-4"], [class^="p-5"], [class^="p-6"]
+) {
+  border-radius: var(--ab-radius-card);
+}
+
+/*
+ * A textarea is read, not operated.
+ *
+ * Capsule ends on a multi-line field push the first and last lines away from
+ * their own left edge, so the text no longer aligns with anything above it. The
+ * shape language applies to controls a hand acts on; a field a person writes a
+ * paragraph into is a container, and takes the container's corner.
+ */
+.ab-surface textarea {
+  border-radius: var(--ab-radius-card);
+}
+
+/*
+ * Chips, badges and counters — capsules, wherever they were written.
+ *
+ * These are the small bordered spans that carry a count or a scope: "3 unscoped",
+ * "pay:approve ×2", "$14.20". They are scattered across every tab as `rounded`
+ * or `rounded-md`, which the card rule above would round to 18px — and an 18px
+ * corner on a 20px-tall span is a lozenge with the ends cut off, the exact shape
+ * nobody intends. Matched on the small ones only, by the padding they carry.
+ */
+.ab-surface span[class*="px-1.5"],
+.ab-surface span[class*="px-2"] {
+  border-radius: var(--ab-radius-pill);
 }

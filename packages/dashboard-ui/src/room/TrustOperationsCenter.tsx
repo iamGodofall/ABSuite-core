@@ -77,7 +77,23 @@ function LayerSurface({ layer, reading, question, onClose, children }: {
           * A panel you read has to win over a room you look at. The blur stays,
           * because the cube should still be sensed behind it.
           */}
-        <div className="w-full lg:w-[62%] xl:w-[56%] h-full ab-panel border-l border-ab-green/20 pointer-events-auto flex flex-col !bg-[#020805]/95 !backdrop-blur-2xl">
+        {/*
+          * Rounded on the left only, and opaque on purpose.
+          *
+          * This is the one surface in the room that is not a floating panel. It
+          * is flush against the top, right and bottom of the viewport, so a
+          * radius on those corners rounds the panel away from the screen edge
+          * and leaves three black slivers — a card that has been dropped on the
+          * window rather than a drawer that has come out of it. Only the edge
+          * that is actually an edge gets a corner.
+          *
+          * And it stays opaque while the rest of the chrome turns to glass.
+          * Glass is for what floats over the scene briefly; this is what a
+          * person sits and reads, over a lit cube, and it was already shipped
+          * once at forty percent transparent with the scene coming through the
+          * paragraphs. A panel you read has to win over a room you look at.
+          */}
+        <div className="w-full lg:w-[62%] xl:w-[56%] h-full ab-panel !rounded-none lg:!rounded-l-[26px] border-l border-ab-green/20 pointer-events-auto flex flex-col !bg-[#020805]/95 !backdrop-blur-2xl">
         <div className="flex items-center justify-between shrink-0">
           <div className="ab-panel-header mb-0 text-ab-green flex items-center gap-2">
             <div className="w-2 h-2 bg-ab-green rounded-full shadow-[0_0_10px_rgba(0,245,140,0.8)]" />

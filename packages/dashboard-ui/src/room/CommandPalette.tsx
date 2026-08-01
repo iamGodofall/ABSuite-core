@@ -113,13 +113,21 @@ export function CommandPalette({ isOpen, onClose, onSelectLayer, views = [] }: {
     >
       <div
         /*
-          * Wider, and rounded.
+          * Wide, and the one surface that is genuinely glass.
           *
           * At 540px the question column wrapped and the row scrolled sideways,
           * which is the one direction a list must never move. Widening is the
           * fix; a horizontal scrollbar is the symptom being nailed down.
+          *
+          *
+          * It floats over the live scene for a few seconds and is never read at
+          * length, which is exactly the case the effect is for — and with the
+          * cube's core behind it, the saturation in .ab-glass tints it with
+          * whatever the core is currently claiming. A verified instance opens a
+          * faintly green palette; an empty one opens a grey one. Nobody drew
+          * that, and nobody has to keep it in sync.
           */
-        className="w-[min(760px,92vw)] ab-panel !rounded-2xl border-ab-green/30 shadow-[0_0_50px_rgba(0,245,140,0.1)] flex flex-col"
+        className="w-[min(760px,92vw)] ab-panel ab-glass !rounded-[26px] !bg-[#020805]/70 border-ab-green/30 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -141,7 +149,7 @@ export function CommandPalette({ isOpen, onClose, onSelectLayer, views = [] }: {
             className="w-full bg-ab-bg border border-ab-green/20 rounded-full px-5 py-4 text-sm font-mono text-ab-white placeholder:text-ab-white/30 focus:outline-none focus:border-ab-green/60 shadow-inner transition-colors"
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
-            <div className="w-5 h-5 border border-ab-white/10 rounded flex items-center justify-center text-ab-white/40">
+            <div className="w-5 h-5 border border-ab-white/10 rounded-full flex items-center justify-center text-ab-white/40">
               <CornerDownLeft size={11} />
             </div>
           </div>
@@ -172,7 +180,7 @@ export function CommandPalette({ isOpen, onClose, onSelectLayer, views = [] }: {
               onMouseEnter={() => setCursor(i)}
               onClick={() => choose(view.id)}
               aria-label={`${view.label} — ${view.question}`}
-              className={`flex justify-between items-center gap-4 text-left w-full px-4 py-2.5 rounded-xl transition-colors ${
+              className={`flex justify-between items-center gap-4 text-left w-full px-4 py-2.5 rounded-full transition-colors ${
                 i === cursor ? 'bg-ab-green/10' : 'hover:bg-ab-green/5'
               }`}
             >
