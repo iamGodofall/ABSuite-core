@@ -1,7 +1,9 @@
 # The Agent Trust Record — protocol specification v1
 
-**Status:** Draft. Implemented by `@absuitecore/capkit`; not yet reviewed by any
-second implementation.
+**Status:** Draft, and implemented twice. `@absuitecore/capkit` writes and
+verifies; [`implementations/python`](../implementations/python) verifies
+independently, with no shared code and no dependencies, against the frozen
+vectors in §7.
 
 This document specifies a record format and a verification procedure. It is
 deliberately independent of ABSuite: everything below can be implemented in any
@@ -309,9 +311,13 @@ worthless.
 
 Honest gaps, recorded rather than omitted:
 
-- **No second implementation exists.** Until one does, this document is a
-  description of one codebase, however carefully it is written. That is the main
-  thing standing between this and being a protocol.
+- **Key ordering above the Basic Multilingual Plane.** §4.1 says keys sort by
+  Unicode code point. JavaScript's `JSON.stringify` sorts by UTF-16 code unit.
+  These agree for every character in the BMP and disagree for astral ones —
+  emoji, for instance — so two conformant implementations could produce different
+  hashes for a payload with an emoji key. Found by writing the second
+  implementation, which is what a second implementation is for. Unresolved: fixing
+  it means choosing one ordering and breaking whichever side already shipped it.
 - **Cross-chain verification is unspecified.** Two organisations each holding a
   chain cannot currently verify each other's records without merging them. A
   counter-signature format for chain heads is the obvious next section and is
@@ -323,9 +329,15 @@ Honest gaps, recorded rather than omitted:
 
 ---
 
-## 10. Reference implementation
+## 10. Implementations
 
-`@absuitecore/capkit` — MIT. `verifyTrace()`, `verifyChain()`, `canonicalTrace()`.
+| | Language | Writes | Verifies |
+|---|---|:-:|:-:|
+| `@absuitecore/capkit` | TypeScript | yes | yes |
+| [`implementations/python`](../implementations/python) | Python, no dependencies | no | yes |
+
+Both are MIT. The Python verifier was written from this document rather than from
+the TypeScript, and passes §7 against records the TypeScript signed.
 
 Implementing this specification requires no permission and no licence, and
 producing records that pass §7 is the only thing that makes an implementation

@@ -4,8 +4,8 @@
       "index": 1,
       "name": "Identity",
       "property": "Every agent, model and human has one that survives restarts",
-      "status": "PARTLY",
-      "evidence": "packages/capkit/src/keyring.ts"
+      "status": "BUILT",
+      "evidence": "packages/capkit/src/identity.ts"
     },
     {
       "index": 2,
@@ -45,14 +45,14 @@
     {
       "index": 7,
       "name": "Collective Intelligence",
-      "property": "Independent deployments verify each other's records without merging them",
+      "property": "Independent deployments verify each other's records without merging them *(accrues with adoption — the protocol is buildable, the network is not; it needs deployments that are not ours)*",
       "status": "NOT_BUILT",
       "evidence": null
     },
     {
       "index": 8,
       "name": "Civilization",
-      "property": "Millions of agents, autonomous economies, planetary-scale accountability",
+      "property": "Millions of agents, autonomous economies, planetary-scale accountability *(accrues with use — nothing here is a feature that can be written; it is what the lower seven become at scale)*",
       "status": "NOT_BUILT",
       "evidence": null
     }
