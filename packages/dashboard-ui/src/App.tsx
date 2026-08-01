@@ -27,6 +27,8 @@ import { GlobalView } from './tabs/GlobalView';
 import { AttentionPanel } from './tabs/Attention';
 import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
+import { Approvals } from './tabs/Approvals';
+import { WatchLayer } from './tabs/WatchLayer';
 import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
 import { ChainView } from './tabs/ChainView';
@@ -73,8 +75,8 @@ type TabId =
   | 'operations'
   // The seven-stage loop.
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
-  // The four standing views. Not stages — the things the stages act on.
-  | 'evidence' | 'policies' | 'agents' | 'unknowns'
+  // The standing views. Not stages — the things the stages act on.
+  | 'evidence' | 'policies' | 'agents' | 'unknowns' | 'approvals' | 'watch'
   // A transport over the log, rather than a place. Replay is the only view
   // whose subject is time.
   | 'replay'
@@ -1347,6 +1349,8 @@ const TAB_CONFIG: {
   { id: 'agents',   label: 'Agents',       question: 'Who has been acting here?',           icon: Bot },
   { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
   { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
+  { id: 'approvals', label: 'Approvals',   question: 'What is waiting on a person',        icon: Scale },
+  { id: 'watch',     label: 'Watch',       question: 'What has been raised, and how much it covers', icon: Eye },
   { id: 'replay',   label: 'Replay',        question: 'What happened, in the order it happened', icon: Play },
   { id: 'manual',   label: 'How to navigate', question: 'Keys, gestures, and what the four words mean', icon: HelpCircle },
   // Not layers. The machinery underneath.
@@ -1648,6 +1652,11 @@ export default function App() {
       case 'agents' as TrustLayer: return <Agents onOpenRecord={setOpenRecordId} />;
       case 'policies' as TrustLayer: return <><ConstraintsPanel /><Obligations /></>;
       case 'unknowns' as TrustLayer: return <UnknownsPanel />;
+      // Layer 5 and Layer 6, which existed as endpoints and could not be
+      // reached from here. An approval queue nobody can open is a workflow
+      // performed entirely by whoever wrote the curl command.
+      case 'approvals' as TrustLayer: return <Approvals />;
+      case 'watch' as TrustLayer: return <WatchLayer />;
       case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} onWitness={setWitnessing} />;
       case 'manual' as TrustLayer: return <Manual />;
       case 'console' as TrustLayer: return <AIStudioTab />;
@@ -1666,7 +1675,7 @@ export default function App() {
         version={__APP_VERSION__}
         surface={surface}
         onLayerChange={(layer: TrustLayer) => setActiveTab(layer === 'overview' ? null : (layer as TabId))}
-        /* TAB_CONFIG names all thirteen views; check-ui-philosophy reads it. */
+        /* TAB_CONFIG names every view; check-ui-philosophy reads it. */
         views={TAB_CONFIG.map(tab => ({ id: tab.id, label: tab.label, question: tab.question }))}
         witnessing={witnessing}
         live={{ executions: liveExecutions, arrivedIds }}

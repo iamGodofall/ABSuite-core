@@ -53,7 +53,11 @@ describe('a watch that has never run', () => {
 
     const coverage = watch.coverage();
     expect(coverage.everRun).toBe(true);
-    expect(coverage.because).toMatch(/found none — not that the system is well/);
+    // Coverage states how far the sweep got and nothing else. It used to end
+    // with a caveat about what an absence of notices means, which read as
+    // nonsense when rendered directly above a list of notices.
+    expect(coverage.because).toMatch(/read the record to its head/);
+    expect(coverage.because).not.toMatch(/absence|not that the system is well/);
   });
 
   test('records held above the high-water mark are reported as not yet covered', () => {

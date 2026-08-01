@@ -414,7 +414,13 @@ export class Watch {
         ? `The last sweep failed: ${state.lastSweepFailed}. Findings below are from before that, and the record has moved on since.`
         : behind > 0
           ? `The last sweep read to record ${state.highWaterSeq}; ${behind} record(s) held have not been examined yet.`
-          : `The last sweep at ${state.lastSweepAt} read the record to its head. An absence of notices here means this sweep found none — not that the system is well.`;
+          // Factual only. This sentence used to end "...an absence of notices
+          // means this sweep found none, not that the system is well" — which
+          // read as nonsense sitting directly above a list of notices, and
+          // duplicated the caveat the empty state and `unverifiable` already
+          // carry. Coverage says how far the sweep got; what an empty list means
+          // is the empty list's job to say.
+          : `The last sweep at ${state.lastSweepAt} read the record to its head at ${state.highWaterSeq}, examining ${state.lastSweepRead} new record(s).`;
 
     return {
       everRun: state.everRun,

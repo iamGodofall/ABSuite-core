@@ -511,6 +511,86 @@ app.get('/executions/attention', requireAdminAccess, async (req, res) => {
 });
 
 /**
+ * Layer 5 — the approvals a person owes a decision on.
+ *
+ * Proxied rather than reimplemented, like everything else here: this process
+ * holds a credential and forwards, it does not decide. Deciding is a POST
+ * because it changes something, and the reason a decision needs a basis is
+ * enforced in CapKit rather than in this file — a validation that lives only in
+ * the interface is a validation any other client skips.
+ */
+app.get('/approvals', requireAdminAccess, async (req, res) => {
+  try {
+    const state = String(req.query.state ?? '');
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/approvals${state ? `?state=${encodeURIComponent(state)}` : ''}`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+app.post('/approvals/:id/decide', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/approvals/${encodeURIComponent(String(req.params.id))}/decide`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+        },
+        body: JSON.stringify(req.body ?? {}),
+      }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/**
+ * Layer 6 — what the watch has seen, and how much of the record that covers.
+ *
+ * `coverage` is forwarded untouched and the panel is required to render it. An
+ * empty notice list from a watch that never ran looks identical to one from a
+ * clean sweep, and only the coverage sentence tells them apart.
+ */
+app.get('/watch', requireAdminAccess, async (req, res) => {
+  try {
+    const state = String(req.query.state ?? '');
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/watch${state ? `?state=${encodeURIComponent(state)}` : ''}`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+app.post('/watch/notices/:id/acknowledge', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/watch/notices/${encodeURIComponent(String(req.params.id))}/acknowledge`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+        },
+        body: JSON.stringify(req.body ?? {}),
+      }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/**
  * The console's own audit trail, and its integrity.
  *
  * CapKit has hash-chained every authorisation decision since the first commit —
