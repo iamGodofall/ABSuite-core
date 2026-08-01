@@ -1696,13 +1696,17 @@ export default function App() {
          * Govern, the two stations most likely to matter when something has
          * stopped answering.
          *
-         * And clear of the footer. bottom-8 put it 32px from the edge, which is
-         * inside the footer bar — so once the notice collapsed to its icon it
-         * sat on top of the CONNECTED / NOT CONNECTED reading in the corner. A
+         * And clear of the footer, but only just. bottom-8 put it 32px from the
+         * edge, which is inside the footer bar — so once the notice collapsed to
+         * its icon it sat on top of the CONNECTED / NOT CONNECTED reading. A
          * thing that folds away to stop being in the way should not fold away
          * into something else.
+         *
+         * bottom-24 then overcorrected and left it stranded in the middle of the
+         * scene. Sixteen is the midpoint: near enough the corner to read as
+         * belonging to the status line, far enough to leave it its space.
          */
-        <div className="fixed bottom-24 right-6 z-50 max-w-sm w-[92%] sm:w-auto flex justify-end">
+        <div className="fixed bottom-16 right-6 z-50 max-w-sm w-[92%] sm:w-auto flex justify-end">
           {!connected && services.every(service => service.status !== 'up') ? (
             <NoticeCard
               collapsible
