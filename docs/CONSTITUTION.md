@@ -181,7 +181,7 @@ according to its nature** — some layers touch two stages, some touch all seven
 
 | Layer | Observe | Verify | Explain | Govern | Arbitrate | Act | Learn |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Identity | ◐ | ◐ | | | | | |
+| Identity | ● | ● | ● | ● | | | |
 | Capability | ● | ● | ● | | | | |
 | Evidence | ● | ● | ● | | | | |
 | Trust | | ● | ● | | ● | | ● |
@@ -303,7 +303,7 @@ building. What it grows into, in order, each layer resting on the one below:
 
 | | Layer | | Status | Evidence |
 |---|---|---|---|---|
-| 1 | **Identity** | Every agent, model and human has one that survives restarts | Partly built | `packages/capkit/src/keyring.ts` |
+| 1 | **Identity** | Every agent, model and human has one that survives restarts | Built | `packages/capkit/src/identity.ts` |
 | 2 | **Capability** | Authority is granted narrowly, expires, and is revocable centrally | Built | `packages/capkit/src/capability.ts` |
 | 3 | **Evidence** | Claims are checked against sources and reported as supported, unverified or contradicted | Built | `packages/trust/src/verification.ts` |
 | 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built | `packages/trust/src/scoring.ts` |

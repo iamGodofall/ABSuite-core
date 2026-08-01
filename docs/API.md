@@ -85,6 +85,13 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | GET | `/executions/unknowns` | `execution:read` | — |
 | POST | `/executions/verify` | _public_ | — |
 | GET | `/health` | _public_ | — |
+| GET | `/identities` | `identity:read` | — |
+| POST | `/identities` | `identity:manage` | — |
+| GET | `/identities/:subject` | `identity:read` | — |
+| POST | `/identities/:subject/challenge` | _public_ | — |
+| POST | `/identities/:subject/reinstate` | `identity:manage` | — |
+| POST | `/identities/:subject/rotate` | `identity:manage` | — |
+| POST | `/identities/:subject/suspend` | `identity:manage` | — |
 | POST | `/issue` | `auth:token:create` | — |
 | GET | `/metrics` | _public_ | — |
 | GET | `/plans` | _public_ | — |
@@ -114,6 +121,16 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`GET /executions/unknowns`** — Everything this instance could know and does not, grouped by what would fix it. An UNKNOWN is not a destination; it is a queue of work. Every unknown in the system already carries its own route out, and once you have thousands of records those routes collapse into a handful of distinct actions — supply the public key, record output hashes, attach a policy reference. This groups them and counts how many records each one would resolve. Counts, not priorities. Which of these matters is a judgement, and ordering them by importance would be ABSuite making it.
 
 **`POST /executions/verify`** — Verify a single trace, or the whole chain. Unauthenticated by design: a customer or regulator must be able to check a trace they were handed without holding an ABSuite credential.
+
+**`GET /identities`** — Every enrolled identity. Public keys only — no private material is ever held.
+
+**`POST /identities`** — Enrol a subject against a public key it holds the private half of. This is the line where `subject` stops being a string somebody typed. Until a subject is enrolled, every condition report says Identity: UNKNOWN — because a name on a record is a label, and the check that used to sit here proved only that this server wrote the record, which is a fact about us.
+
+**`POST /identities/:subject/challenge`** — A single-use challenge for a subject to sign. Deliberately unauthenticated: asking for a nonce proves nothing and grants nothing. The credential is the *signature*, and only the holder of the private key can produce one. Gating this behind a token would mean an agent needed authority before it could prove who it was, which inverts the whole layer.
+
+**`POST /identities/:subject/rotate`** — Rotate the public key on file. History is untouched; future proofs change key.
+
+**`POST /identities/:subject/suspend`** — Suspend an identity. It stops obtaining authority immediately. Nothing it already recorded is altered, hidden or re-scored. History is not revised because somebody was later distrusted — that would make the record a reflection of current opinion rather than of what happened.
 
 **`POST /issue`** — The dashboard issues tokens with an {actor, action, resource, expires} shape. Map it onto the capability model rather than making the dashboard speak two dialects.
 
@@ -269,4 +286,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_104 HTTP endpoints across 5 services. Generated from source._
+_111 HTTP endpoints across 5 services. Generated from source._

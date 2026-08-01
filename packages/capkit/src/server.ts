@@ -22,6 +22,7 @@ import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord } from './trace';
 import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
+import { IdentityRegistry, IdentityError } from './identity';
 import { determineTrace } from './determination';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
 import { TenantRateLimiter } from './rate-limit';
@@ -102,6 +103,10 @@ const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 // auditor must be able to verify a trace without also being able to forge one.
 const signingKey = new SigningKey(process.env.CAPKIT_TRACE_PRIVATE_KEY, process.env.CAPKIT_TRACE_KEY_ID || 'absuite-trace-key');
 const traces = new TraceStore(storage, signingKey);
+
+// Layer 1. Subjects enrolled against public keys they hold the private half of,
+// so `subject` on a record stops being a string the caller typed.
+const identities = new IdentityRegistry(storage);
 
 // Annotated explicitly so the emitted declaration file does not need to name
 // a transitive @types/express-serve-static-core path.
@@ -327,7 +332,40 @@ app.get('/health', (_req, res) => {
 
 app.post('/auth/token', authorise('auth:token:create'), enforceQuota('agents'), (req, res) => {
   const startedAt = Date.now();
-  const { sub, scope, expiresIn, aud } = req.body ?? {};
+  const { sub, scope, expiresIn, aud, proof } = req.body ?? {};
+
+  /*
+   * Identity, enforced at the gate.
+   *
+   * The constitution's ascent says Identity enables Capability — you cannot
+   * grant to nobody — and this is the line where that stops being a diagram.
+   *
+   * Enrolment is optional. A deployment that has enrolled nobody behaves exactly
+   * as it always did, and every condition report says Identity: UNKNOWN, which
+   * is the truth. But once a subject *is* enrolled, a token in its name requires
+   * proof of possession — because an identity whose authority can be obtained by
+   * simply not proving anything is not an identity, it is a suggestion.
+   */
+  const requestedSubject = String(sub ?? '').trim();
+  const enrolled = requestedSubject ? identities.get(requestedSubject) : undefined;
+
+  if (enrolled) {
+    if (enrolled.status === 'suspended') {
+      return fail(res, 403, 'IDENTITY_SUSPENDED',
+        `${requestedSubject} is suspended: ${enrolled.suspendedReason ?? 'no reason recorded'}. No new authority is issued to a suspended identity; everything it already did stands unchanged.`);
+    }
+    if (!proof || typeof proof !== 'object') {
+      return fail(res, 401, 'PROOF_REQUIRED',
+        `${requestedSubject} is an enrolled identity, so a token in its name requires proof of possession. Request a challenge from POST /identities/${encodeURIComponent(requestedSubject)}/challenge, sign the nonce with the private key, and send { proof: { nonce, signature } }.`);
+    }
+    try {
+      const { nonce, signature } = proof as Record<string, unknown>;
+      identities.prove(requestedSubject, String(nonce ?? ''), String(signature ?? ''));
+    } catch (error) {
+      const identityError = error as IdentityError;
+      return fail(res, 401, identityError.code ?? 'PROOF_INVALID', identityError.message);
+    }
+  }
 
   try {
     const created = CapabilityToken.create(
@@ -340,6 +378,10 @@ app.post('/auth/token', authorise('auth:token:create'), enforceQuota('agents'), 
       },
       SECRET
     );
+
+    // Remembered so a record written weeks from now can still be asked whether
+    // the authority behind it was ever tied to a subject that proved itself.
+    identities.bindToken(created.jti, requestedSubject, Boolean(enrolled));
 
     audit.record({
       subject: (req as express.Request & { actor?: string }).actor || 'unknown',
@@ -560,6 +602,99 @@ app.post('/signup', (req, res) => {
     });
   } catch (error) {
     return fail(res, 400, 'INVALID_REQUEST', (error as Error).message);
+  }
+});
+
+// ---- Identity ----
+
+/**
+ * Enrol a subject against a public key it holds the private half of.
+ *
+ * This is the line where `subject` stops being a string somebody typed. Until a
+ * subject is enrolled, every condition report says Identity: UNKNOWN — because a
+ * name on a record is a label, and the check that used to sit here proved only
+ * that this server wrote the record, which is a fact about us.
+ */
+app.post('/identities', authorise('identity:manage'), (req, res) => {
+  try {
+    const { subject, publicKeyPem, kind, label } = req.body ?? {};
+    return res.status(201).json(identities.enrol({ subject, publicKeyPem, kind, label }));
+  } catch (error) {
+    const identityError = error as IdentityError;
+    const status = identityError.code === 'ALREADY_ENROLLED' ? 409 : 400;
+    return fail(res, status, identityError.code ?? 'INVALID_REQUEST', identityError.message);
+  }
+});
+
+/** Every enrolled identity. Public keys only — no private material is ever held. */
+app.get('/identities', authorise('identity:read'), (_req, res) => {
+  const all = identities.list();
+  res.status(200).json({
+    generated: generated(`${all.length} enrolled identit${all.length === 1 ? 'y' : 'ies'}`),
+    identities: all,
+    unverifiable: [
+      { field: 'liveness', because: 'An enrolled identity is not a running agent. Nothing here reports whether it is up.' },
+      { field: 'trustworthiness', because: 'Enrolment shows a subject holds a key. It says nothing about whether it should be believed.' },
+    ],
+  });
+});
+
+app.get('/identities/:subject', authorise('identity:read'), (req, res) => {
+  const identity = identities.get(String(req.params.subject));
+  if (!identity) return fail(res, 404, 'IDENTITY_UNKNOWN', `No identity is enrolled for ${req.params.subject}.`);
+  return res.status(200).json(identity);
+});
+
+/**
+ * A single-use challenge for a subject to sign.
+ *
+ * Deliberately unauthenticated: asking for a nonce proves nothing and grants
+ * nothing. The credential is the *signature*, and only the holder of the private
+ * key can produce one. Gating this behind a token would mean an agent needed
+ * authority before it could prove who it was, which inverts the whole layer.
+ */
+app.post('/identities/:subject/challenge', (req, res) => {
+  try {
+    return res.status(200).json(identities.challenge(String(req.params.subject)));
+  } catch (error) {
+    const identityError = error as IdentityError;
+    const status = identityError.code === 'IDENTITY_UNKNOWN' ? 404 : identityError.code === 'IDENTITY_SUSPENDED' ? 403 : 400;
+    return fail(res, status, identityError.code ?? 'INVALID_REQUEST', identityError.message);
+  }
+});
+
+/** Rotate the public key on file. History is untouched; future proofs change key. */
+app.post('/identities/:subject/rotate', authorise('identity:manage'), (req, res) => {
+  try {
+    return res.status(200).json(identities.rotate(String(req.params.subject), String(req.body?.publicKeyPem ?? '')));
+  } catch (error) {
+    const identityError = error as IdentityError;
+    return fail(res, identityError.code === 'IDENTITY_UNKNOWN' ? 404 : 400, identityError.code ?? 'INVALID_REQUEST', identityError.message);
+  }
+});
+
+/**
+ * Suspend an identity. It stops obtaining authority immediately.
+ *
+ * Nothing it already recorded is altered, hidden or re-scored. History is not
+ * revised because somebody was later distrusted — that would make the record a
+ * reflection of current opinion rather than of what happened.
+ */
+app.post('/identities/:subject/suspend', authorise('identity:manage'), (req, res) => {
+  try {
+    return res.status(200).json(identities.suspend(String(req.params.subject), String(req.body?.reason ?? '')));
+  } catch (error) {
+    const identityError = error as IdentityError;
+    return fail(res, identityError.code === 'IDENTITY_UNKNOWN' ? 404 : 400, identityError.code ?? 'INVALID_REQUEST', identityError.message);
+  }
+});
+
+app.post('/identities/:subject/reinstate', authorise('identity:manage'), (req, res) => {
+  try {
+    return res.status(200).json(identities.reinstate(String(req.params.subject)));
+  } catch (error) {
+    const identityError = error as IdentityError;
+    return fail(res, identityError.code === 'IDENTITY_UNKNOWN' ? 404 : 400, identityError.code ?? 'INVALID_REQUEST', identityError.message);
   }
 });
 
@@ -813,7 +948,7 @@ app.get('/executions/unknowns', authorise('execution:read'), (req, res) => {
   const byResolution = new Map<string, { conditions: Set<string>; records: string[] }>();
 
   for (const trace of records) {
-    const report = trustConditions(trace, verifyTrace(trace, signingKey.publicKeyPem), chainValid);
+    const report = trustConditions(trace, verifyTrace(trace, signingKey.publicKeyPem), chainValid, identities.attest(trace.subject, trace.jti));
     for (const condition of report.conditions) {
       if (condition.state !== 'UNKNOWN' || !condition.resolvedBy) continue;
       const entry = byResolution.get(condition.resolvedBy) ?? { conditions: new Set(), records: [] };
@@ -917,7 +1052,7 @@ app.get('/executions/:id/conditions', authorise('execution:read'), (req, res) =>
 
   return res.status(200).json({
     generated: generated(`execution ${trace.id}, against a chain of ${chain.checked} record(s)`),
-    ...trustConditions(trace, verdict, chain.valid),
+    ...trustConditions(trace, verdict, chain.valid, identities.attest(trace.subject, trace.jti)),
   });
 });
 

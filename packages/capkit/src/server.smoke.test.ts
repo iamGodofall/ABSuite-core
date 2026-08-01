@@ -62,6 +62,12 @@ beforeAll(async () => {
       CAPKIT_ADMIN_KEY: ADMIN,
       ABSUITE_DB_PATH: join(dataDir, 'absuite.db'),
       NODE_ENV: 'test',
+      // The suite makes far more calls than a person does, and the burst limiter
+      // is real: it started returning 429 the moment identity added enrolments,
+      // challenges and proofs to the run. Raised for the harness only — the
+      // limiter itself is exercised by rate-limit.test.ts, which is where a
+      // limit belongs under test rather than as a background hazard here.
+      ABSUITE_RATE_LIMIT_PER_MINUTE: '10000',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -433,4 +439,110 @@ describe('the running CapKit server', () => {
 
     expect(missing).toEqual([]);
   }, 30_000);
+});
+
+/**
+ * Layer 1, over the wire.
+ *
+ * The unit tests prove the registry. These prove the *gate* — that an enrolled
+ * subject cannot obtain authority in its own name without its own key. That is
+ * the only part an attacker interacts with, and it is the part that was missing.
+ */
+describe('identity, enforced at the gate', () => {
+  const { generateKeyPairSync, sign: cryptoSign, createPrivateKey } = require('node:crypto') as typeof import('node:crypto');
+
+  const keypair = () => {
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    return {
+      privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+      publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+    };
+  };
+  const signNonce = (nonce: string, privateKeyPem: string) =>
+    cryptoSign(null, Buffer.from(nonce, 'utf8'), createPrivateKey(privateKeyPem)).toString('base64');
+
+  const admin = { 'x-absuite-admin-key': ADMIN };
+
+  test('an unenrolled subject still gets a token, and the record says Identity is UNKNOWN', async () => {
+    const { status, body } = await post('/auth/token', { sub: 'agent:unenrolled', scope: ['execution:record'] }, admin);
+    expect(status).toBe(200);
+
+    const recorded = await post('/executions', {
+      subject: 'agent:unenrolled', jti: String(body.jti), scope: ['execution:record'],
+      module: 'm', action: 'act', input: { a: 1 }, outcome: 'success',
+    }, { authorization: `Bearer ${String(body.token)}` });
+
+    const conditions = (await (await fetch(`${base}/executions/${String(recorded.body.id)}/conditions`, { headers: admin })).json()) as
+      { conditions: { condition: string; state: string; finding: string }[] };
+    const identity = conditions.conditions.find(c => c.condition === 'Identity')!;
+
+    // Not DEMONSTRATED. The name may well be true; nothing here shows it.
+    expect(identity.state).toBe('UNKNOWN');
+    expect(identity.finding).toMatch(/not an enrolled identity/);
+  });
+
+  test('once enrolled, a token in that name requires the key — and the record earns DEMONSTRATED', async () => {
+    const { publicKeyPem, privateKeyPem } = keypair();
+    const subject = 'agent:enrolled';
+
+    const enrolled = await post('/identities', { subject, publicKeyPem, kind: 'agent' }, admin);
+    expect(enrolled.status).toBe(201);
+
+    // The impersonation this layer exists to stop: an admin key is no longer
+    // enough to act as an enrolled subject.
+    const bare = await post('/auth/token', { sub: subject, scope: ['execution:record'] }, admin);
+    expect(bare.status).toBe(401);
+    expect(JSON.stringify(bare.body)).toMatch(/PROOF_REQUIRED/);
+
+    const challenge = (await (await fetch(`${base}/identities/${subject}/challenge`, { method: 'POST' })).json()) as { nonce: string };
+    expect(challenge.nonce).toBeTruthy();
+
+    const wrongKey = await post('/auth/token', {
+      sub: subject, scope: ['execution:record'],
+      proof: { nonce: challenge.nonce, signature: signNonce(challenge.nonce, keypair().privateKeyPem) },
+    }, admin);
+    expect(wrongKey.status).toBe(401);
+
+    const second = (await (await fetch(`${base}/identities/${subject}/challenge`, { method: 'POST' })).json()) as { nonce: string };
+    const proven = await post('/auth/token', {
+      sub: subject, scope: ['execution:record'],
+      proof: { nonce: second.nonce, signature: signNonce(second.nonce, privateKeyPem) },
+    }, admin);
+    expect(proven.status).toBe(200);
+
+    const recorded = await post('/executions', {
+      subject, jti: String(proven.body.jti), scope: ['execution:record'],
+      module: 'm', action: 'act', input: { a: 1 }, outcome: 'success',
+    }, { authorization: `Bearer ${String(proven.body.token)}` });
+
+    const conditions = (await (await fetch(`${base}/executions/${String(recorded.body.id)}/conditions`, { headers: admin })).json()) as
+      { conditions: { condition: string; state: string; finding: string }[] };
+    const identity = conditions.conditions.find(c => c.condition === 'Identity')!;
+
+    expect(identity.state).toBe('DEMONSTRATED');
+    expect(identity.finding).toMatch(/signed a challenge with the key on file/);
+  });
+
+  test('a suspended identity obtains nothing further, and keeps everything it already had', async () => {
+    const { publicKeyPem } = keypair();
+    const subject = 'agent:suspended';
+    await post('/identities', { subject, publicKeyPem }, admin);
+
+    const suspended = await post(`/identities/${subject}/suspend`, { reason: 'key suspected compromised' }, admin);
+    expect(suspended.status).toBe(200);
+
+    const refused = await post('/auth/token', { sub: subject, scope: ['execution:record'] }, admin);
+    expect(refused.status).toBe(403);
+    expect(JSON.stringify(refused.body)).toMatch(/IDENTITY_SUSPENDED/);
+
+    // No challenge either — the door is shut before proof is even attempted.
+    const challenge = await fetch(`${base}/identities/${subject}/challenge`, { method: 'POST' });
+    expect(challenge.status).toBe(403);
+  });
+
+  test('the registry never holds private material', async () => {
+    const listed = await (await fetch(`${base}/identities`, { headers: admin })).json() as { identities: unknown[] };
+    expect(JSON.stringify(listed)).not.toContain('PRIVATE KEY');
+    expect(listed.identities.length).toBeGreaterThan(0);
+  });
 });

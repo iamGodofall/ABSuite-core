@@ -19,6 +19,7 @@
  */
 import type { ExecutionTrace, TraceVerdict } from './trace';
 import { type Determination } from './determination';
+import type { IdentityAttestation } from './identity';
 
 /**
  * The same four states used everywhere else — see determination.ts.
@@ -92,7 +93,16 @@ function weakest(states: ConditionState[]): ConditionState {
 export function trustConditions(
   trace: ExecutionTrace,
   verdict?: TraceVerdict,
-  chainIntact?: boolean
+  chainIntact?: boolean,
+  /**
+   * What the identity registry can show about this subject.
+   *
+   * Optional, and its absence is not a failure: a deployment with no registry
+   * reports Identity as UNKNOWN, which is exactly what it is. Passing a
+   * fabricated attestation here would be the only way to make this lie, and
+   * that is a deliberate act rather than a default.
+   */
+  identity?: IdentityAttestation
 ): ConditionsReport {
   // A record this build cannot read tells us nothing about any condition.
   // Reporting five absences would read as five findings against the record,
@@ -119,22 +129,38 @@ export function trustConditions(
 
   const conditions: TrustCondition[] = [];
 
-  // ── Identity: who? ────────────────────────────────────────────────────────
+  /*
+   * ── Identity: who? ───────────────────────────────────────────────────────
+   *
+   * This answered DEMONSTRATED whenever the record's own signature verified,
+   * which is a fact about *this server* — it proves we wrote the record. It was
+   * being read as attribution of the act, and `subject` was a string the caller
+   * typed. Anyone with an admin key could record `subject: "agent:cfo"` and this
+   * line called it demonstrated.
+   *
+   * A false DEMONSTRATED, on the strongest word the product has, in the layer
+   * every other layer rests on.
+   *
+   * The check is now possession of a key: an enrolled subject signs a single-use
+   * challenge before any token is issued in its name. Without an identity
+   * registry the honest answer is UNKNOWN — the name may well be true, and
+   * nothing here shows it.
+   */
   const hasSubject = Boolean(trace.subject && trace.subject.trim());
-  const signedBy = trace.keyId;
   conditions.push({
     condition: 'Identity',
     answers: 'Who?',
-    state: !hasSubject ? 'ABSENT' : verdict?.signatureValid === false ? 'FAILED' : verdict?.signatureValid ? 'DEMONSTRATED' : 'UNKNOWN',
+    state: identity ? identity.state : hasSubject ? 'UNKNOWN' : 'ABSENT',
     ...(!hasSubject ? { notAnsweredBecause: 'No subject was recorded on this execution.' } : {}),
-    ...(hasSubject && verdict?.signatureValid === undefined || verdict?.signatureValid === null
-      ? { resolvedBy: 'Verify the record against the signing key’s public half.' } : {}),
+    ...(hasSubject && (!identity || identity.state === 'UNKNOWN')
+      ? { resolvedBy: 'Enrol this subject against a public key, and require proof of possession when its tokens are issued.' }
+      : {}),
     finding: !hasSubject
       ? 'No subject is recorded, so there is nothing to attribute this action to.'
-      : verdict?.signatureValid
-        ? `The action is attributed to ${trace.subject}, and the record is signed by ${signedBy ?? 'an unnamed key'}.`
-        : `The action names ${trace.subject}, but no valid signature ties that claim to the key that wrote it.`,
-    from: 'subject, keyId, verifyTrace(): signatureValid',
+      : identity
+        ? identity.because
+        : `The action names ${trace.subject}. Nothing here shows the actor was that subject — the record's signature proves who wrote the record, not who acted.`,
+    from: 'subject, jti, identity registry: enrolment and proof of possession',
   });
 
   // ── Capability: allowed? ──────────────────────────────────────────────────

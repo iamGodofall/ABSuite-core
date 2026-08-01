@@ -82,6 +82,19 @@ export {
 export { SIGNUP_PAGE, SignupThrottle, validateSignup, type SignupLimits } from './signup';
 
 export {
+  IdentityRegistry,
+  IdentityError,
+  generateIdentityKeypair,
+  suggestSubjectId,
+  IDENTITY_KINDS,
+  CHALLENGE_TTL_MS,
+  type Identity,
+  type IdentityKind,
+  type IdentityStatus,
+  type IdentityAttestation,
+} from './identity';
+
+export {
   TraceStore,
   SigningKey,
   hashPayload,

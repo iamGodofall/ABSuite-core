@@ -1,6 +1,23 @@
 import { Storage } from './storage';
 import { TraceStore, SigningKey, verifyTrace } from './trace';
 import { trustConditions, renderConditions } from './conditions';
+import type { IdentityAttestation } from './identity';
+
+/**
+ * What the identity registry reports for a subject that enrolled a key and
+ * proved it holds the private half.
+ *
+ * Supplied explicitly in these tests, and that is the point. Identity used to
+ * reach DEMONSTRATED from the record's own signature — which proves this server
+ * wrote the record, not that the named subject acted. A trace on its own can no
+ * longer earn the word, so a test that wants it has to say where the proof came
+ * from, exactly as a deployment does.
+ */
+const proven: IdentityAttestation = {
+  state: 'DEMONSTRATED',
+  enrolled: true,
+  because: 'agent-001 is enrolled, and the token that authorised this was issued only after it signed a challenge with the key on file.',
+};
 
 const fresh = () => {
   const key = new SigningKey();
@@ -40,7 +57,7 @@ describe('the necessary conditions for trust', () => {
   test('states all five conditions demonstrated when they are', () => {
     const { traces, key } = fresh();
     const trace = sample(traces);
-    const report = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true);
+    const report = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true, proven);
 
     // Governance is honestly absent: a trace records the authority an action
     // held, never the rule that decided it should hold it.
@@ -163,11 +180,34 @@ describe('the necessary conditions for trust', () => {
     const trace = sample(traces, {
       governance: { policyRef: 'p', policyVersion: '1', decision: 'PERMITTED', evidence: ['checked'] },
     });
-    const report = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true);
+    const report = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true, proven);
 
     expect(report.overall).toBe('DEMONSTRATED');
     expect(report.constrainedBy).toEqual([]);
     expect(report.allDemonstrated).toBe(true);
+  });
+
+  test('a perfect record with an unproven subject is not all demonstrated', () => {
+    const { traces, key } = fresh();
+    const trace = sample(traces, {
+      governance: { policyRef: 'p', policyVersion: '1', decision: 'PERMITTED', evidence: ['checked'] },
+    });
+
+    /*
+     * The regression guard for the whole Identity layer.
+     *
+     * Signed, chained, scoped, governed, verified — and the subject is still a
+     * string somebody typed. This exact record answered DEMONSTRATED on all five
+     * conditions before identity existed, because Identity was reading the
+     * record's own signature. Every other condition here is genuinely met; the
+     * one that is not must hold the answer down, or nothing composes upward.
+     */
+    const report = trustConditions(trace, verifyTrace(trace, key.publicKeyPem), true);
+
+    expect(report.conditions.find(c => c.condition === 'Identity')!.state).toBe('UNKNOWN');
+    expect(report.overall).not.toBe('DEMONSTRATED');
+    expect(report.constrainedBy).toContain('Identity');
+    expect(report.allDemonstrated).toBe(false);
   });
 
   test('every finding names the field it was read from', () => {

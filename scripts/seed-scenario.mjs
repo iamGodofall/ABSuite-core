@@ -31,11 +31,12 @@
  */
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { TraceStore, getStorage, SigningKey } = require('../packages/capkit/dist/index.js');
+const { TraceStore, getStorage, SigningKey, IdentityRegistry, generateIdentityKeypair } = require('../packages/capkit/dist/index.js');
 
 const key = new SigningKey(process.env.CAPKIT_TRACE_PRIVATE_KEY, process.env.CAPKIT_TRACE_KEY_ID);
 const storage = getStorage();
 const traces = new TraceStore(storage, key);
+const identities = new IdentityRegistry(storage);
 
 if (key.ephemeral) {
   console.warn(
@@ -146,10 +147,48 @@ if (process.argv.includes('--clear')) {
   console.log('Cleared existing executions.\n');
 }
 
+/*
+ * Two of the four agents are enrolled; two are not.
+ *
+ * Deliberately not all of them. An instance where every subject is enrolled
+ * shows Identity: DEMONSTRATED everywhere and teaches nothing about the
+ * distinction the layer exists to draw — that a name on a record is a label
+ * until somebody proves they hold the key behind it.
+ *
+ * The private halves are generated here, used to prove possession, and thrown
+ * away with the process. That is the correct shape: this server never holds
+ * them, which is what lets an agent's proof mean something to someone who does
+ * not trust this server.
+ */
+const ENROLLED = ['agent:invoicing', 'agent:reconciler'];
+const proofs = new Map();
+
+for (const subject of ENROLLED) {
+  if (identities.get(subject)) continue;
+  const { publicKeyPem, privateKeyPem } = generateIdentityKeypair();
+  identities.enrol({ subject, publicKeyPem, kind: 'agent', label: `${subject.split(':')[1]} agent` });
+
+  // Prove possession the same way an agent would over HTTP: request a nonce,
+  // sign it, present it once.
+  const { nonce } = identities.challenge(subject);
+  const signature = require('node:crypto')
+    .sign(null, Buffer.from(nonce, 'utf8'), require('node:crypto').createPrivateKey(privateKeyPem))
+    .toString('base64');
+  identities.prove(subject, nonce, signature);
+
+  // Bind a token id so records written below inherit that proof.
+  const jti = `tok_seed_${subject.split(':')[1]}`;
+  identities.bindToken(jti, subject, true);
+  proofs.set(subject, jti);
+}
+
 let n = 0;
 for (const act of DAY) {
   traces.record({
     subject: act.subject,
+    // Carried only for enrolled subjects, so the condition report can trace the
+    // authority back to a proven issue. The others correctly read UNKNOWN.
+    ...(proofs.has(act.subject) ? { jti: proofs.get(act.subject) } : {}),
     scope: act.scope,
     module: act.module,
     action: act.action,
@@ -174,6 +213,7 @@ console.log(`  outcomes  : ${DAY.filter(a => a.outcome === 'success').length} su
 console.log(`  unscoped  : ${DAY.filter(a => a.scope.length === 0).length}`);
 console.log(`  steps      : ${DAY.reduce((t, a) => t + a.steps.length, 0)} across ${DAY.filter(a => a.steps.length).length} records`);
 console.log(`  chain     : ${chain.valid ? 'valid' : 'BROKEN'}, ${chain.checked} verified`);
+console.log(`  identity  : ${ENROLLED.length} of 4 agents enrolled and proven; the other 2 read UNKNOWN, which is what they are`);
 const costed = DAY.filter(a => a.cost);
 const byCurrency = new Map();
 for (const a of costed) byCurrency.set(a.cost.currency, (byCurrency.get(a.cost.currency) ?? 0) + a.cost.amount);

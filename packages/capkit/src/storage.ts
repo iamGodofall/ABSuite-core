@@ -113,6 +113,39 @@ const MIGRATIONS: string[] = [
      key_id       TEXT
    )`,
 
+  // Layer 1 — Identity. A subject enrolled against a public key it holds the
+  // private half of, so `subject` stops being a string the caller typed.
+  `CREATE TABLE IF NOT EXISTS identities (
+     subject          TEXT PRIMARY KEY,
+     public_key_pem   TEXT NOT NULL,
+     kind             TEXT NOT NULL DEFAULT 'agent',
+     status           TEXT NOT NULL DEFAULT 'active',
+     label            TEXT,
+     enrolled_at      TEXT NOT NULL,
+     last_proven_at   TEXT,
+     suspended_at     TEXT,
+     suspended_reason TEXT
+   )`,
+
+  // Single-use challenges. Short-lived by design and swept on issue.
+  `CREATE TABLE IF NOT EXISTS identity_challenges (
+     nonce      TEXT PRIMARY KEY,
+     subject    TEXT NOT NULL,
+     expires_at TEXT NOT NULL,
+     used       INTEGER NOT NULL DEFAULT 0
+   )`,
+
+  // Which issued tokens were backed by a proof. Keyed by a hash of the token id
+  // so this table is not a list of live credential identifiers.
+  `CREATE TABLE IF NOT EXISTS identity_tokens (
+     jti_hash  TEXT PRIMARY KEY,
+     subject   TEXT NOT NULL,
+     proven    INTEGER NOT NULL DEFAULT 0,
+     issued_at TEXT NOT NULL
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_identity_challenges_expiry ON identity_challenges (expires_at)`,
+
   `CREATE INDEX IF NOT EXISTS idx_executions_seq ON executions (seq)`,
   `CREATE INDEX IF NOT EXISTS idx_executions_tenant ON executions (tenant_id, started_at)`,
 ];
