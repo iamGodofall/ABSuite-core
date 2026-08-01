@@ -693,8 +693,21 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                 ))}
 
                 {/* The lamps travel with the source. */}
-                <pointLight color={color} intensity={isIdle ? 2 : 4} distance={8} decay={2} />
-                <pointLight color={coreColor} intensity={(isIdle ? 1 : 2) * (core.intensity / 9)} distance={4} decay={2} />
+                {/*
+                  * The lamp, and it is the core's lamp.
+                  *
+                  * This was the layer colour at intensity 4 over a distance of
+                  * 8 — the strongest light inside the cube — while the core
+                  * beside it had been changed to the evidence colour. The
+                  * result was an amber sun sitting in an emerald room, lighting
+                  * nothing: a light source whose light did not reach anything.
+                  *
+                  * Light behaves like light. What the core is, the near field
+                  * takes on. The glass shell and the outer edges keep the layer
+                  * palette, because those are architecture and navigation.
+                  */}
+                <pointLight color={coreColor} intensity={isIdle ? 2 : 4} distance={8} decay={2} />
+                <pointLight color={coreColor} intensity={(isIdle ? 1 : 2) * Math.max(0.4, core.intensity / 9)} distance={4} decay={2} />
               </group>
 
               {/*
@@ -748,7 +761,7 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   drawn circle. */}
               <mesh rotation={[-Math.PI / 2, 0, 0]}>
                 <torusGeometry args={[radius, 0.015, 8, 128]} />
-                <meshBasicMaterial color={coreColor} transparent opacity={(0.15 + (i * 0.05)) * (core.intensity / 9)} blending={THREE.AdditiveBlending} />
+                <meshBasicMaterial color={coreColor} transparent opacity={(0.15 + (i * 0.05)) * Math.max(0.55, core.intensity / 9)} blending={THREE.AdditiveBlending} />
               </mesh>
               {i > 1 && (
                 <mesh rotation={[-Math.PI / 2, 0, 0]}>

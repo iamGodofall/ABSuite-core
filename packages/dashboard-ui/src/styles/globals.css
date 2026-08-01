@@ -782,7 +782,16 @@
   background: rgba(2, 8, 5, 0.6);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(0, 245, 140, 0.1);
-  border-radius: 2px;
+  /*
+   * Rounded, deliberately.
+   *
+   * A 2px radius was the instrument-panel look: hard corners, machined edges,
+   * nothing soft. It reads as precise on a schematic and as unfinished on a
+   * panel you sit and read. Everything a person actually dwells in — the layer
+   * surfaces, the palette, the cards inside them — is softened here in one
+   * place rather than a hundred.
+   */
+  border-radius: 14px;
   padding: 1rem;
   position: relative;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 0 20px rgba(0, 245, 140, 0.02);
@@ -900,8 +909,8 @@
    read, not operated by a call to action.
    ------------------------------------------------------------------------- */
 
-.ab-surface :is([class*="rounded-xl"], [class*="rounded-lg"], [class*="rounded-2xl"], [class*="rounded-md"]) {
-  border-radius: 2px;
+.ab-surface :is([class*="rounded-xl"], [class*="rounded-lg"], [class*="rounded-2xl"], [class*="rounded-md"], [class*="rounded-sm"], [class*="rounded"]) {
+  border-radius: 12px;
 }
 
 /* Panels take the supplied panel: near-black, blurred, hairline, faint inner
@@ -960,4 +969,22 @@
   border-color: rgba(0, 245, 140, 0.15);
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
   font-size: 11px;
+}
+
+
+/*
+ * Controls inside a layer surface are rounded too.
+ *
+ * The panels were softened above and their buttons and fields were not, which
+ * left hard-edged controls sitting inside soft containers — the one combination
+ * that looks like two designs meeting rather than one.
+ */
+.ab-surface button:not([class*="rounded-full"]) {
+  border-radius: 10px;
+}
+.ab-surface :is(input, select, textarea) {
+  border-radius: 10px;
+}
+.ab-surface :is(kbd, code) {
+  border-radius: 6px;
 }
