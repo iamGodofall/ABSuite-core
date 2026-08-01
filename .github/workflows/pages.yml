@@ -80,6 +80,9 @@ jobs:
           cp docs/index.html    _site/
           cp docs/system.html   _site/
           cp docs/verify.html   _site/
+          cp docs/GUIDE.md       _site/
+          cp docs/SERVICES.md    _site/
+          cp docs/CONSTITUTION.md _site/
           cp docs/API.md        _site/
           # Machine-readable, so it can be imported straight into a client.
           cp docs/openapi.yaml  _site/

@@ -311,6 +311,7 @@ const page = `<!doctype html>
   <h2>[ Read next ]</h2>
   <ul class="links">
     <li><a href="./system.html">The system map</a> <span>— every layer, operation and package, generated from the repository</span></li>
+    <li><a href="./GUIDE.md">The guide</a> <span>— every capability, in the order you would use it, with a working command for each</span></li>
     <li><a href="./GETTING-STARTED.md">Getting started</a> <span>— library, HTTP API and Docker</span></li>
     <li><a href="./API.md">API reference</a> <span>— every route, generated from source</span></li>
     <li><a href="./openapi.yaml">OpenAPI spec</a> <span>— import it into your client</span></li>
