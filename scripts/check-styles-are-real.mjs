@@ -85,7 +85,7 @@ for (const file of files) {
     //
     // Matched only on utilities that take a colour, so `w-1/2` and `grid-cols-1/3`
     // are never mistaken for an opacity modifier.
-    for (const match of line.matchAll(/\b(bg|text|border|ring|from|via|to|fill|stroke|shadow|divide|outline|decoration|accent|caret|placeholder)-([a-z0-9-]+)\/(\d+)\b/g)) {
+    for (const match of line.matchAll(/\b(bg|text|border|ring|from|via|to|fill|stroke|shadow|divide|outline|decoration|accent|caret|placeholder)-(\[[^\]\s]+\]|[a-z0-9-]+)\/(\d+)\b/g)) {
       opacityChecked += 1;
       const step = Number(match[3]);
       if (!allowed.has(step)) {

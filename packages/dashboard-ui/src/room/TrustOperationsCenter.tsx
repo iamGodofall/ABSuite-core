@@ -64,7 +64,20 @@ function LayerSurface({ layer, reading, question, onClose, children }: {
 
   return (
     <div className="absolute inset-0 z-40 flex items-stretch justify-end pointer-events-none">
-      <div className="w-full lg:w-[62%] xl:w-[56%] h-full ab-panel border-l border-ab-green/20 pointer-events-auto flex flex-col bg-[#020805]/90 backdrop-blur-xl">
+      {/*
+          * The surface has to be readable over a lit cube.
+          *
+          * This asked for bg-[#020805]/90 and rendered at 0.6, because
+          * .ab-panel sets the `background` shorthand and Tailwind sets
+          * `background-color` — same specificity, and the stylesheet order
+          * decided it. So every layer surface was forty percent transparent and
+          * the scene behind it came through the text: entering Govern, whose
+          * palette is amber, put a bright slab underneath a paragraph.
+          *
+          * A panel you read has to win over a room you look at. The blur stays,
+          * because the cube should still be sensed behind it.
+          */}
+        <div className="w-full lg:w-[62%] xl:w-[56%] h-full ab-panel border-l border-ab-green/20 pointer-events-auto flex flex-col !bg-[#020805]/95 !backdrop-blur-2xl">
         <div className="flex items-center justify-between shrink-0">
           <div className="ab-panel-header mb-0 text-ab-green flex items-center gap-2">
             <div className="w-2 h-2 bg-ab-green rounded-full shadow-[0_0_10px_rgba(0,245,140,0.8)]" />
