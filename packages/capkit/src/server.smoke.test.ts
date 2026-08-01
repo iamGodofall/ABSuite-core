@@ -547,3 +547,36 @@ describe('identity, enforced at the gate', () => {
     expect(listed.identities.length).toBeGreaterThan(0);
   });
 });
+
+describe('a dashboard read cannot stall the recorder', () => {
+  /**
+   * Found by measuring, not by a failure.
+   *
+   *     20,000 records   content + linkage     262 ms
+   *     20,000 records   + Ed25519           3,046 ms
+   *
+   * /executions/stats is what the control plane opens on and polls, and Node is
+   * single-threaded — so three seconds of synchronous signature verification
+   * blocks every other request to the service, including the ones recording new
+   * executions. The fix is not to skip a check and stay quiet about it: the
+   * response now says which walk ran.
+   */
+  test('the default walk skips signatures and says so', async () => {
+    const body = (await (await fetch(`${base}/executions/stats`, { headers: { 'x-absuite-admin-key': ADMIN } })).json()) as
+      { chain: { valid: boolean; signaturesChecked: boolean; covers: string } };
+
+    expect(body.chain.valid).toBe(true);
+    expect(body.chain.signaturesChecked).toBe(false);
+    // An unchecked claim must never read like a checked one.
+    expect(body.chain.covers).toMatch(/Signatures were not checked/);
+  });
+
+  test('?verify=full checks them, and says that too', async () => {
+    const body = (await (await fetch(`${base}/executions/stats?verify=full`, { headers: { 'x-absuite-admin-key': ADMIN } })).json()) as
+      { chain: { valid: boolean; signaturesChecked: boolean; covers: string } };
+
+    expect(body.chain.valid).toBe(true);
+    expect(body.chain.signaturesChecked).toBe(true);
+    expect(body.chain.covers).toMatch(/Ed25519 signatures/);
+  });
+});

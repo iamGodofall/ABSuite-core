@@ -5,6 +5,7 @@
  * QuickBench and Connector-Starter all import this and enforce the same
  * capability model, issued and revoked centrally by CapKit.
  */
+import { timingSafeEqual } from 'node:crypto';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { CapabilityToken, type CapabilityClaims, type VerificationKey } from './capability';
 import { KeyRing } from './keyring';
@@ -59,6 +60,30 @@ function resolveKey(explicit?: string): VerificationKey {
  *   const guard = capabilityGuard({ revocations });
  *   app.post('/schedule', guard('schedule:create'), handler);
  */
+/**
+ * Compare two secrets without leaking their contents through timing.
+ *
+ * `===` on strings returns as soon as two bytes differ, so the time taken is a
+ * function of how many leading characters an attacker guessed correctly. Over a
+ * network the signal is small and heavily masked by jitter — and it is free to
+ * remove, on the check that decides whether a caller may mint capability tokens
+ * for any subject they like.
+ *
+ * The dashboard's own admin check has used timingSafeEqual since it was written.
+ * This one did not, which meant the two halves of the same product disagreed
+ * about the same secret, and the weaker one guarded the stronger capability.
+ *
+ * Lengths are compared first because timingSafeEqual throws on a length
+ * mismatch. That does leak the length, which is not sensitive here: the key's
+ * length is chosen by the operator and knowing it does not narrow a 256-bit
+ * search in any useful way.
+ */
+function secretsMatch(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export function capabilityGuard(options: CapabilityGuardOptions = {}) {
   const audience = options.audience ?? process.env.CAPKIT_AUDIENCE ?? '';
   const adminKey = (options.adminKey ?? process.env.CAPKIT_ADMIN_KEY ?? process.env.ABSUITE_ADMIN_API_KEY ?? '').trim();
@@ -68,7 +93,7 @@ export function capabilityGuard(options: CapabilityGuardOptions = {}) {
       const request = req as CapabilityRequest;
 
       const providedAdminKey = (req.header('x-absuite-admin-key') || '').trim();
-      if (adminKey && providedAdminKey && providedAdminKey === adminKey) {
+      if (adminKey && providedAdminKey && secretsMatch(providedAdminKey, adminKey)) {
         request.actor = 'admin-key';
         options.onDecision?.({ allowed: true, subject: 'admin-key', scope: requiredScope, req });
         return next();

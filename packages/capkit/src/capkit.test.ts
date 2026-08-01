@@ -320,3 +320,58 @@ describe('provider inspection', () => {
     expect(recommended).toBe('ollama');
   });
 });
+
+describe('the admin key is compared in constant time', () => {
+  /**
+   * Found by auditing rather than by a failure.
+   *
+   * The dashboard's admin check has used timingSafeEqual since it was written;
+   * this one used `===`, so the two halves of the same product disagreed about
+   * the same secret — and the weaker check guarded the stronger capability,
+   * since this is the one that decides whether a caller may mint capability
+   * tokens for any subject they like.
+   *
+   * A unit test cannot measure nanoseconds reliably in CI, so this asserts the
+   * property that actually matters and can be checked deterministically: the
+   * source uses a constant-time primitive, and no early-exit comparison of the
+   * admin key survives in it.
+   */
+  const source = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, 'middleware.ts'), 'utf8'
+  ) as string;
+
+  test('uses timingSafeEqual rather than string equality', () => {
+    expect(source).toContain('timingSafeEqual');
+    // The exact shape that was there before, in any spacing.
+    expect(source).not.toMatch(/providedAdminKey\s*===\s*adminKey/);
+    expect(source).not.toMatch(/adminKey\s*===\s*providedAdminKey/);
+  });
+
+  test('a wrong key of the right length is still refused', async () => {
+    const { capabilityGuard } = require('./middleware') as typeof import('./middleware');
+    const guard = capabilityGuard({ adminKey: 'a'.repeat(32), secret: 'x'.repeat(48) })('any:scope');
+
+    const refused = await new Promise<number>(resolve => {
+      const req = { header: (name: string) => (name === 'x-absuite-admin-key' ? 'b'.repeat(32) : '') } as never;
+      const res = {
+        status(code: number) { resolve(code); return { json: () => undefined }; },
+      } as never;
+      void guard(req, res, () => resolve(200));
+    });
+
+    expect(refused).not.toBe(200);
+  });
+
+  test('the correct key is still accepted', async () => {
+    const { capabilityGuard } = require('./middleware') as typeof import('./middleware');
+    const guard = capabilityGuard({ adminKey: 'a'.repeat(32), secret: 'x'.repeat(48) })('any:scope');
+
+    const allowed = await new Promise<boolean>(resolve => {
+      const req = { header: (name: string) => (name === 'x-absuite-admin-key' ? 'a'.repeat(32) : '') } as never;
+      const res = { status() { resolve(false); return { json: () => undefined }; } } as never;
+      void guard(req, res, () => resolve(true));
+    });
+
+    expect(allowed).toBe(true);
+  });
+});
