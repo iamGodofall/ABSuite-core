@@ -89,6 +89,64 @@ const LIVE_MOTION: Record<string, string> = {
 
 const hexagonClipPath = 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)';
 
+/**
+ * A station, drawn as the cube it always was.
+ *
+ * A regular hexagon is exactly the silhouette of a cube seen corner-on, which
+ * means these were never hexagons that needed replacing — they were cubes
+ * missing three lines. Adding an edge from the centre to three alternating
+ * vertices splits the outline into three rhombi and the shape reads as volume
+ * immediately, with no perspective maths and no second geometry.
+ *
+ * The faces then take different lightness in a fixed order — top brightest,
+ * left mid, right darkest — because a single consistent light direction is what
+ * separates a solid from a decorated flat shape. The direction matches the
+ * room's own key light, so the seven satellites are lit by the same sun as the
+ * core they orbit.
+ *
+ * Fills stay very low and the edges carry the colour. Six quiet cubes and one
+ * catching the light is the intent: the core must remain the most dimensional
+ * thing in the room, because that is where the claim lives. Seven bright
+ * satellites would be seven things competing with the evidence.
+ *
+ * This is form, not a claim. The determination is still carried entirely by
+ * colour, exactly as before — a station does not assert anything new by having
+ * volume.
+ */
+const CUBE_FACES = {
+  /* top    */ top: '50,0 100,25 50,50 0,25',
+  /* left   */ left: '0,25 50,50 50,100 0,75',
+  /* right  */ right: '100,25 100,75 50,100 50,50',
+} as const;
+
+function CubeFacets({ hex, lit }: { hex: string; lit: boolean }) {
+  // Top catches the most light, right the least — one direction, held for all
+  // seven so they read as a set rather than as seven unrelated objects.
+  const face = lit ? { top: 0.3, left: 0.16, right: 0.07 } : { top: 0.14, left: 0.08, right: 0.035 };
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      className="absolute inset-[3px] pointer-events-none"
+      aria-hidden
+    >
+      <polygon points={CUBE_FACES.top} fill={hex} fillOpacity={face.top} />
+      <polygon points={CUBE_FACES.left} fill={hex} fillOpacity={face.left} />
+      <polygon points={CUBE_FACES.right} fill={hex} fillOpacity={face.right} />
+      {/*
+        * The three interior edges — centre to the two upper side vertices and
+        * to the bottom point. These are the whole illusion; without them the
+        * shading reads as three coloured patches rather than as three faces.
+        */}
+      <g stroke={hex} strokeOpacity={lit ? 0.75 : 0.4} strokeWidth={1.5} strokeLinecap="round">
+        <line x1="50" y1="50" x2="100" y2="25" />
+        <line x1="50" y1="50" x2="0" y2="25" />
+        <line x1="50" y1="50" x2="50" y2="100" />
+      </g>
+    </svg>
+  );
+}
+
 export function OrbitalNodes({ activeLayer, focusedLayer, onSelectLayer, readings }: OrbitalNodesProps) {
   // A record in transit requires records. When Observe is not demonstrating,
   // nothing is travelling the ring, so nothing is drawn travelling it.
@@ -179,7 +237,7 @@ export function OrbitalNodes({ activeLayer, focusedLayer, onSelectLayer, reading
                     <div className="absolute inset-[2px] bg-ab-bg" style={{ clipPath: hexagonClipPath }} />
                   </div>
                   {/* Inner translucent fill */}
-                  <div className="absolute inset-[3px] bg-white/5" style={{ clipPath: hexagonClipPath }} />
+                  <CubeFacets hex={hex} lit={isActive || isFocused} />
 
                   <layer.icon
                     size={22}
