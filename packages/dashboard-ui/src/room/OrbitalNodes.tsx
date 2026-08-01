@@ -150,7 +150,30 @@ function CubeFacets({ hex, lit }: { hex: string; lit: boolean }) {
         * to the bottom point. These are the whole illusion; without them the
         * shading reads as three coloured patches rather than as three faces.
         */}
-      <g stroke={hex} strokeOpacity={lit ? 0.8 : 0.5} strokeWidth={1.5} strokeLinecap="round">
+      <g
+        stroke={hex}
+        strokeOpacity={lit ? 0.8 : 0.5}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      >
+        {/*
+          * The silhouette is drawn with the same stroke as the interior edges,
+          * because it is the same kind of line: an edge of the same cube.
+          *
+          * It used to be a solid hexagon of full-strength colour with the
+          * ground inset two pixels — a hard, opaque ring an order of magnitude
+          * louder than the edges inside it. Seven of those around a translucent
+          * core made the satellites the brightest objects in the room, which is
+          * the opposite of the arrangement the core exists to hold, and at full
+          * opacity against a black field the ring shimmered as the scene moved.
+          *
+          * Matching them quiets the whole node without removing anything: the
+          * cube still reads, the icon still sits inside it, and the brightest
+          * thing on screen goes back to being the evidence.
+          */}
+        <polygon points="50,0 100,25 100,75 50,100 0,75 0,25" />
         <line x1="50" y1="50" x2="100" y2="25" />
         <line x1="50" y1="50" x2="0" y2="25" />
         <line x1="50" y1="50" x2="50" y2="100" />
@@ -244,10 +267,9 @@ export function OrbitalNodes({ activeLayer, focusedLayer, onSelectLayer, reading
                     className="absolute inset-0 backdrop-blur-sm"
                     style={{ clipPath: hexagonClipPath, background: `${hex}1A`, boxShadow: `inset 0 0 10px ${hex}33` }}
                   />
-                  {/* 2px solid border, drawn as a filled hexagon with the ground inset */}
-                  <div className="absolute inset-0" style={{ clipPath: hexagonClipPath, background: hex }}>
-                    <div className="absolute inset-[2px] bg-ab-bg" style={{ clipPath: hexagonClipPath }} />
-                  </div>
+                  {/* The ground the icon sits on. The outline is now a stroke in
+                      CubeFacets, at the same weight as every other edge. */}
+                  <div className="absolute inset-[1px]" style={{ clipPath: hexagonClipPath, background: 'rgba(2,8,5,0.82)' }} />
                   {/* Inner translucent fill */}
                   <CubeFacets hex={hex} lit={isActive || isFocused} />
 
