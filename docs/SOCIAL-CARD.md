@@ -1,7 +1,10 @@
 # Social card — copy deck
 
-The exact strings for the repository's social preview image, so that regenerating
-it cannot reintroduce the two errors the first version carried.
+**Status: locked.** The card below is the approved one. This document is the
+single source for regenerating it, so that a future version cannot reintroduce
+the errors earlier ones carried.
+
+The exact strings for the repository's social preview image.
 
 **Canvas: 1280 × 640 px (2:1).** This is GitHub's social preview ratio. The first
 version was 3:2, and every surface that unfurls a link — GitHub, X, Slack,
@@ -41,40 +44,57 @@ TRUST OPERATIONS CENTER
 
 ### Headline
 
-The thesis, and the first line of the README. It goes on the card because it is
-the sentence that makes someone stop.
+```
+ABSuite does not tell you
+what to believe.
+It tells you what can be proven.
+```
+
+"proven" in cyan. This is the headline rather than a strapline, and that is the
+most important decision on the card: a social preview is mostly seen small — a
+feed, a Slack unfurl, a link card four hundred pixels wide — and at that size a
+reader gets the wordmark, the cube, and **one line of text**. Everything else is
+texture. This is the line that has to survive the shrink, so it is the largest
+thing on the card.
+
+### Sub-headline
+
+```
+An open-source platform for verifiable, governed and explainable autonomy.
+```
+
+### The thesis
+
+Directly beneath the sub-headline, and also the first line of the README.
 
 ```
 Intelligence is becoming cheap.
 Trust is becoming expensive.
 ```
 
-Set "Trust is becoming expensive." in the accent green (`#00F58C`). Present
-tense throughout — *will become* is a prophecy, and this project does not
-predict.
+Present tense. *Will become* is a prophecy, and this project does not predict —
+it is an observation about now, which is the only kind of claim the rest of the
+product is allowed to make.
 
-### Sub-headline
+Set the second line in gold. Note the deliberate exception: gold is `UNKNOWN` in
+the interface's state palette, and here it is being used for its older meaning —
+*precious*. That works because nothing on this card is a state readout. It would
+not work inside the product.
 
-```
-The open trust layer for AI, agents and systems.
-Observe. Verify. Explain. Govern. Arbitrate. Act. Learn.
-```
+### Install — deliberately absent
 
-### The line under everything
+The locked card carries **no `npm` command**. On the repository's own preview the
+URL is the call to action, and omitting the command removes the string that was
+wrong the first time.
 
-```
-ABSuite does not tell you what to believe. It tells you what can be proven.
-```
-
-If the layout only has room for one of the headline or this line, keep this one.
-
-### Install
+If a future variant does carry one, it is exactly:
 
 ```
 npm i @absuitecore/capkit
 ```
 
-Exactly that. Scope `@absuitecore`, no hyphen, package included.
+Scope `@absuitecore`, no hyphen, package name included. A scope on its own is
+not installable.
 
 ### Repository
 
@@ -101,9 +121,12 @@ console navigates.
 
 ### Their colours
 
-From `packages/dashboard-ui/src/room/SceneCube.tsx`, so the card and the room
-agree. A developer who sees the card and then opens the product should not have
-to relearn the palette.
+From `packages/dashboard-ui/src/room/SceneCube.tsx`. A developer who sees the
+card and then opens the product should not have to relearn the palette.
+
+The locked card matches five of seven: Observe green, Verify blue, Explain
+white, Govern gold, Act green. Arbitrate and Learn are violet on the card and
+are the accepted deviation — see below.
 
 | Operation | Hex | |
 |---|---|---|
@@ -116,7 +139,15 @@ to relearn the palette.
 | Learn | `#00F58C` | signal green |
 
 **Red is not available for a node.** In this interface red means FAILED. A red
-ACT node tells a viewer that execution is broken.
+ACT node tells a viewer that execution is broken — an earlier version had exactly
+that, and it is the one colour rule that is not negotiable.
+
+**The accepted deviation.** In the product Observe, Act and Learn are all the
+same signal green, so a seven-colour ring implies seven categories the palette
+does not have. It is kept anyway: the ring reads as seven distinct operations,
+which is true, and it is more legible at card size than three identical greens.
+The one thing to improve on any future pass is that Arbitrate and Learn are
+currently the same violet family and are hard to tell apart from each other.
 
 ---
 
@@ -146,14 +177,28 @@ this server cannot sign as that agent.
 
 ## The bottom bar
 
+The four properties above, in one row, then the repository:
+
+```
+github.com/iamGodofall/ABSuite-core
+Join the mission. Build with trust.
+```
+
+That closing line stays. It is the only string on the card that says **build on
+this** rather than **clone this**, and those are different mindsets.
+
+### Held in reserve
+
+An earlier card ran these three across the bottom instead. They are the
+project's own words and are worth keeping for a wider format, a slide, or a
+print piece — but they do not fit alongside the four properties at 640px tall,
+and the properties earn the space because each one is checkable.
+
 ```
 BUILT FOR TRUST     Nothing may look more certain than it is.
 EVIDENCE FIRST      Everything claimed must be verifiable.
 OPEN BY DESIGN      Freedom to build. Responsibility to verify.
 ```
-
-Unchanged. These are the project's own words and they are the best part of the
-original card.
 
 ---
 
@@ -177,14 +222,13 @@ Uppercase labels take wide tracking, around `0.2em`.
 
 ## Composition
 
-The original layout was right and should be kept: wordmark and headline on the
-left, the cube and its orbit on the right, properties along the lower left, the
-principles bar across the bottom.
+Wordmark and headline on the left, the cube and its orbit on the right, the four
+properties and the repository across the bottom.
 
-Two notes for the 2:1 recrop:
+Two notes for the 2:1 crop:
 
-- The install line and the repository URL must sit inside the middle 80% of the
-  height. They are the two strings a reader acts on.
+- The repository URL must sit inside the middle 80% of the height. It is the
+  string a reader acts on.
 - The cube may be cropped at top and bottom. It reads as a cube from a corner
   even when partially framed — that silhouette is a regular hexagon, which is
   what a cube looks like seen corner-on, and it survives a tight crop better than
@@ -194,7 +238,7 @@ Two notes for the 2:1 recrop:
 
 ## Before publishing
 
-- [ ] `npm i @absuitecore/capkit` — copy it out of the image and run it.
+- [ ] Any command on the card — copy it out of the image and run it.
 - [ ] No claim on the card that is not implemented in the repository.
 - [ ] Node colours match `SceneCube.tsx`.
 - [ ] No red on anything that is not a failure.
