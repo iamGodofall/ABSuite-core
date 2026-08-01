@@ -1,8 +1,15 @@
 # ABSuite
 
-> **The trust layer for autonomous systems.**
+> ## Intelligence is becoming cheap. Trust is becoming expensive.
 >
-> It observes, verifies, governs, and explains intelligence.
+> Within a few years there will be billions of AI agents taking real actions —
+> moving money, changing records, contacting customers. The scarce resource will
+> not be capability. It will be the ability to answer, credibly and to a hostile
+> auditor: *who did this, were they allowed to, what exactly did they do, and can
+> you prove none of it has been altered since?*
+>
+> ABSuite is the trust layer for autonomous systems. It observes, verifies,
+> governs and explains intelligence.
 >
 > **ABSuite does not tell you what to believe. It tells you what can be proven.**
 
