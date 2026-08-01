@@ -185,7 +185,18 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
     verify: '#3B82F6', // Blue
     explain: '#FFFFFF', // White
     govern: '#F59E0B', // Gold
-    arbitrate: '#8B5CF6', // Purple
+    /*
+     * Arbitrate was violet, and violet is the one hue in this palette that
+     * belongs to no other part of it. Verify's blue and Govern's gold both sit
+     * a step from the emerald the room is built on; violet sits outside the
+     * whole family, so entering Arbitrate did not read as moving to another
+     * station — it read as another product.
+     *
+     * Slate blue keeps the distance from Verify's brighter blue while staying
+     * in the cool half of the room. Arbitration is deliberation: cooler than
+     * the work either side of it, and not a colour that announces itself.
+     */
+    arbitrate: '#5B8CA8', // Slate
     act: '#00F58C', // Electric pulse
     learn: '#00F58C'
   };
@@ -741,15 +752,30 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
         {/* Split Cubes for Arbitrate */}
         {isArbitrate && (
           <group>
+            {/*
+              * Two halves, the same colour, told apart by the gap between them.
+              *
+              * These were filled slabs hardcoded green and amber — the exact two
+              * colours that mean DEMONSTRATED and UNKNOWN everywhere else in the
+              * product. Using them for "two sides of a disagreement" is the same
+              * error as labelling a failed execution a dispute: real colours,
+              * wrong referent. A viewer who has learnt that amber means
+              * unresolved reads one half of an arbitration as unresolved.
+              *
+              * Disagreement is shown by separation, which is what it is, and the
+              * bodies are invisible so the halves read as structure parting
+              * rather than as two coloured planes — the same language Govern
+              * uses for its constraint boundary, which is the one people liked.
+              */}
             <mesh ref={leftHalfRef} position={[-0.1, 0, 0]}>
                <boxGeometry args={[1.2, 2.5, 2.5]} />
-               <meshBasicMaterial color={'#00F58C'} transparent opacity={0.1} blending={THREE.AdditiveBlending} />
-               <Edges color={'#00F58C'} />
+               <meshBasicMaterial transparent opacity={0} />
+               <Edges color={color} />
             </mesh>
             <mesh ref={rightHalfRef} position={[0.1, 0, 0]}>
                <boxGeometry args={[1.2, 2.5, 2.5]} />
-               <meshBasicMaterial color={'#F59E0B'} transparent opacity={0.1} blending={THREE.AdditiveBlending} />
-               <Edges color={'#F59E0B'} />
+               <meshBasicMaterial transparent opacity={0} />
+               <Edges color={color} />
             </mesh>
           </group>
         )}
