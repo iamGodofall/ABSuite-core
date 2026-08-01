@@ -143,6 +143,16 @@ const EVIDENCE_CORE = {
 interface TrustCubeProps {
   activeLayer: TrustLayer;
   isIdle?: boolean;
+  /**
+   * The room is replaying a record rather than watching for new ones.
+   *
+   * Distinct from idle, and the distinction is the whole idea. Idle is nobody
+   * here; witness is somebody here, deliberately looking backwards. So the room
+   * does not merely slow — it *stops*. Nothing drifts, nothing breathes, nothing
+   * implies that anything is arriving. For those seconds the system is not
+   * observing, and a scene that kept turning would be saying otherwise.
+   */
+  witnessing?: boolean;
   /** False when the socket is down: a system that is not observing holds still. */
   connected?: boolean;
   /** True when this machine can refract. See glass.ts. */
@@ -154,7 +164,7 @@ interface TrustCubeProps {
   evidence?: CubeEvidenceState;
 }
 
-export function SceneCube({ activeLayer, isIdle, connected = true, glass = false, evidence }: TrustCubeProps) {
+export function SceneCube({ activeLayer, isIdle, witnessing = false, connected = true, glass = false, evidence }: TrustCubeProps) {
   /*
    * The core's own colour, kept separate from the layer palette on purpose.
    *
@@ -266,13 +276,18 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
   useEffect(() => () => caustics?.dispose(), [caustics]);
 
   useFrame((state, delta) => {
-    // Slow down time if idle
-    const effectiveDelta = isIdle ? delta * 0.1 : delta;
+    // Witness stops the clock outright; idle only slows it. A replay that let
+    // the room keep turning would be remembering and observing at once, which is
+    // exactly the confusion this state exists to remove.
+    const effectiveDelta = witnessing ? 0 : isIdle ? delta * 0.1 : delta;
     timeRef.current += effectiveDelta;
     const t = timeRef.current;
     
     if (cubeRef.current) {
-      if (isIdle) {
+      if (witnessing) {
+        // Held exactly where it was. Not reset, not re-aimed — the room a person
+        // was looking at, paused, so returning from a replay is continuous.
+      } else if (isIdle) {
          // IDLE: the same resting drift, and nothing else.
          if (connected) cubeRef.current.rotation.y += REST_DRIFT * delta;
       } else {
@@ -763,7 +778,7 @@ export function SceneCube({ activeLayer, isIdle, connected = true, glass = false
                   * takes on. The glass shell and the outer edges keep the layer
                   * palette, because those are architecture and navigation.
                   */}
-                <pointLight color={coreColor} intensity={isIdle ? 2 : 4} distance={8} decay={2} />
+                <pointLight color={coreColor} intensity={witnessing ? 0.9 : isIdle ? 2 : 4} distance={8} decay={2} />
                 <pointLight color={coreColor} intensity={(isIdle ? 1 : 2) * Math.max(0.4, core.intensity / 9)} distance={4} decay={2} />
               </group>
 

@@ -32,6 +32,8 @@ interface OrbitalNodesProps {
   focusedLayer?: TrustLayer;
   onSelectLayer: (layer: TrustLayer) => void;
   readings: Record<string, LayerReading | undefined>;
+  /** Replaying: every station holds still, whatever its layer is reporting. */
+  witnessing?: boolean;
 }
 
 /** Which way the label faces: outward from the centre of the ring. */
@@ -182,7 +184,7 @@ function CubeFacets({ hex, lit }: { hex: string; lit: boolean }) {
   );
 }
 
-export function OrbitalNodes({ activeLayer, focusedLayer, onSelectLayer, readings }: OrbitalNodesProps) {
+export function OrbitalNodes({ activeLayer, focusedLayer, onSelectLayer, readings, witnessing = false }: OrbitalNodesProps) {
   // A record in transit requires records. When Observe is not demonstrating,
   // nothing is travelling the ring, so nothing is drawn travelling it.
   const evidenceMoving = readings.observe?.state === 'DEMONSTRATED';
@@ -217,9 +219,13 @@ export function OrbitalNodes({ activeLayer, focusedLayer, onSelectLayer, reading
           const state = reading?.state ?? 'UNKNOWN';
           const hex = STATE_COLOUR[state];
 
-          // The state decides both the colour and whether anything moves.
+          // The state decides both the colour and whether anything moves — and
+          // witness overrules all of it. A station that kept bobbing during a
+          // replay would be reporting live activity while the room is looking
+          // backwards, which is the one thing this state exists to prevent.
           const motion =
-            state === 'DEMONSTRATED' ? LIVE_MOTION[layer.id] ?? ''
+            witnessing ? 'node-witness'
+            : state === 'DEMONSTRATED' ? LIVE_MOTION[layer.id] ?? ''
             : state === 'UNKNOWN' ? 'node-unknown'
             : state === 'FAILED' ? 'node-failed'
             : 'node-absent';

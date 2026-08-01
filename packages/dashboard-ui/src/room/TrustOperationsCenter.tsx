@@ -146,7 +146,7 @@ function LayerSurface({ layer, reading, question, onClose, children }: {
 /** The ring, in the order the stations sit on it. Dragging walks this. */
 const ORBIT: TrustLayer[] = ['observe', 'verify', 'explain', 'govern', 'arbitrate', 'act', 'learn'];
 
-export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views, evidence }: {
+export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views, evidence, witnessing = false }: {
   /** Live readings per layer. Absent when the layer has nothing to report. */
   readings: Record<string, LayerReading | undefined>;
   /** The masthead's metric columns, each bound to what the instance holds. */
@@ -162,6 +162,15 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
   views: { id: string; label: string; question: string }[];
   /** The strongest claim the instance can defend. The core expresses it. */
   evidence?: CubeEvidenceState;
+  /**
+   * A record is being replayed, so the room stops observing and remembers.
+   *
+   * Not idle. Idle is nobody here; witness is somebody here, deliberately
+   * looking backwards. The cube holds its position, the stations stop moving,
+   * the key light drops, and the surface being read becomes the brightest thing
+   * on screen — which is the correct hierarchy while the subject is the past.
+   */
+  witnessing?: boolean;
 }) {
   const [activeLayer, setActiveLayerState] = useState<TrustLayer>('overview');
   /** Entering a layer. Every route into a layer goes through this. */
@@ -275,7 +284,37 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
     <div className="relative w-screen h-screen overflow-hidden bg-ab-bg text-ab-white font-sans selection:bg-ab-green-dim selection:text-ab-green">
       
       {/* 3D Scene Layer */}
-      <Scene activeLayer={activeLayer} isIdle={isIdle} connected={connected} evidence={evidence} />
+      <Scene activeLayer={activeLayer} isIdle={isIdle} witnessing={witnessing} connected={connected} evidence={evidence} />
+
+      {/*
+        * Witness, made visible.
+        *
+        * Freezing the scene was not enough and the browser said so: with a layer
+        * surface open the stations are unmounted, so the class that stops their
+        * motion had nothing to attach to, and the only remaining evidence of the
+        * state was a cube rotating imperceptibly slower. A state nobody can see
+        * is not a state.
+        *
+        * So the room is veiled while a record is replayed, and told why. The
+        * subject on screen is the past; the live room behind it should recede,
+        * and the sentence says plainly what has stopped and what has not.
+        */}
+      {witnessing && (
+        <div
+          className="absolute inset-0 z-[6] pointer-events-none transition-opacity duration-700 bg-ab-bg/70"
+          data-witness="true"
+          aria-hidden="true"
+        >
+          <div className="absolute top-24 left-8 flex items-center gap-2.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#2DD4BF]" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#2DD4BF]">Witnessing</span>
+          </div>
+          <p className="absolute top-32 left-8 max-w-[19rem] text-[11px] leading-relaxed text-ab-white/45">
+            The room has stopped watching so it can remember. Nothing here is arriving — what you are
+            reading already happened, and the record is not being changed by looking at it.
+          </p>
+        </div>
+      )}
 
       {/*
         * The gesture surface.
@@ -311,6 +350,7 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
                focusedLayer={focused === null ? undefined : ORBIT[focused]}
                onSelectLayer={setActiveLayer}
                readings={readings}
+               witnessing={witnessing}
              />
           )}
 

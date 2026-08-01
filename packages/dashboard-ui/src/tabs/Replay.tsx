@@ -149,7 +149,19 @@ const elapsed = (ms: number) => {
   return `${m}m ${Math.round((ms % 60_000) / 1000)}s`;
 };
 
-export function Replay({ onOpenRecord }: { onOpenRecord?: (id: string) => void }) {
+export function Replay({ onOpenRecord, onWitness }: {
+  onOpenRecord?: (id: string) => void;
+  /**
+   * Raised while the transport is running, so the room can stop observing.
+   *
+   * The room behind this surface is still drifting, still animating its seven
+   * stations, still implying that things are arriving — while the person in
+   * front of it is reading something that happened yesterday. Telling it to hold
+   * still is what makes replay feel like remembering rather than a second live
+   * feed running next to the first.
+   */
+  onWitness?: (witnessing: boolean) => void;
+}) {
   const [traces, setTraces] = useState<Trace[] | null>(null);
   const [error, setError] = useState('');
   const [index, setIndex] = useState(0);
@@ -220,6 +232,13 @@ export function Replay({ onOpenRecord }: { onOpenRecord?: (id: string) => void }
   const step = useCallback((delta: 1 | -1) => {
     setIndex(i => Math.min(instants.length - 1, Math.max(0, i + delta)));
   }, [instants.length]);
+
+  // Reported on every change, and cleared on unmount — leaving the room frozen
+  // because somebody navigated away mid-playback would be a stuck instrument.
+  useEffect(() => {
+    onWitness?.(playing);
+    return () => onWitness?.(false);
+  }, [playing, onWitness]);
 
   useEffect(() => {
     if (!playing) return;

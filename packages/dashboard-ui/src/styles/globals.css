@@ -957,6 +957,20 @@
    product uses for a question nothing has answered. */
 .node-unknown { animation: node-unresolved 2.6s ease-in-out infinite; }
 
+/*
+ * Witness. The one state that is defined by the absence of motion.
+ *
+ * Applied to every station while a record is being replayed, whatever each
+ * layer is individually reporting. It carries no animation on purpose — a
+ * station still bobbing during a replay would be reporting live activity while
+ * the room is looking backwards, and the whole point of this state is that the
+ * system has stopped observing in order to remember.
+ *
+ * Deliberately not `animation: none` on a class that never had one: the value
+ * here is the dimming, and the stillness is what is left when nothing else runs.
+ */
+.node-witness { opacity: 0.55; }
+
 /* FAILED holds full contrast without blinking: an alarm that flashes gets
    muted like any other alarm. ABSENT dims and is still. */
 .node-failed { opacity: 1; }

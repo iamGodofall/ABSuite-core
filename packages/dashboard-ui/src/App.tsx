@@ -1404,6 +1404,14 @@ export default function App() {
    * console feel like a set of pages instead of a system.
    */
   const [openRecordId, setOpenRecordId] = useState<string | null>(null);
+  /*
+   * Witness — the room stops observing while a record is replayed.
+   *
+   * Held here rather than inside the room, because the thing that knows a replay
+   * is running is the transport, and the thing that has to hold still is the
+   * scene. They are siblings, so the state is their parent's.
+   */
+  const [witnessing, setWitnessing] = useState(false);
   const { theme } = useTheme();
   const { services, error } = useServices();
 
@@ -1640,7 +1648,7 @@ export default function App() {
       case 'agents' as TrustLayer: return <Agents onOpenRecord={setOpenRecordId} />;
       case 'policies' as TrustLayer: return <><ConstraintsPanel /><Obligations /></>;
       case 'unknowns' as TrustLayer: return <UnknownsPanel />;
-      case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} />;
+      case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} onWitness={setWitnessing} />;
       case 'manual' as TrustLayer: return <Manual />;
       case 'console' as TrustLayer: return <AIStudioTab />;
       case 'system' as TrustLayer: return <MachineRoom services={services} error={error} />;
@@ -1660,6 +1668,7 @@ export default function App() {
         onLayerChange={(layer: TrustLayer) => setActiveTab(layer === 'overview' ? null : (layer as TabId))}
         /* TAB_CONFIG names all thirteen views; check-ui-philosophy reads it. */
         views={TAB_CONFIG.map(tab => ({ id: tab.id, label: tab.label, question: tab.question }))}
+        witnessing={witnessing}
         /*
          * The strongest claim this instance can presently defend.
          *

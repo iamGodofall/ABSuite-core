@@ -10,6 +10,8 @@ interface SceneProps {
   evidence?: CubeEvidenceState;
   activeLayer: TrustLayer;
   isIdle?: boolean;
+  /** Replaying a record: the room stops rather than merely slowing. */
+  witnessing?: boolean;
   connected?: boolean;
 }
 
@@ -58,7 +60,7 @@ function CameraController({ activeLayer }: { activeLayer: TrustLayer }) {
   return null;
 }
 
-export function Scene({ activeLayer, isIdle, connected = true, evidence }: SceneProps) {
+export function Scene({ activeLayer, isIdle, witnessing = false, connected = true, evidence }: SceneProps) {
   /*
    * Asked once, when the context exists, and never again.
    *
@@ -118,13 +120,17 @@ export function Scene({ activeLayer, isIdle, connected = true, evidence }: Scene
         {/* Lights the glass needs. The additive shell needed none, so these
             arrive with refraction: a key to catch the near faces and a cold
             rim to separate the far edge from the field behind it. */}
-        <directionalLight position={[4, 6, 5]} intensity={isIdle ? 0.5 : 1.15} color="#DFFFF2" />
-        <directionalLight position={[-6, -2, -4]} intensity={isIdle ? 0.2 : 0.5} color="#3FE8FF" />
+        {/* Witness takes the key light down further than idle does. The room is
+            not asleep — it is being read by lamplight while something older is
+            recounted, and the record on screen should be the brightest thing. */}
+        <directionalLight position={[4, 6, 5]} intensity={witnessing ? 0.28 : isIdle ? 0.5 : 1.15} color="#DFFFF2" />
+        <directionalLight position={[-6, -2, -4]} intensity={witnessing ? 0.12 : isIdle ? 0.2 : 0.5} color="#3FE8FF" />
 
         <SceneCube
           evidence={evidence}
           activeLayer={activeLayer}
           isIdle={isIdle}
+          witnessing={witnessing}
           connected={connected}
           glass={glass?.supported ?? false}
         />
