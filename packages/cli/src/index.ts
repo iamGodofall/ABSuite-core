@@ -4,11 +4,11 @@
  * Single unified command-line interface for managing the ABSuite platform.
  */
 
+import { parseCommand } from './command.js'
 import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import { execSync, spawn } from 'child_process'
-import { parseArgs } from 'util'
 
 // ---- Config ----
 
@@ -29,7 +29,8 @@ function getDockerComposeCmd(service?: string): string {
 }
 
 /** Commands that drive the suite through Docker Compose. */
-const COMPOSE_COMMANDS = new Set(['start', 'stop', 'restart', 'status', 'logs'])
+// The list of Docker-backed commands now lives with the parser, so there is one
+// place that decides what needs a container and one place that checks for one.
 
 /**
  * Explain the situation when the compose file is not there.
@@ -266,106 +267,55 @@ function showHelp(): void {
 }
 
 async function main() {
-  const args = process.argv.slice(2)
+  const command = parseCommand(process.argv.slice(2))
 
-  if (args.length === 0 || ['--help', '-h', 'help'].includes(args[0] ?? '')) {
+  if (command.kind === 'help') {
     showHelp()
     return
   }
 
-  const [command, ...rest] = args
-
-  if (COMPOSE_COMMANDS.has(command ?? '') && !composeAvailable()) {
+  // Compose is checked once, against the parsed intent, rather than against a
+  // raw string. A command that needs Docker and cannot find it should say so
+  // before anything else runs.
+  if (command.kind === 'compose' && !composeAvailable()) {
     process.exitCode = 1
     return
   }
 
-  // Parse global flags
-  const { values: globalFlags } = parseArgs({
-    args: rest,
-    options: { },
-    allowPositionals: true,
-  })
-
   try {
-    switch (command) {
-      case 'start': {
-        const service = rest[0]
-        await cmdStart(service)
-        break
-      }
-      case 'stop': {
-        const service = rest[0]
-        await cmdStop(service)
-        break
-      }
-      case 'restart': {
-        const service = rest[0]
-        await cmdRestart(service)
-        break
-      }
-      case 'status': {
-        await cmdStatus()
-        break
-      }
-      case 'logs': {
-        const isFollow = rest[0] === '-f'
-        const service = isFollow ? rest[1] : rest[0]
-        if (!service) {
-          logError('Usage: absuite logs [-f] <service>')
-          process.exit(1)
-        }
-        await cmdLogs(service, isFollow)
-        break
-      }
-      case 'build': {
-        await cmdBuild()
-        break
-      }
-      case 'test': {
-        await cmdTest()
-        break
-      }
-      case 'bench': {
-        const { values } = parseArgs({
-          args: rest,
-          options: {
-            model: { type: 'string', short: 'm' },
-            provider: { type: 'string', short: 'p' },
-          },
-          allowPositionals: true,
-        })
-        await cmdBench(values)
-        break
-      }
-      case 'token': {
-        const sub = rest[0]
-        const tokenArgs = rest.slice(1)
-        const { values } = parseArgs({
-          args: tokenArgs,
-          options: {
-            capabilities: { type: 'string', short: 'c' },
-            expires: { type: 'string', short: 'e' },
-          },
-          allowPositionals: true,
-        })
-        if (sub === 'create') {
-          await cmdToken({ create: true, capabilities: values.capabilities, expires: values.expires })
-        } else if (sub === 'revoke') {
-          await cmdToken({ revoke: tokenArgs[1] })
-        } else {
-          await cmdToken({})
+    switch (command.kind) {
+      case 'compose': {
+        switch (command.action) {
+          case 'start':   await cmdStart(command.service); break
+          case 'stop':    await cmdStop(command.service); break
+          case 'restart': await cmdRestart(command.service); break
+          case 'status':  await cmdStatus(); break
+          case 'logs': {
+            if (!command.service) {
+              logError('Usage: absuite logs [-f] <service>')
+              process.exit(1)
+            }
+            await cmdLogs(command.service, command.follow)
+            break
+          }
         }
         break
       }
-      case 'version':
-      case '--version':
-      case '-v': {
-        await cmdVersion()
+      case 'build': await cmdBuild(); break
+      case 'test': await cmdTest(); break
+      case 'bench': await cmdBench({ ...(command.model ? { model: command.model } : {}) }); break
+      case 'token-create':
+        await cmdToken({ create: true, capabilities: command.capabilities, expires: command.expires })
         break
-      }
-      default:
-        logError(`Unknown command: ${command}`)
+      case 'token-revoke':
+        await cmdToken({ revoke: command.id })
+        break
+      case 'token-usage':
+        await cmdToken({})
+        break
+      case 'version': await cmdVersion(); break
+      case 'unknown':
+        logError(`Unknown command: ${command.command}`)
         console.log('\nRun: absuite (with no args for help)\n')
         process.exit(1)
     }
