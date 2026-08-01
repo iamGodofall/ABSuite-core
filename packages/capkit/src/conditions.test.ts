@@ -228,3 +228,145 @@ describe('the necessary conditions for trust', () => {
     expect(text).not.toContain('BATCH-8891');
   });
 });
+
+/**
+ * The three decisions a policy can record, and what each one means for the
+ * Governance condition.
+ *
+ * Until the approval workflow existed, all three read the same way: a policy was
+ * *named*, the hash checked, so Governance was DEMONSTRATED. Two of the three
+ * were wrong in the direction that matters.
+ */
+describe('governance decisions are not all the same decision', () => {
+  const governed = (decision: string, over: Record<string, unknown> = {}) => {
+    const { traces, key } = fresh();
+    const trace = sample(traces, {
+      governance: {
+        policyRef: 'finance.refunds.max-10000',
+        policyVersion: '3',
+        decision,
+        evidence: ['amount <= 10000', 'customer is not flagged'],
+        evaluatedBy: 'policy-engine',
+      },
+      ...over,
+    });
+    return { trace, verdict: verifyTrace(trace, key.publicKeyPem) };
+  };
+
+  const governanceOf = (...args: Parameters<typeof trustConditions>) =>
+    trustConditions(...args).conditions.find(condition => condition.condition === 'Governance')!;
+
+  test('PERMITTED, with the content intact, is demonstrated', () => {
+    const { trace, verdict } = governed('PERMITTED');
+    const condition = governanceOf(trace, verdict, true, proven);
+
+    expect(condition.state).toBe('DEMONSTRATED');
+    expect(condition.finding).toMatch(/Permitted under policy finance\.refunds\.max-10000/);
+  });
+
+  test('DENIED, with the action succeeding anyway, is a failure', () => {
+    // The rule was consulted. It refused. The action happened. This used to
+    // report DEMONSTRATED, because the only question asked was whether a policy
+    // had been named.
+    const { trace, verdict } = governed('DENIED', { outcome: 'success' });
+    const condition = governanceOf(trace, verdict, true, proven);
+
+    expect(condition.state).toBe('FAILED');
+    expect(condition.finding).toMatch(/evaluated to DENIED.*and this execution succeeded anyway/s);
+    expect(condition.finding).toMatch(/somebody built the check and something went around it/);
+  });
+
+  test('DENIED, with the action not succeeding, is governance working', () => {
+    const { trace, verdict } = governed('DENIED', { outcome: 'failure', error: 'refused by policy' });
+    const condition = governanceOf(trace, verdict, true, proven);
+
+    expect(condition.state).toBe('DEMONSTRATED');
+    expect(condition.finding).toMatch(/The rule held/);
+  });
+
+  test('REQUIRES_APPROVAL with nothing consulted is UNKNOWN, never demonstrated', () => {
+    const { trace, verdict } = governed('REQUIRES_APPROVAL');
+    const condition = governanceOf(trace, verdict, true, proven);
+
+    // A demand for human judgement that satisfies itself is not governance.
+    expect(condition.state).toBe('UNKNOWN');
+    expect(condition.resolvedBy).toMatch(/POST \/approvals\/attest/);
+    expect(condition.finding).toMatch(/a person had to decide before this ran/);
+  });
+
+  test('REQUIRES_APPROVAL with an approval that holds is demonstrated', () => {
+    const { trace, verdict } = governed('REQUIRES_APPROVAL');
+    const condition = governanceOf(trace, verdict, true, proven, {
+      state: 'DEMONSTRATED',
+      approvalState: 'CONSUMED',
+      assurance: 'PROVEN',
+      finding: 'Approved by alice, who signed the decision with their enrolled key.',
+      limits: [],
+    });
+
+    expect(condition.state).toBe('DEMONSTRATED');
+    expect(condition.finding).toMatch(/an approval holds/);
+    expect(condition.from).toMatch(/approval record/);
+  });
+
+  test('REQUIRES_APPROVAL with no approval ever requested is a failure, not an absence', () => {
+    const { trace, verdict } = governed('REQUIRES_APPROVAL');
+    const condition = governanceOf(trace, verdict, true, proven, {
+      state: 'ABSENT',
+      finding: 'No approval was ever requested for this action.',
+      limits: [],
+    });
+
+    expect(condition.state).toBe('FAILED');
+    expect(condition.finding).toMatch(/satisfied by nobody being asked, is not governance/);
+  });
+
+  test('REQUIRES_APPROVAL with an approval spent elsewhere is a failure', () => {
+    const { trace, verdict } = governed('REQUIRES_APPROVAL');
+    const condition = governanceOf(trace, verdict, true, proven, {
+      state: 'FAILED',
+      approvalState: 'CONSUMED',
+      finding: 'That approval was spent on execution exec_other, not this one.',
+      limits: [],
+    });
+
+    expect(condition.state).toBe('FAILED');
+    expect(condition.finding).toMatch(/spent on execution exec_other/);
+  });
+
+  test('REQUIRES_APPROVAL with a request still open stays UNKNOWN and carries its next step', () => {
+    const { trace, verdict } = governed('REQUIRES_APPROVAL');
+    const condition = governanceOf(trace, verdict, true, proven, {
+      state: 'UNKNOWN',
+      approvalState: 'PENDING',
+      finding: 'Nobody has decided yet.',
+      resolvedBy: 'Grant or refuse apr_x. It lapses at 2026-01-01T00:00:00.000Z.',
+      limits: [],
+    });
+
+    expect(condition.state).toBe('UNKNOWN');
+    expect(condition.resolvedBy).toMatch(/Grant or refuse apr_x/);
+  });
+
+  test('a broken hash still dominates every decision', () => {
+    // Content that contradicts its own hash makes the policy reference as
+    // unproven as everything else, whatever the decision said.
+    const { trace, verdict } = governed('REQUIRES_APPROVAL');
+    const broken = { ...verdict, contentIntact: false };
+    const condition = governanceOf(trace, broken, true, proven, {
+      state: 'DEMONSTRATED', finding: 'Approved.', limits: [],
+    });
+
+    expect(condition.state).toBe('FAILED');
+    expect(condition.finding).toMatch(/does not match its hash/);
+  });
+
+  test('an ungoverned record is still absent, and says why', () => {
+    const { traces, key } = fresh();
+    const trace = sample(traces);
+    const condition = governanceOf(trace, verifyTrace(trace, key.publicKeyPem), true, proven);
+
+    expect(condition.state).toBe('ABSENT');
+    expect(condition.notAnsweredBecause).toMatch(/carries no policy reference/);
+  });
+});

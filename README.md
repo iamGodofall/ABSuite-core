@@ -181,12 +181,12 @@ within a week, and then the real one arrives and nobody looks.
 
 | | | | |
 |---|---|---|---|
-| 1 | **Identity** | Every agent, model and human has one that survives restarts | Partly built |
+| 1 | **Identity** | Every agent, model and human has one that survives restarts | Built |
 | 2 | **Capability** | Authority granted narrowly, expiring, revocable | Built |
 | 3 | **Evidence** | Claims checked against sources — supported, unverified, contradicted | Built |
 | 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built |
-| 5 | **Governance** | Policies, obligations, approvals, and the workflows humans run it with | Partly built |
-| 6 | **Autonomy** | ABSuite's own agents watch the record and raise what a person should see | Partly built |
+| 5 | **Governance** | Policies, obligations, approvals, and the workflows humans run it with | Built |
+| 6 | **Autonomy** | ABSuite's own agents watch the record and raise what a person should see | Built |
 | 7 | **Collective Intelligence** | Independent deployments verify each other without merging | Not built |
 | 8 | **Civilization** | Millions of agents, autonomous economies, planetary-scale accountability | Not built |
 

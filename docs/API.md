@@ -63,6 +63,13 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/admin/tenants/:id/status` | `tenant:manage` | — |
 | POST | `/ai/policy/generate` | _public_ | — |
 | GET | `/ai/providers` | _public_ | — |
+| GET | `/approvals` | `execution:read` | — |
+| POST | `/approvals` | `execution:record` | — |
+| GET | `/approvals/:id` | `execution:read` | — |
+| POST | `/approvals/:id/consume` | `execution:record` | — |
+| POST | `/approvals/:id/decide` | `approval:decide` | — |
+| POST | `/approvals/:id/withdraw` | `execution:record` | — |
+| POST | `/approvals/attest` | `execution:read` | — |
 | GET | `/audit` | `audit:read` | — |
 | GET | `/audit/verify` | `audit:read` | — |
 | POST | `/auth/token` | `auth:token:create` | `agents` |
@@ -105,8 +112,21 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | GET | `/signup` | _public_ | — |
 | POST | `/signup` | _public_ | — |
 | GET | `/usage` | _public_ | — |
+| GET | `/watch` | `execution:read` | — |
+| POST | `/watch/notices/:id/acknowledge` | `execution:record` | — |
+| POST | `/watch/sweep` | `execution:read` | — |
 
 ### Notes
+
+**`GET /approvals`** — The queue a person works. Oldest first, and a lapsed request is not pending.
+
+**`POST /approvals`** — Open an approval request, because a rule said `REQUIRES_APPROVAL`. The decision a policy records is the *demand* for an approval. This is where one is actually asked for, and the action it covers is hashed from the four fields the finished execution will also carry — so afterwards, "was this approved?" is answerable from the execution record alone, with no approval id written onto the trace for somebody to fill in later.
+
+**`POST /approvals/:id/consume`** — Spend a granted approval on one execution. The second call fails, by design.
+
+**`POST /approvals/:id/decide`** — Grant or refuse. `approval:decide` is a separate scope from `execution:record` on purpose: an agent that can request an approval must not hold the authority to grant one, or the whole workflow is theatre performed by a single party.
+
+**`POST /approvals/attest`** — Was this action approved before it ran? Takes either the four fields or the hash of them, so an auditor holding only an execution record can ask without knowing an approval id exists.
 
 **`POST /auth/token/validate`** — Validate a token, optionally against a specific capability. `requiredScope` is honoured. It was accepted and silently ignored until 1.1.0, which meant asking "is this token good for payment:refund?" about a token holding only `payment:approve` answered `{"valid": true}` — a false allow produced by an unrecognised field, in the endpoint whose entire job is to answer that question. The response now echoes `requiredScope` back, so a caller can see the check was performed rather than assume it.
 
@@ -151,6 +171,12 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`GET /ready`** — Readiness differs from liveness: it fails if storage is unusable.
 
 **`GET /usage`** — A tenant's own usage and quota position, for a billing page.
+
+**`GET /watch`** — What a person should look at, and how much of the record that answer covers. `coverage` is not a footer. An empty `notices` array means "the last sweep found none" or it means "nothing has ever swept", and those are opposite statements that look identical in a list. Every response here carries the sentence that tells them apart, so an interface cannot render the list without rendering what the list means.
+
+**`POST /watch/notices/:id/acknowledge`** — Close a notice, with a name and a reason. Never a delete. A notice that was raised and dismissed is part of the history of the thing it was raised about, and the reason somebody gave is usually the most useful sentence in it a year later.
+
+**`POST /watch/sweep`** — Sweep now, rather than waiting for the interval. Same code path, no shortcuts.
 
 ---
 
@@ -300,4 +326,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_117 HTTP endpoints across 5 services. Generated from source._
+_127 HTTP endpoints across 5 services. Generated from source._

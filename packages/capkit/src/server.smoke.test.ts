@@ -580,3 +580,327 @@ describe('a dashboard read cannot stall the recorder', () => {
     expect(body.chain.covers).toMatch(/Ed25519 signatures/);
   });
 });
+
+/**
+ * The approval workflow end to end, over HTTP, the way an operator runs it.
+ *
+ * `REQUIRES_APPROVAL` was a decision the trace could carry and nothing could act
+ * on: no way to ask, grant, refuse, expire, or show afterwards that a person had
+ * answered before the action ran. These tests exist because the interesting
+ * failures are all at the boundary — a request accepted with the wrong shape, a
+ * scope that lets the asker also decide, a record whose conditions report goes
+ * green without an approval behind it.
+ */
+describe('approvals, over the wire', () => {
+  const sha256 = (value: string) => require('node:crypto').createHash('sha256').update(value).digest('hex');
+
+  const openRequest = async (inputHash: string, headers: Record<string, string>) =>
+    post('/approvals', {
+      action: { subject: 'agent:invoicing', module: 'payments', action: 'refund', inputHash },
+      context: 'Refund R1,420.00 to customer 4471 for a duplicate charge.',
+      policyRef: 'finance.refunds.max-10000',
+      policyVersion: '3',
+      requestedBy: 'agent:invoicing',
+    }, headers);
+
+  test('a request opens pending and hands back the statement an approver signs', async () => {
+    const token = await issue(['execution:record']);
+    const { status, body } = await openRequest(sha256('refund-a'), { authorization: `Bearer ${token}` });
+
+    expect(status).toBe(201);
+    const approval = body.approval as Record<string, unknown>;
+    expect(approval.state).toBe('PENDING');
+    expect(approval.assurance).toBe('ASSERTED');
+    expect(String(body.statementToSign)).toContain(String(approval.actionHash));
+    // An open request permits nothing, and the response says so rather than
+    // leaving the caller to infer it from a 201.
+    expect(String(body.means)).toMatch(/running on an UNKNOWN is running unapproved/);
+  });
+
+  test('recording a request does not carry the authority to decide one', async () => {
+    const token = await issue(['execution:record']);
+    const { body } = await openRequest(sha256('refund-b'), { authorization: `Bearer ${token}` });
+    const id = (body.approval as { id: string }).id;
+
+    // Separation of duties, enforced at the gate rather than only in the
+    // registry: an agent that can ask must not be able to answer.
+    const denied = await post(`/approvals/${id}/decide`,
+      { decision: 'GRANTED', decidedBy: 'someone', basis: 'why not' },
+      { authorization: `Bearer ${token}` });
+
+    expect(denied.status).toBe(403);
+  });
+
+  test('the requester cannot decide their own request even holding the scope', async () => {
+    const token = await issue(['execution:record']);
+    const decider = await issue(['approval:decide']);
+    const { body } = await openRequest(sha256('refund-c'), { authorization: `Bearer ${token}` });
+    const id = (body.approval as { id: string }).id;
+
+    const self = await post(`/approvals/${id}/decide`,
+      { decision: 'GRANTED', decidedBy: 'agent:invoicing', basis: 'looks fine' },
+      { authorization: `Bearer ${decider}` });
+
+    expect(self.status).toBe(403);
+    expect((self.body.error as { code: string }).code).toBe('SELF_APPROVAL');
+  });
+
+  test('a decision needs a basis, and is made once', async () => {
+    const token = await issue(['execution:record']);
+    const decider = await issue(['approval:decide']);
+    const { body } = await openRequest(sha256('refund-d'), { authorization: `Bearer ${token}` });
+    const id = (body.approval as { id: string }).id;
+
+    const noBasis = await post(`/approvals/${id}/decide`,
+      { decision: 'GRANTED', decidedBy: 'alice', basis: '' },
+      { authorization: `Bearer ${decider}` });
+    expect(noBasis.status).toBe(400);
+
+    const granted = await post(`/approvals/${id}/decide`,
+      { decision: 'GRANTED', decidedBy: 'alice', basis: 'ledger confirms a duplicate charge' },
+      { authorization: `Bearer ${decider}` });
+    expect(granted.status).toBe(200);
+    expect((granted.body.approval as { state: string }).state).toBe('GRANTED');
+
+    const again = await post(`/approvals/${id}/decide`,
+      { decision: 'REFUSED', decidedBy: 'bob', basis: 'on reflection' },
+      { authorization: `Bearer ${decider}` });
+    expect(again.status).toBe(409);
+  });
+
+  /**
+   * The property the whole design turns on.
+   *
+   * Nothing links the approval to the execution except a hash both sides compute
+   * from the same four fields. There is no approval id on the trace, so there is
+   * no column for an operator to fill in after the fact.
+   */
+  test('an execution\'s conditions find the approval from the record alone', async () => {
+    const record = await issue(['execution:record']);
+    const decider = await issue(['approval:decide']);
+    const read = await issue(['execution:read']);
+
+    const input = { batch: 'BATCH-APPROVED', amount: 142000 };
+    const inputHash = sha256(JSON.stringify(input));
+
+    const opened = await openRequest(inputHash, { authorization: `Bearer ${record}` });
+    const id = (opened.body.approval as { id: string }).id;
+
+    await post(`/approvals/${id}/decide`,
+      { decision: 'GRANTED', decidedBy: 'alice', basis: 'ledger confirms a duplicate charge' },
+      { authorization: `Bearer ${decider}` });
+
+    const execution = await post('/executions', {
+      subject: 'agent:invoicing',
+      module: 'payments',
+      action: 'refund',
+      inputHash,
+      outcome: 'success',
+      governance: {
+        policyRef: 'finance.refunds.max-10000',
+        policyVersion: '3',
+        decision: 'REQUIRES_APPROVAL',
+        evidence: ['amount exceeds the automatic limit'],
+      },
+    }, { authorization: `Bearer ${record}` });
+    expect(execution.status).toBe(201);
+    const traceId = (execution.body as { id: string }).id;
+
+    await post(`/approvals/${id}/consume`, { traceId }, { authorization: `Bearer ${record}` });
+
+    const conditions = await (await fetch(`${base}/executions/${traceId}/conditions`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { conditions: { condition: string; state: string; finding: string; from: string }[] };
+
+    const governance = conditions.conditions.find(c => c.condition === 'Governance')!;
+    expect(governance.state).toBe('DEMONSTRATED');
+    expect(governance.finding).toMatch(/an approval holds/);
+    expect(governance.finding).toMatch(/alice/);
+    expect(governance.from).toMatch(/approval record/);
+  });
+
+  /**
+   * The failure this was built to make visible.
+   *
+   * A record says a rule demanded a person. Nobody was asked. Before the
+   * approval workflow existed this reported Governance as DEMONSTRATED, because
+   * the only question the check asked was whether a policy had been *named*.
+   */
+  test('an unapproved REQUIRES_APPROVAL execution reports a governance failure', async () => {
+    const record = await issue(['execution:record']);
+    const read = await issue(['execution:read']);
+
+    const execution = await post('/executions', {
+      subject: 'agent:invoicing',
+      module: 'payments',
+      action: 'refund',
+      inputHash: sha256('never-approved'),
+      outcome: 'success',
+      governance: {
+        policyRef: 'finance.refunds.max-10000',
+        policyVersion: '3',
+        decision: 'REQUIRES_APPROVAL',
+        evidence: ['amount exceeds the automatic limit'],
+      },
+    }, { authorization: `Bearer ${record}` });
+    const traceId = (execution.body as { id: string }).id;
+
+    const conditions = await (await fetch(`${base}/executions/${traceId}/conditions`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { conditions: { condition: string; state: string; finding: string }[]; overall: string };
+
+    const governance = conditions.conditions.find(c => c.condition === 'Governance')!;
+    expect(governance.state).toBe('FAILED');
+    expect(governance.finding).toMatch(/satisfied by nobody being asked, is not governance/);
+    // And it drags the whole report down, because nothing composes upward.
+    expect(conditions.overall).toBe('FAILED');
+  });
+
+  test('attest answers from the four fields on the record, with no approval id', async () => {
+    const record = await issue(['execution:record']);
+    const decider = await issue(['approval:decide']);
+    const read = await issue(['execution:read']);
+
+    const inputHash = sha256('attest-by-hash');
+    const opened = await openRequest(inputHash, { authorization: `Bearer ${record}` });
+    const id = (opened.body.approval as { id: string }).id;
+    await post(`/approvals/${id}/decide`,
+      { decision: 'GRANTED', decidedBy: 'alice', basis: 'confirmed' },
+      { authorization: `Bearer ${decider}` });
+
+    const attested = await post('/approvals/attest', {
+      action: { subject: 'agent:invoicing', module: 'payments', action: 'refund', inputHash },
+    }, { authorization: `Bearer ${read}` });
+
+    expect(attested.status).toBe(200);
+    expect(attested.body.state).toBe('DEMONSTRATED');
+    expect(attested.body.assurance).toBe('ASSERTED');
+    expect(String(JSON.stringify(attested.body))).not.toMatch(/\bscore\b|\bgrade\b/i);
+  });
+
+  test('an approval is spent once, and the second execution is refused it', async () => {
+    const record = await issue(['execution:record']);
+    const decider = await issue(['approval:decide']);
+
+    const opened = await openRequest(sha256('spend-once'), { authorization: `Bearer ${record}` });
+    const id = (opened.body.approval as { id: string }).id;
+    await post(`/approvals/${id}/decide`,
+      { decision: 'GRANTED', decidedBy: 'alice', basis: 'confirmed' },
+      { authorization: `Bearer ${decider}` });
+
+    const first = await post(`/approvals/${id}/consume`, { traceId: 'exec_1' }, { authorization: `Bearer ${record}` });
+    expect(first.status).toBe(200);
+
+    const second = await post(`/approvals/${id}/consume`, { traceId: 'exec_2' }, { authorization: `Bearer ${record}` });
+    expect(second.status).toBe(409);
+    expect((second.body.error as { code: string }).code).toBe('APPROVAL_CONSUMED');
+  });
+
+  test('the pending queue is what a person actually opens', async () => {
+    const record = await issue(['execution:record']);
+    const read = await issue(['execution:read']);
+    await openRequest(sha256(`queue-${Date.now()}`), { authorization: `Bearer ${record}` });
+
+    const body = await (await fetch(`${base}/approvals?state=PENDING`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { approvals: { state: string }[]; unverifiable: { field: string }[] };
+
+    expect(body.approvals.length).toBeGreaterThan(0);
+    expect(body.approvals.every(a => a.state === 'PENDING')).toBe(true);
+    // The distinction that keeps an approval from becoming a permission.
+    expect(body.unverifiable.map(u => u.field)).toContain('authority');
+  });
+});
+
+/**
+ * Layer 6, over the wire.
+ *
+ * The layer's promise is that ABSuite's own agents watch the record
+ * *continuously*. What existed was a query that answered when asked. The
+ * distinction these tests defend is the one that makes a monitor worth having:
+ * silence from it must be distinguishable from health.
+ */
+describe('the watch, over the wire', () => {
+  test('an empty notice list arrives with the sentence that explains it', async () => {
+    const read = await issue(['execution:read']);
+    const body = await (await fetch(`${base}/watch`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as {
+      notices: unknown[];
+      coverage: { everRun: boolean; because: string; behind: number };
+      unverifiable: { field: string }[];
+    };
+
+    // Whatever the sweep has found by now, coverage must always say what the
+    // list covers. A list with no denominator is the failure mode.
+    expect(typeof body.coverage.because).toBe('string');
+    expect(body.coverage.because.length).toBeGreaterThan(20);
+    expect(body.unverifiable.map(u => u.field)).toEqual(
+      expect.arrayContaining(['severity', 'completeness'])
+    );
+  });
+
+  test('a sweep raises the unapproved execution the conditions report already failed', async () => {
+    const read = await issue(['execution:read']);
+    const swept = await post('/watch/sweep', {}, { authorization: `Bearer ${read}` });
+
+    expect(swept.status).toBe(200);
+    const coverage = swept.body.coverage as { everRun: boolean };
+    expect(coverage.everRun).toBe(true);
+
+    const listed = await (await fetch(`${base}/watch?state=OPEN`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { notices: { kind: string; finding: string; from: string }[] };
+
+    // The record written earlier in this file: REQUIRES_APPROVAL, nobody asked.
+    const unapproved = listed.notices.find(n => n.kind === 'UNAPPROVED_EXECUTION');
+    expect(unapproved).toBeDefined();
+    expect(unapproved!.from).toMatch(/approval record/);
+  });
+
+  test('a notice is closed with a name and a reason, and is not deleted', async () => {
+    const read = await issue(['execution:read']);
+    const write = await issue(['execution:record']);
+    await post('/watch/sweep', {}, { authorization: `Bearer ${read}` });
+
+    const listed = await (await fetch(`${base}/watch?state=OPEN`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { notices: { id: string }[] };
+    const id = listed.notices[0]!.id;
+
+    const bare = await post(`/watch/notices/${id}/acknowledge`, { by: 'alice', basis: '' },
+      { authorization: `Bearer ${write}` });
+    expect(bare.status).toBe(400);
+
+    const done = await post(`/watch/notices/${id}/acknowledge`,
+      { by: 'alice', basis: 'Reviewed with the payments team; the policy reference was wrong, not the action.' },
+      { authorization: `Bearer ${write}` });
+    expect(done.status).toBe(200);
+    expect((done.body as { state: string }).state).toBe('ACKNOWLEDGED');
+
+    const after = await (await fetch(`${base}/watch?state=ACKNOWLEDGED`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { notices: { id: string; basis: string }[] };
+
+    expect(after.notices.map(n => n.id)).toContain(id);
+    expect(after.notices.find(n => n.id === id)!.basis).toMatch(/Reviewed with the payments team/);
+  });
+
+  test('sweeping twice does not duplicate a standing problem', async () => {
+    const read = await issue(['execution:read']);
+    await post('/watch/sweep', {}, { authorization: `Bearer ${read}` });
+
+    const before = await (await fetch(`${base}/watch?limit=500`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { notices: unknown[] };
+
+    const second = await post('/watch/sweep', {}, { authorization: `Bearer ${read}` });
+    expect((second.body.raised as unknown[])).toHaveLength(0);
+
+    const after = await (await fetch(`${base}/watch?limit=500`, {
+      headers: { authorization: `Bearer ${read}` },
+    })).json() as { notices: unknown[] };
+
+    expect(after.notices.length).toBe(before.notices.length);
+  });
+});

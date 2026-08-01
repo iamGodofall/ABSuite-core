@@ -32,15 +32,15 @@
       "index": 5,
       "name": "Governance",
       "property": "Policies, obligations, approvals and the workflows humans use to run all of it",
-      "status": "PARTLY",
-      "evidence": "packages/capkit/src/ai-policy-generator.ts"
+      "status": "BUILT",
+      "evidence": "packages/capkit/src/approval.ts"
     },
     {
       "index": 6,
       "name": "Autonomy",
       "property": "ABSuite's own agents watch the record continuously and raise what a person should see",
-      "status": "PARTLY",
-      "evidence": "packages/trust/src/monitoring.ts"
+      "status": "BUILT",
+      "evidence": "packages/capkit/src/watch.ts"
     },
     {
       "index": 7,

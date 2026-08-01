@@ -19,12 +19,14 @@ import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
 import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './billing';
 import { createServiceMetrics } from './metrics';
-import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord } from './trace';
+import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord, type ExecutionTrace } from './trace';
 import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
 import { IdentityRegistry, IdentityError } from './identity';
 import { ProvenanceGraph } from './provenance';
 import { ModelRegistry, ModelIdentityError } from './model-identity';
+import { ApprovalRegistry, ApprovalError, approvalStatement, type ApprovalAction } from './approval';
+import { Watch, type NoticeState } from './watch';
 import { determineTrace } from './determination';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
 import { TenantRateLimiter } from './rate-limit';
@@ -117,6 +119,20 @@ const provenance = new ProvenanceGraph(storage);
 // Verify's fourth target. Compares identifying material against what was
 // approved; it never loads a model and never claims anything about behaviour.
 const models = new ModelRegistry(storage);
+const approvals = new ApprovalRegistry(storage, identities);
+
+/**
+ * Layer 6 — Autonomy. Started below, when this file is run as a service.
+ *
+ * Constructed unconditionally so `/watch` answers honestly in an embedded or
+ * test process too: it reports `everRun: false`, which is the truth, rather than
+ * an empty list of notices that reads like an all-clear.
+ */
+const watch = new Watch(storage, traces, approvals, {
+  intervalMs: Number(process.env.ABSUITE_WATCH_INTERVAL_MS || 60_000),
+  signingKeyEphemeral: signingKey.ephemeral,
+  publicKeyPem: signingKey.publicKeyPem,
+});
 
 // Annotated explicitly so the emitted declaration file does not need to name
 // a transitive @types/express-serve-static-core path.
@@ -169,6 +185,36 @@ app.use((req, res, next) => {
   });
   return next();
 });
+
+/**
+ * The approval standing behind an execution, when its policy demanded one.
+ *
+ * Looked up from the four fields on the record itself — subject, module, action
+ * and input hash — because those are what the approval was hashed over. There is
+ * no approval id on the trace to follow, deliberately: a link written onto the
+ * record afterwards is a link the operator can write afterwards.
+ *
+ * Nothing is consulted for a record whose policy did not require an approval.
+ * Reporting "no approval found" against an action that never needed one would be
+ * a finding manufactured out of a question nobody asked.
+ */
+function approvalFor(trace: ExecutionTrace) {
+  if (trace.governance?.decision !== 'REQUIRES_APPROVAL') return undefined;
+  return approvals.attest(
+    {
+      subject: trace.subject,
+      module: trace.module,
+      action: trace.action,
+      inputHash: trace.inputHash,
+    },
+    trace.id
+  );
+}
+
+/** Who the caller is, as `authorise` recorded it. Never trusted as an approver. */
+function actorOf(req: express.Request): string | undefined {
+  return (req as express.Request & { actor?: string }).actor || undefined;
+}
 
 function fail(res: express.Response, status: number, code: string, message: string) {
   return res.status(status).json({ error: { code, message } });
@@ -763,6 +809,193 @@ app.post('/models/:name/attest', authorise('execution:read'), (req, res) => {
   });
 });
 
+// ---- Layer 5 — Governance: the approval workflow ----
+
+/**
+ * Open an approval request, because a rule said `REQUIRES_APPROVAL`.
+ *
+ * The decision a policy records is the *demand* for an approval. This is where
+ * one is actually asked for, and the action it covers is hashed from the four
+ * fields the finished execution will also carry — so afterwards, "was this
+ * approved?" is answerable from the execution record alone, with no approval id
+ * written onto the trace for somebody to fill in later.
+ */
+app.post('/approvals', authorise('execution:record'), (req, res) => {
+  try {
+    const { action, context, policyRef, policyVersion, requestedBy, ttlMs } = req.body ?? {};
+    const approval = approvals.request({
+      action, context, policyRef, policyVersion,
+      requestedBy: requestedBy ?? actorOf(req),
+      ...(ttlMs !== undefined ? { ttlMs: Number(ttlMs) } : {}),
+    });
+    return res.status(201).json({
+      approval,
+      /** What the approver signs, if they hold an enrolled key. Handed over so nobody has to rebuild it. */
+      statementToSign: approvalStatement({
+        id: approval.id,
+        actionHash: approval.actionHash,
+        contextHash: approval.contextHash,
+        decision: 'GRANTED',
+        decidedBy: '<the approver\'s enrolled subject>',
+      }),
+      means: 'This action is waiting on a person. Nothing here permits it — an open request is UNKNOWN, and running on an UNKNOWN is running unapproved.',
+    });
+  } catch (error) {
+    const approvalError = error as ApprovalError;
+    return fail(res, 400, approvalError.code ?? 'INVALID_REQUEST', approvalError.message);
+  }
+});
+
+/** The queue a person works. Oldest first, and a lapsed request is not pending. */
+app.get('/approvals', authorise('execution:read'), (req, res) => {
+  const onlyPending = String(req.query.state ?? '').toUpperCase() === 'PENDING';
+  const all = onlyPending ? approvals.pending() : approvals.list(Number(req.query.limit ?? 100));
+  return res.status(200).json({
+    generated: generated(`${all.length} approval(s)`),
+    approvals: all,
+    unverifiable: [
+      { field: 'authority', because: 'An approval is not a capability. It permits one execution of one payload; what an agent may generally do is a token\'s question.' },
+      { field: 'correctness', because: 'This records that somebody decided, who, and on what basis. Whether they should have is a judgement, and it is not ABSuite\'s.' },
+    ],
+  });
+});
+
+app.get('/approvals/:id', authorise('execution:read'), (req, res) => {
+  const approval = approvals.get(String(req.params.id));
+  if (!approval) return fail(res, 404, 'NOT_FOUND', `No approval ${req.params.id}.`);
+  return res.status(200).json({ approval, signature: approvals.verify(approval.id) });
+});
+
+/**
+ * Grant or refuse.
+ *
+ * `approval:decide` is a separate scope from `execution:record` on purpose: an
+ * agent that can request an approval must not hold the authority to grant one,
+ * or the whole workflow is theatre performed by a single party.
+ */
+app.post('/approvals/:id/decide', authorise('approval:decide'), (req, res) => {
+  try {
+    const { decision, decidedBy, basis, signature } = req.body ?? {};
+    const decided = approvals.decide(String(req.params.id), {
+      decision,
+      decidedBy: decidedBy ?? actorOf(req),
+      basis,
+      ...(signature ? { signature: String(signature) } : {}),
+    });
+    return res.status(200).json({
+      approval: decided,
+      means: decided.assurance === 'PROVEN'
+        ? 'Signed by the approver\'s enrolled key. Anyone holding that public key can check this decision without trusting this server.'
+        : 'Recorded, and attributed by the name supplied. It is reported as ASSERTED rather than PROVEN, because nothing here proves the named person made it.',
+    });
+  } catch (error) {
+    const approvalError = error as ApprovalError;
+    const status = approvalError.code === 'NOT_FOUND' ? 404
+      : approvalError.code === 'SELF_APPROVAL' || approvalError.code === 'APPROVER_SUSPENDED' ? 403
+      : approvalError.code === 'APPROVAL_DECIDED' ? 409
+      : 400;
+    return fail(res, status, approvalError.code ?? 'INVALID_REQUEST', approvalError.message);
+  }
+});
+
+app.post('/approvals/:id/withdraw', authorise('execution:record'), (req, res) => {
+  try {
+    const { by, reason } = req.body ?? {};
+    return res.status(200).json(approvals.withdraw(String(req.params.id), by ?? actorOf(req), reason));
+  } catch (error) {
+    const approvalError = error as ApprovalError;
+    return fail(res, approvalError.code === 'NOT_FOUND' ? 404 : 409, approvalError.code ?? 'INVALID_REQUEST', approvalError.message);
+  }
+});
+
+/** Spend a granted approval on one execution. The second call fails, by design. */
+app.post('/approvals/:id/consume', authorise('execution:record'), (req, res) => {
+  try {
+    return res.status(200).json(approvals.consume(String(req.params.id), req.body?.traceId));
+  } catch (error) {
+    const approvalError = error as ApprovalError;
+    return fail(res, approvalError.code === 'NOT_FOUND' ? 404 : 409, approvalError.code ?? 'INVALID_REQUEST', approvalError.message);
+  }
+});
+
+/**
+ * Was this action approved before it ran?
+ *
+ * Takes either the four fields or the hash of them, so an auditor holding only
+ * an execution record can ask without knowing an approval id exists.
+ */
+app.post('/approvals/attest', authorise('execution:read'), (req, res) => {
+  const { action, actionHash, traceId } = req.body ?? {};
+  if (!action && !actionHash) {
+    return fail(res, 400, 'INVALID_REQUEST', 'Send either action { subject, module, action, inputHash } or actionHash.');
+  }
+  try {
+    return res.status(200).json({
+      generated: generated('approval attestation'),
+      ...approvals.attest(actionHash ? String(actionHash) : (action as ApprovalAction), traceId ? String(traceId) : undefined),
+    });
+  } catch (error) {
+    const approvalError = error as ApprovalError;
+    return fail(res, 400, approvalError.code ?? 'INVALID_REQUEST', approvalError.message);
+  }
+});
+
+// ---- Layer 6 — Autonomy: what the watch has seen ----
+
+/**
+ * What a person should look at, and how much of the record that answer covers.
+ *
+ * `coverage` is not a footer. An empty `notices` array means "the last sweep
+ * found none" or it means "nothing has ever swept", and those are opposite
+ * statements that look identical in a list. Every response here carries the
+ * sentence that tells them apart, so an interface cannot render the list
+ * without rendering what the list means.
+ */
+app.get('/watch', authorise('execution:read'), (req, res) => {
+  const state = String(req.query.state ?? '').toUpperCase();
+  const notices = watch.notices({
+    ...(state === 'OPEN' || state === 'ACKNOWLEDGED' ? { state: state as NoticeState } : {}),
+    limit: Number(req.query.limit ?? 100),
+  });
+
+  return res.status(200).json({
+    generated: generated(`${notices.length} notice(s)`),
+    notices,
+    coverage: watch.coverage(),
+    running: watch.running,
+    unverifiable: [
+      { field: 'severity', because: 'Nothing here is ranked. Which of these matters most is a judgement about your business, and ABSuite does not have one.' },
+      { field: 'completeness', because: 'A sweep finds what it knows how to look for. An absence of notices is an absence of findings, not evidence of health.' },
+    ],
+  });
+});
+
+/** Sweep now, rather than waiting for the interval. Same code path, no shortcuts. */
+app.post('/watch/sweep', authorise('execution:read'), (_req, res) => {
+  const result = watch.sweep();
+  return res.status(200).json({
+    generated: generated(`a sweep of ${result.read} record(s)`),
+    ...result,
+  });
+});
+
+/**
+ * Close a notice, with a name and a reason.
+ *
+ * Never a delete. A notice that was raised and dismissed is part of the history
+ * of the thing it was raised about, and the reason somebody gave is usually the
+ * most useful sentence in it a year later.
+ */
+app.post('/watch/notices/:id/acknowledge', authorise('execution:record'), (req, res) => {
+  try {
+    const { by, basis } = req.body ?? {};
+    return res.status(200).json(watch.acknowledge(String(req.params.id), by ?? actorOf(req), basis));
+  } catch (error) {
+    const message = (error as Error).message;
+    return fail(res, message.startsWith('No notice') ? 404 : 400, 'INVALID_REQUEST', message);
+  }
+});
+
 // ---- Verifiable execution ----
 
 /**
@@ -1094,7 +1327,7 @@ app.get('/executions/unknowns', authorise('execution:read'), (req, res) => {
   const byResolution = new Map<string, { conditions: Set<string>; records: string[] }>();
 
   for (const trace of records) {
-    const report = trustConditions(trace, verifyTrace(trace, signingKey.publicKeyPem), chainValid, identities.attest(trace.subject, trace.jti));
+    const report = trustConditions(trace, verifyTrace(trace, signingKey.publicKeyPem), chainValid, identities.attest(trace.subject, trace.jti), approvalFor(trace));
     for (const condition of report.conditions) {
       if (condition.state !== 'UNKNOWN' || !condition.resolvedBy) continue;
       const entry = byResolution.get(condition.resolvedBy) ?? { conditions: new Set(), records: [] };
@@ -1198,7 +1431,7 @@ app.get('/executions/:id/conditions', authorise('execution:read'), (req, res) =>
 
   return res.status(200).json({
     generated: generated(`execution ${trace.id}, against a chain of ${chain.checked} record(s)`),
-    ...trustConditions(trace, verdict, chain.valid, identities.attest(trace.subject, trace.jti)),
+    ...trustConditions(trace, verdict, chain.valid, identities.attest(trace.subject, trace.jti), approvalFor(trace)),
   });
 });
 
@@ -1400,10 +1633,16 @@ if (require.main === module) {
   const pruneTimer = setInterval(() => void revocations.prune(), 3_600_000);
   pruneTimer.unref?.();
 
+  // Layer 6 begins here rather than on first request. A watch that only runs
+  // when somebody opens a page is not watching; it is answering.
+  watch.start();
+  console.log(`[capkit] watch sweeping every ${Number(process.env.ABSUITE_WATCH_INTERVAL_MS || 60_000)}ms`);
+
   // Drain in-flight requests before exiting so a deploy does not drop work.
   const shutdown = (signal: string) => {
     console.log(`[capkit] ${signal} received, shutting down`);
     clearInterval(pruneTimer);
+    watch.stop();
     server.close(() => {
       try {
         storage.close();

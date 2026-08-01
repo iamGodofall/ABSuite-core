@@ -113,6 +113,32 @@ export {
 } from './model-identity';
 
 export {
+  ApprovalRegistry,
+  ApprovalError,
+  approvalActionHash,
+  approvalStatement,
+  verifyApprovalSignature,
+  APPROVAL_STATEMENT_VERSION,
+  DEFAULT_APPROVAL_TTL_MS,
+  MAX_APPROVAL_TTL_MS,
+  type Approval,
+  type ApprovalAction,
+  type ApprovalState,
+  type ApprovalStoredState,
+  type ApprovalAssurance,
+  type ApprovalAttestation,
+} from './approval';
+
+export {
+  Watch,
+  type Notice,
+  type NoticeKind,
+  type NoticeState,
+  type WatchCoverage,
+  type SweepResult,
+} from './watch';
+
+export {
   TraceStore,
   SigningKey,
   hashPayload,

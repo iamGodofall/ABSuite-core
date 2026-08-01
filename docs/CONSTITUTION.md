@@ -185,8 +185,8 @@ according to its nature** — some layers touch two stages, some touch all seven
 | Capability | ● | ● | ● | | | | |
 | Evidence | ● | ● | ● | | | | |
 | Trust | | ● | ● | | ● | | ● |
-| Governance | | | | ◐ | ● | | |
-| Autonomy | | | | | | ◐ | ● |
+| Governance | | | | ● | ● | | |
+| Autonomy | | | | | | ● | ● |
 | Collective Intelligence | ◐ | ◐ | ◐ | ○ | ● | ◐ | ○ |
 | Civilization | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 
@@ -307,8 +307,8 @@ building. What it grows into, in order, each layer resting on the one below:
 | 2 | **Capability** | Authority is granted narrowly, expires, and is revocable centrally | Built | `packages/capkit/src/capability.ts` |
 | 3 | **Evidence** | Claims are checked against sources and reported as supported, unverified or contradicted | Built | `packages/trust/src/verification.ts` |
 | 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built | `packages/trust/src/scoring.ts` |
-| 5 | **Governance** | Policies, obligations, approvals and the workflows humans use to run all of it | Partly built | `packages/capkit/src/ai-policy-generator.ts` |
-| 6 | **Autonomy** | ABSuite's own agents watch the record continuously and raise what a person should see | Partly built | `packages/trust/src/monitoring.ts` |
+| 5 | **Governance** | Policies, obligations, approvals and the workflows humans use to run all of it | Built | `packages/capkit/src/approval.ts` |
+| 6 | **Autonomy** | ABSuite's own agents watch the record continuously and raise what a person should see | Built | `packages/capkit/src/watch.ts` |
 | 7 | **Collective Intelligence** | Independent deployments verify each other's records without merging them *(accrues with adoption — one mechanism now exists, `@absuitecore/notary`, but the layer is the network and the network needs deployments that are not ours)* | Not built | — |
 | 8 | **Civilization** | Millions of agents, autonomous economies, planetary-scale accountability *(accrues with use — nothing here is a feature that can be written; it is what the lower seven become at scale)* | Not built | — |
 
@@ -500,11 +500,29 @@ principle and an alibi:
 Judgement stays with people. Making sure they have something to judge is the
 entire job.
 
-**And the layer stays partly built.** Recording a policy reference is not policy
-evaluation, versioned policy documents, approval workflows, or governance replay.
-One condition can now be demonstrated where it could not before; the layer is not
-finished, and promoting it here because a field exists would be exactly the
-quiet self-promotion `check:doctrine` was written to prevent.
+**The layer was partly built until the approvals arrived, and the gap was
+specific.** `REQUIRES_APPROVAL` was a decision a trace could record and nothing
+in the system could act on: no way to ask, grant, refuse, expire, or show
+afterwards that a person had answered before the action ran. A record could
+state that human judgement was required and then satisfy that requirement by
+itself — which read as governance and was its absence.
+
+`packages/capkit/src/approval.ts` closes it, and the binding is the part worth
+naming: an approval covers a hash of the subject, module, action and **input
+hash**, all four of which are on the finished execution too. So *was this
+approved?* is answerable from the execution record alone. There is no approval
+id written onto the trace, deliberately — a link the operator adds afterwards is
+a link the operator can add afterwards. Two rules are refused rather than warned
+about: the requester may not decide, and one approval covers one execution. A
+reusable approval is an authority, and authority is Layer 2's job.
+
+**What is still not here is not code.** A curated library of governance rules for
+real domains — refund limits, data-egress rules, model-swap approvals, versioned
+and citable by `policyRef` — is writing and domain knowledge, and it is listed as
+a product in [SERVICES.md](SERVICES.md) rather than a missing mechanism. ABSuite
+also still does not *evaluate* policy, and will not: it records the decision
+somebody else's engine made, because a system that both wrote the rule and
+graded the compliance would be marking its own homework.
 
 ---
 

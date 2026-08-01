@@ -20,6 +20,7 @@
 import type { ExecutionTrace, TraceVerdict } from './trace';
 import { type Determination } from './determination';
 import type { IdentityAttestation } from './identity';
+import type { ApprovalAttestation } from './approval';
 
 /**
  * The same four states used everywhere else — see determination.ts.
@@ -102,7 +103,15 @@ export function trustConditions(
    * fabricated attestation here would be the only way to make this lie, and
    * that is a deliberate act rather than a default.
    */
-  identity?: IdentityAttestation
+  identity?: IdentityAttestation,
+  /**
+   * What the approval record can show about this action.
+   *
+   * Optional in the same way and for the same reason. Its absence never turns a
+   * `REQUIRES_APPROVAL` record green — an unchecked approval reads as UNKNOWN,
+   * which is what it is.
+   */
+  approval?: ApprovalAttestation
 ): ConditionsReport {
   // A record this build cannot read tells us nothing about any condition.
   // Reporting five absences would read as five findings against the record,
@@ -216,30 +225,7 @@ export function trustConditions(
   // recorded, ABSuite never says the decision was correct: it names the rule
   // that produced it, so a person can ask whether that rule should have existed.
   const governance = trace.governance;
-  conditions.push({
-    condition: 'Governance',
-    answers: 'Under what rule?',
-    state: !governance ? 'ABSENT'
-      : verdict?.contentIntact === false ? 'FAILED'
-      : verdict?.contentIntact ? 'DEMONSTRATED' : 'UNKNOWN',
-    ...(!governance
-      ? { notAnsweredBecause: 'This record carries no policy reference — either it predates governance, or the caller recorded none.' }
-      : !verdict
-        ? { resolvedBy: 'Verify the record, so the policy reference is checked along with everything else on it.' }
-        : {}),
-    finding: !governance
-      ? 'Not recorded. A trace states the authority an action held, not the rule that decided it should hold it. ' +
-        'Under what rule this was permitted cannot be answered from this record — only whether it was.'
-      : !verdict
-        ? `Policy ${governance.policyRef} (v${governance.policyVersion}) is recorded as ${governance.decision}, but the record has not been verified, so that claim is unchecked.`
-        : !verdict.contentIntact
-          ? `Policy ${governance.policyRef} is recorded, but the content does not match its hash, so the policy reference is as unproven as everything else on it.`
-          : `Permitted under policy ${governance.policyRef} (v${governance.policyVersion}), which evaluated to ${governance.decision}` +
-            `${governance.evaluatedBy ? ` by ${governance.evaluatedBy}` : ''}. ` +
-            `Conditions checked: ${governance.evidence.join('; ')}. ` +
-            'This states which rule permitted the action. Whether that rule should have existed is a judgement, and it is not ABSuite\'s.',
-    from: 'governance.policyRef, policyVersion, decision, evidence',
-  });
+  conditions.push(governanceCondition(trace, governance, verdict, approval));
 
   // ── Time: when, and in what order? ────────────────────────────────────────
   const hasStart = Boolean(trace.startedAt);
@@ -281,6 +267,161 @@ export function trustConditions(
     overall: weakest(conditions.map(condition => condition.state)),
     constrainedBy: outstanding.map(condition => condition.condition),
     allDemonstrated: outstanding.length === 0,
+  };
+}
+
+/**
+ * Under what rule — and, when the rule demanded a person, whether one appeared.
+ *
+ * Pulled out of `trustConditions` because it stopped being one expression. Two
+ * decisions a policy can record were previously reported the same way as
+ * `PERMITTED`, and both were wrong in the direction that matters:
+ *
+ * **`DENIED` with a successful outcome.** The record says the rule refused, and
+ * the action happened anyway. That was reading DEMONSTRATED as soon as the hash
+ * checked, because the check only asked whether a policy was *named*. It is a
+ * governance failure, and it is the single most serious thing this file can
+ * find — a rule that was consulted, answered no, and was overridden.
+ *
+ * **`REQUIRES_APPROVAL` with nothing to show for it.** The record says a person
+ * had to decide. Until the approval record is consulted, nobody knows whether
+ * one did, so it is UNKNOWN — never DEMONSTRATED on the strength of a hash. A
+ * demand for human judgement that satisfies itself is not governance.
+ */
+function governanceCondition(
+  trace: ExecutionTrace,
+  governance: ExecutionTrace['governance'],
+  verdict: TraceVerdict | undefined,
+  approval: ApprovalAttestation | undefined
+): TrustCondition {
+  const from = 'governance.policyRef, policyVersion, decision, evidence';
+
+  if (!governance) {
+    return {
+      condition: 'Governance',
+      answers: 'Under what rule?',
+      state: 'ABSENT',
+      notAnsweredBecause: 'This record carries no policy reference — either it predates governance, or the caller recorded none.',
+      finding:
+        'Not recorded. A trace states the authority an action held, not the rule that decided it should hold it. ' +
+        'Under what rule this was permitted cannot be answered from this record — only whether it was.',
+      from,
+    };
+  }
+
+  const named = `policy ${governance.policyRef} (v${governance.policyVersion})`;
+
+  if (!verdict) {
+    return {
+      condition: 'Governance',
+      answers: 'Under what rule?',
+      state: 'UNKNOWN',
+      resolvedBy: 'Verify the record, so the policy reference is checked along with everything else on it.',
+      finding: `Policy ${governance.policyRef} (v${governance.policyVersion}) is recorded as ${governance.decision}, but the record has not been verified, so that claim is unchecked.`,
+      from,
+    };
+  }
+
+  if (!verdict.contentIntact) {
+    return {
+      condition: 'Governance',
+      answers: 'Under what rule?',
+      state: 'FAILED',
+      finding: `Policy ${governance.policyRef} is recorded, but the content does not match its hash, so the policy reference is as unproven as everything else on it.`,
+      from,
+    };
+  }
+
+  const evaluated = `${governance.evaluatedBy ? ` by ${governance.evaluatedBy}` : ''}`;
+  const checked = `Conditions checked: ${governance.evidence.join('; ')}.`;
+
+  if (governance.decision === 'DENIED') {
+    // The rule answered no. Whether that is a finding depends entirely on
+    // whether the action then happened.
+    if (trace.outcome === 'success') {
+      return {
+        condition: 'Governance',
+        answers: 'Under what rule?',
+        state: 'FAILED',
+        finding:
+          `${named} evaluated to DENIED${evaluated}, and this execution succeeded anyway. ${checked} ` +
+          'A rule was consulted, it refused, and the action was carried out — which is a stronger finding than no rule at all, ' +
+          'because somebody built the check and something went around it.',
+        from,
+      };
+    }
+    return {
+      condition: 'Governance',
+      answers: 'Under what rule?',
+      state: 'DEMONSTRATED',
+      finding:
+        `${named} evaluated to DENIED${evaluated}, and the execution did not succeed. ${checked} ` +
+        'The rule held. This is what governance working looks like in the record, and it is worth being able to point at.',
+      from,
+    };
+  }
+
+  if (governance.decision === 'REQUIRES_APPROVAL') {
+    if (!approval) {
+      return {
+        condition: 'Governance',
+        answers: 'Under what rule?',
+        state: 'UNKNOWN',
+        resolvedBy: 'Ask the approval record — POST /approvals/attest with this record\'s subject, module, action and inputHash.',
+        finding:
+          `${named} evaluated to REQUIRES_APPROVAL${evaluated}, so a person had to decide before this ran. ${checked} ` +
+          'Nothing here says whether one did. The policy reference is intact; the approval behind it has not been looked at.',
+        from: `${from}, approval record`,
+      };
+    }
+
+    if (approval.state === 'DEMONSTRATED') {
+      return {
+        condition: 'Governance',
+        answers: 'Under what rule?',
+        state: 'DEMONSTRATED',
+        finding:
+          `${named} evaluated to REQUIRES_APPROVAL${evaluated}, and an approval holds: ${approval.finding} ${checked} ` +
+          'Which rule demanded a person, and that a person answered. Whether they answered well is a judgement, and it is not ABSuite\'s.',
+        from: `${from}, approval record`,
+      };
+    }
+
+    if (approval.state === 'UNKNOWN') {
+      return {
+        condition: 'Governance',
+        answers: 'Under what rule?',
+        state: 'UNKNOWN',
+        resolvedBy: approval.resolvedBy ?? 'Settle the open approval request.',
+        finding: `${named} evaluated to REQUIRES_APPROVAL${evaluated}. ${approval.finding}`,
+        from: `${from}, approval record`,
+      };
+    }
+
+    // ABSENT and FAILED both land here, and both are failures of *this* record:
+    // the rule demanded a person and the approval record cannot show one. An
+    // absent approval is not a quiet gap when a policy specifically called for it.
+    return {
+      condition: 'Governance',
+      answers: 'Under what rule?',
+      state: 'FAILED',
+      finding:
+        `${named} evaluated to REQUIRES_APPROVAL${evaluated}, and the approval record does not support it: ${approval.finding} ` +
+        (approval.state === 'ABSENT'
+          ? 'A rule that demands human judgement, satisfied by nobody being asked, is not governance.'
+          : ''),
+      from: `${from}, approval record`,
+    };
+  }
+
+  return {
+    condition: 'Governance',
+    answers: 'Under what rule?',
+    state: 'DEMONSTRATED',
+    finding:
+      `Permitted under ${named}, which evaluated to ${governance.decision}${evaluated}. ${checked} ` +
+      'This states which rule permitted the action. Whether that rule should have existed is a judgement, and it is not ABSuite\'s.',
+    from,
   };
 }
 

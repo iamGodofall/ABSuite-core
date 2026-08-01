@@ -198,9 +198,19 @@ misleading".
   verify from the last known-good sequence — is the obvious answer and has not
   been built.
 - **Governance is recorded, not evaluated.** ABSuite stores which rule permitted
-  an action; it does not evaluate policies, version policy documents, replay a
-  governing decision, or run approval workflows. That is why Layer 5 is marked
-  *partly built* and it is the largest single gap in the layer table.
+  an action; it does not evaluate policies or version policy documents. That is a
+  refusal rather than a gap — a system that both wrote the rule and graded the
+  compliance would be marking its own homework — but it means a deployment needs
+  a policy engine of its own, and most do not have one. Approval workflows are no
+  longer on this list: `REQUIRES_APPROVAL` was a decision nothing could act on
+  until `packages/capkit/src/approval.ts`, which is what promoted Layer 5.
+- **The watch sweeps in batches and reports how far it got.** `Watch` reads
+  forward from a high-water mark, so a large backlog is covered over several
+  sweeps rather than in one blocking pass — and `coverage.behind` says how many
+  records it has not reached yet. Correct, and slower to first finding on a big
+  import than a single full pass would be. The trade is deliberate: a sweep that
+  blocks the event loop for three seconds is the same defect `/executions/stats`
+  already had once.
 - **The unknown queue examines a capped window** and says so. It is a sample of
   the work, not a complete inventory of it, until the cursor above exists.
 

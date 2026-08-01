@@ -156,6 +156,67 @@ const MIGRATIONS: string[] = [
      basis       TEXT NOT NULL
    )`,
 
+  // Layer 5 — Governance. `REQUIRES_APPROVAL` was a decision a trace could
+  // record and nothing could act on. A grant covers `action_hash`, which is
+  // recomputable from a completed execution, so the link between an approval and
+  // the thing it approved is not a column anybody fills in afterwards.
+  `CREATE TABLE IF NOT EXISTS approvals (
+     id             TEXT PRIMARY KEY,
+     action_hash    TEXT NOT NULL,
+     action         TEXT NOT NULL,
+     context        TEXT NOT NULL,
+     context_hash   TEXT NOT NULL,
+     policy_ref     TEXT NOT NULL,
+     policy_version TEXT NOT NULL,
+     requested_by   TEXT NOT NULL,
+     requested_at   TEXT NOT NULL,
+     expires_at     TEXT NOT NULL,
+     state          TEXT NOT NULL DEFAULT 'PENDING',
+     decided_by     TEXT,
+     decided_at     TEXT,
+     basis          TEXT,
+     signature      TEXT,
+     signed_by      TEXT,
+     consumed_by    TEXT,
+     consumed_at    TEXT
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_approvals_action ON approvals (action_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_approvals_state ON approvals (state, requested_at)`,
+
+  // Layer 6 — Autonomy. What the sweep found, and how far the sweep has read.
+  // `notices.id` is derived from `key`, so a standing problem is one row seen
+  // many times rather than one row per sweep.
+  `CREATE TABLE IF NOT EXISTS notices (
+     id              TEXT PRIMARY KEY,
+     kind            TEXT NOT NULL,
+     key             TEXT NOT NULL,
+     state           TEXT NOT NULL DEFAULT 'OPEN',
+     finding         TEXT NOT NULL,
+     source          TEXT NOT NULL,
+     execution_id    TEXT,
+     subject         TEXT,
+     raised_at       TEXT NOT NULL,
+     last_seen_at    TEXT NOT NULL,
+     seen            INTEGER NOT NULL DEFAULT 1,
+     acknowledged_by TEXT,
+     acknowledged_at TEXT,
+     basis           TEXT
+   )`,
+
+  // One row, always. Its whole purpose is that an empty notice list can be told
+  // apart from a watch that has never run — which otherwise look identical.
+  `CREATE TABLE IF NOT EXISTS watch_state (
+     id                TEXT PRIMARY KEY,
+     sweeps            INTEGER NOT NULL DEFAULT 0,
+     last_sweep_at     TEXT,
+     last_sweep_read   INTEGER NOT NULL DEFAULT 0,
+     high_water_seq    INTEGER NOT NULL DEFAULT 0,
+     last_sweep_failed TEXT
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_notices_state ON notices (state, last_seen_at)`,
+
   `CREATE INDEX IF NOT EXISTS idx_executions_seq ON executions (seq)`,
   `CREATE INDEX IF NOT EXISTS idx_executions_tenant ON executions (tenant_id, started_at)`,
 ];
