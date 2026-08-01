@@ -119,7 +119,22 @@ export interface CubeEvidenceState {
  */
 const EVIDENCE_CORE = {
   DEMONSTRATED: { hex: '#00F58C', intensity: 9,    pulse: 'steady'    },
-  UNKNOWN:      { hex: '#F59E0B', intensity: 4.2,  pulse: 'irregular' },
+  /*
+   * Turquoise, not amber.
+   *
+   * Amber is the right colour for an UNKNOWN *badge* — it is what the nodes and
+   * the masthead use, and a badge is read as a word. The core is not a badge.
+   * It is the light source for a green glass room, and warm amber filling a
+   * cool interior fights the material it is shining through: it stopped reading
+   * as light inside the ice and started reading as a small sun stuck to the
+   * front of it.
+   *
+   * Turquoise stays in the room's family while sitting clearly apart from the
+   * emerald of a demonstrated chain — cooler, bluer, dimmer. Unresolved rather
+   * than alarming, which is what UNKNOWN means. Red stays red, because a broken
+   * chain *should* be a foreign body in this palette.
+   */
+  UNKNOWN:      { hex: '#2DD4BF', intensity: 4.6,  pulse: 'irregular' },
   FAILED:       { hex: '#DC2626', intensity: 5.5,  pulse: 'stopped'   },
   // Almost black. A faint ember so the cube still has a centre, and nothing more.
   ABSENT:       { hex: '#0A1712', intensity: 0.35, pulse: 'stopped'   },

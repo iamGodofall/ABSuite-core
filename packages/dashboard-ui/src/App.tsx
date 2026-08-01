@@ -1695,8 +1695,14 @@ export default function App() {
          * Bottom-right, not bottom-centre — centred it covered Arbitrate and
          * Govern, the two stations most likely to matter when something has
          * stopped answering.
+         *
+         * And clear of the footer. bottom-8 put it 32px from the edge, which is
+         * inside the footer bar — so once the notice collapsed to its icon it
+         * sat on top of the CONNECTED / NOT CONNECTED reading in the corner. A
+         * thing that folds away to stop being in the way should not fold away
+         * into something else.
          */
-        <div className="fixed bottom-8 right-6 z-50 max-w-sm w-[92%] sm:w-auto">
+        <div className="fixed bottom-24 right-6 z-50 max-w-sm w-[92%] sm:w-auto flex justify-end">
           {!connected && services.every(service => service.status !== 'up') ? (
             <NoticeCard
               collapsible
