@@ -37,7 +37,7 @@
   /* ---- masthead ------------------------------------------------------- */
   .mast{display:flex;align-items:center;gap:.85rem;margin-bottom:2.5rem;flex-wrap:wrap}
   .glyph{
-    width:38px;height:38px;flex:none;border:1.5px solid var(--em);border-radius:8px;
+    width:38px;height:38px;flex:none;border:1.5px solid var(--em);border-radius:16px;
     display:grid;place-items:center;box-shadow:0 0 22px var(--em-glow) inset,0 0 14px var(--em-glow);
   }
   .glyph svg{width:20px;height:20px;stroke:var(--em);fill:none;stroke-width:1.7}
@@ -68,7 +68,7 @@
 
   /* ---- step panels ---------------------------------------------------- */
   .step{
-    border:1px solid var(--line);border-radius:12px;background:var(--panel);
+    border:1px solid var(--line);border-radius:16px;background:var(--panel);
     padding:1.15rem 1.15rem 1.25rem;margin-bottom:1rem;
   }
   .step-h{
@@ -77,22 +77,24 @@
   }
   .step-h b{
     font-family:var(--mono);width:20px;height:20px;flex:none;display:grid;place-items:center;
-    border:1px solid var(--line);border-radius:5px;color:var(--em);font-size:.62rem;background:var(--panel-2)
+    border:1px solid var(--line);border-radius:16px;color:var(--em);font-size:.62rem;background:var(--panel-2)
   }
   textarea{
     width:100%;min-height:118px;resize:vertical;padding:.85rem .95rem;
     font:12.5px/1.65 var(--mono);color:var(--fg);
-    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:16px;
   }
   textarea:focus{outline:none;border-color:var(--em-dim);box-shadow:0 0 0 3px rgba(45,233,165,.1)}
   textarea::placeholder{color:var(--dim)}
   .note{color:var(--muted);font-size:.8rem;margin:.6rem 0 0}
-  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);border:1px solid var(--line);padding:.14em .42em;border-radius:4px;color:var(--em)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);border:1px solid var(--line);padding:.14em .42em;border-radius:16px;color:var(--em)}
 
   /* ---- actions -------------------------------------------------------- */
   .row{display:flex;gap:.6rem;flex-wrap:wrap;margin:1.4rem 0}
+  /* Anything a hand operates is a capsule — the same shape language as the
+     landing page and the operations room, so the three read as one product. */
   button{
-    font:600 .87rem/1 var(--sans);padding:.78rem 1.15rem;border-radius:8px;cursor:pointer;
+    font:600 .87rem/1 var(--sans);padding:.78rem 1.35rem;border-radius:9999px;cursor:pointer;
     background:var(--panel);color:var(--fg);border:1px solid var(--line);transition:border-color .15s,color .15s;
   }
   button:hover{border-color:var(--em-dim);color:var(--em)}
@@ -104,7 +106,7 @@
   button.primary:hover{background:#4BF0B4;color:#04120C;border-color:#4BF0B4}
 
   /* ---- result --------------------------------------------------------- */
-  #result{display:none;border-radius:12px;padding:1.3rem 1.35rem;margin:1.6rem 0;border:1px solid}
+  #result{display:none;border-radius:16px;padding:1.3rem 1.35rem;margin:1.6rem 0;border:1px solid}
   #result.ok{border-color:var(--em);background:var(--ok-bg);box-shadow:0 0 34px rgba(45,233,165,.09)}
   #result.bad{border-color:var(--bad-line);background:var(--bad-bg);box-shadow:0 0 34px rgba(255,77,77,.08)}
   .verdict{margin:0 0 1rem;font-weight:800;font-size:1.32rem;letter-spacing:-.02em;text-transform:uppercase}
@@ -118,11 +120,11 @@
 
   .warn{
     display:none;border:1px solid var(--bad-line);background:var(--bad-bg);color:var(--bad);
-    padding:.85rem 1rem;border-radius:8px;margin-bottom:1.6rem;font-size:.9rem
+    padding:.85rem 1rem;border-radius:16px;margin-bottom:1.6rem;font-size:.9rem
   }
 
   /* ---- explainer ------------------------------------------------------ */
-  .explain{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:1.6rem;margin-top:3rem}
+  .explain{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:1.6rem;margin-top:3rem}
   .explain h2{
     margin:0 0 1rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.17em;
     text-transform:uppercase;color:var(--em);font-weight:600
@@ -133,7 +135,7 @@
   .explain em{color:var(--em);font-style:normal;font-weight:600}
 
   .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin:2.6rem 0 0}
-  .pillar{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);padding:.9rem}
+  .pillar{border:1px solid var(--line);border-radius:20px;background:var(--panel-2);padding:.9rem}
   .pillar b{display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--em);margin-bottom:.35rem}
   .pillar span{font-size:.82rem;color:var(--muted);line-height:1.45}
 
