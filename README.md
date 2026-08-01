@@ -484,7 +484,7 @@ the interface, which replaced the dashboard). Full design in
 ```
 
 Each step names the thing that performs it. Nothing in that column is
-aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 102.
+aspirational — the routes exist, and [`docs/API.md`](./docs/API.md) lists all 127.
 
 ---
 
@@ -536,8 +536,8 @@ can be proven*.
 ## Status
 
 ```text
-495 tests                    103 API endpoints
-7 npm packages on npm         6 HTTP services + MCP server
+719 tests                     127 API endpoints
+7 npm packages on npm         6 HTTP services + notary + MCP server
 API docs drift-checked in CI  published from CI with provenance
 ```
 
@@ -591,11 +591,13 @@ honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 | [Performance](./docs/PERFORMANCE.md) | Measured throughput and latency, with the machine |
 | [Principles](./PRINCIPLES.md) | The rules the code is held to |
 | [Constitution](./docs/CONSTITUTION.md) | What this will never become |
+| [Compliance mapping](./docs/COMPLIANCE.md) | Which obligation each field speaks to — EU AI Act, ISO 42001, SOC 2 — and what it does not help with |
+| [Protocol](./docs/PROTOCOL.md) | The record format, specified independently of this code |
 | [Security model](./docs/SECURITY-MODEL.md) | Threat model and defence in depth |
 | [Reporting a vulnerability](./SECURITY.md) | Private disclosure |
 | [Code of conduct](./CODE_OF_CONDUCT.md) | How people are expected to treat each other |
 | [Roadmap](./docs/ROADMAP.md) | What is next, and what is deliberately refused |
-| [UI overhaul brief](./docs/UI-OVERHAUL-BRIEF.md) | 103 endpoints built, 18 reachable — the interface gap, in detail |
+| [UI overhaul brief](./docs/UI-OVERHAUL-BRIEF.md) | The interface gap, measured — far more is built than the dashboard reaches |
 | [Changelog](./CHANGELOG.md) | Including the bugs, and how they were found |
 
 ---

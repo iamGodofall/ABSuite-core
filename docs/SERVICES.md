@@ -57,19 +57,29 @@ PRIVATE_KEY` is the one secret whose loss destroys every record ever signed. Mos
 teams will not have a process for that. Setting one up — and being on the hook
 for it — is worth paying for.
 
-### 1.3 The compliance narrative — **Near**
+### 1.3 The compliance narrative — **Built**
 
 Regulated buyers do not want "signed traces". They want a document mapping what
-the system produces to what a specific regime demands: the EU AI Act's logging
-and record-keeping articles, ISO 42001, SOC 2's change-management evidence.
+the system produces to what a specific regime demands.
 
-The work is a mapping table, written once, sold many times: *this obligation ←
-this endpoint ← this field ← this test that proves the field cannot be forged*.
-The product already produces the evidence; nobody has yet written the sentence
-that tells a compliance officer which box it fills.
+[COMPLIANCE.md](COMPLIANCE.md) is that mapping, in the shape it was specified
+here: *this obligation ← this endpoint ← this field ← this test that proves the
+field cannot be forged*. EU AI Act Articles 12, 13, 14, 19, 26 and 72; ISO/IEC
+42001 Annex A; SOC 2's CC6, CC7, CC8 and PI1; NIST AI RMF.
 
-**This is the highest-leverage unbuilt thing in this document.** It converts a
-technical artifact into a purchase order, and it is writing, not engineering.
+Two things about it are worth keeping when it gets reused in a proposal. It
+opens by refusing the sale it is closest to — *ABSuite produces evidence, it does
+not confer compliance* — and §5 lists every obligation the product does nothing
+for. A mapping document that only names the boxes it fills is a brochure, and a
+compliance officer has read a hundred of those.
+
+The strongest row is **Article 14, human oversight**. Almost anybody can show
+that a human clicked approve; very few can show *what exactly* was approved,
+because the approval and the action are usually linked by a foreign key the
+operator controls. Here they are linked by a hash of the payload.
+
+What remains is not writing either. It is a first regulated customer to take it
+to, and their questions are what turn a good document into a used one.
 
 ---
 
@@ -199,15 +209,22 @@ verify without trusting the insured.
 Far because it needs an insurer, not a feature. But it is the clearest answer to
 "who eventually pays a lot for this", and it is worth naming the direction now.
 
-### 4.3 Model-identity attestation — **Near**
+### 4.3 Model-identity attestation — **Built**
 
 Already scoped in [INTERPRETABILITY.md](internal/INTERPRETABILITY.md) as
 Verify's fourth target: *is this the model whose behaviour was approved?* An
 operator who approved a model has a real interest in knowing it is still that
 model, and it needs no claim about reasoning whatsoever.
 
-Layer 1 now does this for *agents* — enrolled key, proof of possession. Doing it
-for *models* is the same shape applied to a different subject.
+Layer 1 does this for *agents* — enrolled key, proof of possession. `ModelRegistry`
+now does it for models: a fingerprint recorded at approval with `approvedBy` and
+`basis` both required, compared afterwards, and a silent provider version roll
+reported as `FAILED` rather than going unnoticed. `supersede()` is separate from
+`approve()` so that swapping a model is never something that happens by re-running
+a setup script.
+
+What is unbuilt is the *product* on top: a standing attestation report an operator
+receives without asking. That is packaging, and it needs somebody who wants it.
 
 ---
 
@@ -217,15 +234,23 @@ Ranked by money-per-week-of-work for someone with no capital and no runway.
 
 | | Do this | Why first |
 |---|---|---|
-| 1 | **Compliance mapping doc** (1.3) | Writing, not engineering. Turns what exists into something a budget holder can buy. |
-| 2 | **Audit engagements** (1.1) | Sellable today with zero new code. One client funds a month. |
-| 3 | **Deployment + key custody** (1.2) | Natural follow-on from every audit. Recurring. |
+| 1 | **Audit engagements** (1.1) | Sellable today with zero new code, and [COMPLIANCE.md](COMPLIANCE.md) is now the document you open the conversation with. One client funds a month. |
+| 2 | **Deployment + key custody** (1.2) | Natural follow-on from every audit. Recurring, and the one thing a client cannot safely do badly. |
+| 3 | **Policy libraries** (3.3) | The last thing in this document that is writing rather than engineering, and `policyRef` already cites it from inside the evidence. |
 | 4 | **The notary** (2.2) | Small, distinctive, cheap to run, and it starts Layer 7 honestly. |
 | 5 | **Connector packs** (3.2) | Conventional, reliable, and the scaffolding is done. |
 | 6 | **Interface licence** (3.1) | Needs traffic first. Licensing something nobody has seen is not a business. |
 
 The first three need no permission from anyone and no money to start. That is
 the point of ranking them there.
+
+**What changed since this was first written.** The compliance mapping was ranked
+first and is now written; the notary was speculative and is now a package; agent
+spend attribution, model-identity attestation and the approval workflow have all
+moved from *Near* to *Built*. Nothing left in this document is blocked on code
+that one person can write in a week. Everything remaining is blocked on somebody
+else — a customer, an insurer, a second deployment — which is a better problem
+and a slower one.
 
 ---
 

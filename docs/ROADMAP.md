@@ -26,8 +26,8 @@ This document is measured in **days**. The decade-scale view lives in
 | Governance Components | Complete |
 | Explainability | Complete |
 
-495 tests. 103 API endpoints. 7 npm packages on npm. 6 HTTP services and an MCP
-server.
+719 tests. 127 API endpoints. 7 npm packages on npm. 6 HTTP services, a notary,
+and an MCP server.
 
 The sentence that used to sit here — *"nothing is installable and nobody has
 used it"* — is now half false and half true, and the half that changed is the
@@ -113,12 +113,12 @@ years were spent making trust infrastructure boringly reliable.
 
 > **Make a stranger understand ABSuite in sixty seconds.**
 
-The build question is answered: six services run, 103 endpoints are documented
+The build question is answered: six services run, 127 endpoints are documented
 and 46 documented GET routes were confirmed answering against a live suite. The
 open question is a different one, and no amount of further building settles it —
 *can someone else understand this in five minutes?*
 
-Nobody adopts a project because it has 495 tests. They adopt it because they
+Nobody adopts a project because it has 719 tests. They adopt it because they
 opened the dashboard and understood what it was. That makes the interface the
 highest-leverage work in the repository right now, ahead of any remaining layer.
 
@@ -173,10 +173,18 @@ There is also no single overview: the global view lives inside Observe, and
 System shows service health. A stranger has no screen that shows everything at
 once — which is the first thing the sixty-second test needs.
 
-**Order of work:** dashboard experience, onboarding, the demo scenario above,
-then finishing layers 1–6. Layer 7 is a design exercise before it is a build
-one. Layer 8 is frozen — see the Constitution for why it is not a thing that
-gets built.
+**Order of work:** dashboard experience, onboarding, then the demo scenario
+above. Layers 1–6 are finished — Governance and Autonomy were the last two, and
+what closed them was an approval workflow and a watch that reports its own
+coverage. Layer 7 is not a build task: the mechanism exists as
+[`@absuitecore/notary`](../packages/notary/), and what the layer needs is a
+deployment that is not ours. Layer 8 is frozen — see the Constitution for why it
+is not a thing that gets built.
+
+That is the shape of the whole project now. **Nothing left on this roadmap is
+blocked on code one person can write in a week.** Everything remaining is
+blocked on somebody else: an install, a customer, a second deployment. That is a
+better problem and a slower one, and no amount of building shortens it.
 
 ---
 
