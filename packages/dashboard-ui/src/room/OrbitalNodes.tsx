@@ -120,9 +120,21 @@ const CUBE_FACES = {
 } as const;
 
 function CubeFacets({ hex, lit }: { hex: string; lit: boolean }) {
-  // Top catches the most light, right the least — one direction, held for all
-  // seven so they read as a set rather than as seven unrelated objects.
-  const face = lit ? { top: 0.3, left: 0.16, right: 0.07 } : { top: 0.14, left: 0.08, right: 0.035 };
+  /*
+   * Top catches the most light, right the least — one direction, held for all
+   * seven so they read as a set rather than as seven unrelated objects.
+   *
+   * The quiet set started at 14/8/3.5% and read flat: at that strength the
+   * three faces were nearly the same value, so the interior edges were doing
+   * the whole job of implying a solid and the shading added nothing. Raised to
+   * 24/14/6%, which is enough separation for the eye to accept volume without
+   * the light.
+   *
+   * The lit set rose with it. Keeping the ratio near 1.7 is the point — if a
+   * quiet station and a lit one converge, focus stops being visible, and the
+   * whole reason six of these are dim is so the seventh can be seen.
+   */
+  const face = lit ? { top: 0.42, left: 0.24, right: 0.11 } : { top: 0.24, left: 0.14, right: 0.06 };
   return (
     <svg
       viewBox="0 0 100 100"
@@ -138,7 +150,7 @@ function CubeFacets({ hex, lit }: { hex: string; lit: boolean }) {
         * to the bottom point. These are the whole illusion; without them the
         * shading reads as three coloured patches rather than as three faces.
         */}
-      <g stroke={hex} strokeOpacity={lit ? 0.75 : 0.4} strokeWidth={1.5} strokeLinecap="round">
+      <g stroke={hex} strokeOpacity={lit ? 0.8 : 0.5} strokeWidth={1.5} strokeLinecap="round">
         <line x1="50" y1="50" x2="100" y2="25" />
         <line x1="50" y1="50" x2="0" y2="25" />
         <line x1="50" y1="50" x2="50" y2="100" />
