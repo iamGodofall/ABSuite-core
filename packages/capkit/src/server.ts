@@ -24,6 +24,7 @@ import { explainTrace } from './explain';
 import { trustConditions } from './conditions';
 import { IdentityRegistry, IdentityError } from './identity';
 import { ProvenanceGraph } from './provenance';
+import { ModelRegistry, ModelIdentityError } from './model-identity';
 import { determineTrace } from './determination';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
 import { TenantRateLimiter } from './rate-limit';
@@ -112,6 +113,10 @@ const identities = new IdentityRegistry(storage);
 // Which agent handed work to which, computed from the hashes already recorded.
 // Nothing new is stored for this — the graph was always latent in the data.
 const provenance = new ProvenanceGraph(storage);
+
+// Verify's fourth target. Compares identifying material against what was
+// approved; it never loads a model and never claims anything about behaviour.
+const models = new ModelRegistry(storage);
 
 // Annotated explicitly so the emitted declaration file does not need to name
 // a transitive @types/express-serve-static-core path.
@@ -701,6 +706,61 @@ app.post('/identities/:subject/reinstate', authorise('identity:manage'), (req, r
     const identityError = error as IdentityError;
     return fail(res, identityError.code === 'IDENTITY_UNKNOWN' ? 404 : 400, identityError.code ?? 'INVALID_REQUEST', identityError.message);
   }
+});
+
+
+// ---- Verify's fourth target: model identity ----
+
+/**
+ * Record that a model was approved, and what it looked like at the time.
+ *
+ * Deliberately narrow. This makes no claim about what a model thinks — a
+ * refusal written down in docs/internal/INTERPRETABILITY.md and kept here. The
+ * question it answers is a governance one an operator actually has an interest
+ * in: *you approved a model; is the thing answering you still that model?*
+ * Providers roll versions silently, quantisations change numerics, and a proxy
+ * can be repointed — none of which announces itself in an execution log.
+ */
+app.post('/models', authorise('model:approve'), (req, res) => {
+  try {
+    const { name, fingerprint, approvedBy, basis } = req.body ?? {};
+    return res.status(201).json(models.approve({ name, fingerprint, approvedBy, basis }));
+  } catch (error) {
+    const modelError = error as ModelIdentityError;
+    return fail(res, modelError.code === 'ALREADY_APPROVED' ? 409 : 400, modelError.code ?? 'INVALID_REQUEST', modelError.message);
+  }
+});
+
+app.get('/models', authorise('execution:read'), (_req, res) => {
+  const all = models.list();
+  res.status(200).json({
+    generated: generated(`${all.length} approved model(s)`),
+    models: all,
+    unverifiable: [
+      { field: 'behaviour', because: 'This compares identifying material. A model reporting the same version can still answer differently, and nothing here would know.' },
+      { field: 'reasoning', because: 'No claim is made about what a model thinks. Ranked tokens under a linear lens are not thoughts, and this endpoint does not produce even those.' },
+    ],
+  });
+});
+
+/** Replace an approval deliberately. Never a side effect of re-running setup. */
+app.post('/models/:name/supersede', authorise('model:approve'), (req, res) => {
+  try {
+    const { fingerprint, approvedBy, basis } = req.body ?? {};
+    return res.status(200).json(models.supersede(String(req.params.name), { fingerprint, approvedBy, basis }));
+  } catch (error) {
+    const modelError = error as ModelIdentityError;
+    return fail(res, modelError.code === 'NOT_FOUND' ? 404 : 400, modelError.code ?? 'INVALID_REQUEST', modelError.message);
+  }
+});
+
+/** Is what is answering now the model that was approved? */
+app.post('/models/:name/attest', authorise('execution:read'), (req, res) => {
+  const attestation = models.attest(String(req.params.name), req.body?.fingerprint);
+  return res.status(200).json({
+    generated: generated(`model identity for ${req.params.name}`),
+    ...attestation,
+  });
 });
 
 // ---- Verifiable execution ----

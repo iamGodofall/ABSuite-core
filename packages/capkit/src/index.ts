@@ -103,6 +103,16 @@ export {
 } from './provenance';
 
 export {
+  ModelRegistry,
+  ModelIdentityError,
+  fingerprintHash,
+  type ModelFingerprint,
+  type ApprovedModel,
+  type ModelAttestation,
+  type ModelDrift,
+} from './model-identity';
+
+export {
   TraceStore,
   SigningKey,
   hashPayload,

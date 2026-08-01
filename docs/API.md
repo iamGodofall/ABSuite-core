@@ -96,6 +96,10 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/identities/:subject/suspend` | `identity:manage` | — |
 | POST | `/issue` | `auth:token:create` | — |
 | GET | `/metrics` | _public_ | — |
+| GET | `/models` | `execution:read` | — |
+| POST | `/models` | `model:approve` | — |
+| POST | `/models/:name/attest` | `execution:read` | — |
+| POST | `/models/:name/supersede` | `model:approve` | — |
 | GET | `/plans` | _public_ | — |
 | GET | `/ready` | _public_ | — |
 | GET | `/signup` | _public_ | — |
@@ -137,6 +141,12 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`POST /identities/:subject/suspend`** — Suspend an identity. It stops obtaining authority immediately. Nothing it already recorded is altered, hidden or re-scored. History is not revised because somebody was later distrusted — that would make the record a reflection of current opinion rather than of what happened.
 
 **`POST /issue`** — The dashboard issues tokens with an {actor, action, resource, expires} shape. Map it onto the capability model rather than making the dashboard speak two dialects.
+
+**`POST /models`** — Record that a model was approved, and what it looked like at the time. Deliberately narrow. This makes no claim about what a model thinks — a refusal written down in docs/internal/INTERPRETABILITY.md and kept here. The question it answers is a governance one an operator actually has an interest in: *you approved a model; is the thing answering you still that model?* Providers roll versions silently, quantisations change numerics, and a proxy can be repointed — none of which announces itself in an execution log.
+
+**`POST /models/:name/attest`** — Is what is answering now the model that was approved?
+
+**`POST /models/:name/supersede`** — Replace an approval deliberately. Never a side effect of re-running setup.
 
 **`GET /ready`** — Readiness differs from liveness: it fails if storage is unusable.
 
@@ -290,4 +300,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_113 HTTP endpoints across 5 services. Generated from source._
+_117 HTTP endpoints across 5 services. Generated from source._

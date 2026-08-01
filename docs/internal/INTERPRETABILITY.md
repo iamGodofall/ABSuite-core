@@ -87,7 +87,7 @@ are a fourth, and the framing that survives is not *what was it thinking* but
 | Input | Does the payload match its recorded hash? | Built |
 | Output | Does the result match its recorded hash? | Built |
 | Chain | Has the record been altered since it was written? | Built |
-| Model | Is this the model whose behaviour was approved? | Not built |
+| Model | Is this the model whose behaviour was approved? | **Built** — `packages/capkit/src/model-identity.ts` |
 
 That last row is the useful one, and it is a *governance* question rather than a
 psychological one. The same technique that reads a representation can be used to
@@ -134,6 +134,7 @@ built before either of the layers proposed above.
 |---|---|
 | Add Interpretability as layer 9 | **No.** Eight layers stand. |
 | Support the technique | **Yes**, as an optional Verify capability, never a dependency. |
+| Build the model-identity target | **Done.** `POST /models`, `POST /models/:name/attest`. Compares identifying material; claims nothing about behaviour. |
 | Claim it shows reasoning | **No.** Ranked tokens under a linear lens, and said that way. |
 | Add a Compute Operations room | **No.** Nothing behind it yet. |
 | Add cost to the execution record | **Yes.** Highest-value item of the three. |

@@ -146,6 +146,17 @@ const MIGRATIONS: string[] = [
 
   `CREATE INDEX IF NOT EXISTS idx_identity_challenges_expiry ON identity_challenges (expires_at)`,
 
+  // Verify's fourth target: which model was approved, and what it looked like
+  // at the time. Compared against, never used to load anything.
+  `CREATE TABLE IF NOT EXISTS approved_models (
+     name        TEXT PRIMARY KEY,
+     fingerprint TEXT NOT NULL,
+     hash        TEXT NOT NULL,
+     approved_at TEXT NOT NULL,
+     approved_by TEXT NOT NULL,
+     basis       TEXT NOT NULL
+   )`,
+
   `CREATE INDEX IF NOT EXISTS idx_executions_seq ON executions (seq)`,
   `CREATE INDEX IF NOT EXISTS idx_executions_tenant ON executions (tenant_id, started_at)`,
 ];
