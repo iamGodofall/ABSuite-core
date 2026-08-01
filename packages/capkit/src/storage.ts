@@ -131,8 +131,7 @@ const MIGRATIONS: string[] = [
   `CREATE TABLE IF NOT EXISTS identity_challenges (
      nonce      TEXT PRIMARY KEY,
      subject    TEXT NOT NULL,
-     expires_at TEXT NOT NULL,
-     used       INTEGER NOT NULL DEFAULT 0
+     expires_at TEXT NOT NULL
    )`,
 
   // Which issued tokens were backed by a proof. Keyed by a hash of the token id

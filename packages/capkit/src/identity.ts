@@ -207,6 +207,21 @@ export class IdentityRegistry {
    * The nonce is random and stored server-side; nothing about it is derived from
    * the subject, so one identity's challenge tells you nothing about another's.
    */
+  /*
+   * Accepted, and written down rather than left for someone to find.
+   *
+   * This distinguishes an enrolled subject from an unknown one — 200 against
+   * 404 — so anyone who can reach the endpoint can test whether a name is
+   * enrolled. That is a real information disclosure and it is accepted, because
+   * the alternatives are worse: a uniform response would replace "no identity is
+   * enrolled for X" with silence at the exact moment an operator is debugging
+   * their first enrolment, and subject names here are not secrets — they are
+   * things like `agent:invoicing`, which appear in every record the log emits.
+   *
+   * What the endpoint does not do is leak anything usable: a nonce grants
+   * nothing, and only the holder of the private key can turn one into authority.
+   * The global rate limiter bounds how fast it can be probed.
+   */
   challenge(subject: string): { subject: string; nonce: string; expiresAt: string } {
     const identity = this.requireIdentity(subject);
     if (identity.status === 'suspended') {
@@ -220,7 +235,7 @@ export class IdentityRegistry {
     const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS).toISOString();
 
     this.storage.run(
-      'INSERT INTO identity_challenges (nonce, subject, expires_at, used) VALUES (?,?,?,0)',
+      'INSERT INTO identity_challenges (nonce, subject, expires_at) VALUES (?,?,?)',
       nonce, subject, expiresAt
     );
 
@@ -249,13 +264,20 @@ export class IdentityRegistry {
     );
     if (!row) throw new IdentityError('No such challenge. Request one, sign it, and present it once.', 'CHALLENGE_UNKNOWN');
 
+    /*
+     * Consumed by deletion, before the signature is even looked at.
+     *
+     * There was a `used` flag here and a check against it, and nothing ever set
+     * it — the row was deleted instead, so the check could never fire. A dead
+     * branch that reads like a replay defence is worse than no branch at all,
+     * because the next person to read this file believes the check is running.
+     * Deletion is the defence; a replay now fails as CHALLENGE_UNKNOWN, which is
+     * the truth about a nonce that no longer exists.
+     */
     this.storage.run('DELETE FROM identity_challenges WHERE nonce = ?', String(nonce));
 
     if (String(row.subject) !== subject) {
       throw new IdentityError('That challenge was issued to a different subject.', 'CHALLENGE_MISMATCH');
-    }
-    if (Number(row.used) === 1) {
-      throw new IdentityError('That challenge has already been used. Each one is good exactly once.', 'CHALLENGE_SPENT');
     }
     if (String(row.expires_at) < new Date().toISOString()) {
       throw new IdentityError('That challenge has expired. Request another.', 'CHALLENGE_EXPIRED');

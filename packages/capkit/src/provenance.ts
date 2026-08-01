@@ -96,17 +96,24 @@ export class ProvenanceGraph {
   }
 
   /**
-   * Every edge the hashes support.
+   * One read of the table, shared by everything that needs it.
    *
-   * An output may feed several consumers, and a consumer may match several
-   * producers when identical content was produced more than once — both are
-   * reported rather than resolved, because picking one would be a guess dressed
-   * as a finding.
+   * Added after measuring the code above rather than after reading it. `summary()`
+   * called `blastRadius()` once per failure, and every one of those called
+   * `edges()`, which called `rows()` — a full scan and a full re-derivation of
+   * the graph, per failure. At ten thousand records and five hundred failures
+   * that is five million row materialisations to answer one question. Nothing in
+   * the source looked wrong; the cost was entirely in how the pieces composed.
+   *
+   * Not memoised on the instance: a graph that quietly answered from a snapshot
+   * taken before the last twenty executions would be the worst kind of stale, in
+   * the one module whose job is saying what actually happened.
    */
-  edges(): LineageEdge[] {
+  private snapshot() {
     const all = this.rows();
-    const producers = new Map<string, typeof all>();
+    const byId = new Map(all.map(row => [row.id, row]));
 
+    const producers = new Map<string, typeof all>();
     for (const row of all) {
       if (!row.outputHash) continue;
       const list = producers.get(row.outputHash) ?? [];
@@ -115,34 +122,50 @@ export class ProvenanceGraph {
     }
 
     const edges: LineageEdge[] = [];
+    // Adjacency, built once, so a transitive walk is a lookup rather than a filter
+    // over every edge at every hop.
+    const forward = new Map<string, string[]>();
+    const backward = new Map<string, string[]>();
+
     for (const consumer of all) {
       for (const producer of producers.get(consumer.inputHash) ?? []) {
         if (producer.id === consumer.id) continue;
-        // Ordering, required. Without it the graph draws arrows from an
-        // execution to one that had already finished before it began.
         const producedAt = producer.completedAt ?? producer.startedAt;
         if (consumer.startedAt < producedAt) continue;
         edges.push({ from: producer.id, to: consumer.id, hash: consumer.inputHash });
+        forward.set(producer.id, [...(forward.get(producer.id) ?? []), consumer.id]);
+        backward.set(consumer.id, [...(backward.get(consumer.id) ?? []), producer.id]);
       }
     }
-    return edges;
+
+    return { all, byId, edges, forward, backward };
+  }
+
+  /**
+   * Every edge the hashes support.
+   *
+   * An output may feed several consumers, and a consumer may match several
+   * producers when identical content was produced more than once — both are
+   * reported rather than resolved, because picking one would be a guess dressed
+   * as a finding.
+   */
+  edges(): LineageEdge[] {
+    return this.snapshot().edges;
   }
 
   /** One record's immediate neighbours, plus any failure it inherited. */
   lineage(id: string): Lineage | undefined {
-    const all = this.rows();
-    const record = all.find(row => row.id === id);
+    const { all, byId, forward, backward } = this.snapshot();
+    const record = byId.get(id);
     if (!record) return undefined;
 
-    const byId = new Map(all.map(row => [row.id, row]));
-    const edges = this.edges();
     const node = (row: (typeof all)[number]): LineageNode => ({
       id: row.id, seq: row.seq, subject: row.subject, module: row.module,
       action: row.action, outcome: row.outcome, startedAt: row.startedAt,
     });
 
-    const upstream = edges.filter(e => e.to === id).map(e => byId.get(e.from)!).filter(Boolean);
-    const downstream = edges.filter(e => e.from === id).map(e => byId.get(e.to)!).filter(Boolean);
+    const upstream = (backward.get(id) ?? []).map(from => byId.get(from)!).filter(Boolean);
+    const downstream = (forward.get(id) ?? []).map(to => byId.get(to)!).filter(Boolean);
 
     // Walk the whole ancestry, not just the parents. A failure three hops back
     // is exactly the one nobody finds by reading the record in front of them.
@@ -157,7 +180,7 @@ export class ProvenanceGraph {
         const row = byId.get(current);
         if (!row) continue;
         if (row.outcome === 'failure') inherited.push(node(row));
-        next.push(...edges.filter(e => e.to === current).map(e => e.from));
+        next.push(...(backward.get(current) ?? []));
       }
       frontier = next;
     }
@@ -180,10 +203,8 @@ export class ProvenanceGraph {
    * touched this?* Answering it by reading a log is hours of work and is usually
    * wrong; answering it from content hashes is exact about what it covers.
    */
-  blastRadius(id: string): { reached: LineageNode[]; depth: number; basis: string } {
-    const all = this.rows();
-    const byId = new Map(all.map(row => [row.id, row]));
-    const edges = this.edges();
+  blastRadius(id: string, snapshot = this.snapshot()): { reached: LineageNode[]; depth: number; basis: string } {
+    const { byId, forward } = snapshot;
 
     const reached: LineageNode[] = [];
     const seen = new Set<string>([id]);
@@ -191,7 +212,7 @@ export class ProvenanceGraph {
     let depth = 0;
 
     while (frontier.length > 0) {
-      const next = edges.filter(e => frontier.includes(e.from)).map(e => e.to).filter(to => !seen.has(to));
+      const next = frontier.flatMap(from => forward.get(from) ?? []).filter(to => !seen.has(to));
       if (next.length === 0) break;
       depth += 1;
       for (const current of next) {
@@ -231,8 +252,8 @@ export class ProvenanceGraph {
     failuresWithConsumers: { failure: LineageNode; consumed: number }[];
     meaning: string;
   } {
-    const all = this.rows();
-    const edges = this.edges();
+    const snapshot = this.snapshot();
+    const { all, edges } = snapshot;
     const touched = new Set<string>();
     for (const edge of edges) { touched.add(edge.from); touched.add(edge.to); }
 
@@ -243,7 +264,7 @@ export class ProvenanceGraph {
           id: row.id, seq: row.seq, subject: row.subject, module: row.module,
           action: row.action, outcome: row.outcome, startedAt: row.startedAt,
         },
-        consumed: this.blastRadius(row.id).reached.length,
+        consumed: this.blastRadius(row.id, snapshot).reached.length,
       }))
       .filter(entry => entry.consumed > 0);
 
