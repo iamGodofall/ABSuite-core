@@ -39,12 +39,14 @@ capability that exists and cannot be opened.
 | **Model identity** — is the thing answering still the model that was approved | `capkit/src/model-identity.ts`, 4 routes | Partial — no approve/supersede surface |
 | **Tenancy and billing** | `tenancy.ts`, `billing.ts`, 6 admin routes | **None.** |
 
-Identity is the base of the ascent. Every condition report says *Identity:
-UNKNOWN* until a subject is enrolled, and there is no way to enrol one except by
-`curl`. That is the single highest-leverage interface work left, ahead of any
-new capability: a layer nobody can operate is a layer nobody adopts.
+Identity is the base of the ascent, and it was top of this list until
+`absuite doctor` made the case unanswerable: the doctor's first finding on any
+fresh instance is *no subject is enrolled*, and there was nothing anybody could
+do about it from inside the product. A finding nobody can act on is a complaint.
 
-Sixty capkit routes exist; the dashboard reaches roughly a third of them.
+Sixty capkit routes exist; the dashboard reaches roughly a third of them. The
+remaining three rows are real, and none of them is load-bearing the way Identity
+was — nothing else in the product reports UNKNOWN because of them.
 
 ---
 
