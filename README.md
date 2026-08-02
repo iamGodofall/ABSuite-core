@@ -592,6 +592,7 @@ honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 | [Principles](./PRINCIPLES.md) | The rules the code is held to |
 | [Constitution](./docs/CONSTITUTION.md) | What this will never become |
 | [Compliance mapping](./docs/COMPLIANCE.md) | Which obligation each field speaks to — EU AI Act, ISO 42001, SOC 2 — and what it does not help with |
+| [Audit](./docs/AUDIT.md) | What is wired, what is built and unreachable, and where this is weak |
 | [Protocol](./docs/PROTOCOL.md) | The record format, specified independently of this code |
 | [Security model](./docs/SECURITY-MODEL.md) | Threat model and defence in depth |
 | [Reporting a vulnerability](./SECURITY.md) | Private disclosure |

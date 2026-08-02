@@ -985,8 +985,15 @@ app.post('/watch/sweep', authorise('execution:read'), (_req, res) => {
  * Never a delete. A notice that was raised and dismissed is part of the history
  * of the thing it was raised about, and the reason somebody gave is usually the
  * most useful sentence in it a year later.
+ *
+ * `watch:acknowledge` is its own scope, and this was wrong when it shipped: it
+ * required `execution:record`, which every recording agent holds. That meant the
+ * subject of a finding could silence the finding about itself — an agent that
+ * ran without authority could close the notice saying so, and the queue would
+ * look clean. Separation of duties applies to a monitor exactly as it applies to
+ * an approval, and for the same reason.
  */
-app.post('/watch/notices/:id/acknowledge', authorise('execution:record'), (req, res) => {
+app.post('/watch/notices/:id/acknowledge', authorise('watch:acknowledge'), (req, res) => {
   try {
     const { by, basis } = req.body ?? {};
     return res.status(200).json(watch.acknowledge(String(req.params.id), by ?? actorOf(req), basis));

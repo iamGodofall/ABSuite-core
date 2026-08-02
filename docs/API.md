@@ -113,7 +113,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/signup` | _public_ | — |
 | GET | `/usage` | _public_ | — |
 | GET | `/watch` | `execution:read` | — |
-| POST | `/watch/notices/:id/acknowledge` | `execution:record` | — |
+| POST | `/watch/notices/:id/acknowledge` | `watch:acknowledge` | — |
 | POST | `/watch/sweep` | `execution:read` | — |
 
 ### Notes
@@ -173,8 +173,6 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`GET /usage`** — A tenant's own usage and quota position, for a billing page.
 
 **`GET /watch`** — What a person should look at, and how much of the record that answer covers. `coverage` is not a footer. An empty `notices` array means "the last sweep found none" or it means "nothing has ever swept", and those are opposite statements that look identical in a list. Every response here carries the sentence that tells them apart, so an interface cannot render the list without rendering what the list means.
-
-**`POST /watch/notices/:id/acknowledge`** — Close a notice, with a name and a reason. Never a delete. A notice that was raised and dismissed is part of the history of the thing it was raised about, and the reason somebody gave is usually the most useful sentence in it a year later.
 
 **`POST /watch/sweep`** — Sweep now, rather than waiting for the interval. Same code path, no shortcuts.
 

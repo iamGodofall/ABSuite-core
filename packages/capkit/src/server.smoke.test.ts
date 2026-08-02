@@ -868,13 +868,23 @@ describe('the watch, over the wire', () => {
     })).json() as { notices: { id: string }[] };
     const id = listed.notices[0]!.id;
 
-    const bare = await post(`/watch/notices/${id}/acknowledge`, { by: 'alice', basis: '' },
+    // The subject of a finding must not be able to close the finding about
+    // itself. This required execution:record when it shipped, which every
+    // recording agent holds — so an agent that ran without authority could
+    // silence the notice saying so, and the queue would look clean.
+    const byTheSubject = await post(`/watch/notices/${id}/acknowledge`,
+      { by: 'agent:test', basis: 'nothing to see here' },
       { authorization: `Bearer ${write}` });
+    expect(byTheSubject.status).toBe(403);
+
+    const closer = await issue(['watch:acknowledge']);
+    const bare = await post(`/watch/notices/${id}/acknowledge`, { by: 'alice', basis: '' },
+      { authorization: `Bearer ${closer}` });
     expect(bare.status).toBe(400);
 
     const done = await post(`/watch/notices/${id}/acknowledge`,
       { by: 'alice', basis: 'Reviewed with the payments team; the policy reference was wrong, not the action.' },
-      { authorization: `Bearer ${write}` });
+      { authorization: `Bearer ${closer}` });
     expect(done.status).toBe(200);
     expect((done.body as { state: string }).state).toBe('ACKNOWLEDGED');
 
