@@ -132,7 +132,13 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
   against the running stack — every layer, every standing view, every console.
 - **All six services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **721 tests, 33 suites, 17 gates, exit 0.**
+- **721 tests, 33 suites, 17 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 17 checks — one of which is now `check:numbers`, which compares
+  every figure the documents publish against what the repository measures.
+  It was described as "17 gates" here and in FAQ §20 for a long time when the
+  real count was 16, by nobody counting; adding the check that catches that made
+  it genuinely 17, and the check immediately failed the documents still saying
+  16. That is the behaviour, not a coincidence.
 - **The record format verifies from a second implementation** that shares no code
   with the first.
 
