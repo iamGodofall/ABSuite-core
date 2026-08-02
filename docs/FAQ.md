@@ -266,7 +266,7 @@ Full list, with the reasoning: [CONSTITUTION.md](CONSTITUTION.md).
 
 ### Q20. Is it production-ready?
 
-The code is: 777 tests, 38 suites, 19 build checks, a frozen-fixture chain that
+The code is: 777 tests, 38 suites, 20 build checks, a frozen-fixture chain that
 still verifies across versions, and a second implementation that agrees with the
 first.
 
@@ -278,6 +278,21 @@ in an enrolled subject's name without proof.
 
 Read that document before you depend on this. It was written to be read by
 somebody deciding whether to.
+
+### Q20b. Is there a demo?
+
+`pnpm demo` — fifteen seconds, no services, no Docker, no network, no account.
+It records three actions, verifies one against a public key, alters a byte
+straight in the database, and the chain names the record that broke by sequence
+number. The GIF in the [README](../README.md) is that program's real output,
+captured by running it.
+
+Two things about it are deliberate. The business events are invented and the
+signatures over them are not — a signature over fictional content is a real
+signature, and the claim was never *these events occurred*. And **the demo
+asserts its own result**: if verification stopped detecting tampering it exits
+non-zero instead of printing the story anyway. `pnpm verify` runs it, so the
+marketing artifact cannot quietly stop being true.
 
 ### Q21. What is the fastest way to see whether this is real?
 

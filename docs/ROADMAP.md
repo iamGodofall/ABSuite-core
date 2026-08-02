@@ -85,8 +85,13 @@ deferred in favour of building something.
       registry, so they cannot go stale
 - [x] Screenshots of the browser verifier, valid and tampered
 - [ ] Screenshot of the dashboard
-- [ ] Record a five-minute demo: install → issue a token → run an action →
-      verify the proof in a browser
+- [x] **The two-minute demo** — `pnpm demo`, and
+      [`docs/images/two-minute-demo.gif`](images/two-minute-demo.gif) is its
+      real output, captured by running it. Fifteen seconds, no services, no
+      network. The demo asserts its own result and `pnpm verify` runs it, so it
+      cannot rot into a reassuring story about code that stopped working.
+- [ ] Record a five-minute walkthrough of the room itself — the cube, a layer,
+      a lineage. That one needs a person and a screen recorder.
 
 **Exit condition:** a stranger can install ABSuite and verify an execution trace
 without talking to anyone. **Met** — `npm install @absuitecore/capkit`, then
@@ -141,9 +146,10 @@ them is what stands between this and a first user.**
 
 **Do these, in this order:**
 
-1. **Record the two-minute demo.** `pnpm room`, then: record an action → verify
-   it → alter one byte → watch the chain name the exact record that broke.
-   Nobody else can show that. It is the entire marketing budget.
+1. ~~**Record the two-minute demo.**~~ **Done** — `pnpm demo`, and the GIF in
+   the README is its real output. Fifteen seconds, and it needs nothing
+   installed but the package. What remains is not making it; it is putting it
+   in front of somebody.
 2. **Answer, do not announce.** People ask *"how do I know what my agent actually
    did"* constantly — in the Claude Code and Cursor communities, r/LocalLLaMA,
    n8n forums, HN threads on agent reliability. Reply with the demo and

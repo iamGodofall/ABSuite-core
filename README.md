@@ -64,6 +64,22 @@ the record proves what happened without becoming a copy of your data.
 
 **[Getting started →](./GETTING-STARTED.md)** · **[Run the full incident investigation →](./examples/incident-forensics.mjs)**
 
+---
+
+### See it in fifteen seconds
+
+![Recording an action, verifying it, altering one byte in the database, and the chain naming the exact record that broke](docs/images/two-minute-demo.gif)
+
+```bash
+pnpm demo
+```
+
+No services, no Docker, no network, no account — an in-memory database and the
+same Ed25519 path a production record takes. The events are invented; **the
+signatures over them are not**, which is the only claim this product has ever
+made. The demo asserts its own result, so it cannot print a reassuring story
+while the code underneath has stopped working.
+
 [![npm](https://img.shields.io/npm/v/%40absuitecore%2Fcapkit?label=%40absuitecore%2Fcapkit&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/capkit)
 [![npm](https://img.shields.io/npm/v/%40absuitecore%2Ftrust?label=%40absuitecore%2Ftrust&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/trust)
 [![downloads](https://img.shields.io/npm/dm/%40absuitecore%2Fcapkit?label=downloads&color=1E1B4B)](https://www.npmjs.com/package/@absuitecore/capkit)

@@ -691,7 +691,7 @@ Chased down in §3f and published on 2026-08-02.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
 - **777 tests, 38 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 19 checks. Three of them are new and all three police this document:
+  suite, and 20 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
   offered to an operator and read by nothing (§3c).
