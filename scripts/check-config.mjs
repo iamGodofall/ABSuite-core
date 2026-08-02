@@ -131,6 +131,28 @@ const FOREIGN = new Map([
 
 /* ── Compare ────────────────────────────────────────────────────────────── */
 
+/**
+ * This check finds nothing to complain about when it reads nothing, and a
+ * sweep of the whole suite found it sharing that hole with two others — both
+ * of which had already passed on Windows by matching an empty file set.
+ * Writing a gate does not exempt you from the failure mode you wrote it to
+ * catch, so the floors were added everywhere at once.
+ *
+ * Set low deliberately: this is here to catch "the files are missing", not to
+ * police how many variables the project has.
+ */
+const FLOOR = 10;
+if (offered.size < FLOOR) {
+  console.error(`\n✗ Only ${offered.size} configuration variable(s) were found to check, and at least ${FLOOR} were expected.`);
+  console.error('');
+  console.error('  With nothing offered there is nothing to compare, so this would have');
+  console.error('  reported success having inspected an empty set — the same way two');
+  console.error('  interface checks passed on Windows for weeks.');
+  console.error('');
+  console.error('  Expected .env.example and docker-compose.yml at the repository root.\n');
+  process.exit(1);
+}
+
 const dead = [];
 for (const [name, where] of offered) {
   if (consumed.has(name) || FOREIGN.has(name)) continue;

@@ -127,6 +127,32 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
+/**
+ * A gate that finds nothing must not report success.
+ *
+ * This check passed on Windows for a while by matching an empty file set — the
+ * walk used `/` separators against paths that arrive with `\`, so it scanned
+ * zero files, found zero problems, and printed a tick. A green build that
+ * inspected nothing is worse than a red one, because it is trusted.
+ *
+ * The floor is deliberately far below the real count rather than equal to it.
+ * An exact number turns every added component into a build failure and gets
+ * raised without thought until it means nothing. This is here to catch "the
+ * walk matched nothing", not to police the size of the interface.
+ */
+const FLOOR = 20;
+if (files.length < FLOOR) {
+  console.error(`\n✗ Only ${files.length} interface source file(s) were scanned, and at least ${FLOOR} were expected.`);
+  console.error('');
+  console.error('  Nothing was checked, so nothing failed, and this would have printed a');
+  console.error('  tick. That is how this check passed on Windows while inspecting an');
+  console.error('  empty set — the walk used / against paths that arrive with \\.');
+  console.error('');
+  console.error(`  Looked in packages/dashboard-ui/src. Either the interface moved, or the`);
+  console.error('  walk is broken on this platform. Both are worth stopping the build for.\n');
+  process.exit(1);
+}
+
 console.log(`✓ ${opacityChecked} opacity modifier(s) resolve to a real step.`);
 console.log(`✓ ${literalsChecked} concatenated class literal(s) keep their names whole.`);
 console.log(`  ${files.length} interface source file(s) scanned.`);

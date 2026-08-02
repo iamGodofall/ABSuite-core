@@ -137,6 +137,47 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3d. Three build checks that passed by inspecting nothing
+
+The Windows report (§2b) noted two interface checks passing there because the
+walk used `/` separators against paths that arrive with `\`. They scanned zero
+files, found zero problems, and printed a tick. The separators were fixed. **The
+reason a green tick was possible on an empty set was not**, so the whole suite
+was swept for it — every gate run against a copy of the repository with its scan
+target emptied, and its exit code recorded.
+
+| Check | On an empty tree | |
+|---|---|---|
+| `check:styles` | **exit 0**, `0 interface source file(s) scanned` | vacuous pass |
+| `check:surface` | **exit 0**, three ticks and `0 interface file(s) scanned` | vacuous pass |
+| `check:config` | **exit 0**, `0 offered configuration variable(s)` | vacuous pass |
+| `check:fabrication` | exit 1 — `No interface source files were scanned` | already guarded |
+| `check:motion`, `check:ui`, `check:doctrine-ui` | exit 1 | fail correctly |
+
+`check:surface` was the worst of the three, and for a structural reason worth
+naming: it is a *budget* check. Every other gate hunts a defect and finds none
+when there is nothing to search; a budget counts occurrences against a ceiling,
+so an empty set produces zero of everything and emits the most confident output
+in the suite. Three ticks, having read nothing.
+
+`check:config` is the one added in §3c — **written this session, to catch
+exactly this class, and shipped with the hole in it.** Writing the gate does not
+exempt you from the failure mode you wrote it to catch. That is the honest note
+to leave here, and it is why the floors went into all three at once rather than
+into the two that were already broken.
+
+All three now assert a minimum before reporting success, set well below the real
+count. An exact figure would fail the build for adding a component, which is how
+a floor gets raised without thought until it means nothing. These catch *the
+walk matched nothing* — and each was proved by running it against an emptied
+tree and watching it fail, then against the real one and watching it pass.
+
+**A green build that inspected nothing is worse than a red one, because it is
+trusted.** That is the whole finding, and it applies to the sixteen checks not
+listed above every time one of them is edited.
+
+---
+
 ## 3c. Configuration that was offered and read by nothing
 
 Swept properly after `ABSUITE_DB_ENCRYPTION_KEY` turned out to be decorative:

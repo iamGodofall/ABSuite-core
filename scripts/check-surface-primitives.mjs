@@ -113,6 +113,31 @@ if (over.length > 0) {
   process.exit(1);
 }
 
+/**
+ * A budget check is uniquely vulnerable to scanning nothing.
+ *
+ * Every other gate looks for a defect; this one counts occurrences against a
+ * ceiling, so an empty file set produces zero of everything and passes with the
+ * most confident output in the suite. It did exactly that on Windows, where the
+ * walk matched no files because of path separators.
+ *
+ * The floor catches "the walk found nothing" and is set well below the real
+ * count on purpose — an exact figure would fail the build for adding a
+ * component, which is how a floor gets raised until it means nothing.
+ */
+const FLOOR = 20;
+if (files.length < FLOOR) {
+  console.error(`\n✗ Only ${files.length} interface file(s) were scanned, and at least ${FLOOR} were expected.`);
+  console.error('');
+  console.error('  A budget check that scans nothing counts zero of everything and reports');
+  console.error('  three ticks. That is the most confident output in the suite, produced by');
+  console.error('  inspecting an empty set, and it is how this passed on Windows.');
+  console.error('');
+  console.error('  Looked in packages/dashboard-ui/src. Either the interface moved, or the');
+  console.error('  walk is broken on this platform.\n');
+  process.exit(1);
+}
+
 console.log(`✓ ${counts.panels} hand-built panel(s), budget ${BUDGET.panels}`);
 console.log(`✓ ${counts.empties} hand-built empty state(s), budget ${BUDGET.empties}`);
 console.log(`✓ ${counts.problems} hand-built error box(es), budget ${BUDGET.problems}`);
