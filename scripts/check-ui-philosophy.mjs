@@ -211,7 +211,7 @@ const VERIFIABLE = [
     promise: 'Everything connects back to the cube',
     met: () => uiFiles.some(file => {
       const text = readFileSync(file, 'utf8');
-      if (!/room\//.test(file) || !/<(?:Scene|TrustCube|CoreCube|SceneCube)\b/.test(text)) return false;
+      if (!/room[\\/]/.test(file) || !/<(?:Scene|TrustCube|CoreCube|SceneCube)\b/.test(text)) return false;
       return /onPointerDown|onWheel|onDoubleClick/.test(text) &&
              /commit\([^)]*['"](?:observe|verify|explain|govern)['"]/.test(text);
     }),

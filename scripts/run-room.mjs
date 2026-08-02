@@ -35,10 +35,19 @@ const SERVICES = [
 
 const ORCHESTRATOR = { name: 'dashboard', pkg: '@absuitecore/dashboard-ui', port: 3001 };
 
+/** The package manager, named the way this platform can actually launch it. */
+const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+
 const children = [];
 
 function start({ name, pkg }) {
-  const child = spawn('pnpm', ['--filter', pkg, 'start'], {
+  // `pnpm` on Windows is a .cmd shim, and Node's spawn will not resolve it
+  // without the extension — the whole one-command path died with ENOENT there.
+  // `shell: true` also matters: without it, spawning a .cmd throws EINVAL when
+  // the path contains characters cmd treats specially, which a folder called
+  // "ABSuite-core-main (ROOM)" does.
+  const child = spawn(PNPM, ['--filter', pkg, 'start'], {
+    shell: process.platform === 'win32',
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {

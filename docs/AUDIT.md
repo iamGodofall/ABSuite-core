@@ -50,6 +50,27 @@ was — nothing else in the product reports UNKNOWN because of them.
 
 ---
 
+## 2b. Windows — five defects, found by somebody running it
+
+Every one of these was invisible on Linux and fatal on Windows, and all five are
+fixed. They are recorded because the pattern matters more than the bugs: a
+project tested on one platform has *untested* platform assumptions, not portable
+ones, and the only way to learn that is for somebody to run it somewhere else.
+
+| Where | What Windows exposed |
+|---|---|
+| `scripts/run-room.mjs` | `spawn('pnpm')` — Node will not resolve a `.cmd` shim without the extension, and throws `EINVAL` on a path with special characters. The one-command path died at the first line. |
+| `packages/capkit/src/server.smoke.test.ts` | `rmSync` threw `EPERM` — Windows holds a lock on the SQLite file until the child exits. Linux unlinks an open file happily and nobody noticed. |
+| `check-ui-philosophy.mjs`, `check-ui-doctrine.mjs` | Path regexes written `/room\//` matched nothing against backslashes. **The gates passed by finding no files to check** — the worst way for a gate to pass. |
+| `scripts/gen-api-docs.mjs` | `new URL(…).pathname` returns `/D:/A%20B/…`, which `join()` mangles into `D:\D:\A%20B\…`. |
+| `scripts/check-protocol-conformance.mjs` | Node's ESM loader read `D:\…` as protocol `d:` and refused it. |
+
+The third row is the one worth remembering. Two checks were reporting green on
+Windows because their file filter silently matched an empty set — the same class
+of failure as the grep that hid a red build for six commits.
+
+---
+
 ## 3. Weaknesses worth stating before a buyer finds them
 
 **Separation of duties is enforced on names, not on credentials.** An approval

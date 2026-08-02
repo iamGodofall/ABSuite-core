@@ -95,10 +95,10 @@ else failures.push('The shell lays itself out as a scrolling document (min-h-scr
  * definition, and it survives renaming.
  */
 const CORE = /<(?:Scene|TrustCube|CoreCube|SceneCube)\b/;
-const shellCandidates = code.filter(source => /room\//.test(source.file) && CORE.test(source.text));
+const shellCandidates = code.filter(source => /room[\\/]/.test(source.file) && CORE.test(source.text));
 // The scene component mounts the cube too; the shell is the one that is not
 // itself the scene — it is the module the app renders as its root.
-const environment = shellCandidates.find(source => !/room\/Scene\.tsx$/.test(source.file));
+const environment = shellCandidates.find(source => !/room[\\/]Scene\.tsx$/.test(source.file));
 
 if (!environment) {
   failures.push('No shell mounts the core. Some module under src/room must render the cube as the root of the interface — the cube is the operating system, not a component a page may choose to include.');

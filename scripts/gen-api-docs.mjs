@@ -12,8 +12,12 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+// fileURLToPath, not .pathname: on Windows the latter yields
+// "/D:/A%20B/..." which join() mangles into "D:\\D:\\A%20B\\..." — a path that
+// cannot exist, with the space still percent-encoded.
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const SERVICES = [
   { pkg: 'capkit', name: 'CapKit', port: 8081, blurb: 'Capability tokens, audit, verifiable execution, tenancy and billing.' },

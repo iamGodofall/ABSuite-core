@@ -85,9 +85,34 @@ beforeAll(async () => {
   }
 }, 30_000);
 
-afterAll(() => {
-  child?.kill('SIGTERM');
-  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+afterAll(async () => {
+  /*
+   * Wait for the child to actually exit before deleting its database.
+   *
+   * On Linux an open file can be unlinked and the suite never noticed. Windows
+   * holds a lock until the process is gone, so `rmSync` threw EPERM and failed
+   * the run — a real defect that only a Windows machine could surface, in the
+   * one suite whose job is to prove the server works.
+   */
+  if (child && child.exitCode === null) {
+    await new Promise<void>(resolve => {
+      const done = () => resolve();
+      child!.once('exit', done);
+      child!.kill('SIGTERM');
+      setTimeout(done, 5_000).unref?.();
+    });
+  }
+
+  // Retried, because the handle can outlive the process by a few milliseconds.
+  for (let attempt = 0; dataDir && attempt < 5; attempt += 1) {
+    try {
+      rmSync(dataDir, { recursive: true, force: true });
+      break;
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+
 });
 
 const issue = async (scope: string[]) => {

@@ -16,9 +16,12 @@
 import { readFileSync } from 'node:fs';
 import { createHash, verify as cryptoVerify, createPublicKey } from 'node:crypto';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 const R = join(dirname(fileURLToPath(import.meta.url)), '..') + '/';
-const { canonicalTrace, hashTrace, verifyTrace, GENESIS_HASH } = await import(R+'packages/capkit/dist/index.js');
+// A file URL, not a path: Node's ESM loader reads "D:\\..." as protocol "d:"
+// and refuses it. Only Windows has drive letters, so only Windows saw this.
+const { canonicalTrace, hashTrace, verifyTrace, GENESIS_HASH } =
+  await import(pathToFileURL(join(R, 'packages/capkit/dist/index.js')).href);
 
 const v1 = JSON.parse(readFileSync(R+'packages/capkit/src/fixtures/frozen-chain.json','utf8'));
 const v2 = JSON.parse(readFileSync(R+'packages/capkit/src/fixtures/frozen-chain-v2.json','utf8'));

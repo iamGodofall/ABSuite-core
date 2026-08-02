@@ -176,6 +176,18 @@ It is correct for thousands of records and one deployment. It is not a
 multi-tenant hosted service, and [AUDIT.md](AUDIT.md) names that as a real
 ceiling rather than hiding it.
 
+### Q17b. Does it run on Windows?
+
+Yes, and it did not until somebody tried. Five defects only a Windows machine
+could surface — `spawn('pnpm')` failing on a `.cmd` shim, a SQLite file lock
+that made test cleanup throw `EPERM`, path regexes written with `/` that matched
+nothing against backslashes, `URL.pathname` mangling a drive letter into
+`D:\D:\…`, and an ESM import that Node read as protocol `d:`.
+
+Every one is fixed. If you hit another, it is a bug worth reporting — the docs
+say every command was run before being written down, and that promise only holds
+on platforms somebody actually ran them on.
+
 ### Q18. Does it work with LangChain / Claude Code / n8n / my framework?
 
 It is framework-agnostic. Three ways in:
