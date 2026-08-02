@@ -584,6 +584,7 @@ honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
 
 | | |
 |---|---|
+| [FAQ](./docs/FAQ.md) | The questions people ask before they ask — including the uncomfortable ones |
 | [Getting started](./GETTING-STARTED.md) | Library, HTTP API and Docker — every command verified |
 | [Modules in code](./docs/MODULES.md) | What each package looks like to use |
 | [API reference](./docs/API.md) | Every route, generated from source |

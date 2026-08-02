@@ -620,6 +620,7 @@ const page = `<!doctype html>
     <li><a href="./API.md">API reference</a> <span>— every route, generated from source</span></li>
     <li><a href="./openapi.yaml">OpenAPI spec</a> <span>— import it into your client</span></li>
     <li><a href="./ARCHITECTURE.md">Architecture</a> <span>— how the pieces fit together</span></li>
+    <li><a href="./FAQ.md">FAQ</a> <span>&mdash; the questions people ask before they ask, including the uncomfortable ones</span></li>
     <li><a href="./AUDIT.md">The audit</a> <span>&mdash; what is wired, what is built and unreachable, and where this is weak</span></li>
     <li><a href="./COMPLIANCE.md">Compliance mapping</a> <span>— which obligation each field speaks to, and what it does not help with</span></li>
     <li><a href="./CONSTITUTION.md">The constitution</a> <span>— what this must never become, measured in decades</span></li>
