@@ -108,6 +108,20 @@ this is the answer that never surprises you.
 
 ---
 
+## The disk is plaintext
+
+The record is not encrypted at rest. `.env.example` implied otherwise for a long
+time — see [AUDIT.md](AUDIT.md) §3 — and it does not now.
+
+What that means practically: **treat a stolen disk as a stolen record.** Use full
+disk encryption on the host, keep the file readable only by the service user, and
+put the backup bucket behind its own access control.
+
+What it does *not* mean: your payloads are not in there. Inputs and outputs are
+hashed and dropped at record time, so the file holds hashes, subjects, scopes and
+timestamps. That is a real and deliberate mitigation, and it is not a substitute
+for encrypting the volume.
+
 ## The two secrets, in order of danger
 
 | | Losing it costs |

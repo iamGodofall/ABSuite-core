@@ -97,6 +97,26 @@ can act in any enrolled subject's name. Treat it as the second most dangerous
 secret after `CAPKIT_TRACE_PRIVATE_KEY`, and prefer proof-backed tokens for
 anything that needs to read `DEMONSTRATED`.
 
+**The database is not encrypted at rest, and `.env.example` implied it was.**
+`ABSUITE_DB_ENCRYPTION_KEY` sat in the example environment file telling operators
+to generate 32 random bytes. **Nothing read it** — not the services, not
+docker-compose, not the Kubernetes manifests. An operator who set it believed
+their record was encrypted and it never was.
+
+That is this project's own stated failure, committed in its own configuration,
+in a security product — and it is worse than a missing feature, because a
+missing feature does not produce false confidence. It is removed rather than
+quietly implemented: the honest statement is what was owed.
+
+The SQLite file is plaintext. Protect it with disk encryption and file
+permissions. The real mitigation, which is genuine and is not encryption:
+payloads are hashed and dropped, so the file holds hashes, subjects, scopes and
+timestamps rather than your inputs and outputs.
+
+**`.env.example` documented 21 variables while the code read 50.** Found in the
+same pass. The undocumented ones included `ABSUITE_PUBLIC_PASSWORD`, which gates
+a public instance, and `CAPKIT_NOTARY_PRIVATE_KEY`. Now listed.
+
 **SQLite, single writer, one disk.** Deliberate: a chain has one head. It also
 means no horizontal scaling, and it is the gate on hosting this for anyone else.
 
