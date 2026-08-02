@@ -1493,8 +1493,17 @@ app.post('/executions/verify', (req, res) => {
   });
 });
 
-app.get('/executions-verify-chain', authorise('execution:read'), (_req, res) => {
-  const result = traces.verifyChain(signingKey.publicKeyPem);
+/**
+ * Walk the chain. `?from=checkpoint` resumes from the last signed checkpoint.
+ *
+ * The default is a full walk and stays that way: a caller who did not ask for
+ * the cheaper answer must never silently receive it. A resumed response carries
+ * `verifiedFrom` and `scope`, so the two claims cannot be confused by anything
+ * reading this route.
+ */
+app.get('/executions-verify-chain', authorise('execution:read'), (req, res) => {
+  const from = req.query.from === 'checkpoint' ? 'checkpoint' as const : 'genesis' as const;
+  const result = traces.verifyChain(signingKey.publicKeyPem, { from });
   res.status(200).json({
     ...result,
     ...(result.valid
@@ -1506,6 +1515,47 @@ app.get('/executions-verify-chain', authorise('execution:read'), (_req, res) => 
           ...(result.checkable === false ? { checkable: false } : {}),
           ...(result.reason ? { reason: result.reason } : {}),
         }).overall),
+  });
+});
+
+/**
+ * Walk the chain fully, and record a signed note that it verified.
+ *
+ * `execution:verify` rather than `execution:read`, because writing a checkpoint
+ * is what later lets a walk be skipped. Anyone who can create one can decide
+ * how much history a resumed verification stops examining, and that is not a
+ * power that belongs with reading.
+ */
+app.post('/executions/checkpoint', authorise('execution:verify'), (_req, res) => {
+  const checkpoint = traces.checkpoint(signingKey.publicKeyPem);
+
+  if (!checkpoint) {
+    const chain = traces.verifyChain(signingKey.publicKeyPem);
+    return fail(
+      res,
+      409,
+      'NOT_CHECKPOINTABLE',
+      chain.valid
+        ? 'Nothing to checkpoint: the chain is empty, or this instance holds no signing key to bind the note to.'
+        : `The chain does not verify${chain.brokenAt !== undefined ? ` at record ${chain.brokenAt}` : ''}, so no checkpoint was written. A checkpoint taken over a broken chain would be a signed statement that nothing was wrong.`
+    );
+  }
+
+  return res.status(201).json({
+    generated: generated(`a checkpoint at record ${checkpoint.seq}`),
+    checkpoint,
+    means:
+      'This instance walked the chain from genesis and found this head. A later verification may resume from here ' +
+      'instead of re-walking, which is faster and is a weaker claim — it rests on this row, which lives in the same ' +
+      'file as the records it vouches for.',
+    unverifiable: [
+      {
+        field: 'history before this point, on a resumed pass',
+        because:
+          'Resuming skips it by design. Nothing about a checkpoint detects a record edited before it — that would ' +
+          'require the walk the checkpoint exists to avoid. Verification from genesis remains the only strong answer.',
+      },
+    ],
   });
 });
 

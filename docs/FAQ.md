@@ -154,6 +154,13 @@ The one thing to know: `/executions/stats` defaults to skipping signature
 verification and **says so in the response**, because verifying signatures across
 20,000 records took 3 seconds and Node is single-threaded.
 
+If that walk is too slow for you, `POST /executions/checkpoint` records a signed
+note that the chain verified, and `GET /executions-verify-chain?from=checkpoint`
+resumes from it — 3,244 ms to 12 ms on that same chain. **It is a weaker claim
+and the response says so**, because a resumed pass does not re-examine anything
+before the checkpoint and therefore cannot detect a record edited there. The
+default never resumes. See [AUDIT.md](AUDIT.md) §3m.
+
 ### Q14. Does ABSuite see my data?
 
 No. Inputs and outputs are **hashed and dropped**. The record proves what was
@@ -259,7 +266,7 @@ Full list, with the reasoning: [CONSTITUTION.md](CONSTITUTION.md).
 
 ### Q20. Is it production-ready?
 
-The code is: 766 tests, 37 suites, 19 build checks, a frozen-fixture chain that
+The code is: 777 tests, 38 suites, 19 build checks, a frozen-fixture chain that
 still verifies across versions, and a second implementation that agrees with the
 first.
 

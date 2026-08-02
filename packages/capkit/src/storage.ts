@@ -215,6 +215,28 @@ const MIGRATIONS: string[] = [
      last_sweep_failed TEXT
    )`,
 
+  /*
+   * A signed note that this instance walked the chain to `seq` and found
+   * `hash` there.
+   *
+   * It is a performance aid and **not** a security boundary, which is the only
+   * honest way to describe something stored in the same file as the records it
+   * vouches for. Anyone able to edit an execution can edit this table too. The
+   * signature stops a checkpoint being invented by hand or carried over from a
+   * different chain; it does not stop somebody holding the signing key.
+   *
+   * So resuming from one is a *weaker claim* than walking from genesis, and
+   * `verifyChain` reports which of the two it did rather than returning the same
+   * shape for both.
+   */
+  `CREATE TABLE IF NOT EXISTS chain_checkpoints (
+     seq         INTEGER PRIMARY KEY,
+     hash        TEXT NOT NULL,
+     verified_at TEXT NOT NULL,
+     key_id      TEXT,
+     signature   TEXT NOT NULL
+   )`,
+
   `CREATE INDEX IF NOT EXISTS idx_notices_state ON notices (state, last_seen_at)`,
 
   `CREATE INDEX IF NOT EXISTS idx_executions_seq ON executions (seq)`,

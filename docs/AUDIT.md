@@ -132,8 +132,10 @@ a public instance, and `CAPKIT_NOTARY_PRIVATE_KEY`. Now listed.
 means no horizontal scaling, and it is the gate on hosting this for anyone else.
 
 **`verifyChain()` walks the whole chain on every call**, and several reports call
-it. Fine at thousands of records. A checkpointing scheme — verify from the last
-known-good sequence — is the obvious answer and is not built.
+it — 3.2 seconds at twenty thousand records, measured. Checkpointing now exists
+and resuming is **opt-in**, so this remains the default cost and that is
+deliberate: the alternative is a verification that skips history and a caller
+who cannot tell. See §3m, including the tampering a resumed pass cannot detect.
 
 **The watch sweeps in batches from a high-water mark.** Correct, and slower to
 first finding on a large import than a single pass. `coverage.behind` says so.
@@ -145,6 +147,68 @@ recovery and there should not be one.
 **Nothing notifies anybody.** No incident, no escalation, no email. That is a
 constitutional refusal, and it is also a real gap against EU AI Act Article
 26(5). Both things are true and [COMPLIANCE.md](COMPLIANCE.md) §1.4 says so.
+
+---
+
+## 3m. Chain checkpointing, and the thing it cannot do
+
+The last item in §5. Measured before it was built, because the rule here is that
+no number is published a measurement did not produce:
+
+| records | signed walk | per record |
+|---|---|---|
+| 1,000 | 192 ms | 192 µs |
+| 5,000 | 860 ms | 172 µs |
+| 20,000 | **3,225 ms** | 161 µs |
+
+Linear, and the watch paid it in full on every sweep. Signature verification is
+~87% of it — an unsigned walk over the same 20,000 records is 431 ms.
+
+`checkpoint()` writes a signed note that this instance walked from genesis and
+found a given head. `verifyChain(key, { from: 'checkpoint' })` resumes from it.
+Measured on the same chain: **3,244 ms → 12 ms, a 280× difference.**
+
+### The hazard is the feature, and it cannot be engineered away
+
+A checkpoint says *I walked to seq N.* Trusting it means no longer verifying
+anything before N — and it lives in the same SQLite file as the records it
+vouches for, so anybody able to edit an execution can edit it too.
+
+**A test was written expecting a resumed pass to catch a record edited before
+the checkpoint. It does not, and the code was right — the expectation was
+wrong.** Editing `action` at seq 3 leaves the stored hash at seq 10 untouched,
+so the anchor still matches and the walk legitimately starts after it. Detecting
+that would require the walk being avoided. *Skipping the walk is the feature;
+not seeing what you skipped is what the feature means.*
+
+That test now asserts the real behaviour, paired with the full walk finding the
+same tampering at record 3 — so anybody who later "fixes" the resumed pass has
+to read why it cannot be fixed.
+
+### So the mitigation is entirely in the reporting
+
+- **The default never resumes.** Every existing caller still walks from genesis
+  without being asked.
+- **A resumed result is shaped differently.** It carries `verifiedFrom` and a
+  `scope` sentence naming what was not re-examined; a full pass carries neither.
+  The two claims cannot be confused by anything reading them.
+- **The signature covers sequence *and* hash**, so a genuine checkpoint cannot be
+  replayed at a sequence it never described — the usual way a signed cache stops
+  meaning anything.
+- **A checkpoint that does not verify is ignored, not escalated.** A key rotation
+  and an edited row produce the same correct response: fall back to a full walk.
+- **`POST /executions/checkpoint` needs `execution:verify`, not
+  `execution:read`.** Creating one decides how much history a later verification
+  stops examining, and that is not a power that belongs with reading.
+
+### The watch deliberately does not use it
+
+The most obvious place to spend the 280× is the sweep, and it is the one place
+that must not. A monitor that skips the part of the record nobody else is
+looking at is not a faster monitor — it has a blind spot exactly where an
+attacker would choose to put one. The refusal is written into `watch.ts` beside
+the call, with the instruction that if the full walk outgrows the interval, the
+interval should move and not the standard of the answer.
 
 ---
 
@@ -626,7 +690,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **766 tests, 37 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **777 tests, 38 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 19 checks. Three of them are new and all three police this document:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
@@ -652,7 +716,7 @@ Chased down in §3f and published on 2026-08-02.
 | ~~1~~ | ~~Publish `@absuitecore/notary`~~ | **Done**, 2026-08-02. Three documents named a package the registry did not have. The cause was a hand-written package list in six places — §3f. |
 | ~~2~~ | ~~Require signed approvals as a configurable mode~~ | **Done.** `ABSUITE_REQUIRE_SIGNED_APPROVALS` turns a field into a gate — the row a regulated buyer presses on. Proved by deleting the gate and watching a test fail. |
 | ~~3~~ | ~~A provenance view~~ | **Done.** AI-to-AI accountability was built, distinctive, and invisible — see §3l. |
-| 1 | Chain checkpointing | The first scaling wall, and it is not close yet. |
+| ~~4~~ | ~~Chain checkpointing~~ | **Done.** 3,244 ms → 12 ms at twenty thousand records, and the limitation is stated rather than glossed — see §3m. |
 
 None of this is blocked on anything but time. That is the useful thing about a
 list like this: everything on it is work, not luck.

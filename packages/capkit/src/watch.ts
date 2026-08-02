@@ -214,9 +214,25 @@ export class Watch {
       else reRaised += 1;
     };
 
-    // Chain first. A broken chain makes every other finding provisional, and
-    // reporting it after a list of individual records buries the one thing that
-    // changes how the rest should be read.
+    /*
+     * Chain first. A broken chain makes every other finding provisional, and
+     * reporting it after a list of individual records buries the one thing that
+     * changes how the rest should be read.
+     *
+     * **This deliberately does not resume from a checkpoint**, and it is the
+     * most obvious place somebody will try to. The sweep is the single most
+     * expensive thing the watch does — a signed walk is ~161µs per record, so
+     * 3.2 seconds at twenty thousand — and resuming would make it nearly free.
+     *
+     * It would also make the watch stop detecting tampering before the
+     * checkpoint, which is the exact thing it exists to catch. A monitor that
+     * skips the part of the record nobody else is looking at is not a faster
+     * monitor; it is a monitor with a blind spot placed where an attacker would
+     * choose to put one.
+     *
+     * If the full walk becomes too slow for the interval, raise the interval.
+     * Do not lower the standard of the answer.
+     */
     const chain = this.traces.verifyChain(this.options.publicKeyPem);
     if (chain.valid === false) {
       record({

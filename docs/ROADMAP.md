@@ -26,7 +26,7 @@ This document is measured in **days**. The decade-scale view lives in
 | Governance Components | Complete |
 | Explainability | Complete |
 
-766 tests. 127 API endpoints. 8 npm packages on npm. 5 HTTP services and the room,
+777 tests. 128 API endpoints. 8 npm packages on npm. 5 HTTP services and the room,
 a notary, and an MCP server.
 
 The sentence that used to sit here — *"nothing is installable and nobody has
@@ -161,12 +161,12 @@ and the install count has not moved.
 
 > **Make a stranger understand ABSuite in sixty seconds.**
 
-The build question is answered: five services and the room run, 127 endpoints are
+The build question is answered: five services and the room run, 128 endpoints are
 documented, and 52 documented GET routes were confirmed answering against a live
 suite. The open question is a different one, and no amount of further building
 settles it — *can someone else understand this in five minutes?*
 
-Nobody adopts a project because it has 766 tests. They adopt it because they
+Nobody adopts a project because it has 777 tests. They adopt it because they
 opened the dashboard and understood what it was. That makes the interface the
 highest-leverage work in the repository right now, ahead of any remaining layer.
 

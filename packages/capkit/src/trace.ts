@@ -363,6 +363,20 @@ export function hashTrace(trace: Omit<ExecutionTrace, 'hash' | 'signature'>): st
  * generate an ephemeral pair and say so loudly — signatures would otherwise
  * silently stop verifying after a restart, which is worse than not signing.
  */
+/**
+ * A signed note that this instance walked the chain to `seq` and found `hash`.
+ *
+ * Not a security boundary — see the table comment in storage.ts. It shortens a
+ * re-verification; it does not stand in for one.
+ */
+export interface ChainCheckpoint {
+  seq: number;
+  hash: string;
+  verifiedAt: string;
+  keyId?: string;
+  signature: string;
+}
+
 export class SigningKey {
   private readonly privateKey: KeyObject;
   readonly publicKeyPem: string;
@@ -1030,12 +1044,100 @@ export class TraceStore {
   }
 
   /**
-   * Walk the whole chain and report the first record that fails.
+   * Record a signed note that the chain verified to its current head.
+   *
+   * Returns the checkpoint, or `undefined` when the chain does not currently
+   * verify — a checkpoint is only ever written after a **full walk from
+   * genesis**, because a checkpoint taken on a chain nobody verified is a
+   * signed statement that nothing was checked.
+   *
+   * Requires a signing key. Without one there is nothing to bind the note to
+   * this instance, and an unsigned checkpoint is a row anybody can write.
+   */
+  checkpoint(publicKeyPem?: string): ChainCheckpoint | undefined {
+    if (!this.signingKey) return undefined;
+
+    const result = this.verifyChain(publicKeyPem);
+    if (!result.valid) return undefined;
+
+    const seq = Number(
+      this.storage.get<{ n: number }>('SELECT COALESCE(MAX(seq), 0) AS n FROM executions')?.n ?? 0
+    );
+    if (seq === 0) return undefined;
+
+    const checkpoint: ChainCheckpoint = {
+      seq,
+      hash: result.headHash,
+      verifiedAt: new Date().toISOString(),
+      keyId: this.signingKey.keyId,
+      signature: this.signingKey.sign(checkpointStatement(seq, result.headHash)),
+    };
+
+    this.storage.run(
+      `INSERT INTO chain_checkpoints (seq, hash, verified_at, key_id, signature)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(seq) DO UPDATE SET hash = excluded.hash, verified_at = excluded.verified_at,
+                                      key_id = excluded.key_id, signature = excluded.signature`,
+      checkpoint.seq, checkpoint.hash, checkpoint.verifiedAt, checkpoint.keyId, checkpoint.signature
+    );
+
+    return checkpoint;
+  }
+
+  /**
+   * The most recent checkpoint whose signature holds, or `undefined`.
+   *
+   * A checkpoint that does not verify is ignored rather than reported as a
+   * problem: it means the key rotated, or the row was edited, and in both cases
+   * the correct behaviour is the same — fall back to walking from genesis.
+   * Refusing to verify at all because a *cache* is stale would be the wrong
+   * failure.
+   */
+  latestCheckpoint(publicKeyPem?: string): ChainCheckpoint | undefined {
+    const rows = this.storage.all<Record<string, unknown>>(
+      'SELECT seq, hash, verified_at, key_id, signature FROM chain_checkpoints ORDER BY seq DESC'
+    );
+
+    for (const row of rows) {
+      const candidate: ChainCheckpoint = {
+        seq: Number(row.seq),
+        hash: String(row.hash),
+        verifiedAt: String(row.verified_at),
+        ...(row.key_id ? { keyId: String(row.key_id) } : {}),
+        signature: String(row.signature),
+      };
+      if (!publicKeyPem) return candidate;
+      if (verifySignature(checkpointStatement(candidate.seq, candidate.hash), candidate.signature, publicKeyPem)) {
+        return candidate;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Walk the chain and report the first record that fails.
    *
    * `brokenAt` is the sequence number of the offending record — the evidence an
    * auditor needs, rather than a bare boolean.
+   *
+   * ## Resuming from a checkpoint
+   *
+   * `{ from: 'checkpoint' }` starts at the last signed checkpoint instead of at
+   * genesis. Measured on this machine, a signed walk costs ~161µs per record —
+   * 3.2 seconds at twenty thousand records, paid in full by the watch on every
+   * sweep. Resuming turns that into the cost of what arrived since.
+   *
+   * **It is a weaker claim, and the result says so rather than looking
+   * identical.** A resumed pass returns `verifiedFrom` and a `scope` sentence;
+   * a full pass returns neither. The reason is that a checkpoint lives in the
+   * same file as the records it vouches for: anybody able to edit an execution
+   * can edit a checkpoint, so trusting one means trusting exactly what
+   * verification exists to test.
+   *
+   * Which is why the default is unchanged, and why every existing caller keeps
+   * walking from genesis without being asked.
    */
-  verifyChain(publicKeyPem?: string): {
+  verifyChain(publicKeyPem?: string, options: { from?: 'genesis' | 'checkpoint' } = {}): {
     valid: boolean;
     checked: number;
     brokenAt?: number;
@@ -1043,6 +1145,10 @@ export class TraceStore {
     reason?: string;
     /** False when the walk stopped at a record this build cannot read. */
     checkable?: boolean;
+    /** Present only on a resumed pass. Its absence means the walk began at genesis. */
+    verifiedFrom?: { seq: number; hash: string; verifiedAt: string };
+    /** What this pass did and did not re-examine. Present only when resumed. */
+    scope?: string;
     /**
      * Whether the offending record's content still matches its hash. `null`
      * when it could not be checked.
@@ -1054,15 +1160,50 @@ export class TraceStore {
     contentIntact?: boolean | null;
     headHash: string;
   } {
-    const rows = this.storage.all<Record<string, unknown>>('SELECT * FROM executions ORDER BY seq ASC');
-    let expectedPrev = GENESIS_HASH;
+    /*
+     * A cheap sanity check, and it is worth being exact about what it is not.
+     *
+     * It catches truncation, a rollback, or a checkpoint carried into a
+     * different chain — cases where the record at that sequence no longer holds
+     * the hash the checkpoint named. It does **not** detect tampering before
+     * the checkpoint: editing a record at seq 3 leaves the stored hash at seq
+     * 10 untouched, so the anchor still matches and the walk still starts
+     * after it.
+     *
+     * That is not a hole to be closed. Detecting it would mean re-walking,
+     * which is precisely what resuming exists to avoid. Skipping the walk is
+     * the feature; not seeing what you skipped is what the feature means — so
+     * the mitigation is the `scope` sentence below, and the fact that the
+     * default never resumes.
+     */
+    const resume = options.from === 'checkpoint' ? this.latestCheckpoint(publicKeyPem) : undefined;
+    const anchor = resume
+      ? this.storage.get<{ hash: string }>('SELECT hash FROM executions WHERE seq = ?', resume.seq)
+      : undefined;
+    const usable = resume && anchor?.hash === resume.hash ? resume : undefined;
+
+    const rows = usable
+      ? this.storage.all<Record<string, unknown>>('SELECT * FROM executions WHERE seq > ? ORDER BY seq ASC', usable.seq)
+      : this.storage.all<Record<string, unknown>>('SELECT * FROM executions ORDER BY seq ASC');
+
+    let expectedPrev = usable ? usable.hash : GENESIS_HASH;
+
+    const resumed = usable
+      ? {
+          verifiedFrom: { seq: usable.seq, hash: usable.hash, verifiedAt: usable.verifiedAt },
+          scope:
+            `Records after ${usable.seq} were walked now. Records up to ${usable.seq} were not re-examined — ` +
+            `this rests on a checkpoint taken at ${usable.verifiedAt}, which lives in the same file as the records ` +
+            `it vouches for. For a claim that does not, walk from genesis.`,
+        }
+      : {};
 
     for (const row of rows) {
       const trace = rowToTrace(row);
       const seq = Number(row.seq);
 
       if (trace.prevHash !== expectedPrev) {
-        return { valid: false, checked: seq, brokenAt: seq, brokenId: trace.id, reason: 'Trace does not link to its predecessor', headHash: this.headHash };
+        return { valid: false, checked: seq, brokenAt: seq, brokenId: trace.id, reason: 'Trace does not link to its predecessor', headHash: this.headHash, ...resumed };
       }
 
       const verdict = verifyTrace(trace, publicKeyPem);
@@ -1079,14 +1220,27 @@ export class TraceStore {
           // never arrive in the same words.
           ...(verdict.checkable === false ? { checkable: false } : {}),
           headHash: this.headHash,
+          ...resumed,
         };
       }
 
       expectedPrev = trace.hash;
     }
 
-    return { valid: true, checked: rows.length, headHash: this.headHash };
+    return { valid: true, checked: rows.length, headHash: this.headHash, ...resumed };
   }
+}
+
+/**
+ * What a checkpoint signature covers.
+ *
+ * Both fields, joined by a separator that cannot occur in either — a hex hash
+ * has no colon and a sequence number has no non-digits. Signing the hash alone
+ * would let a checkpoint be replayed at a different sequence, which is the
+ * classic way a "signed" cache stops meaning anything.
+ */
+function checkpointStatement(seq: number, hash: string): string {
+  return `absuite.chain.checkpoint.v1:${seq}:${hash}`;
 }
 
 function rowToTrace(row: Record<string, unknown>): ExecutionTrace {
