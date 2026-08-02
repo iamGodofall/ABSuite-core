@@ -207,10 +207,23 @@ figure from the service list `run-room.mjs` actually spawns. The pattern reads
 the word as well as the digit, because *"six services plus the interface"* is
 how this was wrong and a check that only reads digits would have missed it.
 
-Two more stale figures fell out of the same live run: `ROADMAP.md` claimed 46
+One more stale figure fell out of the same live run: `ROADMAP.md` claimed 46
 documented GET routes confirmed against a live suite when `check:live` reports
-**52**, and `@absuitecore/notary` is not started by `pnpm room` at all — the
-notary exists, and nothing in the one-command path brings it up.
+**52**.
+
+**A correction to this section.** It first also recorded that `@absuitecore/notary`
+is not started by `pnpm room`, listed as a gap. **That was wrong, and the
+reasoning is in the notary's own source:** a notary deployed alongside the system
+it witnesses, signing with a key the same operator holds, is a second signature
+from the same party and proves nothing. Its absence from the room and from
+`docker-compose.yml` is the design working. Counting services was the right
+check; calling that one a gap was a conclusion drawn without reading why.
+
+The real gap next to it was different and is now closed: the notary was
+published, `SERVICES.md` said what it needs is *"somebody other than us running
+one"*, and **no document told that person how.** [NOTARY.md](NOTARY.md) does,
+including a worked audit of a rewritten chain that verifies perfectly against
+itself and is caught anyway.
 
 ---
 

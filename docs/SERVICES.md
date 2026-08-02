@@ -128,7 +128,8 @@ the same position, forever. A rewritten chain verifies perfectly against itself
 and fails that audit.
 
 What remains before it earns money is not code. It is somebody other than us
-running one.
+running one — and [NOTARY.md](NOTARY.md) is now the document that tells them how,
+which was itself missing for as long as the notary existed.
 
 ### 2.3 Long-term evidence custody — **Far**
 

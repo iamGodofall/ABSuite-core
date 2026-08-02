@@ -598,6 +598,7 @@ would count instead.
 | [Compliance mapping](./docs/COMPLIANCE.md) | Which obligation each field speaks to — EU AI Act, ISO 42001, SOC 2 — and what it does not help with |
 | [Audit](./docs/AUDIT.md) | What is wired, what is built and unreachable, and where this is weak |
 | [Hosting](./docs/HOSTING.md) | Where this can actually run, and why the obvious answers are wrong |
+| [Running a notary](./docs/NOTARY.md) | The one thing this project cannot do for itself — and why yours would prove nothing |
 | [Learning from agent-reach](./docs/LEARNING-FROM-AGENT-REACH.md) | What a 64k-star project gets right, what we took, and what we refused |
 | [Protocol](./docs/PROTOCOL.md) | The record format, specified independently of this code |
 | [Security model](./docs/SECURITY-MODEL.md) | Threat model and defence in depth |

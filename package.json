@@ -53,7 +53,8 @@
     "check:protocol": "node scripts/check-protocol-conformance.mjs",
     "check:python": "python3 implementations/python/test_conformance.py",
     "check:numbers": "node scripts/check-published-numbers.mjs",
-    "check:config": "node scripts/check-config.mjs"
+    "check:config": "node scripts/check-config.mjs",
+    "notary": "pnpm --filter @absuitecore/notary start"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"
