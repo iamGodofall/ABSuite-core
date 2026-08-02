@@ -137,6 +137,33 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3c. Configuration that was offered and read by nothing
+
+Swept properly after `ABSUITE_DB_ENCRYPTION_KEY` turned out to be decorative:
+every variable offered by `docker-compose.yml`, `.env.example` and `deploy/`
+compared against every variable actually read in source. Sixty-four read,
+thirty-nine offered.
+
+Exactly one real survivor: **`ABSUITE_LOG_LEVEL`**, passed into all six
+containers and consumed by nothing. (`DATA_DIR` and `PUBLIC_PORT` also showed up
+and are false positives — local constants in `deploy/serve-all.mjs`, not
+environment variables. The first sweep of this kind produced a false positive
+too, `CAPKIT_REVOCATION_FILE`, read as `env.X` off a passed object rather than
+`process.env.X`. A detector for this defect needs checking by hand.)
+
+**It is removed rather than implemented, and the reason is not that it was
+unread.** The services log two things: startup lines, and warnings. The warnings
+are the ones that say the signing key is ephemeral, no admin key is set, or the
+notary will invalidate every receipt it has issued the moment it restarts. There
+is no per-request or debug logging for a level to unlock, so `debug` would turn
+on nothing — and `error` would silence exactly the warnings that make this
+product different from one that opens with a green tick.
+
+A log level here is not a missing feature. It is a switch for hiding findings,
+and shipping it would contradict [FAQ](FAQ.md) Q10.
+
+---
+
 ## 3b. The adoption claim, published twice without a measurement
 
 This is the sharpest finding in the audit, because the defect is in the
@@ -204,13 +231,19 @@ installable — it is listed in §5.
   against the running stack — every layer, every standing view, every console.
 - **All six services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **721 tests, 33 suites, 17 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 17 checks — one of which is now `check:numbers`, which compares
-  every figure the documents publish against what the repository measures.
-  It was described as "17 gates" here and in FAQ §20 for a long time when the
-  real count was 16, by nobody counting; adding the check that catches that made
-  it genuinely 17, and the check immediately failed the documents still saying
-  16. That is the behaviour, not a coincidence.
+- **721 tests, 33 suites, 18 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 18 checks. Two of them are new and both police this document:
+  `check:numbers` compares every figure the documents publish against what the
+  repository measures, and `check:config` fails the build if a variable is
+  offered to an operator and read by nothing (§3c).
+
+  The count itself is the demonstration. This section said "17 gates" — here
+  and in FAQ §20 — for a long time, when the real number was 16, because nobody
+  counted. Adding `check:numbers` made it genuinely 17, and that check
+  immediately failed the documents still saying 16. Adding `check:config` made
+  it 18, and the same check failed this line while it was being written. A
+  number that corrects itself twice in two commits is the behaviour working,
+  not a coincidence.
 - **The record format verifies from a second implementation** that shares no code
   with the first.
 

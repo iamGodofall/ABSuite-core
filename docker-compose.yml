@@ -40,7 +40,6 @@ services:
     environment:
       - NODE_ENV=production
       - ABSUITE_DB_PATH=/data/absuite.db
-      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
       - CAPKIT_PORT=8081
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
       - CAPKIT_JWT_SECRET=${CAPKIT_JWT_SECRET}
@@ -90,7 +89,6 @@ services:
     environment:
       - NODE_ENV=production
       - ABSUITE_DB_PATH=/data/absuite.db
-      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
       - EDGERUN_PORT=8082
       - EDGERUN_MAX_CONCURRENT=${EDGERUN_MAX_CONCURRENT:-10}
       - EDGERUN_QUEUE_LIMIT=${EDGERUN_QUEUE_LIMIT:-100}
@@ -136,7 +134,6 @@ services:
       - PORT=8083
       - QUICKBENCH_PORT=8083
       - QUICKBENCH_OLLAMA_URL=${QUICKBENCH_OLLAMA_URL:-http://host.docker.internal:11434}
-      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
@@ -172,7 +169,6 @@ services:
       - "127.0.0.1:8084:8084"
     environment:
       - NODE_ENV=production
-      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
       - CONNECTOR_STARTER_PORT=8084
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
       - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}
@@ -214,7 +210,6 @@ services:
       - "127.0.0.1:8085:8085"
     environment:
       - NODE_ENV=production
-      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
       - TRUST_PORT=8085
       - ABSUITE_DB_PATH=/data/absuite.db
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}
@@ -267,7 +262,6 @@ services:
       - "127.0.0.1:3001:3001"
     environment:
       - NODE_ENV=production
-      - ABSUITE_LOG_LEVEL=${ABSUITE_LOG_LEVEL:-info}
       - ABSUITE_ALLOWED_ORIGINS=${ABSUITE_ALLOWED_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001}
       - ABSUITE_ADMIN_API_KEY=${ABSUITE_ADMIN_API_KEY:-}
       - CAPKIT_ADMIN_KEY=${CAPKIT_ADMIN_KEY:-${ABSUITE_ADMIN_API_KEY:-}}

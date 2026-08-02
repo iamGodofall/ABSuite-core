@@ -1,7 +1,7 @@
 {
   "name": "absuite-core",
   "version": "1.0.0",
-  "description": "ABSuite \u2014 Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
+  "description": "ABSuite — Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -37,7 +37,7 @@
     "check:motion": "node scripts/check-motion-is-evidence.mjs",
     "check:layers": "node scripts/gen-architecture-layers.mjs --check",
     "gen:layers": "node scripts/gen-architecture-layers.mjs",
-    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine && pnpm check:ui && pnpm check:fabrication && pnpm check:doctrine-ui && pnpm check:motion && pnpm check:layers && pnpm check:deploy && pnpm check:styles && pnpm check:map && pnpm check:site && pnpm check:surface && pnpm check:protocol && pnpm check:numbers && pnpm check:python",
+    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine && pnpm check:ui && pnpm check:fabrication && pnpm check:doctrine-ui && pnpm check:motion && pnpm check:layers && pnpm check:deploy && pnpm check:styles && pnpm check:map && pnpm check:site && pnpm check:surface && pnpm check:protocol && pnpm check:numbers && pnpm check:config && pnpm check:python",
     "check:live": "node scripts/check-live-routes.mjs",
     "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",
     "bench:doc": "node scripts/gen-performance-doc.mjs",
@@ -52,7 +52,8 @@
     "check:surface": "node scripts/check-surface-primitives.mjs",
     "check:protocol": "node scripts/check-protocol-conformance.mjs",
     "check:python": "python3 implementations/python/test_conformance.py",
-    "check:numbers": "node scripts/check-published-numbers.mjs"
+    "check:numbers": "node scripts/check-published-numbers.mjs",
+    "check:config": "node scripts/check-config.mjs"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"
