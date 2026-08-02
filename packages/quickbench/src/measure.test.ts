@@ -52,7 +52,35 @@ describe('measuring honestly', () => {
     // 1000 overall. The truth is iterations / elapsed, and nothing else.
     const fromWallClock = (result.iterations / result.wallClockMs) * 1000;
     expect(result.opsPerSecond).toBeCloseTo(fromWallClock, 0);
-    expect(result.opsPerSecond).toBeLessThan(1000);
+
+    /*
+     * This used to assert `opsPerSecond < 1000`, and it failed on CI at 1011.3
+     * — blocking a publish for a reason that had nothing to do with the code.
+     *
+     * The threshold could never have worked. 1000 is what the *inflated*
+     * calculation gives (5 workers ÷ 5ms), and it is also what a perfect
+     * wall-clock run gives (20 iterations ÷ 20ms). The two numbers this test
+     * exists to tell apart are the same number here, so the assertion sat
+     * exactly on the boundary and measured nothing but how precisely the
+     * machine honours `setTimeout(5)`. A shared CI runner does not.
+     *
+     * What actually catches the bug is the assertion above: it compares the
+     * reported `opsPerSecond` against the figure recomputed from the reported
+     * `wallClockMs`, so an implementation that derived throughput from latency
+     * instead would disagree with its own wall clock. Verified by writing that
+     * bug — the test reports 822.7 expected against 834.7 received.
+     *
+     * This line is a second, weaker guard rather than the discriminator, and it
+     * is worth being clear about which is which. It is arithmetic that holds on
+     * any machine: total work is `iterations × mean`, which cannot be retired
+     * faster than `concurrency` workers allow, so
+     * `wallClock ≥ iterations × mean ÷ concurrency` and throughput can never
+     * exceed `concurrency × 1000 ÷ mean`. A figure above that ceiling came from
+     * somewhere other than elapsed time. Equality is the zero-overhead limit,
+     * so the comparison is `≤` — which is exactly why it cannot flake.
+     */
+    const latencyOnlyCeiling = (5 * 1000) / result.latencyMs.mean;
+    expect(result.opsPerSecond).toBeLessThanOrEqual(latencyOnlyCeiling);
   });
 
   test('teardown runs even when the operation throws every time', async () => {

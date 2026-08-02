@@ -148,6 +148,37 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3g. A flaky test that could never have worked, found by it blocking a release
+
+`quickbench`'s throughput test asserted `opsPerSecond < 1000`. It passed locally
+every time and failed on CI at **1011.3**, which stopped a publish for a reason
+that had nothing to do with the change being published.
+
+The threshold could never have worked, and that is the interesting part. The
+test exists to prove throughput comes from the wall clock rather than from mean
+latency — but with 20 iterations, concurrency 5 and a 5ms sleep, **1000 is what
+both calculations give**: 5 workers ÷ 5ms is 1000, and 20 iterations ÷ 20ms is
+also 1000. The two numbers the test exists to tell apart were the same number,
+so the assertion sat exactly on the boundary and measured nothing but how
+precisely the machine honours `setTimeout(5)`. A shared CI runner does not.
+
+It is replaced by an arithmetic ceiling that holds on any machine — throughput
+cannot exceed `concurrency × 1000 ÷ mean`, because work cannot be retired faster
+than the workers allow — compared with `≤`, so it cannot flake.
+
+**The discriminating assertion was the one already there**, comparing reported
+`opsPerSecond` against the figure recomputed from reported `wallClockMs`.
+Confirmed by writing the bug: an implementation deriving throughput from latency
+reports 834.7 where its own wall clock says 822.7, and the test names both.
+The comment now says which assertion catches the bug and which is a guard,
+because a test whose comment overstates what it proves is the same defect as a
+document that does.
+
+Local repetition is not what settled this. Twelve consecutive local passes prove
+nothing — the old assertion also passed locally every time.
+
+---
+
 ## 3f. The published packages were four days and twenty-six commits stale
 
 Two findings with one cause, both found by asking the registry instead of the
