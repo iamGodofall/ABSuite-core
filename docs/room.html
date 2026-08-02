@@ -1,0 +1,116 @@
+<title>ABSuite — Trust Operations Center</title>
+<style>
+  :root{--g:#00F58C;--t:#2DD4BF;--a:#F6B100;--r:#DC2626;--w:#F4F7FA;--m:#7C9389;
+    --p:#020805;--l:rgba(0,245,140,.15);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;color:var(--w);font:16px/1.65 var(--sans);
+    background-image:linear-gradient(rgba(0,245,140,.05) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,245,140,.05) 1px,transparent 1px);
+    background-size:48px 48px;background-attachment:fixed}
+  main{max-width:52rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+  h1{font-size:clamp(2rem,5.5vw,3.2rem);line-height:1;letter-spacing:-.03em;margin:0 0 1rem;font-weight:800;text-wrap:balance}
+  h1 em{font-style:normal;color:var(--g)}
+  h2{font:600 .66rem/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--m);margin:3.2rem 0 1rem}
+  p{max-width:42rem}
+  .lede{font-size:1.12rem;color:var(--w)}
+  .sub{color:var(--m)}
+  .eyebrow{font:600 .6rem/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--g);margin:0 0 .8rem}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.8rem}
+  .card{border:1px solid var(--l);border-radius:20px;background:var(--p);padding:1.15rem 1.25rem}
+  .card b{display:block;font:600 .6rem/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--g);margin-bottom:.5rem}
+  .card span{color:var(--m);font-size:.87rem;line-height:1.55}
+  ol{list-style:none;padding:0;margin:0;display:grid;gap:.5rem}
+  li.op{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:.9rem;align-items:center;
+    border:1px solid var(--l);border-radius:20px;background:var(--p);padding:.9rem 1.15rem}
+  @media(min-width:700px){li.op{grid-template-columns:2.2rem 9rem minmax(0,1fr)}li.op .d{grid-column:3}}
+  li.op .d{grid-column:2;color:var(--m);font-size:.86rem;line-height:1.5}
+  li.op .n{font:700 .68rem/1 var(--mono);color:var(--g);border:1px solid var(--l);border-radius:9999px;padding:.4rem 0;text-align:center}
+  li.op .t{font-weight:700;color:var(--g)}
+  .core{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin-top:.9rem}
+  .st{border:1px solid var(--l);border-radius:18px;background:var(--p);padding:.9rem 1rem}
+  .st b{display:block;font:700 .66rem/1 var(--mono);letter-spacing:.16em;margin-bottom:.45rem}
+  .st span{color:var(--m);font-size:.8rem;line-height:1.5}
+  .st[data-s=d] b{color:var(--g)} .st[data-s=d]{border-color:rgba(0,245,140,.3)}
+  .st[data-s=w] b{color:var(--t)} .st[data-s=f] b{color:var(--r)} .st[data-s=f]{border-color:rgba(220,38,38,.3)}
+  .st[data-s=i] b{color:var(--m)}
+  .note{border:1px solid var(--l);border-radius:24px;background:var(--p);padding:1.4rem 1.6rem;color:var(--m)}
+  .note strong{color:var(--g);font-weight:600}
+  a.cta{display:inline-block;padding:.85rem 1.5rem;border-radius:9999px;text-decoration:none;font-weight:700;font-size:.92rem;
+    background:var(--g);color:#04120C;margin:.4rem .5rem .4rem 0}
+  a.ghost{display:inline-block;padding:.85rem 1.5rem;border-radius:9999px;text-decoration:none;font-weight:600;font-size:.92rem;
+    border:1px solid var(--l);color:var(--w);background:var(--p);margin:.4rem .5rem .4rem 0}
+  code{font:13px/1.7 var(--mono);color:var(--g)}
+  pre{background:var(--p);border:1px solid var(--l);border-radius:18px;padding:1rem 1.2rem;overflow-x:auto}
+  footer{margin-top:3.5rem;padding-top:1.5rem;border-top:1px solid var(--l);color:var(--m);font-size:.84rem}
+  .creed{font:.62rem/1.8 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--g);margin-top:1rem}
+</style>
+
+<main>
+  <p class="eyebrow">ABSuite · the interface</p>
+  <h1>The <em>Trust Operations Center</em>.</h1>
+  <p class="lede">A room you enter, not a dashboard you scroll.</p>
+  <p class="sub">
+    A glass cube whose eight corners are the architectural layers, orbited by the seven operations the
+    system performs every second it runs. It is not a mock-up: it reads six services over HTTP and a
+    socket, and shows UNKNOWN for every figure it cannot reach.
+  </p>
+
+  <h2>[ The rule the room lives by ]</h2>
+  <div class="note">
+    <p style="margin-top:0"><strong>The core always shows the strongest claim the system can presently
+    defend.</strong> Nothing else changes colour.</p>
+    <div class="core">
+      <div class="st" data-s="i"><b>DARK</b><span>Nothing has been checked. An empty instance shows an empty core.</span></div>
+      <div class="st" data-s="w"><b>TURQUOISE</b><span>A verification is in flight, right now.</span></div>
+      <div class="st" data-s="d"><b>GREEN</b><span>The chain verified. Content, linkage and signatures.</span></div>
+      <div class="st" data-s="f"><b>RED</b><span>Something failed. The room names the record that broke.</span></div>
+    </div>
+    <p style="margin-bottom:0">Every perpetual animation in the interface is bound to a stated
+    condition, and <code>check:motion-is-evidence</code> fails the build if one is not. Motion here is
+    a claim about the world, so a thing that moves forever while nothing is happening is a lie told at
+    sixty frames a second.</p>
+  </div>
+
+  <h2>[ The seven operations, in orbit ]</h2>
+  <ol>
+    <li class="op"><span class="n">1</span><span class="t">Observe</span><span class="d">Capture every action — the subject, the authority it held, and hashes of what it processed.</span></li>
+    <li class="op"><span class="n">2</span><span class="t">Verify</span><span class="d">Prove integrity cryptographically. Checkable by someone holding only a public key.</span></li>
+    <li class="op"><span class="n">3</span><span class="t">Explain</span><span class="d">Turn a record into plain language derived from signed fields, every sentence naming its source.</span></li>
+    <li class="op"><span class="n">4</span><span class="t">Govern</span><span class="d">Which rule permitted this, and — when the rule demanded a person — whether one answered.</span></li>
+    <li class="op"><span class="n">5</span><span class="t">Arbitrate</span><span class="d">Resolve disagreement with stated evidence weight, and say plainly when consensus was not reached.</span></li>
+    <li class="op"><span class="n">6</span><span class="t">Act</span><span class="d">Execute only under a capability that was actually granted.</span></li>
+    <li class="op"><span class="n">7</span><span class="t">Learn</span><span class="d">Measure the system against itself. Every number came from a benchmark on a stated machine.</span></li>
+  </ol>
+
+  <h2>[ What you can open ]</h2>
+  <div class="grid">
+    <div class="card"><b>Identity</b><span>Who is acting, and can they prove it. Enrolment, proof of possession, suspension with a stated reason.</span></div>
+    <div class="card"><b>Approvals</b><span>What is waiting on a person. Each request bound to a hash of exactly what will run.</span></div>
+    <div class="card"><b>Watch</b><span>What has been raised — and how much of the record that answer covers.</span></div>
+    <div class="card"><b>Unknown queue</b><span>What cannot yet be shown, each with the step that would settle it.</span></div>
+    <div class="card"><b>Replay</b><span>What happened, in the order it happened, compared against the recorded hashes.</span></div>
+    <div class="card"><b>Policies</b><span>The rules, what is owed, and the refusals held in place by tests.</span></div>
+  </div>
+
+  <h2>[ Run it yourself ]</h2>
+  <p class="sub">All six services and the interface, in one command. It waits until each part answers
+  rather than guessing at a delay, and tells you what did not come up.</p>
+  <pre><code>pnpm install &amp;&amp; pnpm build &amp;&amp; pnpm room</code></pre>
+  <p class="sub" style="font-size:.87rem">
+    Then press <code>/</code> for the command palette. A published copy of this interface with no
+    backend can never be live — there is nothing on the far side to answer it, and the room says so in
+    those words rather than showing invented numbers.
+  </p>
+
+  <div style="margin-top:1.6rem">
+    <a class="cta" href="https://iamgodofall.github.io/ABSuite-core/">Verify a record in your browser →</a>
+    <a class="ghost" href="https://github.com/iamGodofall/ABSuite-core">Source on GitHub</a>
+  </div>
+
+  <footer>
+    <p>Evidence over opinion · verification over confidence · facts over scores.</p>
+    <p class="creed">Nothing may look more complete, more certain, or more authoritative than it actually is.</p>
+  </footer>
+</main>
