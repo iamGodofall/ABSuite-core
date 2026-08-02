@@ -109,7 +109,10 @@ const Subject = ({ identity, onChanged }: { identity: Identity; onChanged: () =>
 
       <p className="text-[11px] text-text-muted mt-2 leading-relaxed">
         {suspended
-          ? `Suspended ${identity.suspendedAt}${identity.suspendedReason ? ` — ${identity.suspendedReason}` : ''}. No new authority is issued to it; everything it already did stands unchanged.`
+          // The reason is somebody's sentence and usually ends in a full stop.
+          // Appending one unconditionally produced "…is issued.." on screen —
+          // invisible in the source, obvious the moment a real reason was typed.
+          ? `Suspended ${identity.suspendedAt}${identity.suspendedReason ? ` — ${identity.suspendedReason.replace(/[.\s]+$/, '')}` : ''}. No new authority is issued to it; everything it already did stands unchanged.`
           : proven
             ? `Signed a challenge with the key on file at ${identity.lastProvenAt}. A token issued in this name after that moment can be traced to a subject that proved it holds its own key.`
             : 'Enrolled, and has never signed a challenge. This is a public key somebody pasted — it shows what could be proven, not that anything was.'}
