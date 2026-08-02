@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ABSuite — prove what your AI actually did</title>
-<meta name="description" content="Ed25519-signed, hash-chained execution traces for AI agents. This page carries three real signed records and verifies them in your browser — no install, no account, no server.">
+<meta name="description" content="Ed25519-signed, hash-chained execution traces for AI agents — who acted, under what authority, under which rule, and whether a person approved it. This page carries three real signed records and verifies them in your browser: no install, no account, no server.">
 <meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300F58C' stroke-width='1.8'%3E%3Cpath d='M12 2 3 7v10l9 5 9-5V7z'/%3E%3Cpath d='M3 7l9 5 9-5M12 12v10'/%3E%3C/svg%3E">
 <meta property="og:title" content="ABSuite — prove what your AI actually did">
 <meta property="og:description" content="Record what happened. Prove it happened. Preserve the evidence. Verified in your browser, on this page, right now.">
 <style>
@@ -145,7 +146,9 @@
     border-radius:var(--card); overflow-x:auto; font:13px/1.75 var(--mono); color:var(--white);
   }
   pre .c { color:var(--green); }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:.8rem; }
+    /* Nine questions. At 215px they land four, four and a lone card; at 260px
+     they land three, three and three. */
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:.8rem; }
   .card { border:1px solid var(--line); border-radius:var(--card); background:var(--panel); padding:1.2rem; }
   .card b {
     display:block; font:600 .61rem/1 var(--mono); letter-spacing:.16em;
@@ -156,6 +159,86 @@
   ul.links a { color:var(--white); text-decoration:none; border-bottom:1px solid rgba(0,245,140,0.22); }
   ul.links a:hover { color:var(--green); border-bottom-color:var(--green); }
   ul.links span { color:var(--muted); }
+
+  /* ── figures ──────────────────────────────────────────────────────────── */
+  .figures { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.8rem; margin:0 0 3.5rem; }
+  .fig {
+    border:1px solid var(--line); border-radius:var(--card); background:var(--panel);
+    padding:1.1rem 1.2rem;
+  }
+  .fig .n { font:800 2rem/1 var(--sans); letter-spacing:-.04em; color:var(--green); font-variant-numeric:tabular-nums; }
+  .fig .of {
+    display:block; font:600 .58rem/1.3 var(--mono); letter-spacing:.16em;
+    text-transform:uppercase; color:var(--white); margin:.6rem 0 .45rem;
+  }
+  .fig .note { color:var(--muted); font-size:.78rem; line-height:1.55; }
+
+  /* ── the ascent ───────────────────────────────────────────────────────── */
+  .ascent { display:grid; gap:.5rem; margin:0; padding:0; list-style:none; }
+  .layer {
+    display:grid; grid-template-columns:2.4rem 1fr; gap:.9rem; align-items:start;
+    border:1px solid var(--line); border-radius:var(--card);
+    background:var(--panel); padding:1rem 1.2rem;
+  }
+  /* Auto-placement puts the third child on row two, column one — the 2.4rem
+     number track — which wrapped the description to one word per line on a
+     phone. Invisible in the source; unmissable on a 390px viewport. */
+  .layer .ws { grid-column:2; }
+  @media (min-width:760px) {
+    .layer { grid-template-columns:2.4rem 11rem 1fr; align-items:center; }
+    .layer .ws { grid-column:3; }
+  }
+  .layer .idx {
+    font:700 .72rem/1 var(--mono); letter-spacing:.1em; color:var(--muted);
+    border:1px solid var(--line); border-radius:var(--pill); padding:.42rem 0; text-align:center;
+  }
+  .layer .nm { font-weight:700; font-size:.98rem; letter-spacing:-.01em; }
+  .layer .ws { color:var(--muted); font-size:.87rem; line-height:1.55; }
+  .layer .accrues {
+    display:block; color:var(--turquoise); font-size:.79rem; line-height:1.55; margin-top:.4rem;
+  }
+  /* Built is the only state that gets the green. An accruing layer is not a
+     dimmer version of a finished one — it is a different kind of thing, and
+     colouring it on the same scale would imply a percentage of completion that
+     nobody could defend. */
+  .layer[data-built="yes"] { border-color:rgba(0,245,140,0.3); }
+  .layer[data-built="yes"] .idx { color:var(--green); border-color:rgba(0,245,140,0.35); }
+  .layer[data-built="yes"] .nm { color:var(--green); }
+
+  /* ── the four words ───────────────────────────────────────────────────── */
+  .words { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:.8rem; }
+  .word { border:1px solid var(--line); border-radius:var(--card); background:var(--panel); padding:1.15rem 1.2rem; }
+  .word b { display:block; font:700 .72rem/1 var(--mono); letter-spacing:.18em; margin-bottom:.6rem; }
+  .word span { color:var(--muted); font-size:.85rem; line-height:1.6; }
+  .word[data-w="d"] b { color:var(--green); }
+  .word[data-w="f"] b { color:var(--red); }
+  .word[data-w="u"] b { color:var(--amber); }
+  .word[data-w="a"] b { color:var(--muted); }
+  .word[data-w="d"] { border-color:rgba(0,245,140,0.28); }
+  .word[data-w="f"] { border-color:rgba(220,38,38,0.28); }
+  .word[data-w="u"] { border-color:rgba(246,177,0,0.28); }
+
+  /* ── prose and refusals ───────────────────────────────────────────────── */
+  .prose { color:var(--muted); max-width:44rem; margin:0 0 1.1rem; }
+  .prose em { color:var(--white); font-style:normal; }
+  .prose strong { color:var(--green); font-weight:600; }
+  .feature {
+    border:1px solid var(--line); border-radius:var(--panel-radius);
+    background:var(--panel); padding:1.6rem 1.75rem;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .feature h3 { margin:0 0 .7rem; font-size:1.12rem; letter-spacing:-.02em; }
+  .feature p:last-child { margin-bottom:0; }
+  .refusals { list-style:none; margin:0; padding:0; display:grid; gap:.55rem; }
+  .refusals li {
+    display:flex; gap:.75rem; align-items:flex-start;
+    border:1px solid var(--line); border-radius:var(--card);
+    background:var(--panel); padding:.9rem 1.15rem;
+  }
+  .refusals .x { flex:none; color:var(--red); font:700 .9rem/1.5 var(--mono); }
+  .refusals b { display:block; font-weight:600; font-size:.93rem; margin-bottom:.25rem; }
+  .refusals span { color:var(--muted); font-size:.83rem; line-height:1.6; }
+
   footer {
     margin-top:4.5rem; padding-top:1.8rem; border-top:1px solid var(--line);
     color:var(--muted); font-size:.85rem;
@@ -178,7 +261,8 @@
   <p class="lede">Record what happened. Prove it happened. Preserve the evidence.</p>
   <p class="sub">
     Every action is Ed25519-signed and hash-chained, so anyone can check the record — including
-    people with no reason to trust you. Payloads are hashed, never stored.
+    people with no reason to trust you. Who acted, under what authority, under which rule, and
+    whether a person approved it before it ran. Payloads are hashed, never stored.
   </p>
 
   <!--
@@ -235,6 +319,30 @@
     <a class="ghost" href="https://github.com/iamGodofall/ABSuite-core">Source on GitHub</a>
   </div>
 
+  <h2>[ Where this is ]</h2>
+  <div class="figures">
+    <div class="fig">
+      <span class="n">6</span>
+      <span class="of">of 8 layers built</span>
+      <span class="note">Read from the constitution at build time. The last two accrue with adoption rather than being written.</span>
+    </div>
+    <div class="fig">
+      <span class="n">127</span>
+      <span class="of">documented routes</span>
+      <span class="note">Generated from the source of the six services, and the build fails when the two drift apart.</span>
+    </div>
+    <div class="fig">
+      <span class="n">9</span>
+      <span class="of">packages in the monorepo</span>
+      <span class="note">8 are public and MIT, published with a Sigstore attestation of the commit that built them. One — the operations room interface — is deliberately not.</span>
+    </div>
+    <div class="fig">
+      <span class="n">33</span>
+      <span class="of">test suites</span>
+      <span class="note">Files, counted. Not a coverage claim — a count of the files that hold the checks.</span>
+    </div>
+  </div>
+
   <h2>[ Sixty seconds ]</h2>
   <pre><span class="c">npm install</span> @absuitecore/capkit</pre>
 
@@ -246,7 +354,155 @@
     <div class="card"><b>What did it cost</b><span>Spend attributed to the agent that caused it, with coverage stated beside the total.</span></div>
     <div class="card"><b>Was it altered</b><span>Chain verification names the first broken record.</span></div>
     <div class="card"><b>Can you re-run it</b><span>Replay compares a re-run against the recorded hashes.</span></div>
+    <div class="card"><b>Did a person approve it</b><span>An approval bound to a hash of the exact payload, so it cannot cover a different one.</span></div>
+    <div class="card"><b>Is anything watching</b><span>A sweep that states how much of the record it has covered, so silence is never mistaken for health.</span></div>
+    <div class="card"><b>Which model answered</b><span>A fingerprint recorded at approval. A silent provider version roll reads FAILED, not unnoticed.</span></div>
   </div>
+
+  <h2>[ The four words ]</h2>
+  <p class="prose">
+    There is no trust score anywhere in this product, and the absence is the design. A number
+    replaces evidence with something nobody audits — nobody interrogates a 96.4, they act on it.
+    Every finding lands in one of four words instead, and each one can be disagreed with.
+  </p>
+  <div class="words">
+    <div class="word" data-w="d"><b>DEMONSTRATED</b><span>The evidence supports it. Not &ldquo;this is true&rdquo; — the evidence for it is present and holds.</span></div>
+    <div class="word" data-w="f"><b>FAILED</b><span>The evidence contradicts it. A record whose content does not match its own hash is not merely unproven.</span></div>
+    <div class="word" data-w="u"><b>UNKNOWN</b><span>Nobody checked, or this build cannot read it. Always carries the step that would settle it.</span></div>
+    <div class="word" data-w="a"><b>ABSENT</b><span>The record never attempted to answer. Always carries why it is silent — a field that predates a schema is not a field left blank.</span></div>
+  </div>
+  <p class="prose" style="margin-top:1.1rem">
+    <em>Unknown is not the same as false</em>, and its sharper corollary — <em>unknown is not the
+    same as true</em> — is the one that was actually hiding in this codebase, and was found and fixed.
+  </p>
+
+  <h2>[ A rule that demands a person ]</h2>
+  <div class="feature">
+    <h3>Almost anybody can show that a human clicked approve.</h3>
+    <p class="prose">
+      Very few can show <em>what exactly</em> was approved. The approval and the action are normally
+      linked by a foreign key the operator controls, so the link is a claim by the party being audited.
+    </p>
+    <p class="prose">
+      Here they are linked by a hash of the payload — the subject, the module, the action and the
+      input, all four of which are on the finished execution too. So <strong>&ldquo;was this
+      approved?&rdquo; is answerable from the execution record alone.</strong> An approval granted for
+      one input cannot travel to another, and there is no approval id written onto the trace for
+      anybody to fill in afterwards.
+    </p>
+    <p class="prose">
+      Two things are refused rather than warned about: the requester may not decide, and one approval
+      covers one execution. A reusable approval is an authority, and authority is a capability token.
+    </p>
+    <p class="prose" style="margin-bottom:0">
+      An execution recorded under a rule that said <em>REQUIRES_APPROVAL</em>, with nothing behind it,
+      reports Governance as <strong style="color:var(--red)">FAILED</strong> — not as a gap, and not
+      quietly. A rule that demands human judgement, satisfied by nobody being asked, is not governance.
+    </p>
+  </div>
+  <p class="aside" style="margin-top:1.1rem">
+    This is the strongest row in <a href="./COMPLIANCE.md" style="color:var(--green)">the compliance
+    mapping</a>, against the EU AI Act&rsquo;s human-oversight article — which asks that an assigned
+    person be able to decide, in any particular situation, not to proceed.
+  </p>
+
+  <h2>[ Something is watching, and it says how much ]</h2>
+  <p class="prose">
+    ABSuite sweeps its own record on an interval and raises what a person should look at. It ranks
+    nothing, calls nothing an incident, notifies nobody and recommends nothing — every one of those
+    is a judgement, and the judgement is not the witness&rsquo;s to make.
+  </p>
+  <p class="prose">
+    What it does do is <strong>disambiguate its own silence</strong>. An empty list of findings means
+    the last sweep found none, or it means nothing has ever swept — a container restarted, an interval
+    never started, a sweep that threw three weeks ago. In a list those are the same picture, and the
+    second is the more dangerous state a monitor can be in, because a system that <em>looks</em>
+    watched is one nobody checks by hand either. So every answer carries how far the sweep got, and
+    what it has not reached yet.
+  </p>
+
+  <h2>[ Verified twice, by two people who share no code ]</h2>
+  <p class="prose">
+    The record format is <a href="./PROTOCOL.md" style="color:var(--green)">specified</a> independently
+    of this implementation, and then implemented again — in Python, with no dependencies, by someone
+    working from the specification and the published public key rather than from the TypeScript.
+  </p>
+  <p class="prose">
+    <strong>33 conformance checks</strong> run on every build, and they are the reason this is a
+    format rather than a library. A signature that only the library that produced it can check is not
+    evidence; it is a formality. The Python verifier reaches the same verdict on the same bytes,
+    including on the ones designed to fail.
+  </p>
+
+  <h2>[ The ascent ]</h2>
+  <p class="prose">
+    Eight layers, each resting on the one below. The status column is read out of the constitution when
+    this page is generated, so a layer cannot be promoted here without being promoted in the document
+    that governs it &mdash; and the build fails if a layer claims a file that does not exist.
+  </p>
+  <ol class="ascent">
+    <li class="layer" data-built="yes">
+      <span class="idx">1</span>
+      <span class="nm">Identity</span>
+      <span class="ws">Every agent, model and human has one that survives restarts</span>
+    </li>
+    <li class="layer" data-built="yes">
+      <span class="idx">2</span>
+      <span class="nm">Capability</span>
+      <span class="ws">Authority is granted narrowly, expires, and is revocable centrally</span>
+    </li>
+    <li class="layer" data-built="yes">
+      <span class="idx">3</span>
+      <span class="nm">Evidence</span>
+      <span class="ws">Claims are checked against sources and reported as supported, unverified or contradicted</span>
+    </li>
+    <li class="layer" data-built="yes">
+      <span class="idx">4</span>
+      <span class="nm">Trust</span>
+      <span class="ws">Records accumulate into facts about behaviour — counts, never scores about people</span>
+    </li>
+    <li class="layer" data-built="yes">
+      <span class="idx">5</span>
+      <span class="nm">Governance</span>
+      <span class="ws">Policies, obligations, approvals and the workflows humans use to run all of it</span>
+    </li>
+    <li class="layer" data-built="yes">
+      <span class="idx">6</span>
+      <span class="nm">Autonomy</span>
+      <span class="ws">ABSuite's own agents watch the record continuously and raise what a person should see</span>
+    </li>
+    <li class="layer" data-built="no">
+      <span class="idx">7</span>
+      <span class="nm">Collective Intelligence</span>
+      <span class="ws">Independent deployments verify each other's records without merging them<span class="accrues">accrues with adoption — one mechanism now exists, @absuitecore/notary, but the layer is the network and the network needs deployments that are not ours</span></span>
+    </li>
+    <li class="layer" data-built="no">
+      <span class="idx">8</span>
+      <span class="nm">Civilization</span>
+      <span class="ws">Millions of agents, autonomous economies, planetary-scale accountability<span class="accrues">accrues with use — nothing here is a feature that can be written; it is what the lower seven become at scale</span></span>
+    </li>
+  </ol>
+  <p class="aside" style="margin-top:1.1rem">
+    The last two are not late. They are not features that can be written at all &mdash; a network of
+    deployments verifying each other needs deployments that are not ours, and the layer above it is
+    what the lower seven become at scale. <em style="color:var(--white);font-style:normal">A roadmap
+    that does not mark what is shipped is a wish list wearing an architecture diagram.</em>
+  </p>
+
+  <h2>[ What it refuses to be ]</h2>
+  <p class="prose">
+    Not features postponed. Permanent refusals, each one a thing a competitor will build, sell
+    profitably, and be commercially right about. Each is held in place by a test that fails the build
+    if the behaviour changes.
+  </p>
+  <ul class="refusals">
+    <li><span class="x">&#10007;</span><span><b>It will never claim to detect truth.</b><span>It reports what is supported by evidence and what is unverified. The gap between those two words is the entire product.</span></span></li>
+    <li><span class="x">&#10007;</span><span><b>It will never rate a human being.</b><span>Counting what a person did is infrastructure. Reducing them to a number is a social credit system. When someone offers real money for the score, the answer is no.</span></span></li>
+    <li><span class="x">&#10007;</span><span><b>It will never decide what should happen.</b><span>It may decide what a person should look at &mdash; that is triage. It may not decide what should be done about it. A witness that decides outcomes is a party to the events.</span></span></li>
+    <li><span class="x">&#10007;</span><span><b>It will never learn who to suspect.</b><span>Every conclusion must be re-derivable from stored records by somebody who does not trust ABSuite. A learned weight is not re-derivable, and you cannot contest a model&rsquo;s intuition.</span></span></li>
+    <li><span class="x">&#10007;</span><span><b>It will never make the record convenient.</b><span>Appeals neutralise events; they never delete them. The record of what happened &mdash; including this project&rsquo;s own mistakes &mdash; survives.</span></span></li>
+    <li><span class="x">&#10007;</span><span><b>Verification will never be a paid feature.</b><span>An auditor who has to pay to check is not an independent auditor. The public key endpoint is unauthenticated on purpose, permanently.</span></span></li>
+  </ul>
 
   <h2>[ A hash chain is not a signature ]</h2>
   <p style="color:var(--muted);max-width:44rem;margin:0">
@@ -261,11 +517,13 @@
     <li><a href="./system.html">The system map</a> <span>— every layer, operation and package, generated from the repository</span></li>
     <li><a href="./PROTOCOL.md">The protocol</a> <span>&mdash; the record format, specified independently of this implementation</span></li>
     <li><a href="./GUIDE.md">The guide</a> <span>— every capability, in the order you would use it, with a working command for each</span></li>
-    <li><a href="./GETTING-STARTED.md">Getting started</a> <span>— library, HTTP API and Docker</span></li>
+    <li><a href="https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md">Getting started</a> <span>— library, HTTP API and Docker</span></li>
     <li><a href="./API.md">API reference</a> <span>— every route, generated from source</span></li>
     <li><a href="./openapi.yaml">OpenAPI spec</a> <span>— import it into your client</span></li>
     <li><a href="./ARCHITECTURE.md">Architecture</a> <span>— how the pieces fit together</span></li>
-    <li><a href="./PRINCIPLES.md">Principles</a> <span>— what this project refuses to build</span></li>
+    <li><a href="./COMPLIANCE.md">Compliance mapping</a> <span>— which obligation each field speaks to, and what it does not help with</span></li>
+    <li><a href="./CONSTITUTION.md">The constitution</a> <span>— what this must never become, measured in decades</span></li>
+    <li><a href="https://github.com/iamGodofall/ABSuite-core/blob/main/PRINCIPLES.md">Principles</a> <span>— what this project refuses to build</span></li>
     <li><a href="./SECURITY-MODEL.md">Security model</a> <span>— threat model and defence in depth</span></li>
     <li><a href="https://www.npmjs.com/org/absuitecore">Packages on npm</a> <span>— all seven, with provenance</span></li>
   </ul>

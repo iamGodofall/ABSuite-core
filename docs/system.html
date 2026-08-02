@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300F58C' stroke-width='1.8'%3E%3Cpath d='M12 2 3 7v10l9 5 9-5V7z'/%3E%3Cpath d='M3 7l9 5 9-5M12 12v10'/%3E%3C/svg%3E">
 <title>ABSuite — the system, as it actually is</title>
 <meta name="description" content="Every layer, operation and package in ABSuite, generated from the repository rather than drawn. Status is parsed from the files the build enforces.">
 <style>
@@ -70,7 +71,11 @@
   /* The ascent. Eight layers, and they are an order, not a list. */
   .layers { display: flex; flex-direction: column-reverse; gap: 0.5rem; }
   .layer {
-    display: grid; grid-template-columns: 2.2rem 1fr auto; align-items: center; gap: 1rem;
+    /* minmax(0,1fr), not 1fr: a 1fr track has an implicit min-width of auto, so
+       the row could not shrink below the promise text and the "ACCRUES WITH USE"
+       tag pushed the page four pixels wide on a 390px viewport. Four pixels is
+       still a horizontally scrolling page. */
+    display: grid; grid-template-columns: 2.2rem minmax(0,1fr) auto; align-items: center; gap: 1rem;
     width: 100%; text-align: left; cursor: pointer;
     background: var(--panel); border: 1px solid var(--line); border-radius: var(--card);
     padding: 0.85rem 1.1rem; color: inherit; font: inherit;
@@ -89,6 +94,13 @@
   .tag.partial { color: var(--amber);     border-color: rgba(246,177,0,0.35); }
   .tag.planned { color: var(--muted);     border-color: rgba(124,147,137,0.3); }
   .tag.accrues { color: var(--turquoise); border-color: rgba(45,212,191,0.35); }
+  /* On a phone the status has nowhere to sit beside the name. It moves under
+     it, in column two rather than the number track — auto-placement would put
+     it in the 2.2rem column and wrap it one word per line. */
+  @media (max-width: 560px) {
+    .layer { grid-template-columns: 2.2rem minmax(0,1fr); row-gap: 0.55rem; }
+    .layer .tag { grid-column: 2; justify-self: start; }
+  }
   .detail {
     border-left: 1px solid var(--line); margin: 0.15rem 0 0.15rem 1.6rem; padding: 0.5rem 0 0.5rem 1.2rem;
     font-family: var(--mono); font-size: 11.5px; color: var(--muted);
@@ -126,7 +138,10 @@
       <span class="count"><b>6</b> of 6 buildable layers built</span>
       <span class="count"><b>2</b> accrue with use</span>
       <span class="count"><b>7</b> operations</span>
-      <span class="count"><b>8</b> packages published</span>
+      <!-- "published" here means the manifest is not marked private, which is
+           not the same as being on the registry today. The label says what was
+           actually read. -->
+      <span class="count"><b>8</b> public packages</span>
       <span class="count"><b>127</b> documented routes</span>
     </div>
   </header>
