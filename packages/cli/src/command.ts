@@ -31,6 +31,20 @@ export type Command =
   | { kind: 'token-create'; capabilities: string; expires: string }
   | { kind: 'token-revoke'; id: string }
   | { kind: 'token-usage' }
+  /**
+   * `absuite doctor` — what is wrong with the trust record, before somebody
+   * discovers it the hard way.
+   *
+   * Borrowed in shape from `agent-reach doctor`, and only in shape. That one
+   * asks "can my agent still reach Reddit?"; this one asks "is the evidence
+   * this deployment is producing worth anything?" — a chain that verifies, a
+   * signing key that survives a restart, approvals that were actually given,
+   * and a watch that has actually run.
+   *
+   * `--url` because a doctor that can only examine localhost cannot be pointed
+   * at the deployment you are worried about.
+   */
+  | { kind: 'doctor'; url: string }
   | { kind: 'unknown'; command: string };
 
 export const COMPOSE_ACTIONS = ['start', 'stop', 'restart', 'status', 'logs'] as const;
@@ -120,6 +134,8 @@ export function parseCommand(argv: string[]): Command {
       }
       return { kind: 'token-usage' };
     }
+    case 'doctor':
+      return { kind: 'doctor', url: flag(rest, 'url', 'u') ?? firstPositional(rest) ?? 'http://localhost:8081' };
     case 'version':
     case '--version':
     case '-v':

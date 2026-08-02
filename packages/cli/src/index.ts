@@ -225,6 +225,180 @@ async function cmdToken(options: { create?: boolean; capabilities?: string; expi
   }
 }
 
+/**
+ * `absuite doctor` — is the evidence this deployment produces worth anything?
+ *
+ * The idea is borrowed from `agent-reach doctor`, and only the idea. Theirs
+ * answers "can my agent still reach Reddit?" — a question about the outside
+ * world. This one asks a question about the deployment itself, and every check
+ * is one this product can already answer but has never gathered in one place:
+ * a chain that verifies, a key that survives a restart, approvals that were
+ * actually given, and a watch that has actually run.
+ *
+ * Two rules make this a doctor rather than a dashboard.
+ *
+ * It never invents a verdict. Each check lands in the same four words used
+ * everywhere else, and a check that could not run reports UNKNOWN with the
+ * reason — never a green tick because the request failed quietly.
+ *
+ * It exits non-zero only on FAILED. An UNKNOWN is not a failure; it is a thing
+ * nobody has checked, and a doctor that fails CI on "I could not tell" gets
+ * removed from CI within a week.
+ */
+async function cmdDoctor(base: string) {
+  const key = process.env.CAPKIT_ADMIN_KEY || process.env.ABSUITE_ADMIN_API_KEY || ''
+  const headers: Record<string, string> = key ? { 'x-absuite-admin-key': key } : {}
+
+  const findings: { state: 'DEMONSTRATED' | 'FAILED' | 'UNKNOWN' | 'ABSENT'; what: string; detail: string }[] = []
+  const add = (state: typeof findings[number]['state'], what: string, detail: string) =>
+    findings.push({ state, what, detail })
+
+  const get = async (path: string) => {
+    const res = await fetch(`${base}${path}`, { headers })
+    const text = await res.text()
+    let body: any = {}
+    try { body = text ? JSON.parse(text) : {} } catch { throw new Error(`${path} did not return JSON (${res.status})`) }
+    if (!res.ok) throw new Error(body?.error?.message ?? `${path} returned ${res.status}`)
+    return body
+  }
+
+  console.log(`\n  Examining ${base}\n`)
+
+  // Reachability first. Every check below is UNKNOWN if this one fails, and
+  // reporting eight unknowns would bury the one finding that explains them.
+  try {
+    const health = await get('/health')
+    add('DEMONSTRATED', 'Service', `${health.status}, version ${health.version}`)
+  } catch (err: any) {
+    add('FAILED', 'Service', `Not reachable: ${err.message}`)
+    report(findings)
+    return
+  }
+
+  // The signing key. An ephemeral key with a durable database is the worst
+  // state this product can run in, and it looks perfectly healthy until a
+  // restart invalidates every record ever written.
+  try {
+    const pk = await get('/executions/public-key')
+    if (pk.ephemeral) {
+      add('FAILED', 'Signing key', 'Generated for this process. Every record written since the last restart stops verifying at the next one. Set CAPKIT_TRACE_PRIVATE_KEY.')
+    } else {
+      add('DEMONSTRATED', 'Signing key', `${pk.keyId}, durable across restarts`)
+    }
+  } catch (err: any) {
+    add('UNKNOWN', 'Signing key', err.message)
+  }
+
+  try {
+    const stats = await get('/executions/stats?verify=full')
+    const chain = stats.chain ?? {}
+    if (chain.valid === false) {
+      add('FAILED', 'Chain', `Broken${chain.brokenAt !== undefined ? ` at record ${chain.brokenAt}` : ''}. ${chain.reason ?? ''}`.trim())
+    } else if (chain.valid === true) {
+      add('DEMONSTRATED', 'Chain', `${stats.total ?? 0} record(s), content, linkage and signatures all check`)
+    } else {
+      add('UNKNOWN', 'Chain', 'The chain was not walked.')
+    }
+    if ((stats.total ?? 0) === 0) {
+      add('ABSENT', 'Evidence', 'Nothing has been recorded. An empty instance is not a healthy one or an unhealthy one — it is empty.')
+    }
+  } catch (err: any) {
+    add('UNKNOWN', 'Chain', err.message)
+  }
+
+  try {
+    const identities = await get('/identities')
+    const list = identities.identities ?? identities ?? []
+    const count = Array.isArray(list) ? list.length : 0
+    if (count === 0) {
+      add('ABSENT', 'Identity', 'No subject is enrolled, so every condition report reads Identity: UNKNOWN. The name on a record is a string somebody typed.')
+    } else {
+      add('DEMONSTRATED', 'Identity', `${count} subject(s) enrolled against a public key`)
+    }
+  } catch (err: any) {
+    add('UNKNOWN', 'Identity', err.message)
+  }
+
+  try {
+    const pending = await get('/approvals?state=PENDING')
+    const waiting = (pending.approvals ?? []).length
+    if (waiting > 0) {
+      add('UNKNOWN', 'Approvals', `${waiting} request(s) waiting on a person. Nothing runs until somebody decides.`)
+    } else {
+      add('DEMONSTRATED', 'Approvals', 'Nothing is waiting on a decision')
+    }
+  } catch (err: any) {
+    add('UNKNOWN', 'Approvals', err.message)
+  }
+
+  try {
+    const watch = await get('/watch?state=OPEN')
+    const coverage = watch.coverage ?? {}
+    const open = (watch.notices ?? []).length
+    if (!coverage.everRun) {
+      add('FAILED', 'Watch', 'Has never swept. There are no findings because nothing has looked, which is not the same as nothing being wrong.')
+    } else if (coverage.lastSweepFailed) {
+      add('FAILED', 'Watch', `The last sweep failed: ${coverage.lastSweepFailed}`)
+    } else if (open > 0) {
+      add('UNKNOWN', 'Watch', `${open} open notice(s). ${coverage.because}`)
+    } else {
+      add('DEMONSTRATED', 'Watch', coverage.because)
+    }
+  } catch (err: any) {
+    add('UNKNOWN', 'Watch', err.message)
+  }
+
+  try {
+    const unknowns = await get('/executions/unknowns')
+    const n = unknowns.count ?? (unknowns.items ?? []).length
+    if (n > 0) {
+      add('UNKNOWN', 'Unresolved', `${n} record(s) carry something nobody has settled. Each names the step that would settle it.`)
+    } else {
+      add('DEMONSTRATED', 'Unresolved', 'Nothing in the examined window is unresolved')
+    }
+  } catch (err: any) {
+    add('UNKNOWN', 'Unresolved', err.message)
+  }
+
+  report(findings)
+}
+
+/**
+ * The four words, in a column, and a conclusion in prose.
+ *
+ * No score, no percentage, no "7/8 healthy" — the same refusal the rest of the
+ * product holds to. A doctor that summed these into a number would be inviting
+ * somebody to act on the number instead of the findings.
+ */
+function report(findings: { state: string; what: string; detail: string }[]) {
+  const mark = (s: string) => s === 'DEMONSTRATED' ? '\x1b[32m✓\x1b[0m'
+    : s === 'FAILED' ? '\x1b[31m✗\x1b[0m'
+    : s === 'UNKNOWN' ? '\x1b[33m?\x1b[0m' : '\x1b[90m·\x1b[0m'
+
+  for (const f of findings) {
+    console.log(`  ${mark(f.state)} ${f.what.padEnd(12)} ${f.detail}`)
+  }
+
+  const failed = findings.filter(f => f.state === 'FAILED')
+  const unknown = findings.filter(f => f.state === 'UNKNOWN')
+
+  console.log('')
+  if (failed.length > 0) {
+    console.log(`  ${failed.length} finding(s) contradict the evidence this deployment is producing:`)
+    for (const f of failed) console.log(`    - ${f.what}`)
+    console.log('')
+    process.exitCode = 1
+    return
+  }
+  if (unknown.length > 0) {
+    console.log(`  Nothing failed. ${unknown.length} thing(s) are unchecked or waiting on a person —`)
+    console.log('  which is a different statement from "everything is fine", and is not an error.\n')
+    return
+  }
+  console.log('  Every check this build knows how to run came back demonstrated.')
+  console.log('  That is a statement about these checks, not about the system.\n')
+}
+
 async function cmdVersion() {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'))
   console.log(`ABSuite v${pkg.version}`)
@@ -313,6 +487,7 @@ async function main() {
       case 'token-usage':
         await cmdToken({})
         break
+      case 'doctor': await cmdDoctor(command.url); break
       case 'version': await cmdVersion(); break
       case 'unknown':
         logError(`Unknown command: ${command.command}`)

@@ -165,3 +165,29 @@ describe('every command in the help text is a command', () => {
     expect(broken).toEqual([]);
   });
 });
+
+/**
+ * `absuite doctor`, borrowed in shape from `agent-reach doctor`.
+ *
+ * Theirs asks whether an agent can still reach the outside world. This one asks
+ * whether the evidence a deployment produces is worth anything — and the
+ * parsing matters because a doctor that can only examine localhost cannot be
+ * pointed at the deployment you are actually worried about.
+ */
+describe('doctor', () => {
+  test('defaults to the local capkit', () => {
+    expect(parseCommand(['doctor'])).toEqual({ kind: 'doctor', url: 'http://localhost:8081' });
+  });
+
+  test('takes a url as a flag or a positional', () => {
+    expect(parseCommand(['doctor', '--url', 'https://absuite.example'])).toEqual(
+      { kind: 'doctor', url: 'https://absuite.example' }
+    );
+    expect(parseCommand(['doctor', '-u', 'https://absuite.example'])).toEqual(
+      { kind: 'doctor', url: 'https://absuite.example' }
+    );
+    expect(parseCommand(['doctor', 'https://absuite.example'])).toEqual(
+      { kind: 'doctor', url: 'https://absuite.example' }
+    );
+  });
+});
