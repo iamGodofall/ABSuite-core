@@ -575,8 +575,11 @@ services and the room into a single container — `fly deploy`, a Render
 blueprint, or `docker run` anywhere. Set `ABSUITE_PUBLIC_PASSWORD` first: that
 process holds the key that mints capability tokens. See **[docs/DEPLOY.md](docs/DEPLOY.md)**.
 
-It is installable. Nobody outside the project has used it yet — that is the
-honest state, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) says so plainly.
+It is installable. Whether anyone outside the project has *used* it is unknown —
+the registry reports downloads, and downloads on a newly published package are
+mostly mirrors and scanners. `pnpm adoption` shows the daily series and refuses
+to convert it into a user count; [`docs/ROADMAP.md`](./docs/ROADMAP.md) says what
+would count instead.
 
 ---
 

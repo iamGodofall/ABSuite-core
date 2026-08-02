@@ -33,12 +33,30 @@ The sentence that used to sit here — *"nothing is installable and nobody has
 used it"* — is now half false and half true, and the half that changed is the
 easy half:
 
-> **It is installable. Nobody outside the project has used it.**
+> **It is installable. Whether anyone outside the project has used it is
+> UNKNOWN, and the registry cannot settle it.**
 
 `npm install @absuitecore/capkit` works, from any machine, with a signed
 Sigstore attestation of the commit that built it. That was the whole of Phase 1
-and it is done. What has not changed is the number that matters: installs by
-people who are not the maintainer.
+and it is done.
+
+What has not changed is the number that matters, and it is worth being exact
+about why it cannot be read off a dashboard. Run `pnpm adoption`. On
+2026-08-02 it reported 3,048 downloads across the seven published packages in
+thirty days — and **all seven peaked on the same day, the day they were
+published, with 11% of the total falling outside it.** That is the shape
+registry mirrors, CDN caches and security scanners make. It is not evidence of
+a person, and it is not evidence of nobody.
+
+The honest signal would carry a name: a package that depends on one of these,
+an issue from somebody who is not the maintainer, a deployment that is not ours
+verifying a record. None of those has happened yet.
+
+This paragraph previously read *"nobody outside the project has used it"*,
+stated flatly, with no measurement behind it. It was then corrected to *"about
+three thousand weekly downloads"*, which read mirror traffic as people. Both
+were published without a check, in a repository whose argument is that a claim
+nobody can check is not evidence — see [AUDIT.md](AUDIT.md) §3b.
 
 It is still not a technology problem — those sound like *"we don't know how to
 build this."* It is a distribution problem, which sounds like *"we built it, now

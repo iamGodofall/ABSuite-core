@@ -137,6 +137,58 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3b. The adoption claim, published twice without a measurement
+
+This is the sharpest finding in the audit, because the defect is in the
+project's own documentation and it is precisely the defect the project exists
+to catch.
+
+**First version.** `ROADMAP.md`, `README.md` and `FAQ.md` Q11 all stated flatly
+that *nobody outside the project has used it.* Confident, repeated across three
+documents, quoted in commit messages. **The registry was never queried.** It
+turned out to be approximately right, which is worse than being wrong — an
+unchecked claim that survives on luck teaches nobody to check the next one.
+
+**Second version.** Corrected to *about 3,048 weekly downloads and five
+dependents.* Both halves were wrong in a more interesting way:
+
+- The downloads are real and mean nothing. All seven packages peaked on
+  2026-07-29, the day they were published, with 89% of the thirty-day total on
+  that single day. That is what registry mirrors, CDN caches and security
+  scanners do to a new package. Read as adoption, it is a number that flatters.
+- The five dependents did not exist. npm has no dependents endpoint;
+  `?text=depends:@scope/pkg` is read as free text and returns the registry
+  ranked by relevance. One of the "dependents" was an unrelated package that
+  happens to be named `capkit` and belongs to somebody else.
+
+**What was done.** `scripts/measure-adoption.mjs` (`pnpm adoption`) now derives
+the figure, reports the daily series rather than a weekly total, names the
+publish-day spike as a spike, and refuses to convert downloads into users. It
+reaches UNKNOWN and says what would make it DEMONSTRATED: a dependent package,
+an issue from a stranger, a deployment that is not ours. Each of those carries a
+name; a download does not, at any scale.
+
+It is deliberately **not** in `pnpm verify`. It needs the network, and a gate
+that fails when the wifi drops gets switched off — taking the checks that do not
+need a network with it.
+
+**The general lesson, which is not about npm.** Both errors were claims about
+the project stated in prose without a measurement behind them, and prose is
+exactly where a wrong number survives longest. `check:numbers` now polices
+figures that the repository can measure about itself. This one could not be
+caught that way, because the fact lived outside the repository — and that is the
+category to stay suspicious of.
+
+**Also surfaced by that script:** `@absuitecore/notary` is marked
+`publishConfig.access: public` at version 1.0.0 and **is not on the registry.**
+`ROADMAP.md` says all seven packages were published, which is true of the seven
+that shipped; notary is an eighth that is configured to publish and did not.
+`CONSTITUTION.md` §7 names it as a mechanism that *exists*, which is true of the
+repository and not of npm. Either publish it or stop naming it as though it were
+installable — it is listed in §5.
+
+---
+
 ## 4. What was checked and found sound
 
 - **No route added this session is unauthenticated by accident.** Witnessing on
@@ -169,9 +221,10 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 | | Do this | Why |
 |---|---|---|
 | ~~1~~ | ~~An Identity surface~~ | **Done.** `absuite doctor` reported "no subject is enrolled" and there was nothing anybody could do about it from the product. A finding nobody can act on is not a finding. |
-| 1 | Require signed approvals as a configurable mode | Turns a field into a gate, and it is the row a regulated buyer will press on. |
-| 2 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
-| 3 | Chain checkpointing | The first scaling wall, and it is not close yet. |
+| 1 | Publish `@absuitecore/notary`, or stop naming it as though it ships | Minutes, not hours, and it is the cheapest item here. Three documents name a package the registry does not have — see §3b. |
+| 2 | Require signed approvals as a configurable mode | Turns a field into a gate, and it is the row a regulated buyer will press on. |
+| 3 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
+| 4 | Chain checkpointing | The first scaling wall, and it is not close yet. |
 
 None of this is blocked on anything but time. That is the useful thing about a
 list like this: everything on it is work, not luck.

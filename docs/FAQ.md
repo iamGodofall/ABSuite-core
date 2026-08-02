@@ -110,12 +110,22 @@ from one that opens with a green tick.
 
 ### Q11. Has anyone actually used this?
 
-Not yet, outside the project. That is the honest answer and it is written in
-[ROADMAP.md](ROADMAP.md) too.
+**Unknown**, and that is a real answer rather than a dodge — see [Q9](#q9-unknown-just-means-no-right).
 
-The code is real, tested and running; the adoption is not there. Anyone claiming
-otherwise about a project at this stage is telling you something else you should
-not believe either.
+The registry says 3,048 downloads across seven packages in thirty days. It also
+says all seven peaked on the day they were published, and that 89% of the total
+landed on that one day. That is the signature of registry mirrors and security
+scanners, not of people. Run `pnpm adoption` and read the daily series yourself;
+the script refuses to turn a download count into a user count, and explains why.
+
+What would actually count is a signal with a name attached: a package that
+depends on one of these, an issue opened by somebody who is not the maintainer,
+a deployment that is not ours verifying a record. None of those has happened.
+
+So: the code is real, tested and running. The adoption is not demonstrated, and
+nobody — including us — can demonstrate it from download numbers. Anyone quoting
+you a download count as an adoption figure, for this project or any other, is
+quoting you a number that does not mean what they are using it to mean.
 
 ---
 
@@ -227,9 +237,11 @@ The code is: 721 tests, 33 suites, 17 build checks, a frozen-fixture chain that
 still verifies across versions, and a second implementation that agrees with the
 first.
 
-The *project* is early. Nobody outside it has run it in production, and
-[AUDIT.md](AUDIT.md) lists every weakness found so far — including that the admin
-key can mint tokens in an enrolled subject's name without proof.
+The *project* is early. No production deployment outside this one is known to
+us — see [Q11](#q11-has-anyone-actually-used-this) for why "known to us" is the
+strongest form of that sentence the evidence supports — and [AUDIT.md](AUDIT.md)
+lists every weakness found so far, including that the admin key can mint tokens
+in an enrolled subject's name without proof.
 
 Read that document before you depend on this. It was written to be read by
 somebody deciding whether to.
