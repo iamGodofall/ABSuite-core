@@ -148,6 +148,86 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3j. `webhook.send` would fetch the cloud metadata service and hand back the body
+
+**The most serious defect found in this repository so far**, and it was found by
+continuing the same audit into `connector-starter`.
+
+The generic webhook action takes its URL from the caller and required only that
+it begin `https://`. Probed with a stubbed network so nothing left the machine,
+it **accepted every one of these**:
+
+```
+ACCEPTED  https://169.254.169.254/latest/meta-data/iam/security-credentials/
+ACCEPTED  https://metadata.google.internal/computeMetadata/v1/
+ACCEPTED  https://127.0.0.1:8081/executions
+ACCEPTED  https://[::1]/admin
+ACCEPTED  https://user:pass@example.com/creds-in-url
+```
+
+…and returns the response body in `data`. On a cloud VM the first of those is
+the instance metadata service, which is how a machine's IAM credentials are
+stolen. The third is this project's own capkit instance on loopback.
+
+**The capability token is not a defence, and saying it is would be the whole
+mistake.** The scope is `connector:execute` — *send a webhook*. It does not say
+*read this machine's cloud credentials and anything else reachable on its
+loopback interface*. **A capability that grants more than its name says is
+precisely the defect this project exists to prevent**, and it was sitting in the
+package whose job is letting agents reach outward.
+
+**Fixed.** The URL is parsed, credentials in the userinfo section are refused
+(they end up in logs and proxies), the hostname is resolved, and loopback,
+private, link-local, unique-local, carrier-grade-NAT and IPv4-mapped-IPv6
+addresses are all refused with a reason that names the range.
+`ABSUITE_ALLOW_PRIVATE_WEBHOOKS=true` restores internal delivery for deployments
+that genuinely need it — off by default, because the safe choice has to be the
+one you get without reading anything.
+
+**What the fix does not do, stated rather than glossed.** Resolving the hostname
+closes `https://localhost` and any name pointing at a private address. It does
+not close DNS rebinding: between this lookup and the one `fetch` performs, a
+hostile resolver can answer differently. Closing that needs an agent that pins
+the resolved address, which is a larger change than this package should carry
+alone. The cost is raised substantially; the class is not eliminated, and an
+operator whose threat model includes hostile DNS should not expose
+`webhook.send` to untrusted callers at all.
+
+Thirteen tests, proved by restoring the old one-line https check: ten turn red.
+
+**Also checked and found sound:** a failed delivery does not leak the webhook
+URL, which is itself a credential — anyone holding a Slack or Discord webhook
+URL can post as that integration. Node keeps the URL in `error.cause` rather
+than `error.message`, so `{"ok":false,"error":"fetch failed"}` is all that
+escapes. That is a property of the runtime rather than a decision this code
+made, which is exactly why it is now pinned by a test: appending `cause` to the
+message later would look like better error reporting.
+
+---
+
+## 3k. The MCP transport every client uses was the least tested part of it
+
+`runStdio` — newline-delimited JSON-RPC over a pipe — was uncovered. An odd
+place for a gap: no host calls `handle()` directly, so everything the package
+does passes through those twenty lines.
+
+No defect found. The framing buffers a partial tail correctly, malformed JSON
+produces a `ParseError` rather than a crash, and a notification draws no reply.
+Eight tests now hold that, including the case a test written against whole lines
+would never catch: **a single message split across two writes**, which is what a
+real pipe does and what a naive transport answers twice or not at all. Proved by
+breaking the buffering — two tests turn red.
+
+The rule worth keeping is `cli.ts`'s: **stdout belongs to the protocol.** One
+`console.log` added anywhere in the package does not degrade the experience, it
+corrupts the stream and every client disconnects — while looking entirely
+reasonable in review. That is now asserted across the package's source rather
+than trusted, and it is assertable only because `runStdio` writes through an
+injected `output` and never touches `process.stdout` directly. Proved by adding
+a `console.log` and watching it fail.
+
+---
+
 ## 3i. A benchmarking tool reported 0ms for every request that failed
 
 Found by auditing the three least-examined packages — which turned out to be the
@@ -491,7 +571,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **745 tests, 35 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **766 tests, 37 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 19 checks. Three of them are new and all three police this document:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is

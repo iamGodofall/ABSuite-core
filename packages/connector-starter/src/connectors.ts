@@ -7,6 +7,9 @@
  * what the dashboard needs to render honest status.
  */
 
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+
 export interface ConnectorAction {
   name: string;
   description: string;
@@ -118,6 +121,127 @@ export function describeConnectors(env: NodeJS.ProcessEnv = process.env) {
     missing: missingEnv(connector, env),
     actions: connector.actions,
   }));
+}
+
+/**
+ * Whether an address is somewhere a caller-supplied webhook may not reach.
+ *
+ * ## Why this exists
+ *
+ * `webhook.send` takes its URL from the caller and required only that it begin
+ * `https://`. That accepted every one of these:
+ *
+ *     https://169.254.169.254/latest/meta-data/iam/security-credentials/
+ *     https://metadata.google.internal/computeMetadata/v1/
+ *     https://127.0.0.1:8081/executions
+ *     https://[::1]/admin
+ *
+ * …and returned the response body in `data`. On a cloud VM the first of those
+ * is the instance metadata service, which is how a machine's IAM credentials
+ * are stolen.
+ *
+ * The action is behind a capability token, and that is not a defence. The
+ * scope is `connector:execute` — *send a webhook*. It does not say *read this
+ * machine's cloud credentials and anything else on its loopback interface*, and
+ * **a capability that grants more than its name says is precisely the defect
+ * this project exists to prevent.** An agent holding a narrow, legitimate grant
+ * could reach the whole internal network through it.
+ */
+const BLOCKED_V4 = [
+  [/^127\./, 'loopback'],
+  [/^10\./, 'private'],
+  [/^192\.168\./, 'private'],
+  [/^172\.(1[6-9]|2\d|3[01])\./, 'private'],
+  [/^169\.254\./, 'link-local (the cloud metadata range)'],
+  [/^0\./, 'unspecified'],
+  [/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, 'carrier-grade NAT'],
+] as const;
+
+function blockedReason(address: string): string | undefined {
+  const family = isIP(address);
+
+  if (family === 4) {
+    for (const [pattern, why] of BLOCKED_V4) {
+      if (pattern.test(address)) return why;
+    }
+    return undefined;
+  }
+
+  const normalised = address.toLowerCase().replace(/^\[|\]$/g, '');
+  if (normalised === '::1' || normalised === '::') return 'loopback';
+  if (/^f[cd]/.test(normalised)) return 'unique-local';
+  if (/^fe[89ab]/.test(normalised)) return 'link-local';
+  // ::ffff:127.0.0.1 — an IPv4 address wearing an IPv6 coat.
+  const mapped = normalised.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped?.[1]) return blockedReason(mapped[1]);
+  return undefined;
+}
+
+/**
+ * Check a caller-supplied URL before anything is sent to it.
+ *
+ * ## What this does not do, said plainly
+ *
+ * The hostname is resolved and the resulting address checked, so
+ * `https://localhost` and a domain that merely *points* at 127.0.0.1 are both
+ * refused. It is still not airtight: between this lookup and the one `fetch`
+ * performs, a hostile DNS server can return a different answer — the classic
+ * rebinding race. Closing that needs a custom agent that pins the resolved
+ * address, which is a larger change than this package should carry alone.
+ *
+ * So this raises the cost substantially and does not eliminate the class, and
+ * saying otherwise would be the kind of claim this project refuses. An operator
+ * whose threat model includes hostile DNS should not expose `webhook.send` to
+ * untrusted callers at all.
+ *
+ * `ABSUITE_ALLOW_PRIVATE_WEBHOOKS=true` turns the check off for deployments
+ * whose webhooks genuinely live on an internal network. It is off by default
+ * because the safe choice must be the one you get without reading anything.
+ */
+async function refuseUnsafeTarget(
+  raw: string,
+  env: NodeJS.ProcessEnv
+): Promise<string | undefined> {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return 'Webhook URL could not be parsed';
+  }
+
+  if (url.protocol !== 'https:') return 'Webhook URL must be https';
+
+  // Credentials in a URL end up in logs, proxies and error messages.
+  if (url.username || url.password) {
+    return 'Webhook URL must not carry credentials in the userinfo section';
+  }
+
+  if (/^(1|true|yes|on)$/i.test((env.ABSUITE_ALLOW_PRIVATE_WEBHOOKS || '').trim())) {
+    return undefined;
+  }
+
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+
+  if (isIP(host)) {
+    const why = blockedReason(host);
+    return why ? `Webhook URL resolves to a ${why} address, which this connector will not call` : undefined;
+  }
+
+  // A name can point anywhere. `metadata.google.internal` is the obvious case,
+  // and `localhost` is the one everybody forgets.
+  try {
+    const resolved = await lookup(host, { all: true });
+    for (const { address } of resolved) {
+      const why = blockedReason(address);
+      if (why) {
+        return `Webhook URL resolves to a ${why} address (${address}), which this connector will not call`;
+      }
+    }
+  } catch {
+    return `Webhook URL host could not be resolved: ${host}`;
+  }
+
+  return undefined;
 }
 
 async function request(url: string, init: RequestInit, timeoutMs = 15_000): Promise<ConnectorResult> {
@@ -270,9 +394,8 @@ export async function runAction(
 
     case 'webhook.send': {
       const url = String(input.url);
-      if (!/^https:\/\//i.test(url)) {
-        return { ok: false, error: 'Webhook URL must be https' };
-      }
+      const refusal = await refuseUnsafeTarget(url, env);
+      if (refusal) return { ok: false, error: refusal };
       return request(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
