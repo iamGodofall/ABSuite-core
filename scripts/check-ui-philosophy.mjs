@@ -263,7 +263,7 @@ if (!/## What is not built yet/.test(doc)) {
   failures.push('docs/UI-PHILOSOPHY.md: the "What is not built yet" section is missing. It must remain even when empty, or the next unkept promise has nowhere to be recorded.');
 }
 
-// ── 6. The critical rule outranks the rest ──────────────────────────────────
+// ── 7. The critical rule outranks the rest ──────────────────────────────────
 //
 // This one is a documentation check, not a code check, and it is here because
 // the ordering is the whole safeguard: if "alive" ever reads as equal in weight
