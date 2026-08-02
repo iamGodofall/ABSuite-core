@@ -60,6 +60,61 @@ node incident-forensics.mjs
 
 ---
 
+## Coming from a downloaded ZIP
+
+If you have a folder from **Download ZIP** rather than a clone, replace it with
+one. A ZIP has no history and no remote, so it cannot be updated — and the gap
+grows fast. One that was current on 31 July was seventy-one commits behind three
+days later.
+
+**Clone alongside it. Do not convert it in place**, and do not delete the old
+folder until the new one runs.
+
+```powershell
+cd D:\
+git clone https://github.com/iamGodofall/ABSuite-core.git ABSuite
+```
+
+### The one thing a clone will not give you
+
+`.env` is gitignored, and so are `*.db` and `data/`. If your old copy has a
+durable `CAPKIT_TRACE_PRIVATE_KEY`, **that is the only copy of it** — losing it
+makes every record it ever signed fail verification, permanently, with no
+recovery. Carry it across before anything else:
+
+```powershell
+# Quote BOTH paths. Any path with a space needs it, not just the odd-looking one.
+Copy-Item "D:\old-folder\.env" -Destination .
+
+# Confirm it arrived without putting the private half on screen:
+Select-String -Path .\.env -Pattern "CAPKIT_TRACE_PRIVATE_KEY" |
+  ForEach-Object { $_.Line.Substring(0, 30) + "..." }
+```
+
+An empty result means the old copy never had a durable key — every record it
+made was signed by a per-process key and stopped verifying at each restart, so
+there is nothing to preserve. Run `pnpm key:trace` in the new clone instead.
+
+Bring the database too if you want the records you already have.
+
+### Then prove it works, before trusting it
+
+```bash
+pnpm install
+pnpm build
+pnpm demo
+```
+
+`pnpm demo` needs no services, no Docker and no network, which makes it the
+right first test: if it prints its four beats, the clone is sound.
+
+**Avoid parentheses in the path.** A folder like `ABSuite-core-main (ROOM)` was
+what made `spawn('pnpm')` throw `EINVAL` on Windows before that was fixed.
+Spaces alone are fine — `D:\ABS main\ABSuite-core` was verified to build and run
+clean — but a path with neither removes a whole category of problem.
+
+---
+
 ## The services
 
 Everything above works with no server. The services exist for when several
