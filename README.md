@@ -449,6 +449,16 @@ verify which commit and workflow produced each tarball without trusting us
 | [`@absuitecore/cli`](https://www.npmjs.com/package/@absuitecore/cli) | The `absuite` command |
 | [`@absuitecore/notary`](https://www.npmjs.com/package/@absuitecore/notary) | A disinterested witness to a chain head — see [NOTARY.md](./docs/NOTARY.md). Depends on nothing else here, on purpose |
 
+Container images are published separately, to
+[GitHub Packages](https://github.com/users/iamGodofall/packages?repo_name=ABSuite-core)
+(`ghcr.io`) on every push to `main` — one per service, plus an all-in-one. The
+one worth pulling if you are **not** running ABSuite is the notary, because a
+notary you run yourself proves nothing:
+
+```bash
+docker run -p 8086:8086 ghcr.io/iamgodofall/absuite-notary:latest
+```
+
 Code for each is in [`docs/MODULES.md`](./docs/MODULES.md).
 
 ### What makes it a suite, not five services
