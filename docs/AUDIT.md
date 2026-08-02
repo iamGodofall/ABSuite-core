@@ -148,6 +148,35 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3h. The notary had no container image — and it is the one that needed one
+
+Reported by the owner: no notary under GitHub Packages.
+
+The first answer given was that this project does not publish to GitHub Packages
+at all. **That was wrong, and it was wrong in the laziest way — by asserting
+rather than looking.** `grep` found no mention of `npm.pkg.github.com` in the
+repository, and that was treated as settled. GitHub Packages hosts *containers*
+too, `cd.yml` has pushed to `ghcr.io` since July, and the page lists seven
+images.
+
+Seven, from a hardcoded list of build steps. `@absuitecore/notary` is not among
+them, because it had no `Dockerfile` — **the only service without one.**
+
+That is exactly backwards. Every other image is for somebody running ABSuite.
+The notary is the one image for somebody who is **not**: a notary you run
+yourself is a second signature from the same party and proves nothing, so the
+whole product needs a stranger to run one. It was the single service where
+`docker run` matters most, and the single service you could not `docker run`.
+
+Same root cause as §3f — a list of build steps written by hand, one per image,
+which drifts from what the repository contains and cannot notice. Now added,
+with the Dockerfile deliberately shorter than its siblings: it copies no capkit,
+because a notary that depended on the thing it witnesses would be a component of
+it. If that file ever needs a line mentioning capkit, something upstream has
+gone wrong.
+
+---
+
 ## 3g. A flaky test that could never have worked, found by it blocking a release
 
 `quickbench`'s throughput test asserted `opsPerSecond < 1000`. It passed locally
@@ -356,10 +385,27 @@ dependents.* Both halves were wrong in a more interesting way:
   2026-07-29, the day they were published, with 89% of the thirty-day total on
   that single day. That is what registry mirrors, CDN caches and security
   scanners do to a new package. Read as adoption, it is a number that flatters.
-- The five dependents did not exist. npm has no dependents endpoint;
-  `?text=depends:@scope/pkg` is read as free text and returns the registry
-  ranked by relevance. One of the "dependents" was an unrelated package that
-  happens to be named `capkit` and belongs to somebody else.
+- The five dependents were found by a *search* — `?text=depends:@scope/pkg` —
+  which npm reads as free text and answers with the registry ranked by
+  relevance. One result was an unrelated package that happens to be named
+  `capkit` and belongs to somebody else.
+
+**And then a third version, which is the one worth keeping.** The correction
+above concluded that npm has no dependents data at all. **It does** — it is a
+field on the search result, and for `@absuitecore/capkit` it says five. Those
+five are `connector-starter`, `edge-run`, `mcp`, `quickbench` and `trust`:
+every one of them ours. So the number is real, it is not adoption, and
+reporting it without that distinction would have been the third telling of the
+same story.
+
+`pnpm adoption` now reports dependents and subtracts our own, because
+**a first-party dependent is a fact about the monorepo and a third-party one is
+the first evidence a stranger chose this.** Today: five, all ours, none outside.
+
+The lesson is not about npm. Twice the fix for a wrong claim was another claim
+made without checking — including the fix that said "this cannot be measured",
+which is the most comfortable wrong answer available, because nobody ever
+audits an admission of ignorance.
 
 **What was done.** `scripts/measure-adoption.mjs` (`pnpm adoption`) now derives
 the figure, reports the daily series rather than a weekly total, names the

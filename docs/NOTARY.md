@@ -52,7 +52,16 @@ CAPKIT_NOTARY_PRIVATE_KEY="$(node -e "
 ")" npx @absuitecore/notary
 ```
 
-Or from a clone, `pnpm notary`.
+Or as a container, which needs no Node and no clone:
+
+```bash
+docker run -p 8086:8086 \
+  -e CAPKIT_NOTARY_PRIVATE_KEY="$(cat notary-key.pem)" \
+  ghcr.io/iamgodofall/absuite-notary:latest
+```
+
+Or from a clone, `pnpm notary`. Installed globally the command is
+`absuite-notary`.
 
 | | |
 |---|---|

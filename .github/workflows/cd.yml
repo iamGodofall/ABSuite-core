@@ -143,6 +143,28 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
+    # The notary is the one image somebody who is NOT running ABSuite should
+    # pull — a notary you run yourself is a second signature from the same
+    # party and proves nothing. It was the only service without an image, which
+    # is exactly backwards, and the reason was that this list is written by
+    # hand: notary was missing from the npm publish list for the same reason.
+    - name: Build and push Notary
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./packages/notary/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        # A sha tag alone is useless to a stranger — nobody looks up a commit
+        # hash to run a notary. `latest` is what the documentation can honestly
+        # tell someone to pull, so it is published here rather than described
+        # somewhere it does not exist.
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-notary:${{ github.sha }}
+          ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/absuite-notary:latest
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
     - name: Build and push Connector
       uses: docker/build-push-action@v5
       with:

@@ -118,23 +118,47 @@ for (const name of published) {
   measured.push(record);
 }
 
-/* ── Report ─────────────────────────────────────────────────────────────── */
+/* ── Dependents: the only signal that carries a name ────────────────────── */
 
 /**
- * Dependents are not counted here, on purpose.
+ * npm's search API reports a `dependents` count per package, and it is real.
  *
- * A dependent would be the good signal — a package whose maintainer decided to
- * depend on this, carrying an author and a version, which is exactly what a
- * download lacks. But npm's public API has no dependents endpoint.
- * `?text=depends:@scope/pkg` is read as free text and returns the whole
- * registry ranked by relevance; that is how the earlier "five dependents"
- * figure was invented, and one of those five was an unrelated package that
- * happened to be named `capkit`.
+ * This was got wrong twice in opposite directions, which is why it is worth
+ * spelling out. First a *search* was used — `?text=depends:@scope/pkg` — which
+ * npm reads as free text and answers with the whole registry ranked by
+ * relevance; that returned five unrelated packages, one of them literally named
+ * `capkit` and belonging to somebody else. Correcting that, the conclusion was
+ * that npm has no dependents data at all. **It does.** It is a field on the
+ * search result, and for `@absuitecore/capkit` it says five.
  *
- * Reporting UNKNOWN for a question the data cannot answer is the whole
- * doctrine. Substituting a search that returns *something* is how the wrong
- * number got published the first time.
+ * And those five are all ours: connector-starter, edge-run, mcp, quickbench and
+ * trust each depend on capkit. So the number is real, it is not adoption, and
+ * reporting it without that distinction would be the third version of the same
+ * mistake.
+ *
+ * Hence: count dependents, then subtract our own. **A first-party dependent is
+ * a fact about our monorepo. A third-party one is the first evidence a stranger
+ * chose this**, and it carries a name in a way no download does.
  */
+const OWN = new Set(published);
+
+const dependentsOf = async () => {
+  const found = new Map();
+  try {
+    const search = await json('https://registry.npmjs.org/-/v1/search?text=%40absuitecore&size=25');
+    for (const entry of search.objects ?? []) {
+      const count = Number(entry.dependents ?? 0);
+      if (Number.isFinite(count)) found.set(entry.package.name, count);
+    }
+  } catch {
+    return null; // Unknown is a real answer; a zero here would be a false one.
+  }
+  return found;
+};
+
+const dependents = await dependentsOf();
+
+/* ── Report ─────────────────────────────────────────────────────────────── */
 
 const pad = (text, width) => String(text).padEnd(width);
 const nameWidth = Math.max(...published.map(name => name.length)) + 2;
@@ -189,10 +213,41 @@ if (withData.length === 0) {
 }
 
 console.log('');
-console.log('          What would make it DEMONSTRATED: a package that depends on one of');
-console.log('          these, an issue from somebody who is not the maintainer, or a');
-console.log('          deployment that is not ours verifying a record. Each of those');
-console.log('          carries a name. A download does not, at any scale.');
+if (dependents === null) {
+  console.log('DEPENDENTS  UNKNOWN — the registry search did not answer. Not zero.');
+} else {
+  const total = [...dependents.values()].reduce((sum, n) => sum + n, 0);
+  /*
+   * Every package in this scope that depends on another is one of ours, so the
+   * count of first-party edges is derivable from the manifests rather than
+   * guessed at — and anything above it came from outside.
+   */
+  const firstParty = published.reduce((sum, name) => {
+    const dir = name.replace('@absuitecore/', '');
+    try {
+      const manifest = JSON.parse(readFileSync(join(root, 'packages', dir, 'package.json'), 'utf8'));
+      return sum + Object.keys(manifest.dependencies ?? {}).filter(dep => OWN.has(dep)).length;
+    } catch { return sum; }
+  }, 0);
+  const outside = total - firstParty;
+
+  for (const [name, count] of [...dependents].filter(([, n]) => n > 0)) {
+    console.log(`DEPENDENTS  ${name} — ${count}`);
+  }
+  console.log(
+    outside > 0
+      ? `            ${firstParty} are ours; ${outside} are not. Look at those — a package that\n` +
+        '            depends on this is the first signal with a name on it.'
+      : `            All ${total} are ours (packages in this monorepo depending on each other).\n` +
+        '            No package outside this project depends on any of these yet.'
+  );
+}
+
+console.log('');
+console.log('          What would make adoption DEMONSTRATED: a dependent that is not ours,');
+console.log('          an issue from somebody who is not the maintainer, or a deployment');
+console.log('          that is not ours verifying a record. Each of those carries a name.');
+console.log('          A download does not, at any scale.');
 console.log('');
 console.log('A download count is not a user count, and this refuses to convert one into');
 console.log('the other. Documents may quote the series above; they may not quote a');
