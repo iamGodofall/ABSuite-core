@@ -39,6 +39,38 @@ async function timedFetch(url: string, init: RequestInit, timeoutMs: number) {
   return { response, text, latencyMs };
 }
 
+/**
+ * Time an attempt, including the attempts that fail.
+ *
+ * Every provider's `catch` used to return `latencyMs: 0`, which is a number no
+ * measurement produced. A request that aborted after the full 120-second
+ * timeout was reported as having taken no time at all — in a benchmarking tool,
+ * whose entire job is to report how long things take.
+ *
+ * It was invisible because `runner.ts` filters to successes before computing
+ * latency, so the fabricated zero never reached a percentile. That makes it a
+ * latent lie rather than a live one: harmless until somebody calls a provider
+ * directly, and wrong the whole time.
+ *
+ * **How long the failures took is often the number that matters.** A provider
+ * degrading under load fails slowly, and "every request errored" tells you far
+ * less than "every request errored after 119 seconds".
+ */
+async function attempt(
+  startedAt: number,
+  run: () => Promise<CompletionResult>
+): Promise<CompletionResult> {
+  try {
+    return await run();
+  } catch (error) {
+    return {
+      ok: false,
+      latencyMs: performance.now() - startedAt,
+      error: (error as Error).message,
+    };
+  }
+}
+
 /** Ollama — local inference, no API key, so it is the default for CI. */
 export class OllamaProvider implements Provider {
   readonly name = 'ollama';
@@ -53,7 +85,8 @@ export class OllamaProvider implements Provider {
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
-    try {
+    const startedAt = performance.now();
+    return attempt(startedAt, async () => {
       const { response, text, latencyMs } = await timedFetch(
         `${this.baseUrl}/api/generate`,
         {
@@ -90,9 +123,7 @@ export class OllamaProvider implements Provider {
         totalTokens: promptTokens + completionTokens,
         text: data.response ?? '',
       };
-    } catch (error) {
-      return { ok: false, latencyMs: 0, error: (error as Error).message };
-    }
+    });
   }
 }
 
@@ -111,9 +142,11 @@ export class OpenAIProvider implements Provider {
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
+    // Zero is the measurement here, not a placeholder: no request was made.
     if (!this.configured) return { ok: false, latencyMs: 0, error: 'OPENAI_API_KEY is not set' };
 
-    try {
+    const startedAt = performance.now();
+    return attempt(startedAt, async () => {
       const { response, text, latencyMs } = await timedFetch(
         `${this.baseUrl}/chat/completions`,
         {
@@ -145,9 +178,7 @@ export class OpenAIProvider implements Provider {
         totalTokens: data.usage?.total_tokens ?? 0,
         text: data.choices?.[0]?.message?.content ?? '',
       };
-    } catch (error) {
-      return { ok: false, latencyMs: 0, error: (error as Error).message };
-    }
+    });
   }
 }
 
@@ -166,9 +197,11 @@ export class AnthropicProvider implements Provider {
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
+    // Zero is the measurement here, not a placeholder: no request was made.
     if (!this.configured) return { ok: false, latencyMs: 0, error: 'ANTHROPIC_API_KEY is not set' };
 
-    try {
+    const startedAt = performance.now();
+    return attempt(startedAt, async () => {
       const { response, text, latencyMs } = await timedFetch(
         `${this.baseUrl}/messages`,
         {
@@ -207,9 +240,7 @@ export class AnthropicProvider implements Provider {
         totalTokens: promptTokens + completionTokens,
         text: data.content?.[0]?.text ?? '',
       };
-    } catch (error) {
-      return { ok: false, latencyMs: 0, error: (error as Error).message };
-    }
+    });
   }
 }
 
@@ -221,7 +252,8 @@ export class HttpProvider implements Provider {
   constructor(private readonly url: string, private readonly method = 'GET') {}
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
-    try {
+    const startedAt = performance.now();
+    return attempt(startedAt, async () => {
       const { response, latencyMs } = await timedFetch(
         this.url,
         { method: this.method },
@@ -230,9 +262,7 @@ export class HttpProvider implements Provider {
       return response.ok
         ? { ok: true, latencyMs }
         : { ok: false, latencyMs, error: `HTTP ${response.status}` };
-    } catch (error) {
-      return { ok: false, latencyMs: 0, error: (error as Error).message };
-    }
+    });
   }
 }
 

@@ -154,6 +154,25 @@ export class BenchmarkRunner {
 
       const durationMs = performance.now() - startedAt;
       const successes = results.filter(result => result.ok);
+
+      /*
+       * Latency is summarised over successes only, and that is now a choice
+       * rather than a necessity.
+       *
+       * It used to be forced: providers returned `latencyMs: 0` on failure, so
+       * including failures would have dragged every percentile toward zero with
+       * a number nobody measured. Providers time their failures now, so the
+       * option is real — and the answer is still no, because a 119-second
+       * timeout mixed into a p50 of 200ms successes produces a p50 that
+       * describes no request that ever happened.
+       *
+       * The reader is not left to guess which population it is:
+       * `latency.count` is the number of successes and `successRate` is
+       * reported beside it, so a run where half the calls failed cannot look
+       * like a run where none did. `measure.ts` takes the opposite view for
+       * `measureOperation`, deliberately — there a failure is an iteration of
+       * the same operation, not a different event.
+       */
       const latencies = successes.map(result => result.latencyMs);
 
       if (successes.length === 0) {
