@@ -537,7 +537,7 @@ can be proven*.
 
 ```text
 721 tests                     127 API endpoints
-7 npm packages on npm         5 HTTP services + room + notary + MCP
+8 npm packages on npm         5 HTTP services + room + notary + MCP
 API docs drift-checked in CI  published from CI with provenance
 ```
 

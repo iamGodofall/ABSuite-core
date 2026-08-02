@@ -26,7 +26,7 @@ This document is measured in **days**. The decade-scale view lives in
 | Governance Components | Complete |
 | Explainability | Complete |
 
-721 tests. 127 API endpoints. 7 npm packages on npm. 5 HTTP services and the room,
+721 tests. 127 API endpoints. 8 npm packages on npm. 5 HTTP services and the room,
 a notary, and an MCP server.
 
 The sentence that used to sit here — *"nothing is installable and nobody has
@@ -71,7 +71,9 @@ Nothing in later phases is possible until this is done. It is days of work, not
 weeks, and none of it is interesting — which is exactly why it keeps being
 deferred in favour of building something.
 
-- [x] **Publish the packages to npm.** All seven, with provenance.
+- [x] **Publish the packages to npm.** All eight, with provenance — the eighth,
+      `@absuitecore/notary`, shipped on 2026-08-02 after the publish workflow
+      stopped writing its package list by hand. See [AUDIT.md](AUDIT.md) §3f.
 - [x] Make the GitHub repository public
 - [x] Write an installation guide that works on a clean machine —
       [`GETTING-STARTED.md`](../GETTING-STARTED.md), every command run against
@@ -162,8 +164,7 @@ and the install count has not moved.
 The build question is answered: five services and the room run, 127 endpoints are
 documented, and 52 documented GET routes were confirmed answering against a live
 suite. The open question is a different one, and no amount of further building
-settles it —
-*can someone else understand this in five minutes?*
+settles it — *can someone else understand this in five minutes?*
 
 Nobody adopts a project because it has 721 tests. They adopt it because they
 opened the dashboard and understood what it was. That makes the interface the

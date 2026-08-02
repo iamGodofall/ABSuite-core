@@ -309,7 +309,7 @@ building. What it grows into, in order, each layer resting on the one below:
 | 4 | **Trust** | Records accumulate into facts about behaviour — counts, never scores about people | Built | `packages/trust/src/scoring.ts` |
 | 5 | **Governance** | Policies, obligations, approvals and the workflows humans use to run all of it | Built | `packages/capkit/src/approval.ts` |
 | 6 | **Autonomy** | ABSuite's own agents watch the record continuously and raise what a person should see | Built | `packages/capkit/src/watch.ts` |
-| 7 | **Collective Intelligence** | Independent deployments verify each other's records without merging them *(accrues with adoption — one mechanism is built, [`packages/notary`](../packages/notary/), though it is not yet on the registry; the layer is the network, and the network needs deployments that are not ours)* | Not built | — |
+| 7 | **Collective Intelligence** | Independent deployments verify each other's records without merging them *(accrues with adoption — one mechanism is built and published, `@absuitecore/notary`, but the layer is the network, and the network needs deployments that are not ours)* | Not built | — |
 | 8 | **Civilization** | Millions of agents, autonomous economies, planetary-scale accountability *(accrues with use — nothing here is a feature that can be written; it is what the lower seven become at scale)* | Not built | — |
 
 The last two columns are not decoration. A roadmap that does not mark what is

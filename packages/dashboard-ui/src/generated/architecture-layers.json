@@ -45,7 +45,7 @@
     {
       "index": 7,
       "name": "Collective Intelligence",
-      "property": "Independent deployments verify each other's records without merging them *(accrues with adoption — one mechanism is built, [`packages/notary`](../packages/notary/), though it is not yet on the registry; the layer is the network, and the network needs deployments that are not ours)*",
+      "property": "Independent deployments verify each other's records without merging them *(accrues with adoption — one mechanism is built and published, `@absuitecore/notary`, but the layer is the network, and the network needs deployments that are not ours)*",
       "status": "NOT_BUILT",
       "evidence": null
     },

@@ -137,6 +137,52 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3f. The published packages were four days and twenty-six commits stale
+
+Two findings with one cause, both found by asking the registry instead of the
+repository.
+
+**`@absuitecore/notary` had never been published.** Built, marked
+`publishConfig.access: public` at 1.0.0, named in three documents as though it
+shipped. `publish.yml` wrote its package list by hand in **five** separate
+places — preview, workspace-protocol check, publish loop, and twice in the
+summary — and notary was in none of them. `release.yml` held a sixth copy of the
+same list, so every release note also published an inventory missing it.
+
+Nothing caught this because the six hand-written copies agreed with each other.
+It is the same shape as §3e: a fact copied by hand drifts from the thing it
+describes, and copies agreeing looks like confirmation.
+
+**The published capkit predated Layers 5 and 6.** `capkit@1.1.2` went to npm on
+2026-07-29 and took 26 commits after it, 15 touching non-test source — including
+`approval.ts` and `watch.ts`, both exported from `index.ts`. No version was ever
+bumped, so the registry copy could not have been updated in place.
+
+Confirmed rather than inferred: `npm install @absuitecore/capkit` into an empty
+directory returned 1.1.2 with **no `approval.js` and no `watch.js` in the
+tarball.** Anyone installing that day got a package without Governance and
+Autonomy while the documentation described both as built.
+
+**Fixed.** The list is derived by `scripts/publishable-packages.mjs` from
+`packages/*/package.json`, capkit sorted first because everything depends on it
+and npm resolves at install time against the registry. `dashboard-ui` is excluded
+by `private: true` — an application, not a library, so its absence is a decision
+rather than an omission. Versions were bumped by what actually changed in `src`:
+capkit `1.2.0`, cli `1.1.0`, trust `1.1.2`, quickbench `1.0.2`, notary `1.0.0`
+first publish. connector-starter, edge-run and mcp had no source changes and were
+left alone; their published copies require capkit `^1.1.2`, which `1.2.0`
+satisfies.
+
+**Verified against the live registry after publishing**, not against the
+workflow's summary: a clean `npm install` in an empty directory returns
+capkit 1.2.0 carrying `dist/approval.js` and `dist/watch.js`, an approval
+reaches `GRANTED`, `Watch.coverage()` reports `everRun: false` with the sentence
+explaining that nothing has looked yet, a trace verifies, and `@absuitecore/notary`
+exports. The documented `examples/incident-forensics.mjs` runs end to end
+against published packages.
+
+---
+
 ## 3e. "Six services", in eleven places, in two shapes that cannot both be true
 
 Found by bringing the stack up and counting what answered rather than reading
@@ -278,13 +324,11 @@ figures that the repository can measure about itself. This one could not be
 caught that way, because the fact lived outside the repository — and that is the
 category to stay suspicious of.
 
-**Also surfaced by that script:** `@absuitecore/notary` is marked
-`publishConfig.access: public` at version 1.0.0 and **is not on the registry.**
-`ROADMAP.md` says all seven packages were published, which is true of the seven
-that shipped; notary is an eighth that is configured to publish and did not.
-`CONSTITUTION.md` §7 names it as a mechanism that *exists*, which is true of the
-repository and not of npm. Either publish it or stop naming it as though it were
-installable — it is listed in §5.
+**Also surfaced by that script:** `@absuitecore/notary` was marked
+`publishConfig.access: public` at version 1.0.0 and **was not on the registry** —
+`ROADMAP.md` said all seven packages were published, which was true of the seven
+that shipped, while notary was an eighth configured to publish that never did.
+Chased down in §3f and published on 2026-08-02.
 
 ---
 
@@ -326,10 +370,10 @@ installable — it is listed in §5.
 | | Do this | Why |
 |---|---|---|
 | ~~1~~ | ~~An Identity surface~~ | **Done.** `absuite doctor` reported "no subject is enrolled" and there was nothing anybody could do about it from the product. A finding nobody can act on is not a finding. |
-| 1 | Publish `@absuitecore/notary`, or stop naming it as though it ships | Minutes, not hours, and it is the cheapest item here. Three documents name a package the registry does not have — see §3b. |
-| 2 | Require signed approvals as a configurable mode | Turns a field into a gate, and it is the row a regulated buyer will press on. |
-| 3 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
-| 4 | Chain checkpointing | The first scaling wall, and it is not close yet. |
+| ~~1~~ | ~~Publish `@absuitecore/notary`~~ | **Done**, 2026-08-02. Three documents named a package the registry did not have. The cause was a hand-written package list in six places — §3f. |
+| 1 | Require signed approvals as a configurable mode | Turns a field into a gate, and it is the row a regulated buyer will press on. |
+| 2 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
+| 3 | Chain checkpointing | The first scaling wall, and it is not close yet. |
 
 None of this is blocked on anything but time. That is the useful thing about a
 list like this: everything on it is work, not luck.
