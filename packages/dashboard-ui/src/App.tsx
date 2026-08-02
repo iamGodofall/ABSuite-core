@@ -28,6 +28,7 @@ import { AttentionPanel } from './tabs/Attention';
 import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
 import { Approvals } from './tabs/Approvals';
+import { IdentityLayer } from './tabs/Identity';
 import { WatchLayer } from './tabs/WatchLayer';
 import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
@@ -76,7 +77,7 @@ type TabId =
   // The seven-stage loop.
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
   // The standing views. Not stages — the things the stages act on.
-  | 'evidence' | 'policies' | 'agents' | 'unknowns' | 'approvals' | 'watch'
+  | 'evidence' | 'policies' | 'agents' | 'unknowns' | 'approvals' | 'watch' | 'identity'
   // A transport over the log, rather than a place. Replay is the only view
   // whose subject is time.
   | 'replay'
@@ -1349,6 +1350,7 @@ const TAB_CONFIG: {
   { id: 'agents',   label: 'Agents',       question: 'Who has been acting here?',           icon: Bot },
   { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
   { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
+  { id: 'identity',  label: 'Identity',    question: 'Who is acting, and can they prove it', icon: Bot },
   { id: 'approvals', label: 'Approvals',   question: 'What is waiting on a person',        icon: Scale },
   { id: 'watch',     label: 'Watch',       question: 'What has been raised, and how much it covers', icon: Eye },
   { id: 'replay',   label: 'Replay',        question: 'What happened, in the order it happened', icon: Play },
@@ -1655,6 +1657,10 @@ export default function App() {
       // Layer 5 and Layer 6, which existed as endpoints and could not be
       // reached from here. An approval queue nobody can open is a workflow
       // performed entirely by whoever wrote the curl command.
+      // Layer 1. The base of the ascent, and it had no surface at all — which
+      // is why a fresh instance reports Identity: UNKNOWN on every record and
+      // nobody could do anything about it from here.
+      case 'identity' as TrustLayer: return <IdentityLayer />;
       case 'approvals' as TrustLayer: return <Approvals />;
       case 'watch' as TrustLayer: return <WatchLayer />;
       case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} onWitness={setWitnessing} />;

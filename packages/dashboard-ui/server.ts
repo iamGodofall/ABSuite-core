@@ -511,6 +511,75 @@ app.get('/executions/attention', requireAdminAccess, async (req, res) => {
 });
 
 /**
+ * Layer 1 — Identity. The base of the ascent, and it had no interface at all.
+ *
+ * Seven routes existed and none were reachable from here, which meant the only
+ * way to enrol a subject was curl. Every condition report reads
+ * `Identity: UNKNOWN` until one is enrolled, so the layer everything else rests
+ * on was the one nobody could operate.
+ *
+ * Enrolment takes a *public* key. This proxy never sees a private half and must
+ * never be given a path that could carry one — capkit refuses a PEM containing
+ * PRIVATE KEY outright, and that refusal is the thing keeping this honest.
+ */
+app.get('/identities', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/identities`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+app.post('/identities', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/identities`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/**
+ * Suspend and reinstate, kept as separate paths rather than one with a flag.
+ *
+ * A single `status` endpoint would make withdrawing an identity's authority the
+ * same shape as restoring it, and those are not the same act. Suspension needs a
+ * reason; reinstatement is a decision somebody made about a suspension that is
+ * already in the record.
+ */
+for (const action of ['suspend', 'reinstate'] as const) {
+  app.post(`/identities/:subject/${action}`, requireAdminAccess, async (req, res) => {
+    try {
+      const { response, data } = await fetchJson(
+        `${SERVICE_BASE_URLS.capkit}/identities/${encodeURIComponent(String(req.params.subject))}/${action}`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+          },
+          body: JSON.stringify(req.body ?? {}),
+        }
+      );
+      return res.status(response.status).json(data);
+    } catch {
+      return res.status(502).json({ error: 'CapKit is unreachable' });
+    }
+  });
+}
+
+/**
  * Layer 5 — the approvals a person owes a decision on.
  *
  * Proxied rather than reimplemented, like everything else here: this process

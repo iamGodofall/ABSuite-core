@@ -34,7 +34,7 @@ capability that exists and cannot be opened.
 
 | Built | Where | Interface |
 |---|---|---|
-| **Identity (Layer 1)** — enrolment, key rotation, suspension, proof of possession | `capkit/src/identity.ts`, 7 routes | **None.** No proxy route, no panel. |
+| **Identity (Layer 1)** — enrolment, key rotation, suspension, proof of possession | `capkit/src/identity.ts`, 7 routes | **Built.** Enrol, suspend, reinstate, and proven-vs-enrolled shown per subject. |
 | **Provenance** — which agent's output became which agent's input | `capkit/src/provenance.ts`, 2 routes | **None.** |
 | **Model identity** — is the thing answering still the model that was approved | `capkit/src/model-identity.ts`, 4 routes | Partial — no approve/supersede surface |
 | **Tenancy and billing** | `tenancy.ts`, `billing.ts`, 6 admin routes | **None.** |
@@ -99,10 +99,10 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 | | Do this | Why |
 |---|---|---|
-| 1 | An Identity surface in the dashboard | The base layer cannot be operated at all. Everything above it reports UNKNOWN until it can. |
-| 2 | Require signed approvals as a configurable mode | Turns a field into a gate, and it is the row a regulated buyer will press on. |
-| 3 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
-| 4 | Chain checkpointing | The first scaling wall, and it is not close yet. |
+| ~~1~~ | ~~An Identity surface~~ | **Done.** `absuite doctor` reported "no subject is enrolled" and there was nothing anybody could do about it from the product. A finding nobody can act on is not a finding. |
+| 1 | Require signed approvals as a configurable mode | Turns a field into a gate, and it is the row a regulated buyer will press on. |
+| 2 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
+| 3 | Chain checkpointing | The first scaling wall, and it is not close yet. |
 
 None of this is blocked on anything but time. That is the useful thing about a
 list like this: everything on it is work, not luck.
