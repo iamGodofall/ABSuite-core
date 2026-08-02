@@ -35,6 +35,34 @@ const TONE: Record<Determination, string> = {
   ABSENT: 'text-ab-gray',
 };
 
+/**
+ * The wall clock, in the reader's own time — and never a record's timestamp.
+ *
+ * This is the one time display in the product that is *not* evidence. It answers
+ * "what time is it where I am", which is a question about the reader, so showing
+ * it in UTC made everyone outside that zone do arithmetic to read their own
+ * clock.
+ *
+ * Every timestamp *in the record* stays UTC and ISO-8601, and must. A record
+ * that reads 14:02 to the operator and 16:02 to their auditor is a record two
+ * parties disagree about, and the whole point is that they cannot.
+ *
+ * The zone is printed beside it for the same reason a figure carries its unit —
+ * a bare "17:15:59" is ambiguous, which is exactly what UTC was protecting
+ * against.
+ */
+const ZONE = (() => {
+  try {
+    const parts = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(new Date());
+    return parts.find(part => part.type === 'timeZoneName')?.value ?? 'LOCAL';
+  } catch {
+    return 'LOCAL';
+  }
+})();
+
+const clock = (at: Date) =>
+  `${at.toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })} ${ZONE}`;
+
 export function TopBar({ connected, vitals }: { connected: boolean; vitals: Vital[] }) {
   const [time, setTime] = useState(() => new Date());
 
@@ -103,7 +131,7 @@ export function TopBar({ connected, vitals }: { connected: boolean; vitals: Vita
           <span className="text-ab-white/40 flex items-center gap-1.5">
             <Clock size={10} className="text-ab-white/30" /> System clock
           </span>
-          <span className="text-ab-white">{time.toISOString().split('T')[1].split('.')[0]} UTC</span>
+          <span className="text-ab-white">{clock(time)}</span>
         </div>
 
         {vitals.map(vital => (
