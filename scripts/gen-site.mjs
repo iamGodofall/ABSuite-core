@@ -134,7 +134,7 @@ const figures = [
     note: 'Read from the constitution at build time. The last two accrue with adoption rather than being written.' },
   { value: String([...read('docs/API.md').matchAll(/^\|\s*(GET|POST|PUT|DELETE|PATCH)\s*\|/gm)].length),
     of: 'documented routes',
-    note: 'Generated from the source of the six services, and the build fails when the two drift apart.' },
+    note: 'Generated from the source of the five services, and the build fails when the two drift apart.' },
   // Read from the manifests, not from the registry. "Public" means the manifest
   // does not mark it private; whether a given version is on npm this minute is
   // a fact about a server, and this generator cannot check it.

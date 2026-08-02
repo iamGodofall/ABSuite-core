@@ -450,7 +450,7 @@ verify which commit and workflow produced each tarball without trusting us
 
 Code for each is in [`docs/MODULES.md`](./docs/MODULES.md).
 
-### What makes it a suite, not six services
+### What makes it a suite, not five services
 
 CapKit is the shared authorisation layer. Every other service imports
 `capabilityGuard` from `@absuitecore/capkit` and enforces the same capability
@@ -537,7 +537,7 @@ can be proven*.
 
 ```text
 721 tests                     127 API endpoints
-7 npm packages on npm         6 HTTP services + notary + MCP server
+7 npm packages on npm         5 HTTP services + room + notary + MCP
 API docs drift-checked in CI  published from CI with provenance
 ```
 
@@ -549,7 +549,7 @@ Numbers are generated, not claimed: run `pnpm test` and `pnpm docs:check`.
 pnpm install && pnpm build && pnpm room
 ```
 
-Starts all six services and the orchestrator, then serves the Trust Operations
+Starts all five services and the orchestrator, then serves the Trust Operations
 Center at **http://localhost:3001**. A copy of the interface with nothing behind
 it reports *No instance connected* rather than a failure — it reads live
 services and shows UNKNOWN for anything it cannot reach, and never substitutes a
@@ -570,7 +570,7 @@ through the same API a production record goes through — edit one afterwards an
 `verifyChain` names its sequence number. Nothing is inserted behind the API, and
 nothing is displayed that was not measured.
 
-To put an instance at a public address, `deploy/Dockerfile` builds all six
+To put an instance at a public address, `deploy/Dockerfile` builds all five
 services and the room into a single container — `fly deploy`, a Render
 blueprint, or `docker run` anywhere. Set `ABSUITE_PUBLIC_PASSWORD` first: that
 process holds the key that mints capability tokens. See **[docs/DEPLOY.md](docs/DEPLOY.md)**.

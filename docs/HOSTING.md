@@ -85,7 +85,8 @@ Google's always-free tier includes one `e2-micro` in `us-west1`, `us-central1`
 or `us-east1`, with 30 GB of standard persistent disk.
 
 That is a real VM with a real disk. The repository already ships a
-`docker-compose.yml` that brings up all six services; on a VM it runs unchanged.
+`docker-compose.yml` that brings up all five services and the room; on a VM it runs
+unchanged.
 One instance, one disk, always on — exactly the shape the architecture wants.
 
 - `CAPKIT_TRACE_PRIVATE_KEY` in **Secret Manager**, injected at boot. Never in
@@ -150,7 +151,7 @@ Do not pre-solve it. There is no second deployment yet.
 
 ## About seeing it run
 
-`pnpm room` starts all six services and the interface locally and tells you what
+`pnpm room` starts all five services and the interface locally and tells you what
 did not come up. That is the fastest path to watching it work, and it needs no
 cloud account.
 

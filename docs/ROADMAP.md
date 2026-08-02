@@ -26,8 +26,8 @@ This document is measured in **days**. The decade-scale view lives in
 | Governance Components | Complete |
 | Explainability | Complete |
 
-721 tests. 127 API endpoints. 7 npm packages on npm. 6 HTTP services, a notary,
-and an MCP server.
+721 tests. 127 API endpoints. 7 npm packages on npm. 5 HTTP services and the room,
+a notary, and an MCP server.
 
 The sentence that used to sit here — *"nothing is installable and nobody has
 used it"* — is now half false and half true, and the half that changed is the
@@ -159,9 +159,10 @@ and the install count has not moved.
 
 > **Make a stranger understand ABSuite in sixty seconds.**
 
-The build question is answered: six services run, 127 endpoints are documented
-and 46 documented GET routes were confirmed answering against a live suite. The
-open question is a different one, and no amount of further building settles it —
+The build question is answered: five services and the room run, 127 endpoints are
+documented, and 52 documented GET routes were confirmed answering against a live
+suite. The open question is a different one, and no amount of further building
+settles it —
 *can someone else understand this in five minutes?*
 
 Nobody adopts a project because it has 721 tests. They adopt it because they

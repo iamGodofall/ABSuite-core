@@ -137,6 +137,37 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3e. "Six services", in eleven places, in two shapes that cannot both be true
+
+Found by bringing the stack up and counting what answered rather than reading
+what the documents said.
+
+`pnpm room` starts **five backend services** — capkit, edge-run, quickbench,
+connector-starter, trust — plus the room itself on `:3001`. The documents said
+*six services* eleven times, in two phrasings:
+
+- **"six services"** — defensible only if the room is counted as one of them.
+- **"all six services plus the interface"** — which counts the room twice, and
+  was the phrasing in `GUIDE.md`, `HOSTING.md`, `README.md`, `DEPLOY.md`,
+  `room.html` and this document's own §4.
+
+Two files said **five** and were right the whole time: `MODULES.md` and
+`deploy/serve-all.mjs`. They had been contradicting nine other files for as long
+as both existed, and nobody saw it — **nine documents agreeing looks like
+consensus**, and the two correct ones looked like the outliers.
+
+Everything now says five services and the room, and `check:numbers` derives the
+figure from the service list `run-room.mjs` actually spawns. The pattern reads
+the word as well as the digit, because *"six services plus the interface"* is
+how this was wrong and a check that only reads digits would have missed it.
+
+Two more stale figures fell out of the same live run: `ROADMAP.md` claimed 46
+documented GET routes confirmed against a live suite when `check:live` reports
+**52**, and `@absuitecore/notary` is not started by `pnpm room` at all — the
+notary exists, and nothing in the one-command path brings it up.
+
+---
+
 ## 3d. Three build checks that passed by inspecting nothing
 
 The Windows report (§2b) noted two interface checks passing there because the
@@ -270,7 +301,7 @@ installable — it is listed in §5.
   gated, after two had been 404ing.
 - **All 18 interface views render with zero runtime errors**, swept in one pass
   against the running stack — every layer, every standing view, every console.
-- **All six services plus the dashboard answer `/health`**, and a record written
+- **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
 - **721 tests, 33 suites, 18 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 18 checks. Two of them are new and both police this document:

@@ -1,6 +1,6 @@
 # Putting an instance somewhere you can reach it
 
-The Trust Operations Center reads six services over HTTP and a socket. Given
+The Trust Operations Center reads five services over HTTP and a socket. Given
 nothing to read, it reports `UNKNOWN` for every figure and says so in words —
 which is correct behaviour and is also why a published static copy of the
 interface can never show anything live. There is nothing behind it.
@@ -19,7 +19,7 @@ already have.
 
 ## The single-container instance
 
-`deploy/Dockerfile` builds all six services and the orchestrator into one image
+`deploy/Dockerfile` builds all five services and the orchestrator into one image
 and `deploy/serve-all.mjs` runs them side by side, with the orchestrator
 pointed at loopback rather than at Docker service names.
 

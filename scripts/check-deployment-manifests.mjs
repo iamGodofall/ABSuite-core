@@ -13,7 +13,7 @@
  *     and no templates/ directory at all. `helm install` would have created
  *     zero resources. Every knob in that file was a setting for nothing.
  *
- *   - `k8s/` had manifests for three of the six services. quickbench,
+ *   - `k8s/` had manifests for three of the five services. quickbench,
  *     connector-starter and trust had none, so the dashboard would have come
  *     up and reported three services permanently unreachable.
  *

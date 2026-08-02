@@ -3,7 +3,7 @@
  * Everything, running, in one command.
  *
  * The Trust Operations Center is not a mock-up and never has been — it reads
- * six services over HTTP and a socket, and it shows UNKNOWN for every figure it
+ * five services over HTTP and a socket, and it shows UNKNOWN for every figure it
  * cannot reach. Which means the difference between "the room is broken" and
  * "the room has nothing to talk to" is entirely a matter of whether the stack
  * behind it is up, and until now bringing that stack up meant either Docker or

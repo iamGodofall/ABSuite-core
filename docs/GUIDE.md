@@ -37,7 +37,7 @@ As a running service, with everything wired together:
 git clone https://github.com/iamGodofall/ABSuite-core.git
 cd ABSuite-core
 pnpm install && pnpm build
-pnpm room          # all six services plus the interface, on :3001
+pnpm room          # all five services plus the interface, on :3001
 ```
 
 `pnpm room` waits until each service actually answers rather than guessing at a

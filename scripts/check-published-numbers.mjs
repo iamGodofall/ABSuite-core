@@ -61,6 +61,20 @@ const countSuites = (dir) => readdirSync(join(root, dir), { withFileTypes: true 
   }, 0);
 const SUITES = countSuites('packages');
 
+/**
+ * Backend services the room brings up — the source of truth is the list
+ * `pnpm room` actually spawns, not a count anybody wrote down.
+ *
+ * This was published as "six services" in eleven places, in two shapes that
+ * cannot both be true: *six services* (correct only if the room counts as one)
+ * and *six services plus the interface* (which counts the room twice). Two
+ * files said five and were right the whole time — `MODULES.md` and
+ * `deploy/serve-all.mjs` — and disagreed with everything around them without
+ * anyone noticing, because nine documents agreeing looks like consensus.
+ */
+const SERVICES = [...read('scripts/run-room.mjs')
+  .matchAll(/^\s*\{\s*name:\s*'[^']+',\s*pkg:\s*'[^']+',\s*port:\s*\d+\s*\},?$/gm)].length;
+
 const LAYERS_BUILT = [...read('docs/CONSTITUTION.md')
   .matchAll(/^\|\s*\d\s*\|\s*\*\*[^*]+\*\*\s*\|[^|]+\|\s*(Built|Partly built|Not built)\s*\|/gm)]
   .filter(match => match[1] === 'Built').length;
@@ -92,6 +106,15 @@ const CLAIMS = [
     find: /(\d+)\s+suites\b/gi },
   { what: 'layers built', actual: LAYERS_BUILT,
     find: /(\d+)\s+of\s+8\s+layers\s+built/gi },
+  // Written as digits and as words, because both shipped. "six services plus
+  // the interface" is the phrasing that double-counted the room, so the word
+  // form has to be caught — a check that only reads digits misses the way this
+  // number was actually wrong.
+  { what: 'services the room starts', actual: SERVICES,
+    find: /\b(?:(\d+)|(five|six|seven|eight))\s+(?:HTTP\s+)?services\b/gi,
+    words: { five: 5, six: 6, seven: 7, eight: 8 },
+    // k8s manifests and container counts are a different tally.
+    ignore: /manifest|container|k8s|three of/i },
 ];
 
 /** Documents that describe a moment rather than the present. */
@@ -101,6 +124,29 @@ const docs = ['README.md', ...readdirSync(join(root, 'docs'))
   .filter(name => name.endsWith('.md')).map(name => `docs/${name}`)]
   .filter(path => !DATED.includes(path));
 
+/**
+ * Character ranges on a line that are quoting rather than asserting.
+ *
+ * A figure inside quotation marks, emphasis or a code span is being *shown* —
+ * `6/6 SERVICES ANSWERED` in UI-PHILOSOPHY is an example of fabricated output,
+ * and AUDIT §3e quotes the wrong `"six services"` in order to correct it. Both
+ * are the opposite of a claim about this repository.
+ *
+ * This is positional rather than a line-level keyword test, because the earlier
+ * version was line-level and could not tell *"six services"* in a correction
+ * from six services in a promise. It also had to be taught number-words: the
+ * figure that shipped wrong eleven times was spelled out, not written as a
+ * digit, and a guard that only understood digits let every one of them past.
+ */
+const quotedRanges = (line) => {
+  const ranges = [];
+  const spans = [/"[^"]*"/g, /'[^']*'/g, /[“][^”]*[”]/g, /`[^`]*`/g, /\*\*[^*]+\*\*/g, /\*[^*]+\*/g];
+  for (const span of spans) {
+    for (const match of line.matchAll(span)) ranges.push([match.index, match.index + match[0].length]);
+  }
+  return ranges;
+};
+
 const wrong = [];
 const right = [];
 
@@ -108,13 +154,17 @@ for (const path of docs) {
   const lines = read(path).split('\n');
   lines.forEach((line, index) => {
     // A line explicitly marked as historical is a record, not a claim.
-    // A quoted figure is being reported, not asserted — including this file's
-    // own note about the "17 gates" it was wrong about.
-    if (/superseded|was\s+\d|it said|for months|described as|["'“‘]\s*\d/i.test(line)) return;
+    if (/superseded|was\s+\d|it said|for months|described as|\d\s*\/\s*\d/i.test(line)) return;
+    const quoted = quotedRanges(line);
     for (const claim of CLAIMS) {
       if (claim.ignore?.test(line)) continue;
       for (const match of line.matchAll(claim.find)) {
-        const stated = Number(match[1]);
+        if (quoted.some(([from, to]) => match.index >= from && match.index < to)) continue;
+        // A claim may be written as a digit or as a word; both shipped wrong.
+        const stated = match[1] !== undefined
+          ? Number(match[1])
+          : claim.words?.[match[2]?.toLowerCase()];
+        if (stated === undefined || Number.isNaN(stated)) continue;
         if (stated === claim.actual) { right.push(`${path}:${index + 1}  ${claim.what} = ${stated}`); continue; }
         wrong.push(
           `${path}:${index + 1}\n      claims ${stated} ${claim.what}, repository has ${claim.actual}\n      ${line.trim().slice(0, 96)}`
