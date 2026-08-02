@@ -71,9 +71,13 @@ jobs:
         run: |
           {
             echo 'list<<PKGEOF'
-            for p in capkit trust edge-run quickbench connector-starter mcp cli; do
-              v=$(npm view "@absuitecore/$p" version 2>/dev/null || echo "not published")
-              echo "- [\`@absuitecore/$p\`](https://www.npmjs.com/package/@absuitecore/$p) — \`$v\`"
+            # Derived, not written here. This list was hand-written and omitted
+            # @absuitecore/notary, so every release note published a package
+            # inventory that was missing one — see scripts/publishable-packages.mjs.
+            for p in $(node scripts/publishable-packages.mjs); do
+              name=$(node -p "require('./packages/$p/package.json').name")
+              v=$(npm view "$name" version 2>/dev/null || echo "not published")
+              echo "- [\`$name\`](https://www.npmjs.com/package/$name) — \`$v\`"
             done
             echo 'PKGEOF'
           } >> "$GITHUB_OUTPUT"
