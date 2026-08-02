@@ -48,10 +48,15 @@ export function TopBar({ connected, vitals }: { connected: boolean; vitals: Vita
 
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-3">
-          {/* The supplied mark was a placeholder diamond; this is the real one. */}
-          <div className="w-10 h-10 border border-ab-green/30 flex items-center justify-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-ab-green/5" />
-            <Mark size={22} />
+          {/*
+            The mark, unboxed.
+            It sat inside a bordered square with a tinted fill — a container the
+            mark never needed and the only hard-cornered element left in a shell
+            that is otherwise all capsules and generous radii. A logo that has to
+            be framed to read is a logo that is not carrying itself.
+          */}
+          <div className="w-10 h-10 flex items-center justify-center">
+            <Mark size={28} />
           </div>
           <div>
             <h1 className="text-ab-white font-bold tracking-widest text-lg leading-none mb-1">ABSuite</h1>

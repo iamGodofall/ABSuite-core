@@ -60,6 +60,22 @@ enrolled key reads `PROVEN` — but the distinction lives in a field, not in a
 gate. **Anyone relying on approvals for a regulated obligation should require
 signed decisions**, and nothing currently forces that.
 
+**The admin key bypasses proof of possession.** `POST /auth/token` refuses to
+issue authority in an enrolled subject's name without a signed challenge — unless
+the caller holds `CAPKIT_ADMIN_KEY`, which mints it anyway. Verified against a
+running instance: a token was issued for an enrolled, proven subject with no
+proof at all.
+
+The mitigation is real and it is the reason this is a weakness rather than a
+defect: **the record does not lie about it.** That execution's condition report
+reads `Identity: UNKNOWN`, not `DEMONSTRATED`, because the token was never bound
+to a proof. The system loses the strong claim rather than faking it.
+
+But it means the admin key is a master key over identity, and anyone holding it
+can act in any enrolled subject's name. Treat it as the second most dangerous
+secret after `CAPKIT_TRACE_PRIVATE_KEY`, and prefer proof-backed tokens for
+anything that needs to read `DEMONSTRATED`.
+
 **SQLite, single writer, one disk.** Deliberate: a chain has one head. It also
 means no horizontal scaling, and it is the gate on hosting this for anyone else.
 
@@ -91,7 +107,11 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
   pages, at 1280px and 390px.
 - **Every relative link on the site resolves** to a file `docs/` contains — now
   gated, after two had been 404ing.
-- **719 tests, 33 suites, 17 gates, exit 0.**
+- **All 18 interface views render with zero runtime errors**, swept in one pass
+  against the running stack — every layer, every standing view, every console.
+- **All six services plus the dashboard answer `/health`**, and a record written
+  through the API verifies and reports its five conditions correctly.
+- **721 tests, 33 suites, 17 gates, exit 0.**
 - **The record format verifies from a second implementation** that shares no code
   with the first.
 
