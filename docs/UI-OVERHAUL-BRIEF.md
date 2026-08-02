@@ -7,6 +7,12 @@
 
 **103 endpoints exist. The dashboard reaches 18.**
 
+> **Superseded in part.** Written before Identity, Approvals and Watch had
+> surfaces. There are 127 documented endpoints now and the dashboard reaches
+> roughly a third; the notification-bell fabrication below was fixed. The
+> findings are kept because the *reasoning* still applies — see
+> [AUDIT.md](AUDIT.md) for the current state.
+
 That is the whole problem in a sentence. The interface is not a weaker version
 of the product — it is a small window onto a much larger one, and the window is
 pointed at the least interesting part. A stranger judges ABSuite by what the
