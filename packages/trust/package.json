@@ -1,6 +1,6 @@
 {
   "name": "@absuitecore/trust",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Evidence validation for AI systems: claims checked against their sources and reported SUPPORTED, UNVERIFIED or CONTRADICTED — never a probability. Plus agent-chain monitoring, correlation-aware arbitration and reciprocal contracts.",
   "license": "MIT",
   "main": "dist/index.js",

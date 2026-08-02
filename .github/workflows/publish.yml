@@ -74,19 +74,24 @@ jobs:
         if: inputs.scope != ''
         run: node scripts/set-scope.mjs "${{ inputs.scope }}" && pnpm install --no-frozen-lockfile
 
-      # Build before test. Six of the seven packages import @absuitecore/capkit,
-      # which resolves to its dist/ — so running the suite first fails to load
-      # those files entirely: 7 suites "failed" with 266 passed and 0 failed,
-      # because they never ran.
+      # Build before test. Most packages import @absuitecore/capkit, which
+      # resolves to its dist/ — so running the suite first fails to load those
+      # files entirely: 7 suites "failed" with 266 passed and 0 failed, because
+      # they never ran.
       - name: Build
         run: pnpm -r --filter "./packages/*" build
 
       - name: Test
         run: pnpm test
 
+      # The package list is derived from packages/*/package.json rather than
+      # written here. It used to be written here, in five places, and
+      # @absuitecore/notary was in none of them — built, marked publishable,
+      # named in three documents as though it shipped, and never published,
+      # because the five hand-written copies agreed with each other.
       - name: Show what would be published
         run: |
-          for p in capkit trust edge-run quickbench connector-starter mcp cli; do
+          for p in $(node scripts/publishable-packages.mjs); do
             echo "--- $p ---"
             (cd "packages/$p" && pnpm pack --pack-destination /tmp/preview 2>&1 | tail -1)
           done
@@ -100,7 +105,7 @@ jobs:
       - name: Verify no workspace protocol survives packing
         run: |
           set -e
-          for p in capkit trust edge-run quickbench connector-starter mcp cli; do
+          for p in $(node scripts/publishable-packages.mjs); do
             packed=$(cd "packages/$p" && pnpm pack --pack-destination /tmp/verify 2>/dev/null | tail -1)
             if tar -xzOf "$packed" package/package.json | grep -q 'workspace:'; then
               echo "::error::$p would publish an unresolvable workspace: dependency"
@@ -121,7 +126,7 @@ jobs:
           # registry.
           published=0
           skipped=0
-          for p in capkit trust edge-run quickbench connector-starter mcp cli; do
+          for p in $(node scripts/publishable-packages.mjs); do
             name=$(node -p "require('./packages/$p/package.json').name")
             version=$(node -p "require('./packages/$p/package.json').version")
 
@@ -157,7 +162,7 @@ jobs:
             else
               echo "### Published"
               echo ""
-              for p in capkit trust edge-run quickbench connector-starter mcp cli; do
+              for p in $(node scripts/publishable-packages.mjs); do
                 echo "- \`$(node -e "process.stdout.write(require('./packages/$p/package.json').name)")\`"
               done
               echo ""
