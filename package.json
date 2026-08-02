@@ -22,6 +22,7 @@
     "backup": "node scripts/backup.mjs create",
     "backup:verify": "node scripts/backup.mjs verify",
     "backup:restore": "node scripts/backup.mjs restore",
+    "key:trace": "node scripts/gen-trace-key.mjs",
     "docs:api": "node scripts/gen-api-docs.mjs",
     "docs:check": "node scripts/gen-api-docs.mjs --check",
     "test:coverage": "jest --coverage --coverageReporters=lcov --coverageReporters=text-summary",

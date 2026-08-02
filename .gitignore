@@ -63,3 +63,10 @@ bench/history/
 
 # Single-file build for sharing the room without a backend.
 packages/dashboard-ui/dist-artifact/
+
+# Private key material, whatever writes it. A trace signing key committed once is
+# public for ever, and rotating it fails every record it already signed.
+*trace-key*.json
+*-key-pair.json
+*.pem
+!**/fixtures/**/*.pem

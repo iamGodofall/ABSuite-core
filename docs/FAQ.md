@@ -155,6 +155,11 @@ is not an evidence system.
 `CAPKIT_TRACE_PRIVATE_KEY` is the most dangerous secret in the product. Back it
 up somewhere that is not the server. See [HOSTING.md](HOSTING.md).
 
+Generate a durable one with **`pnpm key:trace`**. It writes straight into `.env`
+and never puts the private half in a file of its own — a key sitting in a working
+directory is one `git add -A` from being public permanently, and unlike a
+password it cannot be rotated out of trouble.
+
 ### Q16. Can I deploy it on Cloud Run / Firestore / Lambda?
 
 Short answer: **no, not without breaking it.**
