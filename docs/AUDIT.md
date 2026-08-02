@@ -148,6 +148,49 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3i. A benchmarking tool reported 0ms for every request that failed
+
+Found by auditing the three least-examined packages — which turned out to be the
+three with the thinnest tests. Coverage put `quickbench/src/providers.ts` lowest
+in the repository: **40% of statements, 22.5% of branches.**
+
+Inside it, every provider's `catch` returned `latencyMs: 0`. A request aborting
+after the full 120-second timeout was recorded as having taken **no time at
+all** — in the package whose entire job is reporting how long things take, in a
+project whose stated rule is that *no number is published that a measurement did
+not produce.*
+
+**Why it survived.** `runner.ts` filters to successes before summarising
+latency, so the fabricated zero never reached a percentile or a published
+figure. That made it a latent lie rather than a live one: harmless until
+somebody calls a provider directly, and wrong the whole time. Nothing would ever
+have surfaced it, because the only thing that could was a test of an error path
+that had none.
+
+Providers now time the attempt rather than the success — which is not only
+correctness but a capability the tool did not have. **A provider degrading under
+load fails slowly**, and *"every request errored"* tells an operator far less
+than *"every request errored after 119 seconds"*.
+
+Two zeros remain, on the unconfigured-key guards where no request is made and
+zero is the measurement. Those are asserted in the suite too, so a later pass
+tightening the rule does not "fix" a number that is already correct.
+
+`runner.ts` still summarises latency over successes only, and now says why in
+the code. That used to be forced by the fabricated zero; it is now a choice,
+because a 119-second timeout mixed into a p50 of 200ms successes describes no
+request that ever happened. `latency.count` and `successRate` sit beside each
+other so the population is visible rather than inferred, and `measure.ts` takes
+the opposite view deliberately — the comment names that difference instead of
+leaving two doctrines in one package unexplained.
+
+**Checked at the same time and found sound:** `edge-run@1.0.1`,
+`connector-starter@1.0.1`, `mcp@1.0.3` and `quickbench@1.0.2` all install from
+npm and load correctly against `capkit@1.3.1`. The older packages are not stale
+in the sense that would hurt anybody.
+
+---
+
 ## 3h. The notary had no container image — and it is the one that needed one
 
 Reported by the owner: no notary under GitHub Packages.
@@ -448,7 +491,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **732 tests, 34 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **745 tests, 35 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 19 checks. Three of them are new and all three police this document:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is

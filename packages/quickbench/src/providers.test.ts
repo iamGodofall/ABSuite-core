@@ -10,7 +10,7 @@
  * before summarising latency. That is what made it survive: a latent lie, wrong
  * the whole time and visible only to somebody calling a provider directly.
  */
-import { HttpProvider, OpenAIProvider, AnthropicProvider, createProvider } from './providers';
+import { HttpProvider, OllamaProvider, OpenAIProvider, AnthropicProvider, createProvider } from './providers';
 
 describe('providers report what they measured', () => {
   const realFetch = globalThis.fetch;
@@ -75,6 +75,84 @@ describe('providers report what they measured', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(message);
     expect(result.latencyMs).toBe(0);
+  });
+
+  /*
+   * Token counts, per provider.
+   *
+   * These matter more than they look: `runner.ts` divides completion tokens by
+   * elapsed seconds to report tokens-per-second, so a provider that parses the
+   * wrong field does not fail — it reports a confident throughput figure that
+   * is wrong by whatever the mis-parse costs. Each provider names its counts
+   * differently, which is exactly the kind of difference that rots silently.
+   */
+  const respondWith = (body: unknown) => {
+    globalThis.fetch = (async () => new Response(JSON.stringify(body), { status: 200 })) as typeof fetch;
+  };
+
+  test('ollama reads prompt_eval_count and eval_count', async () => {
+    respondWith({ response: 'hello', prompt_eval_count: 7, eval_count: 11 });
+
+    const result = await new OllamaProvider('http://localhost:11434').complete({
+      model: 'llama3', prompt: 'hi',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.promptTokens).toBe(7);
+    expect(result.completionTokens).toBe(11);
+    expect(result.totalTokens).toBe(18);   // ollama sends no total; it is derived
+    expect(result.text).toBe('hello');
+  });
+
+  test('openai reads usage.prompt_tokens and usage.completion_tokens', async () => {
+    respondWith({
+      choices: [{ message: { content: 'hello' } }],
+      usage: { prompt_tokens: 7, completion_tokens: 11, total_tokens: 18 },
+    });
+
+    const result = await new OpenAIProvider('sk-test').complete({ model: 'gpt-4o', prompt: 'hi' });
+
+    expect(result.ok).toBe(true);
+    expect(result.promptTokens).toBe(7);
+    expect(result.completionTokens).toBe(11);
+    expect(result.text).toBe('hello');
+  });
+
+  test('anthropic reads usage.input_tokens and usage.output_tokens', async () => {
+    respondWith({
+      content: [{ text: 'hello' }],
+      usage: { input_tokens: 7, output_tokens: 11 },
+    });
+
+    const result = await new AnthropicProvider('sk-ant-test').complete({
+      model: 'claude-opus-5', prompt: 'hi',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.promptTokens).toBe(7);
+    expect(result.completionTokens).toBe(11);
+    expect(result.text).toBe('hello');
+  });
+
+  test('a response missing its usage block reports zero rather than NaN', async () => {
+    // A provider that omits usage must not poison arithmetic downstream:
+    // NaN tokens-per-second is worse than a stated zero, because it propagates.
+    respondWith({ choices: [{ message: { content: 'hello' } }] });
+
+    const result = await new OpenAIProvider('sk-test').complete({ model: 'gpt-4o', prompt: 'hi' });
+
+    expect(result.promptTokens).toBe(0);
+    expect(result.completionTokens).toBe(0);
+    expect(Number.isNaN(result.completionTokens)).toBe(false);
+  });
+
+  test('a body that is not JSON is an error, not a crash', async () => {
+    globalThis.fetch = (async () => new Response('<html>502 Bad Gateway</html>', { status: 200 })) as typeof fetch;
+
+    const result = await new OpenAIProvider('sk-test').complete({ model: 'gpt-4o', prompt: 'hi' });
+
+    expect(result.ok).toBe(false);
+    expect(result.latencyMs).toBeGreaterThan(0);
   });
 
   test('createProvider refuses an http provider with no url rather than inventing one', () => {
