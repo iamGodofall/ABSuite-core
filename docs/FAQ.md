@@ -170,6 +170,28 @@ and never puts the private half in a file of its own — a key sitting in a work
 directory is one `git add -A` from being public permanently, and unlike a
 password it cannot be rotated out of trouble.
 
+### Q15b. Can I require that approvals are actually signed?
+
+Yes — `ABSUITE_REQUIRE_SIGNED_APPROVALS=true`.
+
+By default, separation of duties is enforced on **names**. An approval refuses a
+decision by the person who requested it, but one holder of an admin key can
+supply two different names and play both parties. The record has always said
+which kind of decision it was — `PROVEN` for a signature checked against an
+enrolled key, `ASSERTED` for a name somebody typed — but that is a field, and a
+field is something a reader has to notice.
+
+With the variable set it becomes a gate: an `ASSERTED` decision turns Governance
+**FAILED**, and the finding names the deployment setting rather than accusing the
+record of being fake. The approval is real and recorded; what it is not is
+evidence of *who decided*.
+
+It is off by default because turning it on retroactively fails every approval
+recorded without a signature — nothing about those records changed, only how
+strictly this deployment reads them. capkit says which mode it is in at boot,
+both ways. **If you are relying on approvals for a regulated obligation, set
+it.** See [COMPLIANCE.md](COMPLIANCE.md) §1.2.
+
 ### Q16. Can I deploy it on Cloud Run / Firestore / Lambda?
 
 Short answer: **no, not without breaking it.**
@@ -233,7 +255,7 @@ Full list, with the reasoning: [CONSTITUTION.md](CONSTITUTION.md).
 
 ### Q20. Is it production-ready?
 
-The code is: 721 tests, 33 suites, 18 build checks, a frozen-fixture chain that
+The code is: 726 tests, 33 suites, 18 build checks, a frozen-fixture chain that
 still verifies across versions, and a second implementation that agrees with the
 first.
 

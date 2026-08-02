@@ -73,13 +73,24 @@ of failure as the grep that hid a red build for six commits.
 
 ## 3. Weaknesses worth stating before a buyer finds them
 
-**Separation of duties is enforced on names, not on credentials.** An approval
-refuses `decidedBy === requestedBy`, but one holder of an admin key can pass two
-different names and play both parties. The product's honest answer is already
-built — such a decision reads `ASSERTED`, and only a decision signed with an
-enrolled key reads `PROVEN` — but the distinction lives in a field, not in a
-gate. **Anyone relying on approvals for a regulated obligation should require
-signed decisions**, and nothing currently forces that.
+**Separation of duties is enforced on names by default.** An approval refuses
+`decidedBy === requestedBy`, but one holder of an admin key can pass two
+different names and play both parties. Such a decision reads `ASSERTED`, and
+only one signed with an enrolled key reads `PROVEN`.
+
+That distinction used to live only in a field, which is something a reader has
+to notice. **It is now also a gate:** `ABSUITE_REQUIRE_SIGNED_APPROVALS=true`
+turns Governance **FAILED** on a `REQUIRES_APPROVAL` record whose approval is
+merely `ASSERTED`, and the finding names the deployment setting rather than
+accusing the record of being fake — the approval is real and recorded; what it
+is not is evidence of who decided.
+
+Off by default, because switching it on retroactively fails every approval
+recorded without a signature and nothing about those records changed. capkit
+announces which mode it is in at boot, both ways: an operator who believes
+signatures are enforced when they are not is worse off than one who knows.
+**Anyone relying on approvals for a regulated obligation should set it** — see
+[COMPLIANCE.md](COMPLIANCE.md) §1.2.
 
 **The admin key bypasses proof of possession.** `POST /auth/token` refuses to
 issue authority in an enrolled subject's name without a signed challenge — unless
@@ -360,7 +371,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **721 tests, 33 suites, 18 checks, exit 0.** `pnpm verify` runs a build, the
+- **726 tests, 33 suites, 18 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 18 checks. Two of them are new and both police this document:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
@@ -384,9 +395,9 @@ Chased down in §3f and published on 2026-08-02.
 |---|---|---|
 | ~~1~~ | ~~An Identity surface~~ | **Done.** `absuite doctor` reported "no subject is enrolled" and there was nothing anybody could do about it from the product. A finding nobody can act on is not a finding. |
 | ~~1~~ | ~~Publish `@absuitecore/notary`~~ | **Done**, 2026-08-02. Three documents named a package the registry did not have. The cause was a hand-written package list in six places — §3f. |
-| 1 | Require signed approvals as a configurable mode | Turns a field into a gate, and it is the row a regulated buyer will press on. |
-| 2 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
-| 3 | Chain checkpointing | The first scaling wall, and it is not close yet. |
+| ~~2~~ | ~~Require signed approvals as a configurable mode~~ | **Done.** `ABSUITE_REQUIRE_SIGNED_APPROVALS` turns a field into a gate — the row a regulated buyer presses on. Proved by deleting the gate and watching a test fail. |
+| 1 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
+| 2 | Chain checkpointing | The first scaling wall, and it is not close yet. |
 
 None of this is blocked on anything but time. That is the useful thing about a
 list like this: everything on it is work, not luck.

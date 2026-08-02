@@ -25,7 +25,7 @@ import { trustConditions } from './conditions';
 import { IdentityRegistry, IdentityError } from './identity';
 import { ProvenanceGraph } from './provenance';
 import { ModelRegistry, ModelIdentityError } from './model-identity';
-import { ApprovalRegistry, ApprovalError, approvalStatement, type ApprovalAction } from './approval';
+import { ApprovalRegistry, ApprovalError, approvalStatement, type ApprovalAction, type ApprovalAssurance } from './approval';
 import { Watch, type NoticeState } from './watch';
 import { determineTrace } from './determination';
 import { SIGNUP_PAGE, SignupThrottle, validateSignup } from './signup';
@@ -87,6 +87,22 @@ const SECRET = resolveSecret();
 const ADMIN_KEY = (process.env.CAPKIT_ADMIN_KEY || process.env.ABSUITE_ADMIN_API_KEY || '').trim();
 const AUDIENCE = process.env.CAPKIT_AUDIENCE || '';
 const KEY_ID = process.env.CAPKIT_KEY_ID || 'capkit-default';
+
+/**
+ * Whether a human approval must be signed to count.
+ *
+ * Off by default. Turning it on retroactively fails every approval recorded
+ * without a signature, which is a claim about those records that they do not
+ * support — nothing about them changed, only how strictly this deployment reads
+ * them. That is an operator's decision, so it is an operator's switch.
+ *
+ * Anyone relying on approvals for a regulated obligation should set it. See
+ * docs/AUDIT.md §3 and docs/COMPLIANCE.md.
+ */
+const REQUIRED_APPROVAL_ASSURANCE: ApprovalAssurance =
+  /^(1|true|yes|on)$/i.test((process.env.ABSUITE_REQUIRE_SIGNED_APPROVALS || '').trim())
+    ? 'PROVEN'
+    : 'ASSERTED';
 
 const audit = new AuditLog(process.env.CAPKIT_AUDIT_LOG || undefined);
 
@@ -1334,7 +1350,7 @@ app.get('/executions/unknowns', authorise('execution:read'), (req, res) => {
   const byResolution = new Map<string, { conditions: Set<string>; records: string[] }>();
 
   for (const trace of records) {
-    const report = trustConditions(trace, verifyTrace(trace, signingKey.publicKeyPem), chainValid, identities.attest(trace.subject, trace.jti), approvalFor(trace));
+    const report = trustConditions(trace, verifyTrace(trace, signingKey.publicKeyPem), chainValid, identities.attest(trace.subject, trace.jti), approvalFor(trace), REQUIRED_APPROVAL_ASSURANCE);
     for (const condition of report.conditions) {
       if (condition.state !== 'UNKNOWN' || !condition.resolvedBy) continue;
       const entry = byResolution.get(condition.resolvedBy) ?? { conditions: new Set(), records: [] };
@@ -1438,7 +1454,7 @@ app.get('/executions/:id/conditions', authorise('execution:read'), (req, res) =>
 
   return res.status(200).json({
     generated: generated(`execution ${trace.id}, against a chain of ${chain.checked} record(s)`),
-    ...trustConditions(trace, verdict, chain.valid, identities.attest(trace.subject, trace.jti), approvalFor(trace)),
+    ...trustConditions(trace, verdict, chain.valid, identities.attest(trace.subject, trace.jti), approvalFor(trace), REQUIRED_APPROVAL_ASSURANCE),
   });
 });
 
@@ -1644,6 +1660,16 @@ if (require.main === module) {
   // when somebody opens a page is not watching; it is answering.
   watch.start();
   console.log(`[capkit] watch sweeping every ${Number(process.env.ABSUITE_WATCH_INTERVAL_MS || 60_000)}ms`);
+
+  // A gate that is on must say so, and a gate that is off must say that too.
+  // An operator who believes signed approvals are enforced when they are not is
+  // in a worse position than one who knows they are not — the belief is the
+  // dangerous part, not the setting.
+  console.log(
+    REQUIRED_APPROVAL_ASSURANCE === 'PROVEN'
+      ? '[capkit] approvals must be PROVEN — an unsigned decision reads FAILED on a REQUIRES_APPROVAL record'
+      : '[capkit] approvals may be ASSERTED — a decision attributed by name counts, and says so. Set ABSUITE_REQUIRE_SIGNED_APPROVALS=true to require signatures.'
+  );
 
   // Drain in-flight requests before exiting so a deploy does not drop work.
   const shutdown = (signal: string) => {

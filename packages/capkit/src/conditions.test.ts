@@ -309,6 +309,82 @@ describe('governance decisions are not all the same decision', () => {
     expect(condition.from).toMatch(/approval record/);
   });
 
+  /*
+   * The gate a regulated buyer presses on.
+   *
+   * Separation of duties is enforced on names: an approval refuses
+   * `decidedBy === requestedBy`, but one holder of an admin key can supply two
+   * names and play both parties. `assurance` already told you which kind of
+   * decision it was; these tests are the difference between telling and
+   * enforcing.
+   */
+  describe('requiring signed approvals', () => {
+    const assertedApproval = {
+      state: 'DEMONSTRATED' as const,
+      approvalState: 'CONSUMED' as const,
+      assurance: 'ASSERTED' as const,
+      finding: 'Approved by alice, attributed by the name the operator supplied.',
+      limits: [],
+    };
+
+    test('an ASSERTED approval is demonstrated by default, and says which kind it is', () => {
+      const { trace, verdict } = governed('REQUIRES_APPROVAL');
+      const condition = governanceOf(trace, verdict, true, proven, assertedApproval);
+
+      // The default has to stay permissive: flipping it would retroactively
+      // fail every approval recorded before the option existed, which is a
+      // claim about those records that the records do not support.
+      expect(condition.state).toBe('DEMONSTRATED');
+      expect(condition.finding).toMatch(/attributed by the name the operator supplied/);
+    });
+
+    test('the same approval FAILS when this deployment requires PROVEN', () => {
+      const { trace, verdict } = governed('REQUIRES_APPROVAL');
+      const condition = governanceOf(trace, verdict, true, proven, assertedApproval, 'PROVEN');
+
+      expect(condition.state).toBe('FAILED');
+      expect(condition.finding).toMatch(/this deployment requires PROVEN/);
+      // The record is not accused of being fake. It is accused of not proving
+      // who decided, which is a narrower and truer complaint.
+      expect(condition.finding).toMatch(/The approval is real and it is recorded/);
+      expect(condition.from).toMatch(/assurance/);
+    });
+
+    test('a PROVEN approval passes the gate that the ASSERTED one failed', () => {
+      const { trace, verdict } = governed('REQUIRES_APPROVAL');
+      const condition = governanceOf(trace, verdict, true, proven, {
+        ...assertedApproval,
+        assurance: 'PROVEN',
+        finding: 'Approved by alice, who signed the decision with their enrolled key.',
+      }, 'PROVEN');
+
+      expect(condition.state).toBe('DEMONSTRATED');
+      expect(condition.finding).toMatch(/an approval holds/);
+    });
+
+    test('the gate does not rescue an approval that was already failing', () => {
+      // Requiring PROVEN must not change *why* a bad approval failed, or the
+      // finding would name the wrong problem.
+      const { trace, verdict } = governed('REQUIRES_APPROVAL');
+      const condition = governanceOf(trace, verdict, true, proven, {
+        state: 'ABSENT',
+        finding: 'No approval was ever requested for this action.',
+        limits: [],
+      }, 'PROVEN');
+
+      expect(condition.state).toBe('FAILED');
+      expect(condition.finding).toMatch(/satisfied by nobody being asked, is not governance/);
+      expect(condition.finding).not.toMatch(/requires PROVEN/);
+    });
+
+    test('the gate touches nothing but REQUIRES_APPROVAL', () => {
+      const { trace, verdict } = governed('PERMITTED');
+      const condition = governanceOf(trace, verdict, true, proven, assertedApproval, 'PROVEN');
+
+      expect(condition.state).toBe('DEMONSTRATED');
+    });
+  });
+
   test('REQUIRES_APPROVAL with no approval ever requested is a failure, not an absence', () => {
     const { trace, verdict } = governed('REQUIRES_APPROVAL');
     const condition = governanceOf(trace, verdict, true, proven, {

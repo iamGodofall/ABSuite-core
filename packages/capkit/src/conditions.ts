@@ -20,7 +20,7 @@
 import type { ExecutionTrace, TraceVerdict } from './trace';
 import { type Determination } from './determination';
 import type { IdentityAttestation } from './identity';
-import type { ApprovalAttestation } from './approval';
+import type { ApprovalAttestation, ApprovalAssurance } from './approval';
 
 /**
  * The same four states used everywhere else — see determination.ts.
@@ -111,7 +111,26 @@ export function trustConditions(
    * `REQUIRES_APPROVAL` record green — an unchecked approval reads as UNKNOWN,
    * which is what it is.
    */
-  approval?: ApprovalAttestation
+  approval?: ApprovalAttestation,
+  /**
+   * How strictly a human approval must be evidenced.
+   *
+   * `ASSERTED` — the default — accepts a decision attributed by the name the
+   * operator supplied, and says `ASSERTED` in the finding so nobody mistakes it
+   * for proof. `PROVEN` requires a decision signed by an enrolled key, and reads
+   * an unsigned one as FAILED.
+   *
+   * Default is deliberately the permissive one, and not out of timidity:
+   * defaulting to `PROVEN` would turn every approval recorded before this option
+   * existed into a failure overnight, which is a claim about those records that
+   * the records do not support. Nothing about them changed. What changes is how
+   * strictly this deployment reads them, and that is the operator's decision to
+   * make — see AUDIT.md §3, "separation of duties is enforced on names".
+   *
+   * This never alters what is recorded. `assurance` is a signed field either
+   * way; this decides whether the reader treats `ASSERTED` as sufficient.
+   */
+  requiredAssurance: ApprovalAssurance = 'ASSERTED'
 ): ConditionsReport {
   // A record this build cannot read tells us nothing about any condition.
   // Reporting five absences would read as five findings against the record,
@@ -225,7 +244,7 @@ export function trustConditions(
   // recorded, ABSuite never says the decision was correct: it names the rule
   // that produced it, so a person can ask whether that rule should have existed.
   const governance = trace.governance;
-  conditions.push(governanceCondition(trace, governance, verdict, approval));
+  conditions.push(governanceCondition(trace, governance, verdict, approval, requiredAssurance));
 
   // ── Time: when, and in what order? ────────────────────────────────────────
   const hasStart = Boolean(trace.startedAt);
@@ -292,7 +311,8 @@ function governanceCondition(
   trace: ExecutionTrace,
   governance: ExecutionTrace['governance'],
   verdict: TraceVerdict | undefined,
-  approval: ApprovalAttestation | undefined
+  approval: ApprovalAttestation | undefined,
+  requiredAssurance: ApprovalAssurance
 ): TrustCondition {
   const from = 'governance.policyRef, policyVersion, decision, evidence';
 
@@ -376,6 +396,34 @@ function governanceCondition(
     }
 
     if (approval.state === 'DEMONSTRATED') {
+      /*
+       * The gate this deployment asked for.
+       *
+       * Separation of duties here is enforced on names: an approval refuses
+       * `decidedBy === requestedBy`, but one holder of an admin key can supply
+       * two different names and play both parties. The product already tells
+       * you which kind of decision it is — `PROVEN` for a signature checked
+       * against an enrolled key, `ASSERTED` for a name the operator typed — and
+       * until now that distinction lived in a field rather than in a gate.
+       *
+       * This is the gate. It changes nothing about the record and everything
+       * about the reading: a deployment that requires PROVEN says so, and an
+       * unsigned decision fails rather than passing with a caveat nobody read.
+       */
+      if (requiredAssurance === 'PROVEN' && approval.assurance !== 'PROVEN') {
+        return {
+          condition: 'Governance',
+          answers: 'Under what rule?',
+          state: 'FAILED',
+          finding:
+            `${named} evaluated to REQUIRES_APPROVAL${evaluated}, and an approval exists — but it is ` +
+            `${approval.assurance ?? 'unsigned'}, and this deployment requires PROVEN. ${approval.finding} ${checked} ` +
+            'A decision attributed by a name the operator supplied is not a decision proven to have come from that person. ' +
+            'The approval is real and it is recorded; what it is not is evidence of who made it.',
+          from: `${from}, approval record: assurance`,
+        };
+      }
+
       return {
         condition: 'Governance',
         answers: 'Under what rule?',
