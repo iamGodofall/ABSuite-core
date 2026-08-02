@@ -434,7 +434,7 @@ The reasoning is in [`PRINCIPLES.md`](./PRINCIPLES.md) and
 
 ## Packages
 
-All seven are published with signed Sigstore provenance attestations — you can
+All eight are published with signed Sigstore provenance attestations — you can
 verify which commit and workflow produced each tarball without trusting us
 (`npm audit signatures`).
 
@@ -447,6 +447,7 @@ verify which commit and workflow produced each tarball without trusting us
 | [`@absuitecore/connector-starter`](https://www.npmjs.com/package/@absuitecore/connector-starter) | Connector registry, read-only credential verification, deterministic scaffolding |
 | [`@absuitecore/mcp`](https://www.npmjs.com/package/@absuitecore/mcp) | MCP server — puts ABSuite inside the tool-calling path |
 | [`@absuitecore/cli`](https://www.npmjs.com/package/@absuitecore/cli) | The `absuite` command |
+| [`@absuitecore/notary`](https://www.npmjs.com/package/@absuitecore/notary) | A disinterested witness to a chain head — see [NOTARY.md](./docs/NOTARY.md). Depends on nothing else here, on purpose |
 
 Code for each is in [`docs/MODULES.md`](./docs/MODULES.md).
 

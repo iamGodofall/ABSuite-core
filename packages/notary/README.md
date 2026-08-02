@@ -78,6 +78,11 @@ CAPKIT_NOTARY_PRIVATE_KEY="$(node -e "console.log(require('@absuitecore/notary')
 | `GET /notary/public-key` | Unauthenticated, and must stay so |
 | `GET /receipts?chainId=` | Every receipt issued for a chain |
 | `POST /audit` | A convenience — the audit is a pure function anyone can run |
+| `GET /health` | Including `ephemeralKey`, because a notary that quietly lost its key is worse than one that is down |
+
+Installed globally the command is `absuite-notary`. The full guide, including a
+worked audit of a rewritten chain, is
+[NOTARY.md](https://github.com/iamGodofall/ABSuite-core/blob/main/docs/NOTARY.md).
 
 Without `CAPKIT_NOTARY_PRIVATE_KEY` a key is generated per process, and every
 receipt stops verifying on restart. It warns loudly at boot, because receipts
@@ -90,6 +95,6 @@ component of it, and the whole value on offer is that it is a *different party*.
 It has no idea what a trace is and must never need one.
 
 That is also why it is the first honest step toward
-[Collective Intelligence](../../docs/CONSTITUTION.md) rather than a wait for it:
+[Collective Intelligence](https://github.com/iamGodofall/ABSuite-core/blob/main/docs/CONSTITUTION.md) rather than a wait for it:
 the layer needs deployments verifying each other, and a notary is the smallest
 version of one deployment checking another that is worth running.

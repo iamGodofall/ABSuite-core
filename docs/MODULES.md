@@ -175,6 +175,66 @@ Tools are filtered by the caller's actual scopes, so an agent is never shown a
 tool it cannot use — advertising one wastes its context and invites a failed
 attempt.
 
+## CLI — the deployment from a terminal
+
+`@absuitecore/cli` installs the `absuite` command.
+
+```bash
+npm install -g @absuitecore/cli
+
+absuite status                 # health of every service
+absuite token issue --scope 'queue:write'
+absuite verify <trace-id>      # check a signed execution trace
+absuite doctor                 # what is wrong with this deployment
+```
+
+`absuite doctor` is the one worth knowing. Against a fresh instance, with
+`CAPKIT_ADMIN_KEY` set so it can read past the auth wall, it reports two failures
+unprompted:
+
+```
+✗ Signing key  Generated for this process. Every record written since the last
+               restart stops verifying at the next one.
+✗ Watch        Has never swept. There are no findings because nothing has
+               looked, which is not the same as nothing being wrong.
+· Identity     No subject is enrolled, so every condition report reads
+               Identity: UNKNOWN. The name on a record is a string somebody typed.
+```
+
+Two real problems in a deployment that reports itself healthy. Without an admin
+key the authenticated checks read `UNKNOWN` rather than passing — the doctor
+does not quietly downgrade to the questions it is allowed to ask.
+
+It exits non-zero only on `FAILED`, so an `UNKNOWN` stays visible without
+breaking a pipeline.
+
+## Notary — a second signature, from somebody with no stake
+
+`@absuitecore/notary` witnesses a chain head and issues a signed receipt saying
+*at this time, this chain head existed and had this value.* It never sees a
+record, only a hash.
+
+```js
+import { Notary, auditAgainstReceipts } from '@absuitecore/notary';
+
+const notary = new Notary(privateKeyPem, 'acme-notary');
+const receipt = notary.witness({ chainId: 'prod', headHash: head.hash, claimedLength: 3 });
+
+// Later, against any chain presented as the same one:
+auditAgainstReceipts('prod', hashes, [receipt], notary.publicKeyPem);
+// -> present: 0, and a MISSING finding naming the head that vanished
+```
+
+A chain is append-only, so a head that existed cannot stop existing. **A
+rewritten chain verifies perfectly against itself and fails this audit** — which
+is the gap a self-signed chain cannot close on its own.
+
+It imports nothing from capkit, deliberately: a notary that depended on the thing
+it witnesses would be a component of it. For the same reason `pnpm room` does not
+start one, and a notary you run yourself proves nothing — it would be a second
+signature from the same party. [NOTARY.md](NOTARY.md) is the guide for the
+person who should be running it, which is somebody who is not you.
+
 ## Trust Operations Center
 
 The interface, on port 3001. It replaced the dashboard — there is no dashboard

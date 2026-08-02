@@ -101,9 +101,12 @@ a hash has not thereby checked a signature.
 
 ### Q10. How do I know the tool is not lying to me?
 
-Run `absuite doctor`. On a fresh instance it will tell you, unprompted, that your
-signing key is ephemeral and your watch has never run — two real problems in a
-deployment reporting itself healthy.
+Run `absuite doctor`. On a fresh instance, with `CAPKIT_ADMIN_KEY` set so it can
+read past the auth wall, it tells you unprompted that your signing key is
+ephemeral and your watch has never swept — two real problems in a deployment
+reporting itself healthy. Without that key the authenticated checks read
+`UNKNOWN` rather than passing; the doctor does not quietly downgrade to the
+questions it happens to be allowed to ask.
 
 A product that opens by listing its own faults is a different kind of instrument
 from one that opens with a green tick.
@@ -112,11 +115,12 @@ from one that opens with a green tick.
 
 **Unknown**, and that is a real answer rather than a dodge — see [Q9](#q9-unknown-just-means-no-right).
 
-The registry says 3,048 downloads across seven packages in thirty days. It also
-says all seven peaked on the day they were published, and that 89% of the total
-landed on that one day. That is the signature of registry mirrors and security
-scanners, not of people. Run `pnpm adoption` and read the daily series yourself;
-the script refuses to turn a download count into a user count, and explains why.
+Measured on 2026-08-02, the registry said 3,048 downloads across the seven
+packages published at that point. It also said all seven peaked on the day they
+were published, and that 89% of the total landed on that one day. That is the
+signature of registry mirrors and security scanners, not of people. Run
+`pnpm adoption` for today's series rather than trusting this paragraph; the
+script refuses to turn a download count into a user count, and explains why.
 
 What would actually count is a signal with a name attached: a package that
 depends on one of these, an issue opened by somebody who is not the maintainer,
@@ -255,7 +259,7 @@ Full list, with the reasoning: [CONSTITUTION.md](CONSTITUTION.md).
 
 ### Q20. Is it production-ready?
 
-The code is: 726 tests, 33 suites, 18 build checks, a frozen-fixture chain that
+The code is: 726 tests, 33 suites, 19 build checks, a frozen-fixture chain that
 still verifies across versions, and a second implementation that agrees with the
 first.
 

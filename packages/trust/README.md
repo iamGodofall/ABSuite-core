@@ -222,7 +222,7 @@ mattered.
 
 ## HTTP API
 
-See [`docs/API.md`](../../docs/API.md) for the generated reference. Every route
+See [`docs/API.md`](https://github.com/iamGodofall/ABSuite-core/blob/main/docs/API.md) for the generated reference. Every route
 is guarded by the same `capabilityGuard` the rest of the suite uses — a service
 that grades other services is the last one you want reachable without a token.
 

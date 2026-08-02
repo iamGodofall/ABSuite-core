@@ -402,8 +402,8 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **726 tests, 33 suites, 18 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 18 checks. Two of them are new and both police this document:
+- **726 tests, 33 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 19 checks. Three of them are new and all three police this document:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
   offered to an operator and read by nothing (§3c).

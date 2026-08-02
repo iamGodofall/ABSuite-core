@@ -34,6 +34,7 @@ Run `absuite --help` for the full command list.
 | [`@absuitecore/quickbench`](https://www.npmjs.com/package/@absuitecore/quickbench) | LLM and HTTP benchmarking |
 | [`@absuitecore/connector-starter`](https://www.npmjs.com/package/@absuitecore/connector-starter) | Connector registry and scaffolding |
 | [`@absuitecore/mcp`](https://www.npmjs.com/package/@absuitecore/mcp) | Model Context Protocol server |
+| [`@absuitecore/notary`](https://www.npmjs.com/package/@absuitecore/notary) | A disinterested witness to a chain head — run by somebody other than you |
 
 ---
 
