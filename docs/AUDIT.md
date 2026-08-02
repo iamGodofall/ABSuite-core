@@ -35,7 +35,7 @@ capability that exists and cannot be opened.
 | Built | Where | Interface |
 |---|---|---|
 | **Identity (Layer 1)** — enrolment, key rotation, suspension, proof of possession | `capkit/src/identity.ts`, 7 routes | **Built.** Enrol, suspend, reinstate, and proven-vs-enrolled shown per subject. |
-| **Provenance** — which agent's output became which agent's input | `capkit/src/provenance.ts`, 2 routes | **None.** |
+| **Provenance** — which agent's output became which agent's input | `capkit/src/provenance.ts`, 2 routes | **Built.** Coverage first, then failures something else consumed, then the edges with their shared hash on screen. |
 | **Model identity** — is the thing answering still the model that was approved | `capkit/src/model-identity.ts`, 4 routes | Partial — no approve/supersede surface |
 | **Tenancy and billing** | `tenancy.ts`, `billing.ts`, 6 admin routes | **None.** |
 
@@ -145,6 +145,61 @@ recovery and there should not be one.
 **Nothing notifies anybody.** No incident, no escalation, no email. That is a
 constitutional refusal, and it is also a real gap against EU AI Act Article
 26(5). Both things are true and [COMPLIANCE.md](COMPLIANCE.md) §1.4 says so.
+
+---
+
+## 3l. The provenance view — the failure that happens between two records
+
+Provenance had been the top unbuilt item in §5 and the second row of §2:
+built in capkit, two routes, **reachable only with curl.** It is the most
+distinctive thing in the product and it had no surface.
+
+The gap it closes is the one every other station cannot see, because every
+other station shows one record at a time:
+
+> Agent A writes a summary that is wrong. Agent B consumes it and produces a
+> recommendation. Agent C acts on it and moves money.
+
+Three records, three signatures, **three successes.** Nothing anywhere in the
+interface said these were the same piece of work travelling.
+
+Verified against a live instance seeded with exactly that shape. The treasury
+record that moved 250,000 reads `success`, its immediate upstream reads
+`success`, and its lineage names `agent:summariser docs.summarise` — a
+**failure two hops back**:
+
+```
+record:      agent:treasury payments.allocate [success]
+upstream:    agent:analyst [success]
+inherited:   agent:summariser docs.summarise
+```
+
+### Three decisions worth keeping
+
+**Coverage is rendered first**, above the edges, at the same weight — the same
+rule as the watch and for the same reason. A graph with two edges across four
+hundred records looks like a calm system; it is far more likely to be one whose
+handoffs go unrecorded, and a reader who counts arrows first has already
+concluded *calm* from evidence that supports *blind*.
+
+**No node-and-arrow canvas.** A laid-out graph invents position, clustering and
+hierarchy, and a reader takes all three as findings. What exists is a set of
+edges, each backed by one shared hash — so the hash is printed on screen and any
+edge can be checked against the records themselves.
+
+**The refusal is on the surface, not in a tooltip.** An edge shows the same
+content moved between two records; it is not proof one caused the other, since
+two agents reading one source produce the same hash. That distinction is the
+difference between evidence and an accusation, so it is rendered, permanently,
+under the graph.
+
+Found while reading live output rather than source: with every record linked,
+the coverage sentence read *"The other 0 stand alone, which may be correct"* —
+nonsense, in the first sentence a reader meets. Fixed.
+
+All seven interface gates pass, the room still opens on the cube, and a browser
+pass recorded **zero page errors** — the only failing requests were health
+checks for the four services not started in that test.
 
 ---
 
@@ -596,8 +651,8 @@ Chased down in §3f and published on 2026-08-02.
 | ~~1~~ | ~~An Identity surface~~ | **Done.** `absuite doctor` reported "no subject is enrolled" and there was nothing anybody could do about it from the product. A finding nobody can act on is not a finding. |
 | ~~1~~ | ~~Publish `@absuitecore/notary`~~ | **Done**, 2026-08-02. Three documents named a package the registry did not have. The cause was a hand-written package list in six places — §3f. |
 | ~~2~~ | ~~Require signed approvals as a configurable mode~~ | **Done.** `ABSUITE_REQUIRE_SIGNED_APPROVALS` turns a field into a gate — the row a regulated buyer presses on. Proved by deleting the gate and watching a test fail. |
-| 1 | A provenance view | AI-to-AI accountability is built, distinctive, and invisible. |
-| 2 | Chain checkpointing | The first scaling wall, and it is not close yet. |
+| ~~3~~ | ~~A provenance view~~ | **Done.** AI-to-AI accountability was built, distinctive, and invisible — see §3l. |
+| 1 | Chain checkpointing | The first scaling wall, and it is not close yet. |
 
 None of this is blocked on anything but time. That is the useful thing about a
 list like this: everything on it is work, not luck.

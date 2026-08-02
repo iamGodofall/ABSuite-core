@@ -18,7 +18,7 @@ import {
   Bot, Zap, Shield,
   Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
   Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
-  Layers, Scale, HelpCircle, Play
+  Layers, Scale, HelpCircle, Play, Share2
 } from 'lucide-react';
 import { useServices, Service } from './hooks/useServices';
 import { PerformanceTab } from './tabs/Performance';
@@ -30,6 +30,7 @@ import { UnknownsPanel } from './tabs/Unknowns';
 import { Approvals } from './tabs/Approvals';
 import { IdentityLayer } from './tabs/Identity';
 import { WatchLayer } from './tabs/WatchLayer';
+import { Provenance } from './tabs/Provenance';
 import { LiveFeed } from './tabs/LiveFeed';
 import { RecordDetail } from './tabs/RecordDetail';
 import { ChainView } from './tabs/ChainView';
@@ -78,6 +79,8 @@ type TabId =
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
   // The standing views. Not stages — the things the stages act on.
   | 'evidence' | 'policies' | 'agents' | 'unknowns' | 'approvals' | 'watch' | 'identity'
+  // Not a record, but the relationship between two of them.
+  | 'provenance'
   // A transport over the log, rather than a place. Replay is the only view
   // whose subject is time.
   | 'replay'
@@ -1353,6 +1356,9 @@ const TAB_CONFIG: {
   { id: 'identity',  label: 'Identity',    question: 'Who is acting, and can they prove it', icon: Bot },
   { id: 'approvals', label: 'Approvals',   question: 'What is waiting on a person',        icon: Scale },
   { id: 'watch',     label: 'Watch',       question: 'What has been raised, and how much it covers', icon: Eye },
+  // The failure that matters in a multi-agent system happens between two
+  // records, and every other station here shows one record at a time.
+  { id: 'provenance', label: 'Provenance', question: 'What one agent handed to another', icon: Share2 },
   { id: 'replay',   label: 'Replay',        question: 'What happened, in the order it happened', icon: Play },
   { id: 'manual',   label: 'How to navigate', question: 'Keys, gestures, and what the four words mean', icon: HelpCircle },
   // Not layers. The machinery underneath.
@@ -1663,6 +1669,7 @@ export default function App() {
       case 'identity' as TrustLayer: return <IdentityLayer />;
       case 'approvals' as TrustLayer: return <Approvals />;
       case 'watch' as TrustLayer: return <WatchLayer />;
+      case 'provenance' as TrustLayer: return <Provenance />;
       case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} onWitness={setWitnessing} />;
       case 'manual' as TrustLayer: return <Manual />;
       case 'console' as TrustLayer: return <AIStudioTab />;

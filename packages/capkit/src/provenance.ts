@@ -279,7 +279,12 @@ export class ProvenanceGraph {
         ? 'Nothing has been recorded, so there is no flow to trace.'
         : edges.length === 0
           ? 'No record consumes another record\'s output. Either these agents genuinely do not hand work to each other, or the handoffs are happening outside what is recorded — and nothing here can tell those apart.'
-          : `${linked} of ${all.length} records take part in a traced flow. The other ${all.length - linked} stand alone, which may be correct or may mean their handoffs go unrecorded.`,
+          // "The other 0 stand alone, which may be correct" is nonsense, and it
+          // is the sentence a reader meets first. Read against a live instance
+          // where every record happened to be linked, not spotted in the source.
+          : all.length === linked
+            ? `Every one of the ${all.length} records takes part in a traced flow. That is what the recorded hashes show; a handoff nobody recorded is still invisible here.`
+            : `${linked} of ${all.length} records take part in a traced flow. The other ${all.length - linked} stand alone, which may be correct or may mean their handoffs go unrecorded.`,
     };
   }
 }

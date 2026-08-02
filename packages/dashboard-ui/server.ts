@@ -511,6 +511,43 @@ app.get('/executions/attention', requireAdminAccess, async (req, res) => {
 });
 
 /**
+ * Provenance — what one agent handed to another.
+ *
+ * Two routes existed in capkit and neither was reachable from here, so the one
+ * question an investigator actually asks — *what else did that bad output
+ * touch?* — could only be answered with curl.
+ *
+ * `coverage` comes back with the graph and is not decoration: a graph with two
+ * edges across four hundred records is not a tidy system, it is one whose
+ * handoffs are going unrecorded, and drawing the edges without that reading
+ * would hide it.
+ */
+app.get('/executions/provenance', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/executions/provenance`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/** One record's ancestry, descendants, and anything it inherited from a failure. */
+app.get('/executions/:id/lineage', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/executions/${encodeURIComponent(String(req.params.id))}/lineage`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/**
  * Layer 1 — Identity. The base of the ascent, and it had no interface at all.
  *
  * Seven routes existed and none were reachable from here, which meant the only
