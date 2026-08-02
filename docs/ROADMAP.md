@@ -109,7 +109,35 @@ years were spent making trust infrastructure boringly reliable.
 
 ---
 
-## The next session's goal
+## Where to start next
+
+> **Building is finished. The next thing that moves this project is not in the
+> repository.**
+
+Six of eight layers are built and operable, `absuite doctor` finds real problems,
+the compliance mapping exists, and every interface view renders with zero runtime
+errors. The three items left in [AUDIT.md](AUDIT.md) §5 are real and **none of
+them is what stands between this and a first user.**
+
+**Do these, in this order:**
+
+1. **Record the two-minute demo.** `pnpm room`, then: record an action → verify
+   it → alter one byte → watch the chain name the exact record that broke.
+   Nobody else can show that. It is the entire marketing budget.
+2. **Answer, do not announce.** People ask *"how do I know what my agent actually
+   did"* constantly — in the Claude Code and Cursor communities, r/LocalLLaMA,
+   n8n forums, HN threads on agent reliability. Reply with the demo and
+   [FAQ.md](FAQ.md). Launches are for people who already have an audience.
+3. **Take one audit engagement.** [SERVICES.md](SERVICES.md) §1.1 — sellable
+   today with zero new code, and [COMPLIANCE.md](COMPLIANCE.md) is the document
+   that opens the conversation. One client funds a month.
+
+**Do not build a fourth thing instead.** That is what every previous session did,
+and the install count has not moved.
+
+---
+
+## The older goal, kept because it is still the test
 
 > **Make a stranger understand ABSuite in sixty seconds.**
 
@@ -146,6 +174,10 @@ else on this roadmap matters yet.
 Full brief for the overhaul session: [`docs/UI-OVERHAUL-BRIEF.md`](./UI-OVERHAUL-BRIEF.md).
 
 Taken against the running suite, not from memory. In severity order:
+
+> **Partly resolved.** Identity, Approvals and Watch now have surfaces, and the
+> five findings below were written before them. Check against
+> [AUDIT.md](AUDIT.md) before acting on any of them.
 
 1. **The notification bell shows fabricated events.** Three notifications are
    hardcoded in component state: *"Dashboard connected to ABSuite services"*,
