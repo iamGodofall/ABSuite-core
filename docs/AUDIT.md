@@ -150,6 +150,44 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4a. The operational documents, and a number hand-copied into a program
+
+`DEPLOY.md`, `HOSTING.md`, `GUIDE.md` and `SERVICES.md` are what an operator acts
+on. Every citation in them resolves: 3 commands are real `package.json` scripts,
+6 cited files exist, and all 5 named environment variables are read by something.
+`HOSTING.md` is accurate throughout — its refusals about Cloud Run and Firestore,
+the plaintext-disk statement, and the two-secrets ranking all hold.
+
+Two claims in `DEPLOY.md` did not.
+
+**"Twenty-eight routes sit behind `ABSUITE_ADMIN_API_KEY`."** There are 38. That
+figure decides whether an operator treats the variable as important.
+
+**"The five secrets… prints all five."** `gen-deploy-secrets.mjs` prints **six**.
+The table omitted `CAPKIT_TRACE_KEY_ID`, which names the signing key in every
+trace — so an operator copying six lines out of the script found five described.
+
+### The same wrong number was inside a program
+
+`deploy/serve-all.mjs` refuses to start without `ABSUITE_ADMIN_API_KEY` and
+explains why, in a message printed to whoever is deploying. It said *"Twenty-eight
+read routes sit behind it"* — the same figure, hand-copied into a second place,
+both wrong.
+
+`check:numbers` had never seen it, because it scanned Markdown. **A published
+number in a program was outside the one check built to catch published numbers**,
+and a claim is a claim wherever a person reads it. The gate now scans
+`deploy/serve-all.mjs` too, and derives the route count from the dashboard rather
+than trusting either copy.
+
+Spelled out in words was the other half of the escape: every pattern in that gate
+matches digits. Both copies now use a digit, which is a smaller lesson than it
+looks — *a number written as a word is a number the checker cannot see.*
+
+Proved by putting `28` back: the gate names the file and line.
+
+---
+
 ## 3z. DNS rebinding, closed
 
 Four entries in this document listed DNS rebinding as open, each time correctly

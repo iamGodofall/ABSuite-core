@@ -75,6 +75,20 @@ const SUITES = countSuites('packages');
 const SERVICES = [...read('scripts/run-room.mjs')
   .matchAll(/^\s*\{\s*name:\s*'[^']+',\s*pkg:\s*'[^']+',\s*port:\s*\d+\s*\},?$/gm)].length;
 
+/**
+ * Routes behind `ABSUITE_ADMIN_API_KEY`.
+ *
+ * `DEPLOY.md` published this as **"Twenty-eight routes"** while the dashboard
+ * had thirty-eight. Spelled out in words, so every pattern here — all of which
+ * match digits — walked straight past it. An operator reads that table to decide
+ * whether the variable matters.
+ *
+ * Counted from the server rather than from a sentence, and matched in both
+ * shapes for the same reason `SERVICES` is.
+ */
+const ADMIN_ROUTES = [...read('packages/dashboard-ui/server.ts')
+  .matchAll(/^app\.(?:get|post|put|delete|patch)\([^)]*requireAdminAccess/gm)].length;
+
 const LAYERS_BUILT = [...read('docs/CONSTITUTION.md')
   .matchAll(/^\|\s*\d\s*\|\s*\*\*[^*]+\*\*\s*\|[^|]+\|\s*(Built|Partly built|Not built)\s*\|/gm)]
   .filter(match => match[1] === 'Built').length;
@@ -106,6 +120,8 @@ const CLAIMS = [
     find: /(\d+)\s+suites\b/gi },
   { what: 'layers built', actual: LAYERS_BUILT,
     find: /(\d+)\s+of\s+8\s+layers\s+built/gi },
+  { what: 'routes behind ABSUITE_ADMIN_API_KEY', actual: ADMIN_ROUTES,
+    find: /(\d+)\s+routes\s+sit\s+behind\s+it\b/gi },
   // Written as digits and as words, because both shipped. "six services plus
   // the interface" is the phrasing that double-counted the room, so the word
   // form has to be caught — a check that only reads digits misses the way this
@@ -120,7 +136,14 @@ const CLAIMS = [
 /** Documents that describe a moment rather than the present. */
 const DATED = ['docs/UI-OVERHAUL-BRIEF.md'];
 
-const docs = ['README.md', ...readdirSync(join(root, 'docs'))
+/*
+ * `deploy/serve-all.mjs` is in this list because it printed the same wrong
+ * figure as DEPLOY.md — "Twenty-eight read routes" — in a message an operator
+ * sees at startup, when the dashboard had thirty-eight. Scanning only Markdown
+ * meant a published number in a *program* was outside the one check built to
+ * catch published numbers. A claim is a claim wherever a person reads it.
+ */
+const docs = ['README.md', 'deploy/serve-all.mjs', ...readdirSync(join(root, 'docs'))
   .filter(name => name.endsWith('.md')).map(name => `docs/${name}`)]
   .filter(path => !DATED.includes(path));
 
