@@ -325,6 +325,8 @@ function buildAgentConfig(prompt: string, model: string): string {
   ].join('\n');
 }
 
+// public-route: a platform health probe cannot carry credentials, and a gated
+// health endpoint makes the host declare the container dead.
 app.get('/health', (req, res) => {
   // `service` names the process in the orchestrator's service map, which is
   // still 'dashboard'; `role` says what it actually is. Renaming the key would
@@ -332,11 +334,17 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'healthy', service: 'dashboard', role: 'trust-operations-center', timestamp: new Date().toISOString() });
 });
 
+// public-route: the interface polls this continuously, including on a fresh
+// install with no admin key, where requireAdminAccess would return 503.
+// It reports up/down for the suite's own services and nothing else.
 app.get('/status', async (req, res) => {
   Object.assign(status, await suiteStatusWithHealthFallback(status));
   res.json(status);
 });
 
+// public-route: same as /status — the interface needs it before an admin key
+// exists. `service` is checked against SERVICES first, so it cannot be aimed
+// elsewhere, and it no longer returns the database path.
 app.get('/service-health/:service', async (req, res) => {
   const service = req.params.service as ServiceName;
   if (!SERVICES.includes(service)) {
@@ -347,12 +355,18 @@ app.get('/service-health/:service', async (req, res) => {
     const dbStatus = suiteStatus(status)[service];
     const isHealthy = dbStatus === 'up';
 
+    /*
+     * The database path used to be in this response.
+     *
+     * This route is unauthenticated — it has to be, because the interface polls
+     * it on a deployment with no admin key configured — so `ABSUITE_DB_PATH`
+     * was readable by anyone who could reach the dashboard. The interface never
+     * read the field, so it was disclosed for nothing, which is the cheapest
+     * kind of finding to act on.
+     */
     return res.status(isHealthy ? 200 : 503).json({
       service,
       status: isHealthy ? 'healthy' : 'unhealthy',
-      storage: {
-        path: process.env.ABSUITE_DB_PATH || '/data/absuite.db',
-      },
       timestamp: new Date().toISOString(),
     });
   }
@@ -372,6 +386,10 @@ app.get('/service-health/:service', async (req, res) => {
   }
 });
 
+// public-route: the interface renders ready / configured / needs-setup from
+// this before an admin key exists. It discloses WHICH providers have keys
+// configured — never any key material — which is accepted, and stated here
+// so it is a decision rather than an accident.
 app.get('/ai/providers', async (req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/ai/providers`);
@@ -462,6 +480,8 @@ app.get('/executions/stats', requireAdminAccess, async (req, res) => {
  * against the filesystem in CI. The product applies its own standard to itself,
  * which is the only way it has any standing to apply it to anyone else.
  */
+// public-route: reads docs/CONSTITUTION.md, which ships in the repository and
+// is published on the docs site. Nothing here is not already public.
 app.get('/system/layers', (_req, res) => {
   const candidates = [
     path.resolve(process.cwd(), 'docs/CONSTITUTION.md'),
@@ -889,6 +909,9 @@ app.get('/executions/cost', requireAdminAccess, async (_req, res) => {
  * third party can verify a record without holding any credential of yours. A
  * public key that needed a password to fetch would defeat the point.
  */
+// public-route: deliberately. An auditor with no relationship to the operator
+// must be able to fetch the key and check a record without asking permission —
+// that is the product's entire argument, not a concession.
 app.get('/executions/public-key', async (_req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/public-key`);
@@ -899,6 +922,8 @@ app.get('/executions/public-key', async (_req, res) => {
 });
 
 /** Verify a trace. Also unauthenticated, for the same reason. */
+// public-route: deliberately, for the same reason as the public key above.
+// Verification that requires the operator's blessing proves nothing.
 app.post('/executions/verify', async (req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions/verify`, {
@@ -1075,6 +1100,10 @@ app.get('/capkit/token/generate', requireAdminAccess, async (req, res) => {
   }
 });
 
+// public-route: deterministic, rule-based, and it reads nothing. It accepts a
+// description and returns policy text. The cost is bounded compute on an
+// endpoint the rate limiter covers; the benefit is that the generator works
+// on a fresh install.
 app.post('/ai/policy/generate', async (req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/ai/policy/generate`, {
@@ -1100,6 +1129,8 @@ app.post('/ai/policy/generate', async (req, res) => {
 // reads like a measurement.
 
 /** The last recorded core benchmark, or an honest "not measured". */
+// public-route: measurements of this deployment's own performance, which the
+// Learn screen shows before an admin key exists. No record content.
 app.get('/bench/core', async (_req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.quickbench}/bench/core`);
@@ -1110,6 +1141,7 @@ app.get('/bench/core', async (_req, res) => {
 });
 
 /** This run against the previous one on the same machine. */
+// public-route: a comparison of the two most recent measurements, as above.
 app.get('/bench/core/regression', async (_req, res) => {
   try {
     const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.quickbench}/bench/core/regression`);
@@ -1219,6 +1251,9 @@ app.post('/connectors/test', requireAdminAccess, (req, res) => {
   });
 });
 
+// public-route: scaffolding. Deterministic keyword analysis that returns YAML
+// and TypeScript for the operator to edit. It reads no credential and touches
+// no record, and falls back to local generation when the service is down.
 app.post('/connector-starter/generate', async (req, res) => {
   const { prompt, model = 'gpt-4o' } = req.body;
   
@@ -1549,6 +1584,8 @@ setInterval(() => {
   });
 }, 30000);
 
+// public-route: the single-page-app fallback. Serves dist/index.html, which is
+// the static bundle every visitor is meant to receive.
 app.get('*', (req, res, next) => {
   const internalPrefixes = ['/socket.io', '/health', '/status', '/service-health', '/ai/', '/logs/', '/capkit/', '/benchmark/', '/connectors/', '/connector-starter/', '/endpoint-check', '/start/', '/stop/'];
   if (internalPrefixes.some(prefix => req.path.startsWith(prefix))) {

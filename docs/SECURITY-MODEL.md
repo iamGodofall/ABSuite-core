@@ -266,6 +266,32 @@ this page said it was isolated. Both are fixed; it is recorded here because a
 security document that quietly corrects itself is worth less than one that says
 what was wrong.
 
+### Which dashboard routes are open, and why
+
+Fifty routes. **Thirty-eight require the admin key; twelve are public, and each
+one now states its reason on the line.**
+
+The reason most of them are public is a real constraint rather than an oversight:
+`requireAdminAccess` returns **503 when no admin key is configured**, which is the
+default. A route the interface needs on a fresh install cannot be guarded without
+breaking the product for everyone who has not set a key.
+
+Two of the twelve are public *deliberately* and would be wrong to gate:
+`GET /executions/public-key` and `POST /executions/verify`. An auditor with no
+relationship to the operator must be able to check a record without asking
+permission — that is the product's argument, not a concession.
+
+What a public route may disclose is now asserted rather than assumed.
+`/service-health/absuite-db` used to return `ABSUITE_DB_PATH` to anonymous
+callers, in a field the interface never read; it does not any more, and a test
+fails if it comes back. `/ai/providers` still discloses *which* providers have
+keys configured — never key material — which is accepted and stated rather than
+accidental.
+
+`check:routeauth` fails the build on any route that is neither guarded nor
+annotated. The annotation does not make a route safe; it makes somebody decide,
+which is the step that did not happen for `/endpoint-check`.
+
 ### What the dashboard is granted
 
 The dashboard container is the most privileged part of a default deployment:

@@ -195,6 +195,84 @@ describe('the dashboard with an admin key configured', () => {
   });
 });
 
+/**
+ * What an unauthenticated caller can actually read.
+ *
+ * Twelve of the dashboard's fifty routes carry no `requireAdminAccess`, and
+ * several of them are right to — `/health` cannot carry credentials, and
+ * `POST /executions/verify` being open to a stranger is the product's argument
+ * rather than a concession. `check:routeauth` now makes each of the twelve
+ * state its reason.
+ *
+ * A stated reason is a claim, so these assert the claims. The one that was
+ * wrong: `/service-health/absuite-db` returned `ABSUITE_DB_PATH` to anonymous
+ * callers, in a field the interface never read.
+ */
+describe('what the public routes disclose', () => {
+  let dashboard: Instance | undefined;
+
+  beforeAll(async () => {
+    dashboard = await start({
+      ABSUITE_ADMIN_API_KEY: ADMIN,
+      ABSUITE_DB_PATH: '/very/specific/path/absuite.db',
+    });
+  }, 60_000);
+
+  afterAll(async () => { await stop(dashboard); }, 20_000);
+
+  const get = (path: string) => fetch(`${dashboard!.base}${path}`);
+
+  test('service health does not disclose the database path', async () => {
+    const response = await get('/service-health/absuite-db');
+    const text = await response.text();
+
+    expect(text).not.toContain('/very/specific/path');
+    expect(text).not.toContain('ABSUITE_DB_PATH');
+    // Still answers the question it exists to answer.
+    expect(JSON.parse(text)).toMatchObject({ service: 'absuite-db' });
+  });
+
+  test('an invalid service name is refused rather than proxied', async () => {
+    /*
+     * The allowlist is what stops this becoming a way to aim the dashboard.
+     *
+     * Encoded, because an unencoded `../..` is normalised by the client before
+     * the request is sent and never reaches this handler at all — it lands on
+     * the single-page-app fallback and returns the bundle with a 200. The first
+     * version of this test asserted `not 200` against the unencoded form and
+     * failed, and the failure was the assertion being wrong rather than the
+     * route being open.
+     */
+    expect((await get('/service-health/nonesuch')).status).toBe(400);
+    expect((await get('/service-health/%2e%2e%2f%2e%2e%2fetc%2fpasswd')).status).toBe(400);
+    expect((await get('/service-health/..%2f..%2fetc')).status).toBe(400);
+  });
+
+  test('status reports service state and nothing else', async () => {
+    const body = await (await get('/status')).json() as Record<string, unknown>;
+
+    // Six services plus the database, each a state string. Anything else here
+    // would be disclosure that no route annotation claims.
+    for (const value of Object.values(body)) expect(typeof value).toBe('string');
+    expect(Object.keys(body)).toContain('dashboard');
+  });
+
+  test('no public route leaks environment values', async () => {
+    /*
+     * A blunt sweep, on the principle that the specific leak found here was one
+     * nobody had looked for. It cannot prove absence — it pins the ones that
+     * exist today against a value that would be unmistakable if it appeared.
+     */
+    const paths = ['/health', '/status', '/service-health/absuite-db', '/system/layers'];
+
+    for (const path of paths) {
+      const text = await (await get(path)).text();
+      expect(text).not.toContain('/very/specific/path');
+      expect(text).not.toMatch(/test-admin-key-not-a-secret/);
+    }
+  });
+});
+
 describe('the dashboard with no admin key configured', () => {
   let dashboard: Instance | undefined;
 

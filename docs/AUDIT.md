@@ -150,6 +150,75 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3x. Twelve routes with no authentication, and nobody had decided
+
+Asking *which routes carry no auth?* — the question that found `/endpoint-check`
+— returned **12 of the dashboard's 50**. That is the most privileged process in a
+default deployment: it holds `CAPKIT_ADMIN_KEY`, mounts the Docker socket, and
+can start and stop services.
+
+**The first thing checked was the worst case, mechanically:** does any
+unauthenticated route forward the dashboard's own admin key upstream? The
+dashboard attaches `X-ABSuite-Admin-Key` to about twenty calls into capkit, and
+an anonymous caller borrowing that authority would be privilege escalation
+outright.
+
+```
+routes: 50   unauthenticated: 12   of those forwarding the admin key: 0
+```
+
+None. That is the good news and it is worth stating first, because the rest is
+smaller.
+
+### What an anonymous caller actually receives
+
+Probed against a running server rather than reasoned about:
+
+| Route | What comes back | Verdict |
+|---|---|---|
+| `/health`, `GET *` | liveness, the static bundle | correct |
+| `/executions/public-key`, `POST /executions/verify` | the key, and verification | **correct and deliberate** — an auditor who must ask permission proves nothing |
+| `/system/layers` | `docs/CONSTITUTION.md`, which ships in the repo | correct |
+| `/status`, `/bench/core`, `/bench/core/regression` | own-service state, own measurements | accepted |
+| `POST /ai/policy/generate`, `POST /connector-starter/generate` | deterministic generated text | accepted; bounded compute, rate-limited |
+| `/ai/providers` | **which providers have keys configured** — never key material | accepted, now stated |
+| `/service-health/absuite-db` | **`ABSUITE_DB_PATH`** | **fixed** |
+
+The database path was disclosed to anonymous callers **in a field the interface
+never read**. Grepping `dashboard-ui/src` for it returns nothing. It was leaked
+for no purpose at all, which is the cheapest kind of finding there is.
+
+### The finding is not twelve. It is that nobody had decided
+
+Several of the twelve are right to be open, and one constraint explains most of
+the rest: **`requireAdminAccess` returns 503 when no admin key is configured**,
+which is the default. A route the interface needs on a fresh install cannot be
+guarded without breaking the product for everyone who has not set a key.
+
+That is a real reason. It was in nobody's head in writing, so a route that was
+open *because somebody thought about it* looked identical to a route that was
+open *because nobody had*. `/endpoint-check` was the second kind for as long as
+it existed.
+
+`check:routeauth` now requires every route to be guarded or annotated
+`// public-route: <reason>`. All twelve carry one. Proved by adding
+`GET /secrets/dump` with neither and watching the gate name the file and line.
+
+Four tests assert what the public routes disclose, including a blunt sweep for
+environment values across all of them. Proved by restoring the database path:
+two turn red.
+
+### One correction to my own work in this pass
+
+The first version of the traversal test asserted that
+`/service-health/../../etc/passwd` would not return 200. It does return 200 — the
+client normalises `../..` before sending, so the request lands on the
+single-page-app fallback and receives the bundle, never reaching the handler. The
+assertion was wrong, not the route. The encoded forms, which do reach it, are
+refused by the service allowlist, and the test now asserts those.
+
+---
+
 ## 3w. The compliance document, audited the same way — and it mostly held
 
 `COMPLIANCE.md` is the highest-stakes document in the repository: it maps EU AI
@@ -1351,8 +1420,8 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **893 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 22 checks. Four of them are new — three police this document, and the fourth runs the demo:
+- **897 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 23 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
   offered to an operator and read by nothing (§3c).
