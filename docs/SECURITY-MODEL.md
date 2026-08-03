@@ -288,6 +288,10 @@ fails if it comes back. `/ai/providers` still discloses *which* providers have
 keys configured — never key material — which is accepted and stated rather than
 accidental.
 
+The same check covers **capkit**, which is the more privileged of the two — the
+dashboard holds the admin key, capkit is what the key commands. 111 routes across
+both: 86 guarded, 25 public with a stated reason, 0 undecided.
+
 `check:routeauth` fails the build on any route that is neither guarded nor
 annotated. The annotation does not make a route safe; it makes somebody decide,
 which is the step that did not happen for `/endpoint-check`.
@@ -451,6 +455,7 @@ ABSUITE_DB_ENCRYPTION_KEY=<random-256-bit-secret>
 - **Malicious insiders with HMAC key access** — Key management is the operator's responsibility
 - **DDoS attacks** — Rate limiting helps but is not a substitute for network-level DDoS protection (use a CDN/WAF)
 - **Prompt injection, of any kind** — CapKit filters nothing. It does not inspect prompts or responses. An injected agent is still bound by its capability scope and still produces a signed, attributable record, which is a real limit on the damage and is not the same as prevention
+- **Subject enumeration** — `POST /identities/:subject/challenge` must be unauthenticated, because an agent cannot need authority in order to prove who it is. It answers `404` for an unknown subject, `200` with a nonce for an enrolled one and `403` for a suspended one, so an anonymous caller can learn which subjects exist and which are suspended, bounded by the rate limiter at 60 requests a minute. Returning a nonce for every subject would close it and make the commonest real failure — a typo in a subject name — report as an invalid signature instead. Subject names are inventory, not credentials, and the trade is stated here rather than decided quietly
 - **DNS rebinding** — the outbound guard resolves a hostname, then `fetch` resolves it again. A hostile resolver can answer differently between the two. Redirects no longer widen this (every hop is re-checked), so the window is one hop rather than unbounded — but closing it requires an HTTP agent that connects to the address it checked. Until then the class is made expensive, not removed, and claiming otherwise would be the kind of overstatement this project exists to prevent
 
 ---

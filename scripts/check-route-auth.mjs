@@ -46,18 +46,24 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const FILE = 'packages/dashboard-ui/server.ts';
+/**
+ * Both servers, because capkit is the more privileged of the two.
+ *
+ * The dashboard holds the admin key; capkit *is* the thing the admin key
+ * commands — it mints tokens, holds the chain, and enrols identities. Checking
+ * only the dashboard would have been checking the easier one.
+ */
+const FILES = ['packages/dashboard-ui/server.ts', 'packages/capkit/src/server.ts'];
 
 /** A floor, because a check that inspects nothing reports success. */
-const FLOOR = 30;
-
-const lines = readFileSync(join(root, FILE), 'utf8').split('\n');
+const FLOOR = 80;
 
 const ROUTE = /^app\.(get|post|put|delete|patch)\(\s*['"]([^'"]+)['"]/;
 const ANNOTATION = /public-route:\s*\S/;
+const GUARD = /requireAdminAccess|authorise\(|requireCapability|capabilityGuard/;
 
 /** Is there a `public-route:` in the comment block directly above? */
-function annotatedAbove(index) {
+function annotatedAbove(lines, index) {
   for (let i = index - 1; i >= 0; i--) {
     const line = (lines[i] ?? '').trim();
     if (line === '') continue;
@@ -72,16 +78,20 @@ let guarded = 0;
 let declared = 0;
 let total = 0;
 
-lines.forEach((line, index) => {
-  const match = line.match(ROUTE);
-  if (!match) return;
-  total++;
+for (const file of FILES) {
+  const lines = readFileSync(join(root, file), 'utf8').split('\n');
 
-  if (/requireAdminAccess/.test(line)) { guarded++; return; }
-  if (ANNOTATION.test(line) || annotatedAbove(index)) { declared++; return; }
+  lines.forEach((line, index) => {
+    const match = line.match(ROUTE);
+    if (!match) return;
+    total++;
 
-  undecided.push({ method: match[1].toUpperCase(), path: match[2], line: index + 1 });
-});
+    if (GUARD.test(line)) { guarded++; return; }
+    if (ANNOTATION.test(line) || annotatedAbove(lines, index)) { declared++; return; }
+
+    undecided.push({ file, method: match[1].toUpperCase(), path: match[2], line: index + 1 });
+  });
+}
 
 /* ── Report ─────────────────────────────────────────────────────────────── */
 
@@ -89,7 +99,7 @@ console.log('\nAuthentication on dashboard routes\n');
 
 if (total < FLOOR) {
   console.error(
-    `\x1b[31m✗\x1b[0m found only ${total} route(s) in ${FILE}, expected at least ${FLOOR}.\n` +
+    `\x1b[31m✗\x1b[0m found only ${total} route(s) across ${FILES.length} server(s), expected at least ${FLOOR}.\n` +
     '  The scan matched almost nothing, which is how a gate passes by checking nothing.'
   );
   process.exit(1);
@@ -98,7 +108,7 @@ if (total < FLOOR) {
 if (undecided.length > 0) {
   console.error(`\x1b[31m✗\x1b[0m ${undecided.length} route(s) neither guarded nor declared public:\n`);
   for (const route of undecided) {
-    console.error(`  ${FILE}:${route.line}`);
+    console.error(`  ${route.file}:${route.line}`);
     console.error(`    ${route.method} ${route.path}\n`);
   }
   console.error(
@@ -111,4 +121,4 @@ if (undecided.length > 0) {
 }
 
 console.log(`\x1b[32m✓\x1b[0m ${guarded} guarded, ${declared} declared public with a reason, 0 undecided.`);
-console.log(`  ${total} route(s) in ${FILE}.\n`);
+console.log(`  ${total} route(s) across ${FILES.join(', ')}.\n`);

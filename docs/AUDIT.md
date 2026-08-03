@@ -150,6 +150,52 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3y. The same question asked of capkit, which is the one that matters
+
+The dashboard holds the admin key. **capkit is what the admin key commands** — it
+mints tokens, holds the chain, enrols identities. Checking only the dashboard was
+checking the easier one, so `check:routeauth` now covers both: **111 routes, 86
+guarded, 25 public with a stated reason, 0 undecided.**
+
+Thirteen capkit routes carried no `authorise()`. Probed against a running
+instance rather than read:
+
+| Route | What it does | Verdict |
+|---|---|---|
+| `/health`, `/ready` | liveness | correct — a probe cannot carry a token |
+| `/metrics` | Prometheus: route names, status codes, counts | accepted; a scraper cannot carry a token either. Restrict at the network |
+| `/plans` | the published price list | correct |
+| `/usage` | **returns `401 TENANT_KEY_REQUIRED`** — guarded inside the handler, not at the router | correct, and only visible by asking |
+| `GET`/`POST /signup` | **`404` unless self-serve signup is explicitly enabled** | correct, fails closed |
+| `POST /billing/webhook` | authenticated by signature inside the handler | correct — a payment provider cannot carry a token |
+| `/executions/public-key`, `POST /executions/verify` | the key, and verification | **deliberate**, as on the dashboard |
+| `POST /identities/:subject/challenge` | issues a nonce | **an enumeration oracle** |
+
+`/usage` and `/signup` are the two worth naming as *correct*: both look open at
+the router and are not, and the only way to establish that was to send the
+request. Reading the route table would have produced two false findings.
+
+### The one real finding, and why it is not being fixed
+
+`POST /identities/:subject/challenge` must be unauthenticated — an agent cannot
+need authority in order to prove who it is, and gating it inverts the whole
+identity layer. That argument was already in the code and it is right.
+
+What was not stated is the side effect. An unknown subject answers `404
+IDENTITY_UNKNOWN`, an enrolled one answers `200` with a nonce, and a **suspended
+one answers `403`** — so an anonymous caller can enumerate which subjects exist
+and which are suspended, at 60 requests a minute.
+
+Returning a nonce for every subject would close it. It is not being done, and the
+reason is stated rather than assumed: the commonest real failure at this endpoint
+is a typo in a subject name, and the operator would get *your signature is
+invalid* about a subject that was never enrolled. Subject names are inventory,
+not credentials. **The trade is now written on the route and in
+[SECURITY-MODEL.md](SECURITY-MODEL.md) under what this does not protect
+against**, which is the difference between a decision and an oversight.
+
+---
+
 ## 3x. Twelve routes with no authentication, and nobody had decided
 
 Asking *which routes carry no auth?* — the question that found `/endpoint-check`

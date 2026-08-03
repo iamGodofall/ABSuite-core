@@ -131,8 +131,6 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 
 **`POST /auth/token/validate`** — Validate a token, optionally against a specific capability. `requiredScope` is honoured. It was accepted and silently ignored until 1.1.0, which meant asking "is this token good for payment:refund?" about a token holding only `payment:approve` answered `{"valid": true}` — a false allow produced by an unrecognised field, in the endpoint whose entire job is to answer that question. The response now echoes `requiredScope` back, so a caller can see the check was performed rather than assume it.
 
-**`POST /billing/webhook`** — Stripe webhook. Verified against the raw body before anything is trusted. Without a configured secret the endpoint refuses outright rather than accepting unsigned plan changes.
-
 **`GET /executions-verify-chain`** — Walk the chain. `?from=checkpoint` resumes from the last signed checkpoint. The default is a full walk and stays that way: a caller who did not ask for the cheaper answer must never silently receive it. A resumed response carries `verifiedFrom` and `scope`, so the two claims cannot be confused by anything reading this route.
 
 **`GET /executions/:id/conditions`** — The five necessary conditions, assessed for one execution. Trust := f(Identity, Capability, Evidence, Governance, Time) `f` is not implemented, here or anywhere. This returns the inputs — each demonstrated, unproven or absent, each naming its source field — and a conclusion in words. There is no score, and the absence is deliberate: a number replaces evidence with something nobody audits.
@@ -147,19 +145,13 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 
 **`POST /executions/checkpoint`** — Walk the chain fully, and record a signed note that it verified. `execution:verify` rather than `execution:read`, because writing a checkpoint is what later lets a walk be skipped. Anyone who can create one can decide how much history a resumed verification stops examining, and that is not a power that belongs with reading.
 
-**`GET /executions/public-key`** — The public half of the trace signing key. Deliberately unauthenticated: verification is meant to be possible by an auditor or customer who holds no ABSuite credentials at all.
-
 **`GET /executions/stats`** — Aggregate counts across everything recorded, plus a live chain verification. This is what a control plane opens on, so it is also the easiest screen in the product to lie on. Every field is a count of records that exist; the verification result comes from actually walking the chain on this request rather than from a cached "healthy". `unverifiable` names what we deliberately do not track, so an absent number reads as absent rather than as zero.
 
 **`GET /executions/unknowns`** — Everything this instance could know and does not, grouped by what would fix it. An UNKNOWN is not a destination; it is a queue of work. Every unknown in the system already carries its own route out, and once you have thousands of records those routes collapse into a handful of distinct actions — supply the public key, record output hashes, attach a policy reference. This groups them and counts how many records each one would resolve. Counts, not priorities. Which of these matters is a judgement, and ordering them by importance would be ABSuite making it.
 
-**`POST /executions/verify`** — Verify a single trace, or the whole chain. Unauthenticated by design: a customer or regulator must be able to check a trace they were handed without holding an ABSuite credential.
-
 **`GET /identities`** — Every enrolled identity. Public keys only — no private material is ever held.
 
 **`POST /identities`** — Enrol a subject against a public key it holds the private half of. This is the line where `subject` stops being a string somebody typed. Until a subject is enrolled, every condition report says Identity: UNKNOWN — because a name on a record is a label, and the check that used to sit here proved only that this server wrote the record, which is a fact about us.
-
-**`POST /identities/:subject/challenge`** — A single-use challenge for a subject to sign. Deliberately unauthenticated: asking for a nonce proves nothing and grants nothing. The credential is the *signature*, and only the holder of the private key can produce one. Gating this behind a token would mean an agent needed authority before it could prove who it was, which inverts the whole layer.
 
 **`POST /identities/:subject/rotate`** — Rotate the public key on file. History is untouched; future proofs change key.
 
@@ -172,10 +164,6 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`POST /models/:name/attest`** — Is what is answering now the model that was approved?
 
 **`POST /models/:name/supersede`** — Replace an approval deliberately. Never a side effect of re-running setup.
-
-**`GET /ready`** — Readiness differs from liveness: it fails if storage is unusable.
-
-**`GET /usage`** — A tenant's own usage and quota position, for a billing page.
 
 **`GET /watch`** — What a person should look at, and how much of the record that answer covers. `coverage` is not a footer. An empty `notices` array means "the last sweep found none" or it means "nothing has ever swept", and those are opposite statements that look identical in a list. Every response here carries the sentence that tells them apart, so an interface cannot render the list without rendering what the list means.
 

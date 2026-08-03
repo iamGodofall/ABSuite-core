@@ -391,6 +391,7 @@ const authorise = capabilityGuard({
 
 // ---- Health ----
 
+// public-route: a platform health probe cannot carry credentials.
 app.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -591,11 +592,15 @@ app.post('/issue', authorise('auth:token:create'), (req, res) => {
   }
 });
 
+// public-route: reports which providers have keys configured, never key
+// material. The dashboard renders it before an admin key exists.
 app.get('/ai/providers', (_req, res) => {
   const { providers, recommended } = describeProviders();
   return res.status(200).json({ providers, recommended });
 });
 
+// public-route: deterministic, rule-based, reads nothing. Bounded compute
+// behind the rate limiter.
 app.post('/ai/policy/generate', (req, res) => {
   const description = String(req.body?.description ?? req.body?.prompt ?? '').trim();
   if (!description) {
@@ -609,6 +614,10 @@ app.post('/ai/policy/generate', (req, res) => {
 
 // ---- Operations ----
 
+// public-route: Prometheus scrape. Discloses route names, status codes and
+// counts — operational shape, no record content and no credential. Restrict it
+// at the network if that shape matters to you; nothing here can gate it,
+// because a scraper cannot carry a capability token.
 app.get('/metrics', (_req, res) => {
   metrics.set('absuite_uptime_seconds', Math.floor((Date.now() - STARTED_AT) / 1000), { service: 'capkit' });
   res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
@@ -616,6 +625,7 @@ app.get('/metrics', (_req, res) => {
 });
 
 /** Readiness differs from liveness: it fails if storage is unusable. */
+// public-route: readiness probe, same reason as /health.
 app.get('/ready', (_req, res) => {
   try {
     storage.get('SELECT 1 AS ok');
@@ -641,12 +651,15 @@ const SIGNUP_ENABLED = ['1', 'true', 'yes'].includes((process.env.ABSUITE_SIGNUP
 const SIGNUP_PLAN = (process.env.ABSUITE_SIGNUP_PLAN || 'free').trim();
 const signupThrottle = new SignupThrottle();
 
+// public-route: signup by definition. Returns 404 unless self-serve signup is
+// explicitly enabled, so the default deployment exposes nothing.
 app.get('/signup', (_req, res) => {
   if (!SIGNUP_ENABLED) return fail(res, 404, 'NOT_FOUND', 'Self-serve signup is not enabled on this deployment');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(200).send(SIGNUP_PAGE);
 });
 
+// public-route: as above, and off by default.
 app.post('/signup', (req, res) => {
   if (!SIGNUP_ENABLED) return fail(res, 404, 'NOT_FOUND', 'Self-serve signup is not enabled on this deployment');
 
@@ -725,6 +738,21 @@ app.get('/identities/:subject', authorise('identity:read'), (req, res) => {
  * key can produce one. Gating this behind a token would mean an agent needed
  * authority before it could prove who it was, which inverts the whole layer.
  */
+// public-route: asking for a nonce proves nothing and grants nothing, and
+// gating it would mean an agent needed authority before it could prove who it
+// was. That inverts the layer.
+//
+// It is a subject-enumeration oracle, and that is stated rather than glossed:
+// an unknown subject answers 404 IDENTITY_UNKNOWN, an enrolled one answers 200
+// with a nonce, and a suspended one answers 403 — so an anonymous caller can
+// learn which subjects exist and which are suspended, at the rate limiter's 60
+// requests a minute.
+//
+// Returning a nonce for every subject would close it and cost more than it
+// saves: the commonest real failure here is a typo in a subject name, and the
+// operator would get "your signature is invalid" for a subject that was never
+// enrolled. Subject names are inventory, not credentials. The trade is stated
+// in docs/SECURITY-MODEL.md rather than decided silently.
 app.post('/identities/:subject/challenge', (req, res) => {
   try {
     return res.status(200).json(identities.challenge(String(req.params.subject)));
@@ -1027,6 +1055,8 @@ app.post('/watch/notices/:id/acknowledge', authorise('watch:acknowledge'), (req,
  * Deliberately unauthenticated: verification is meant to be possible by an
  * auditor or customer who holds no ABSuite credentials at all.
  */
+// public-route: deliberately. An auditor with no relationship to the operator
+// must be able to fetch the key and check a record without asking permission.
 app.get('/executions/public-key', (_req, res) => {
   res.status(200).json({
     keyId: signingKey.keyId,
@@ -1472,6 +1502,8 @@ app.post('/executions/:id/replay', authorise('execution:read'), (req, res) => {
  * Unauthenticated by design: a customer or regulator must be able to check a
  * trace they were handed without holding an ABSuite credential.
  */
+// public-route: deliberately. Verification that requires the operator's
+// blessing proves nothing.
 app.post('/executions/verify', (req, res) => {
   const trace = req.body?.trace;
   if (!trace || typeof trace !== 'object') {
@@ -1561,11 +1593,14 @@ app.post('/executions/checkpoint', authorise('execution:verify'), (_req, res) =>
 
 // ---- Billing & tenancy ----
 
+// public-route: the published price list.
 app.get('/plans', (_req, res) => {
   res.status(200).json({ plans: Object.values(PLANS) });
 });
 
 /** A tenant's own usage and quota position, for a billing page. */
+// public-route: unauthenticated at the router, and guarded inside — it returns
+// 401 TENANT_KEY_REQUIRED without an X-ABSuite-Tenant-Key. Verified by asking.
 app.get('/usage', (req, res) => {
   const tenant = (req as TenantRequest).tenant;
   if (!tenant) {
@@ -1634,6 +1669,8 @@ app.post('/admin/tenants/:id/rotate-key', authorise('tenant:manage'), (req, res)
  * configured secret the endpoint refuses outright rather than accepting
  * unsigned plan changes.
  */
+// public-route: a payment provider cannot carry a capability token. The
+// request is authenticated inside the handler by its signature.
 app.post('/billing/webhook', (req, res) => {
   const raw = (req as express.Request & { rawBody?: string }).rawBody ?? '';
   const signature = req.header('stripe-signature') || '';
