@@ -150,6 +150,41 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3v. The most privileged process in the deployment had no tests at all
+
+`find packages/dashboard-ui -name '*.test.ts'` returned nothing. The dashboard
+holds `CAPKIT_ADMIN_KEY`, mounts the Docker socket, and can start and stop
+services — and not one of its routes had ever been asserted against.
+
+That is how `/endpoint-check` became the fourth instance of an SSRF this
+repository had already fixed three times, carrying two defects at once: **no
+`requireAdminAccess`**, alone among the routes that reach anything, and **a
+hostname allowlist that covered one hop**. Both were found by probing a running
+server, and both were fixed by hand.
+
+Which left the fix exactly as durable as one person's memory of a terminal
+session. Every other fix in this sweep had a test proved load-bearing by
+reintroducing the defect; that one had a paragraph.
+
+Ten tests now, against a real spawned server. `127.0.0.2` is the off-allowlist
+target throughout — the whole of `127/8` is local on Linux, so it needs no
+external network and no environment-specific interface, and it is genuinely not
+on the health-host list rather than being staged to look that way.
+
+Proved by reverting each defect separately:
+
+| Reverted | Turns red |
+|---|---|
+| `requireAdminAccess` removed from the route | 3 — unauthenticated, wrong-key, and unconfigured |
+| `only:` changed back to `allow:` | 1 — the redirect reaches the excluded host |
+
+The third of those three is the one worth naming: **the route is closed rather
+than open when no admin key is configured**, which is the state most instances
+actually run in. If it failed open there, the fix would be void exactly where it
+matters most.
+
+---
+
 ## 3u. A code block is the most credible thing on the page
 
 §3t ended by saying the rest of `docs/` was UNKNOWN rather than sound. This is
@@ -1249,7 +1284,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **883 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **893 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 22 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
