@@ -69,6 +69,34 @@ Every action is signed and hash-chained, so anyone can check the record —
 including people with no reason to trust you. Payloads are hashed, never stored:
 the record proves what happened without becoming a copy of your data.
 
+### Or run the whole thing
+
+One container, all six services, one port:
+
+```bash
+docker run -p 3001:3001 \
+  -e ABSUITE_PUBLIC_PASSWORD=pick-something-long \
+  ghcr.io/iamgodofall/absuite-allinone:latest
+```
+
+Then open `http://localhost:3001`. These are the same `dist/server.js` binaries
+the seven-container compose file runs, on the same SQLite file, answering the
+same routes — not a cut-down version. The password is not optional and the
+container refuses to start without one; anything you can reach, so can anyone
+else who finds the address. `ABSUITE_PUBLIC_UNPROTECTED=true` is the named way
+out if you already have an authenticating proxy in front.
+
+**Which one do you want?**
+
+| | Start here | Why |
+|---|---|---|
+| **Build with it** | `npm install @absuitecore/capkit` | One package, one dependency in your application. Add any of the other seven only when you need them. |
+| **Run it** | the `docker run` above | Everything at once, nothing to assemble, nothing to choose between. |
+
+There is deliberately **no "install everything" npm package.** Pulling eight
+packages into an application that needs one is a worse default, not a friendlier
+one — so the all-in-one is a container you run, not a dependency you take.
+
 **[Getting started →](./GETTING-STARTED.md)** · **[Run the full incident investigation →](./examples/incident-forensics.mjs)**
 
 ---

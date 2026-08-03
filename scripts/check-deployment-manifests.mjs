@@ -368,6 +368,50 @@ if (edges > 0 && !failures.some(f => /workspace:/.test(f))) {
   passes.push(`${edges} workspace dependency edge(s) present in the image that needs them`);
 }
 
+/* ── §7 An image nobody is told about ──────────────────────────────────────
+ *
+ * `absuite-allinone` was built on every push, tagged `:latest` — the only image
+ * that carries a moving tag, deliberately — and named in **no document that
+ * tells anyone how to run it**. The README's one `docker run` example pointed at
+ * a single service. So the artefact designed to be the easy path was the one
+ * nobody could find, and every reader was funnelled toward assembling seven
+ * containers instead.
+ *
+ * That is not a documentation nicety. Publishing something on every push and
+ * never mentioning it is how a project ends up maintaining a thing no user has
+ * a route to.
+ *
+ * Only images carrying a moving `:latest` tag are held to this. The per-service
+ * images are sha-only on purpose — cd.yml says why: a moving tag on a component
+ * is how a cluster ends up running six versions that were never tested
+ * together. Those are build artefacts for the compose and k8s paths, not things
+ * an operator is invited to `docker run`. **A `:latest` tag is a promise that
+ * somebody will run it**, and this checks the promise was kept. The rule's first
+ * draft matched every published image and demanded documentation for six things
+ * deliberately not offered that way.
+ */
+const documented = ['README.md', 'docs/DEPLOY.md', 'docs/HOSTING.md', 'docs/GUIDE.md']
+  .filter(path => existsSync(join(root, path)))
+  .map(path => readFileSync(join(root, path), 'utf8'))
+  .join('\n');
+
+const published = [...cd.matchAll(/absuite-([a-z-]+):latest/g)]
+  .map(match => `absuite-${match[1]}`)
+  .filter((name, index, all) => all.indexOf(name) === index);
+
+for (const image of published) {
+  if (!documented.includes(image)) {
+    failures.push(
+      `cd.yml publishes \`${image}\` and no operator-facing document names it.\n` +
+        '    An image built on every push that nobody is told how to run is a thing\n' +
+        '    this project maintains and no reader has a route to.',
+    );
+  }
+}
+if (published.length > 0 && !failures.some(f => /publishes `absuite-/.test(f))) {
+  passes.push(`${published.length} image(s) tagged :latest, each named in a document that says how to run it`);
+}
+
 /* ── Report ───────────────────────────────────────────────────────────────── */
 
 for (const line of passes) console.log(`✓ ${line}`);
