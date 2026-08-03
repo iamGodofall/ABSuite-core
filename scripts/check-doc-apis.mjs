@@ -23,18 +23,33 @@
  * "things capkit exports" written into this script would be one more hand-copied
  * fact that drifts, which is the defect this repository keeps finding in itself.
  *
- * ## What it does not check
+ * ## And then type-checks them
  *
- * Method calls on those symbols, and prose. `capkit.rotateKey()` had no import
- * to check, and would still pass here — so this narrows the gap rather than
- * closing it, and §3u says so rather than implying the class is handled.
+ * Symbol existence does not catch `rotated.active()` on a getter, or a method
+ * called with the wrong arguments. So every self-contained block is extracted
+ * and run through `tsc --strict` against the packages' own declarations.
+ *
+ * A document elides its setup — `secret`, `publicKeyPem`, `input` are named
+ * without being declared, and should be. So the errors that mean *you left
+ * something out* are ignored by code, and the errors that mean *you used the
+ * API wrongly* fail the build. That list is short and stated below rather than
+ * tuned until the output was quiet.
+ *
+ * ## What it still does not check
+ *
+ * Prose, and the elided identifiers themselves — `ring.rotate(…)` in a block
+ * that never constructs `ring` reports `TS2304`, which is indistinguishable
+ * from a deliberate elision. That one is caught by running examples before
+ * publishing them, which is a practice and not a gate.
  *
  *   node scripts/check-doc-apis.mjs        # or: pnpm check:apis
  *
  * Needs the packages built, so it runs after `pnpm build` in `pnpm verify`.
  */
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,6 +81,7 @@ const IMPORT = /import\s*\{([^}]+)\}\s*from\s*['"](@absuitecore\/[a-z-]+)['"]/g;
 const lineOf = (text, index) => text.slice(0, index).split('\n').length;
 
 const references = [];
+const typeable = [];
 let blocks = 0;
 
 for (const document of documents) {
@@ -73,6 +89,10 @@ for (const document of documents) {
 
   for (const fence of text.matchAll(FENCE)) {
     blocks++;
+    // Only blocks that import from a package can be compiled against one.
+    if (/@absuitecore\//.test(fence[1])) {
+      typeable.push({ document, line: lineOf(text, fence.index), source: fence[1] });
+    }
     for (const statement of fence[1].matchAll(IMPORT)) {
       const names = statement[1]
         .split(',')
@@ -122,6 +142,76 @@ for (const reference of references) {
   if (!surface.has(reference.name)) missing.push(reference);
 }
 
+/* ── Compile them ───────────────────────────────────────────────────────── */
+
+/**
+ * Errors a document *should* produce, because it elides its own setup.
+ *
+ * A README that declared `secret`, `publicKeyPem` and `input` before every
+ * example would be unreadable, so those identifiers are named and not defined
+ * on purpose. Ignoring the codes that say so is what makes the rest meaningful.
+ *
+ * This list is short, and each entry is a category rather than a specific
+ * message — an ignore list tuned until the output went quiet would be a gate
+ * that reports success by suppression.
+ */
+const ELIDED = new Set([
+  'TS2304',   // Cannot find name — a placeholder the prose introduces
+  'TS2552',   // Cannot find name, with a suggestion — same thing
+  'TS18004',  // Shorthand property with no value in scope — { input, output }
+  'TS2307',   // Cannot find module — a third-party import like express
+]);
+
+const MIN_TYPED_BLOCKS = 12;
+
+function typeCheck(blocksToCheck) {
+  const dir = mkdtempSync(join(tmpdir(), 'absuite-docs-'));
+  const names = new Map();
+
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'module' }));
+
+    const paths = Object.fromEntries(
+      readdirSync(join(root, 'packages'))
+        .map(pkg => [`@absuitecore/${pkg}`, [join(root, 'packages', pkg, 'dist/index.d.ts')]])
+        .filter(([, [declaration]]) => existsSync(declaration))
+    );
+
+    writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
+        // Strict, because `strictNullChecks: false` silently disables
+        // discriminated-union narrowing and reports correct examples as broken.
+        strict: true, noEmit: true, skipLibCheck: true,
+        typeRoots: [join(root, 'node_modules/@types')], types: ['node'],
+        paths,
+      },
+    }));
+
+    blocksToCheck.forEach((block, index) => {
+      const name = `block${index}.ts`;
+      names.set(name, block);
+      writeFileSync(join(dir, name), block.source);
+    });
+
+    try {
+      execFileSync('npx', ['tsc', '-p', dir], { cwd: root, stdio: 'pipe', encoding: 'utf8' });
+      return [];
+    } catch (error) {
+      const output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+      return output.split('\n')
+        .map(line => line.match(/(block\d+\.ts)\((\d+),\d+\):\s+error\s+(TS\d+):\s+(.*)/))
+        .filter(Boolean)
+        .filter(match => !ELIDED.has(match[3]))
+        .map(match => ({ block: names.get(match[1]), line: Number(match[2]), code: match[3], message: match[4] }));
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const typeErrors = typeCheck(typeable);
+
 /* ── Report ─────────────────────────────────────────────────────────────── */
 
 console.log('\nAPI symbols named in documentation\n');
@@ -157,7 +247,30 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+if (typeable.length < MIN_TYPED_BLOCKS) {
+  console.error(
+    `\x1b[31m✗\x1b[0m only ${typeable.length} compilable block(s), expected at least ${MIN_TYPED_BLOCKS}.\n` +
+    '  A type check that compiles almost nothing reports success for the wrong reason.'
+  );
+  process.exit(1);
+}
+
+if (typeErrors.length > 0) {
+  console.error(`\x1b[31m✗\x1b[0m ${typeErrors.length} documented example(s) do not type-check:\n`);
+  for (const hit of typeErrors) {
+    console.error(`  ${hit.block.document}:${hit.block.line}  (line ${hit.line} of the block)`);
+    console.error(`    ${hit.code}: ${hit.message}\n`);
+  }
+  console.error(
+    'These are compiled against the packages\' own declarations, with the errors a\n' +
+    'document necessarily produces by eliding setup already filtered out. What is\n' +
+    'left means the example uses the API in a way the API does not support.'
+  );
+  process.exit(1);
+}
+
 const perPackage = [...new Set(references.map(r => r.pkg))].sort();
 console.log(`\x1b[32m✓\x1b[0m ${references.length} imported symbol(s) across ${blocks} code block(s) all exist.`);
 console.log(`  ${perPackage.length} package(s): ${perPackage.map(p => p.replace('@absuitecore/', '')).join(', ')}`);
+console.log(`  ${typeable.length} block(s) compiled against the real declarations, strict, clean.`);
 console.log(`  ${documents.length} document(s) scanned.\n`);

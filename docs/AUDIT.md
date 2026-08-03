@@ -211,11 +211,42 @@ nothing new**, and that is the honest result: it is a tripwire for the next
 `AIPolicyRule`, not a discovery. Proved by adding a fabricated `rotateKey` import
 to `docs/MODULES.md` and watching it name the file and line.
 
-**What it does not check.** Method calls and prose. `capkit.rotateKey()` had no
-import to check and would still pass — so this narrows the class rather than
-closing it, and saying otherwise would be the same overstatement §3t is about.
-Type-checking the blocks against the workspace would close it properly, and is
-not done.
+### And then it compiles them
+
+Symbol existence does not catch `rotated.active()` on a getter. So the same gate
+extracts every self-contained block — 23 of them — and runs `tsc --strict`
+against the packages' own `.d.ts` declarations.
+
+A document elides its setup: `secret`, `publicKeyPem`, `input` are named without
+being declared, and should be. Four error codes say exactly that (`TS2304`,
+`TS2552`, `TS18004`, `TS2307`) and are ignored **by category, in code**. Everything
+else fails the build. An ignore list tuned until the output went quiet would be a
+gate that reports success by suppression, so the list is short and it is stated.
+
+Proved by reintroducing three real classes of error and watching each get named
+with its file, its line, and its line within the block:
+
+```
+TS6234  This expression is not callable because it is a 'get' accessor
+TS2551  Property 'rotateKey' does not exist on type 'KeyRing'. Did you mean 'rotate'?
+TS2345  Argument of type 'number' is not assignable to parameter of type 'string'
+```
+
+The first of those is the mistake I made writing the correction to §3t.
+
+**One thing worth recording about building it.** The first harness ran with
+`strict: false` and reported the capkit README's headline example as broken —
+`Property 'error' does not exist on type 'CapabilityValidation'`. It was about to
+be written up as a defect. It is not one: `strictNullChecks: false` silently
+disables discriminated-union narrowing, so a correct example compiles as wrong.
+The gate is strict for that reason, and the near-miss is recorded because a
+*checker* that produces false findings is worse than no checker — it spends the
+credibility that makes the true ones actionable.
+
+**What it still does not check.** Prose, and the elided identifiers themselves.
+`ring.rotate(…)` in a block that never constructs `ring` reports `TS2304`, which
+is indistinguishable from a deliberate elision. That one is caught by running
+examples before publishing them, which is a practice and not a gate.
 
 ---
 
