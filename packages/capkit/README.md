@@ -188,10 +188,39 @@ Generate secrets with `openssl rand -hex 32`, and a trace keypair with
 the public one to give auditors and the private one for your secret manager.
 `SigningKey.generate()` returns the PEMs alone and remains supported.
 
+## Where an outbound request is going
+
+Three services in this suite take a URL from a caller and fetch it. Rather than
+three copies of one address table — the drift this project keeps catching in
+itself — classification lives here:
+
+```ts
+import { resolveRanges, inAnyRange } from '@absuitecore/capkit';
+
+const blocked = inAnyRange(await resolveRanges(url.hostname), ['link-local']);
+if (blocked) throw new Error(`Refusing to call ${url.hostname}: it is ${blocked.why}.`);
+```
+
+`resolveRanges` returns every address a hostname resolves to, each tagged
+`loopback | private | link-local | carrier-grade-nat | unique-local |
+unspecified | public`, with a `why` string naming the specific thing that
+matched — `169.254.169.254` is described as the cloud metadata range, `fe80::1`
+is not. It returns `undefined` for a name that will not resolve, because
+reporting a DNS outage as a security event teaches operators to ignore security
+events.
+
+**It classifies and does not decide.** There is no `isAllowed()`, because
+`webhook.send` posts to third parties and must refuse private ranges, while
+edge-run and quickbench exist to call your own internal services. A shared
+decision would have had to pick a side and be wrong somewhere.
+
 ## Known limitations
 
 - Only one signing key is active at a time; rotating `CAPKIT_HMAC_SECRET`
   invalidates existing tokens.
+- `resolveRanges` does not close DNS rebinding — a hostile resolver can answer
+  differently between this lookup and the one `fetch` performs. It raises the
+  cost of SSRF; it does not eliminate the class.
 - SQLite is single-node. The `Storage` and `RevocationStore` interfaces exist so
   a Postgres or Redis backend drops in without callers changing.
 

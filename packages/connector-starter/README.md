@@ -50,8 +50,23 @@ implies a cadence.
 
 ## Security
 
-Generic webhook targets must be `https`. Connector credentials are read from the
-environment and are never returned in an API response.
+Generic webhook targets must be `https`, and must not carry credentials in the
+URL — those end up in logs.
+
+**A webhook URL cannot point inward.** `webhook.send` takes its target from the
+caller, so without a guard a `connector:execute` scope would also mean *fetch
+`http://169.254.169.254/` and hand back the body* — the cloud instance metadata
+service, and how a machine's IAM credentials are stolen. Loopback, private,
+link-local, unique-local, carrier-grade NAT and the unspecified address are all
+refused, by resolved address rather than by the text of the hostname.
+
+Set `ABSUITE_ALLOW_PRIVATE_WEBHOOKS=true` if your webhook receiver genuinely
+lives on an internal address. The escape hatch exists deliberately: a control
+that breaks a real deployment gets patched out, and then protects nobody.
+
+Connector credentials are read from the environment, are never returned in an
+API response, and do not appear in delivery-failure errors — a webhook URL is
+itself a credential.
 
 ## Configuration
 

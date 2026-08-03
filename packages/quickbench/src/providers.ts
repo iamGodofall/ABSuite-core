@@ -5,6 +5,8 @@
  * time-to-first-token where the provider exposes it. Adapters normalise onto a
  * single shape so benchmarks compare like with like across providers.
  */
+import { resolveRanges, inAnyRange } from '@absuitecore/capkit';
+
 
 export interface CompletionRequest {
   model: string;
@@ -30,6 +32,32 @@ export interface Provider {
 }
 
 const DEFAULT_TIMEOUT = 120_000;
+
+/**
+ * Refuse the cloud metadata service, and nothing else.
+ *
+ * The classifier lives in capkit because the identical SSRF was found in three
+ * packages; the *policy* lives here because the right policy differs per
+ * caller. See `capkit/src/outbound.ts`.
+ */
+async function refuseMetadataTarget(url: string): Promise<string | undefined> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return `Invalid benchmark URL: ${url}`;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return `Unsupported protocol for a benchmark target: ${parsed.protocol}`;
+  }
+
+  // Unresolvable is not a refusal — it fails at fetch, and reporting a DNS
+  // outage as a security event teaches people to ignore security events.
+  const blocked = inAnyRange(await resolveRanges(parsed.hostname), ['link-local']);
+  return blocked
+    ? `Refusing to benchmark ${parsed.hostname}: it is ${blocked.why}.`
+    : undefined;
+}
 
 async function timedFetch(url: string, init: RequestInit, timeoutMs: number) {
   const startedAt = performance.now();
@@ -244,7 +272,29 @@ export class AnthropicProvider implements Provider {
   }
 }
 
-/** HTTP endpoint benchmarking — for measuring an agent service, not a model. */
+/**
+ * HTTP endpoint benchmarking — for measuring an agent service, not a model.
+ *
+ * ## The one target it refuses
+ *
+ * `POST /run` takes `url` from the request body under a `bench:run` scope, so
+ * an agent chooses what gets benchmarked. Probing found it would reach
+ * `http://169.254.169.254/` — the cloud instance metadata service.
+ *
+ * **This is the least severe of the three places that defect was found, and
+ * saying so matters more than making it sound worse.** Measured: the provider
+ * returns `{ ok, latencyMs }` and never the response body, so nothing is
+ * exfiltrated. Volume is capped at 500 runs and 32 concurrent. What remains is
+ * real but narrower — an existence and latency oracle for mapping an internal
+ * network, and a bounded amount of traffic aimed at a host of the caller's
+ * choosing.
+ *
+ * Private and loopback addresses are deliberately still allowed. Benchmarking
+ * your own service at `http://10.0.0.5/` is the entire point of this provider,
+ * and a guard that broke the primary use case would be switched off, which
+ * protects nobody. Link-local is refused because it is never a benchmark
+ * target and is the only one that leaks something about the machine itself.
+ */
 export class HttpProvider implements Provider {
   readonly name = 'http';
   readonly configured = true;
@@ -253,6 +303,10 @@ export class HttpProvider implements Provider {
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
     const startedAt = performance.now();
+
+    const refusal = await refuseMetadataTarget(this.url);
+    if (refusal) return { ok: false, latencyMs: performance.now() - startedAt, error: refusal };
+
     return attempt(startedAt, async () => {
       const { response, latencyMs } = await timedFetch(
         this.url,

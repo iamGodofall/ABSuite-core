@@ -7,8 +7,7 @@
  * what the dashboard needs to render honest status.
  */
 
-import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { resolveRanges, inAnyRange, type AddressRange } from '@absuitecore/capkit';
 
 export interface ConnectorAction {
   name: string;
@@ -124,7 +123,7 @@ export function describeConnectors(env: NodeJS.ProcessEnv = process.env) {
 }
 
 /**
- * Whether an address is somewhere a caller-supplied webhook may not reach.
+ * Check a caller-supplied URL before anything is sent to it.
  *
  * ## Why this exists
  *
@@ -146,39 +145,6 @@ export function describeConnectors(env: NodeJS.ProcessEnv = process.env) {
  * **a capability that grants more than its name says is precisely the defect
  * this project exists to prevent.** An agent holding a narrow, legitimate grant
  * could reach the whole internal network through it.
- */
-const BLOCKED_V4 = [
-  [/^127\./, 'loopback'],
-  [/^10\./, 'private'],
-  [/^192\.168\./, 'private'],
-  [/^172\.(1[6-9]|2\d|3[01])\./, 'private'],
-  [/^169\.254\./, 'link-local (the cloud metadata range)'],
-  [/^0\./, 'unspecified'],
-  [/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, 'carrier-grade NAT'],
-] as const;
-
-function blockedReason(address: string): string | undefined {
-  const family = isIP(address);
-
-  if (family === 4) {
-    for (const [pattern, why] of BLOCKED_V4) {
-      if (pattern.test(address)) return why;
-    }
-    return undefined;
-  }
-
-  const normalised = address.toLowerCase().replace(/^\[|\]$/g, '');
-  if (normalised === '::1' || normalised === '::') return 'loopback';
-  if (/^f[cd]/.test(normalised)) return 'unique-local';
-  if (/^fe[89ab]/.test(normalised)) return 'link-local';
-  // ::ffff:127.0.0.1 — an IPv4 address wearing an IPv6 coat.
-  const mapped = normalised.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped?.[1]) return blockedReason(mapped[1]);
-  return undefined;
-}
-
-/**
- * Check a caller-supplied URL before anything is sent to it.
  *
  * ## What this does not do, said plainly
  *
@@ -220,25 +186,21 @@ async function refuseUnsafeTarget(
     return undefined;
   }
 
-  const host = url.hostname.replace(/^\[|\]$/g, '');
+  /*
+   * Everything inward. Unlike edge-run and quickbench, this action posts to
+   * third parties, so a private or loopback target is never legitimate — the
+   * classifier is shared, the policy is not.
+   */
+  const REFUSED: AddressRange[] = [
+    'loopback', 'private', 'link-local', 'unique-local', 'carrier-grade-nat', 'unspecified',
+  ];
 
-  if (isIP(host)) {
-    const why = blockedReason(host);
-    return why ? `Webhook URL resolves to a ${why} address, which this connector will not call` : undefined;
-  }
+  const resolved = await resolveRanges(url.hostname);
+  if (!resolved) return `Webhook URL host could not be resolved: ${url.hostname}`;
 
-  // A name can point anywhere. `metadata.google.internal` is the obvious case,
-  // and `localhost` is the one everybody forgets.
-  try {
-    const resolved = await lookup(host, { all: true });
-    for (const { address } of resolved) {
-      const why = blockedReason(address);
-      if (why) {
-        return `Webhook URL resolves to a ${why} address (${address}), which this connector will not call`;
-      }
-    }
-  } catch {
-    return `Webhook URL host could not be resolved: ${host}`;
+  const blocked = inAnyRange(resolved, REFUSED);
+  if (blocked) {
+    return `Webhook URL resolves to ${blocked.address} — ${blocked.why} — which this connector will not call`;
   }
 
   return undefined;

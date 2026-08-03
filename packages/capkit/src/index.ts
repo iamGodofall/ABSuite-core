@@ -138,6 +138,23 @@ export {
   type SweepResult,
 } from './watch';
 
+/*
+ * Outbound-address classification, shared because the same SSRF was found in
+ * three packages that each take a URL from a caller and fetch it. This answers
+ * *what kind of address is this*; each caller decides policy, because the right
+ * answer genuinely differs — see the module header.
+ */
+export {
+  classifyAddress,
+  describeTarget,
+  isMetadataHostname,
+  resolveRanges,
+  inAnyRange,
+  RANGE_REASON,
+  type AddressRange,
+  type ResolvedTarget,
+} from './outbound';
+
 export {
   TraceStore,
   SigningKey,

@@ -63,6 +63,17 @@ Required scopes: `bench:run`, `bench:read`.
 Run counts are clamped (max 500 runs, concurrency 32) so a single request
 cannot ask for unbounded work.
 
+## Security
+
+The `http` provider takes its URL from the request body, so a `bench:run` scope
+would otherwise also mean *send traffic wherever I say*. **Link-local addresses
+are refused** — `169.254.0.0/16` and IPv6 `fe80::/10`, plus
+`metadata.google.internal` by name — because that is where every major cloud puts
+instance metadata and it is never a benchmark target.
+
+Private and loopback addresses still work. Benchmarking your own service is the
+entire point of this provider, and a guard that broke it would be switched off.
+
 ## Known limitations
 
 Job history is in memory and capped at 100 jobs. Results do not survive a

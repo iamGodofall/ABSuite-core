@@ -50,8 +50,21 @@ remote-code-execution vector, so `script` tasks only run when
 `EDGERUN_SCRIPT_ROOT` is set, and only for paths that resolve inside that
 directory — `../` escapes are rejected. Scripts are spawned without a shell.
 
-`EDGERUN_ALLOWED_HOSTS` restricts which hosts an `http` task may call; leave it
-unset to allow any host. Only `http:` and `https:` are ever permitted.
+`EDGERUN_ALLOWED_HOSTS` restricts which hosts an `http` task may call. **Unset
+means any host** — a wide-open default, not a neutral one. Only `http:` and
+`https:` are ever permitted.
+
+**Link-local addresses are refused whether or not an allowlist is set.**
+`169.254.0.0/16` and IPv6 `fe80::/10` are where every major cloud puts instance
+metadata, so an `http` task pointed there is a way to read the machine's IAM
+credentials — and AWS IMDSv1 is HTTP-only, so requiring https would not have
+stopped it. `metadata.google.internal` is refused by name as well, because it
+resolves only inside GCP.
+
+Private and loopback addresses still work: calling `http://10.0.0.5/reindex` on
+a schedule is what this package is for. Naming a host in `EDGERUN_ALLOWED_HOSTS`
+overrides the refusal — an operator who writes `169.254.169.254` has said what
+they mean.
 
 ## Configuration
 

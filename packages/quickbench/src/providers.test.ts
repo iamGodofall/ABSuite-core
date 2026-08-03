@@ -155,6 +155,62 @@ describe('providers report what they measured', () => {
     expect(result.latencyMs).toBeGreaterThan(0);
   });
 
+  /*
+   * `POST /run` takes `url` from the request body under a `bench:run` scope,
+   * so an agent chooses what gets benchmarked.
+   *
+   * **This is the least severe of the three places that SSRF was found**, and
+   * the tests say so rather than making it sound worse: the provider returns
+   * `{ ok, latencyMs }` and never the body, so nothing is exfiltrated, and
+   * volume is capped at 500 runs and 32 concurrent. What is left is an
+   * existence and latency oracle, and a bounded amount of traffic aimed
+   * wherever the caller likes — real, and narrower than the other two.
+   */
+  test('refuses to benchmark the cloud metadata service', async () => {
+    globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
+
+    const result = await new HttpProvider('http://169.254.169.254/latest/meta-data/').complete({
+      model: 'n/a', prompt: 'n/a',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/169\.254\.0\.0\/16/);
+  });
+
+  test('refuses metadata.google.internal by name', async () => {
+    globalThis.fetch = (async () => new Response('{}', { status: 200 })) as typeof fetch;
+
+    const result = await new HttpProvider('http://metadata.google.internal/computeMetadata/v1/').complete({
+      model: 'n/a', prompt: 'n/a',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/GCP metadata service/);
+  });
+
+  test.each([
+    ['a private address — the primary use case', 'http://10.0.0.5/api'],
+    ['loopback, for a local service', 'http://127.0.0.1:8081/health'],
+    ['an ordinary public host', 'https://example.com/api'],
+  ])('still benchmarks %s', async (_label, url) => {
+    // Benchmarking your own service is the entire point of this provider. A
+    // guard that broke it would be switched off, which protects nobody.
+    globalThis.fetch = (async () => new Response('ok', { status: 200 })) as typeof fetch;
+
+    const result = await new HttpProvider(url).complete({ model: 'n/a', prompt: 'n/a' });
+
+    expect(result.ok).toBe(true);
+  });
+
+  test('the refusal is timed like everything else, not reported as 0ms', async () => {
+    const result = await new HttpProvider('http://169.254.169.254/').complete({
+      model: 'n/a', prompt: 'n/a',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.latencyMs).toBeGreaterThan(0);
+  });
+
   test('createProvider refuses an http provider with no url rather than inventing one', () => {
     expect(() => createProvider('http')).toThrow(/requires a url/);
     expect(() => createProvider('nonesuch')).toThrow(/Unknown provider/);

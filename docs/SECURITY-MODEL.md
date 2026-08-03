@@ -211,6 +211,38 @@ guarantees can run CapKit alone and skip the dashboard entirely.
 
 Services communicate over the Docker bridge network using HTTP. In production, enable TLS by configuring certificates in each service's environment.
 
+### Outbound requests
+
+Three services take a URL from a caller and fetch it: `webhook.send` in
+connector-starter, `http` tasks in edge-run, and the `http` provider in
+quickbench. Each holds a capability scope that means *send a webhook*, *queue a
+task*, *run a benchmark* — none of which mean *read this machine's cloud
+credentials*, which is what an unguarded fetch of `169.254.169.254` returns on a
+cloud VM.
+
+Address classification is shared, in `@absuitecore/capkit`'s `outbound` module,
+so there is one table rather than three copies that agree today. **Policy is not
+shared**, because it genuinely differs:
+
+| Service | Refuses | Rationale |
+|---|---|---|
+| connector-starter | loopback, private, link-local, unique-local, CGNAT, unspecified | posts to third parties; an internal address is never a legitimate webhook target |
+| edge-run | link-local | calling your own `10.0.0.5` on a schedule is the product |
+| quickbench | link-local | benchmarking your own service is the use case |
+
+All three refuse link-local, because `169.254.0.0/16` is where every major cloud
+puts instance metadata. `metadata.google.internal` is refused **by name** as well
+as by address: it resolves only inside GCP, so a resolution-based check would
+work only where it cannot be tested.
+
+Each has a documented escape hatch — `ABSUITE_ALLOW_PRIVATE_WEBHOOKS` for
+connector-starter, an explicit `EDGERUN_ALLOWED_HOSTS` entry for edge-run — on
+the principle that a control which breaks a legitimate deployment gets patched
+out, and then protects nobody.
+
+**This raises the cost of SSRF; it does not eliminate it.** See the DNS rebinding
+note under *What ABSuite does NOT protect against*.
+
 ---
 
 ## Secret Management
@@ -243,6 +275,7 @@ ABSUITE_DB_ENCRYPTION_KEY=<random-256-bit-secret>
 | Resource exhaustion | Rate limiting + process timeouts |
 | Data exfiltration | Audit logging of all requests |
 | Privilege escalation | No privilege inheritance between scopes |
+| SSRF to cloud metadata | Outbound address classification, link-local refused by every service that fetches a caller-supplied URL |
 
 ### What ABSuite does NOT protect against
 
@@ -250,6 +283,7 @@ ABSUITE_DB_ENCRYPTION_KEY=<random-256-bit-secret>
 - **Malicious insiders with HMAC key access** — Key management is the operator's responsibility
 - **DDoS attacks** — Rate limiting helps but is not a substitute for network-level DDoS protection (use a CDN/WAF)
 - **Model-level prompt injection** — CapKit filters known patterns but cannot catch sophisticated jailbreaks
+- **DNS rebinding** — the outbound guard resolves a hostname, then `fetch` resolves it again. A hostile resolver can answer differently between the two. Closing that requires an HTTP agent that pins the address it checked; until then the class is made expensive, not removed, and claiming otherwise would be the kind of overstatement this project exists to prevent
 
 ---
 

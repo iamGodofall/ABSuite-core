@@ -150,6 +150,80 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3o. The third instance, and the copy-paste that nearly shipped with it
+
+§3j found SSRF in `webhook.send`. §3n found it in edge-run by asking the obvious
+follow-up. The same question asked a third time — *what else takes a URL from a
+caller and fetches it?* — reached quickbench, where `POST /run` takes `url` from
+the request body under a `bench:run` scope. Probed on a default runtime:
+
+```
+REACHED  http://169.254.169.254/
+REACHED  http://127.0.0.1:8081/
+REACHED  http://10.0.0.5/
+```
+
+**This is the least severe of the three, and saying so is the point.** The
+provider returns `{ ok, latencyMs }` and never the response body — measured,
+`body-leaked=false` — so nothing is exfiltrated. Volume is capped at
+`MAX_RUNS = 500` and `MAX_CONCURRENCY = 32`. What remains is an existence and
+latency oracle plus a bounded amount of traffic aimed wherever the caller likes.
+That is real and it is narrower than §3j, and inflating it to match the other
+two would make the whole list less believable.
+
+### Three fixes were about to become three copies of one guard
+
+Writing the guard a third time is the moment to stop. **A hand-copied fact that
+drifts is the defect this repository keeps finding in itself** — §3e was one
+number in eleven places, §3f was a package list maintained by hand in six. A
+third copy of an address classifier would have been the same failure with worse
+consequences: fix one instance, leave the others quietly wrong.
+
+So classification moved into `packages/capkit/src/outbound.ts`. All three
+packages already depend on capkit, and the project's own stated pattern is that
+enforcement lives in a library distributed to every service rather than in a
+gateway.
+
+### It classifies, and deliberately does not decide
+
+There is no shared `isAllowed()`, because the right answer genuinely differs:
+
+| | Private ranges | Why |
+|---|---|---|
+| `webhook.send` | **refused** | posts to third parties; `10.0.0.5` is not a Slack endpoint |
+| `edge-run` | allowed | a task runner inside your own infrastructure — §3n |
+| `quickbench` | allowed | benchmarking your own service is the entire use case |
+
+All three agree on link-local. `169.254.0.0/16` is where every major cloud puts
+instance metadata and is never a legitimate target for any of them, so that is
+what each one refuses. A shared decision function would have had to pick a side
+and be wrong somewhere; a shared classifier with per-caller policy is honest
+about the difference.
+
+connector-starter's local copy was deleted in the same pass, so the three now
+share one table rather than three that agree today.
+
+### The refactor introduced a false statement, and the tests caught it
+
+The first version put the reason string on the range: `link-local` read *"the
+cloud instance metadata range (169.254.0.0/16)"*. True of `169.254.169.254`.
+Plainly false when printed about `fe80::1` — which is link-local and is not that
+range. Three of edge-run's existing tests went red on it.
+
+That is the failure mode of consolidation, in miniature: **a shared module can
+bake one caller's phrasing into every caller's error message**, and the result
+is a security warning that tells an operator something untrue. `describeTarget()`
+now names the specific thing that matched, and `ResolvedTarget.why` carries it to
+whichever package is reporting.
+
+Thirty-two tests on the classifier, seventeen on the providers. Proved by
+removing the guard: two turn red. A third — *the refusal is timed, not reported
+as 0ms* — still passes without it, because the real network also refuses that
+address. It is kept for the timing assertion and is not evidence the guard
+exists.
+
+---
+
 ## 3n. The same SSRF in edge-run, and worse — found by asking the obvious question
 
 Fixing `webhook.send` in §3j left a question that should have been asked in the
@@ -746,7 +820,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **789 tests, 39 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **827 tests, 40 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 20 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
