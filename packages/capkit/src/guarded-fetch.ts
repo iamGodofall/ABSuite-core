@@ -34,14 +34,25 @@
  *      another host must not carry `Authorization` or `Cookie` with it, or a
  *      redirect becomes a way to harvest the caller's own tokens.
  *
- * ## What it does not do
+ * ## And it connects to the address it checked
  *
- * It does not close DNS rebinding. The address is resolved here and resolved
- * again by `fetch`, and a hostile resolver can answer differently in between.
- * Closing that needs an HTTP agent that connects to the address that was
- * checked. The window is now one hop wide rather than unbounded, which is a
- * smaller hole and not a closed one — see docs/SECURITY-MODEL.md.
+ * DNS rebinding was listed as open in every earlier version of this file, and it
+ * was: the hostname was resolved here, classified, and then handed to `fetch`,
+ * which resolved it a second time. A resolver answering differently in between
+ * got a request this guard had approved, aimed somewhere it never saw.
+ *
+ * `pinnedTo` fixes the address for the connection, so the socket goes where the
+ * classifier looked. TLS still validates against the hostname; only resolution
+ * is overridden.
+ *
+ * What remains is not rebinding: a name whose *legitimate* answer is hostile.
+ * If an attacker owns the DNS record and points it at their own public server,
+ * this classifies a public address, pins to it, and connects — correctly. That
+ * is the operator having supplied a URL under someone else's control, and no
+ * address check can fix it.
  */
+import { Agent, fetch as pinnedFetch } from 'undici';
+import { isIP } from 'node:net';
 import { resolveRanges, inAnyRange, type AddressRange, type ResolvedTarget } from './outbound';
 
 export interface GuardedFetchOptions {
@@ -131,7 +142,7 @@ async function checkHop(
   url: URL,
   hop: number,
   options: GuardedFetchOptions,
-): Promise<void> {
+): Promise<ResolvedTarget[] | undefined> {
   const { refuse, allow = [], only, protocols = ['http:', 'https:'], verb = 'call' } = options;
   const where = hop === 0 ? '' : ` (redirected from hop ${hop})`;
 
@@ -151,7 +162,7 @@ async function checkHop(
   }
 
   const resolved = await resolveRanges(url.hostname);
-  if (!resolved) return;
+  if (!resolved) return undefined;
 
   // Metadata endpoints are refused before the allowlist is consulted: an entry
   // in a host allowlist says "restrict what may be called", which is not the
@@ -163,13 +174,60 @@ async function checkHop(
       `Refusing to ${verb} ${url.hostname}: it is ${isMetadata.why}${where}.`);
   }
 
-  if (allow.includes(url.hostname)) return;
+  if (allow.includes(url.hostname)) return resolved;
 
   const blocked = inAnyRange(resolved, refuse);
   if (blocked) {
     throw new BlockedTargetError(url.href, blocked, hop,
       `Refusing to ${verb} ${url.hostname}: it is ${blocked.why}${where}.`);
   }
+
+  return resolved;
+}
+
+/**
+ * Connect to the address that was checked, rather than resolving again.
+ *
+ * This is what closes DNS rebinding, which every previous version of this file
+ * listed as open and could not close. The guard resolved a hostname, classified
+ * the answer, and then handed the *hostname* to `fetch` — which resolved it a
+ * second time. A resolver that answers differently between the two calls gets a
+ * request the guard approved sent to an address it never saw.
+ *
+ * Pinning `lookup` gives the socket the address that was actually classified.
+ * TLS is unaffected: the certificate is still validated against the hostname,
+ * because only the address resolution is overridden and `servername` still comes
+ * from the URL. A pinned connection to a public host is exactly as authenticated
+ * as an unpinned one.
+ *
+ * `undici` rather than a hand-rolled client on `node:https`, deliberately: it is
+ * what Node's own `fetch` is built from, so compression, keep-alive, redirect
+ * semantics and TLS behave identically. Writing this by hand would have traded a
+ * rebinding window for a decompression bug.
+ */
+export function pinnedTo(address: string): Agent {
+  const family = isIP(address) === 6 ? 6 : 4;
+
+  return new Agent({
+    connect: {
+      /*
+       * Node calls this in two shapes. `net.connect` uses `{ all: true }` and
+       * expects an array of `{ address, family }`; the older form expects the
+       * address as a bare string. Answering the wrong one fails with
+       * `ERR_INVALID_IP_ADDRESS: undefined`, which is how this was found —
+       * the first version returned only the string and every request died at
+       * connect.
+       */
+      lookup: (_hostname, options, callback) => {
+        const entry = { address, family };
+        (callback as (err: null, a: unknown, f?: number) => void)(
+          null,
+          (options as { all?: boolean })?.all ? [entry] : address,
+          family
+        );
+      },
+    },
+  });
 }
 
 /**

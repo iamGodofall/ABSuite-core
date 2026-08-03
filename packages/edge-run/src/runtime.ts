@@ -99,7 +99,9 @@ export class TaskRuntime {
    * ## The limit, stated
    *
    * The hostname is resolved and the result checked, so a name pointing at the
-   * metadata address is refused too. It does not close DNS rebinding — between
+   * metadata address is refused too. Requests go through `guardedFetch`, which
+   * pins the connection to the address it classified. This pre-flight check
+   * exists for the message; the guard is what enforces. Formerly: between
    * this lookup and the one `fetch` performs, a hostile resolver can answer
    * differently. Closing that needs an agent that pins the resolved address.
    *

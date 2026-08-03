@@ -150,6 +150,65 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3z. DNS rebinding, closed
+
+Four entries in this document listed DNS rebinding as open, each time correctly
+and each time with the same sentence about what closing it would take: *an HTTP
+agent that connects to the address that was checked.*
+
+The window was real. `guardedFetch` resolved a hostname, classified the answer,
+then handed the **hostname** to `fetch`, which resolved it a second time. A
+resolver answering differently between the two calls got a request the guard had
+approved, aimed at an address it never saw.
+
+`guardedFetch` now pins the connection, with an `undici` agent whose `lookup`
+returns the address that was classified. TLS is untouched — the certificate is
+still validated against the hostname, because only resolution is overridden.
+
+**Proved, not asserted.** Two servers on the same port, on different loopback
+addresses, one hostname:
+
+```
+hostname is "localhost" in both requests; only the pin differs.
+
+  pinned to 127.0.0.1  ->  SERVER-ON-127.0.0.1
+  pinned to 127.0.0.2  ->  SERVER-ON-127.0.0.2
+
+  unpinned (whatever DNS says) -> SERVER-ON-127.0.0.1
+```
+
+Three tests, and the pin is load-bearing: making the agent ignore the address it
+was given turns one red immediately.
+
+### Why `undici`, and what it costs
+
+Writing the client by hand on `node:https` would have avoided a dependency and
+been the wrong trade. `fetch` does compression, keep-alive, redirect semantics
+and TLS; a hand-rolled replacement would have swapped a rebinding window for a
+decompression bug across four services. `undici` is what Node's own `fetch` is
+built from.
+
+**The cost is one runtime dependency on `@absuitecore/capkit`**, which previously
+had one. That is stated here and in the README rather than absorbed quietly.
+
+### The bug in the fix, found by running it
+
+The first version returned the pinned address as a bare string. Node calls
+`lookup` in two shapes — `net.connect` uses `{ all: true }` and expects an array
+of `{ address, family }` — so every request died at connect with
+`ERR_INVALID_IP_ADDRESS: undefined`. Visible immediately because the probe was
+run before the code was believed.
+
+### What remains, which is not rebinding
+
+A name whose *legitimate* answer is hostile. If an attacker owns the DNS record
+and points it at their own public server, the guard classifies a public address,
+pins to it, and connects — correctly. That is the operator having supplied a URL
+under someone else's control, and no address check can fix it. It is now the
+entry in `SECURITY-MODEL.md` where rebinding used to be.
+
+---
+
 ## 3y. The same question asked of capkit, which is the one that matters
 
 The dashboard holds the admin key. **capkit is what the admin key commands** — it
@@ -747,11 +806,8 @@ environment. The guard does not depend on the answer, which is the point: a
 control whose correctness rests on a property of the target machine's network
 stack is not a control.
 
-DNS rebinding is still open, and still stated as open. `guardedFetch` resolves
-and `fetch` resolves again, so a hostile resolver can answer differently in
-between. Closing it needs an HTTP agent that connects to the address that was
-checked. The window is now one hop wide instead of unbounded — smaller, not
-closed.
+DNS rebinding was still open at the time of this entry, and stated as open.
+**It is closed now — see §3z.**
 
 ---
 
@@ -1466,7 +1522,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **897 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **900 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 23 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is

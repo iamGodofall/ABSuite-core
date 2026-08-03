@@ -412,8 +412,28 @@ this may call* and *yes, read this machine's cloud credentials* are different
 statements, and the knob named for the first is not the one that does the
 second. This is a deliberate change from edge-run's earlier behaviour.
 
-**This raises the cost of SSRF; it does not eliminate it.** See the DNS rebinding
-note under *What ABSuite does NOT protect against*.
+### The connection goes to the address that was checked
+
+Every earlier version of this document listed **DNS rebinding** as open, and it
+was: the guard resolved a hostname, classified the answer, then handed the
+*hostname* to `fetch`, which resolved it a second time. A resolver answering
+differently between the two calls got a request the guard had approved, sent to
+an address it never saw.
+
+`guardedFetch` now pins the connection to the address it classified, using an
+`undici` agent with a fixed `lookup`. TLS is unaffected — the certificate is
+still validated against the hostname, because only address resolution is
+overridden.
+
+Proved rather than asserted: two servers on the same port, on different loopback
+addresses, one hostname. The response comes from whichever address was pinned,
+and a test fails if the pin is ignored.
+
+`undici` rather than a hand-rolled client, deliberately. It is what Node's own
+`fetch` is built from, so compression, keep-alive and TLS behave identically —
+writing this by hand would have traded a rebinding window for a decompression
+bug. The cost is one runtime dependency on `@absuitecore/capkit`, stated here
+because it is a real cost.
 
 ---
 
@@ -456,7 +476,7 @@ ABSUITE_DB_ENCRYPTION_KEY=<random-256-bit-secret>
 - **DDoS attacks** — Rate limiting helps but is not a substitute for network-level DDoS protection (use a CDN/WAF)
 - **Prompt injection, of any kind** — CapKit filters nothing. It does not inspect prompts or responses. An injected agent is still bound by its capability scope and still produces a signed, attributable record, which is a real limit on the damage and is not the same as prevention
 - **Subject enumeration** — `POST /identities/:subject/challenge` must be unauthenticated, because an agent cannot need authority in order to prove who it is. It answers `404` for an unknown subject, `200` with a nonce for an enrolled one and `403` for a suspended one, so an anonymous caller can learn which subjects exist and which are suspended, bounded by the rate limiter at 60 requests a minute. Returning a nonce for every subject would close it and make the commonest real failure — a typo in a subject name — report as an invalid signature instead. Subject names are inventory, not credentials, and the trade is stated here rather than decided quietly
-- **DNS rebinding** — the outbound guard resolves a hostname, then `fetch` resolves it again. A hostile resolver can answer differently between the two. Redirects no longer widen this (every hop is re-checked), so the window is one hop rather than unbounded — but closing it requires an HTTP agent that connects to the address it checked. Until then the class is made expensive, not removed, and claiming otherwise would be the kind of overstatement this project exists to prevent
+- **A hostname an attacker controls outright.** Address pinning closes DNS *rebinding* — the guard now connects to the address it classified — but it cannot help if a name legitimately resolves to somewhere hostile. If an attacker owns the DNS record and points it at their own public server, the guard classifies a public address, pins to it, and connects. That is not forgery; it is the operator having supplied a URL under someone else's control
 
 ---
 

@@ -228,12 +228,12 @@ export function isMetadataHostname(hostname: string): boolean {
  * resolve fails at `fetch` anyway, and reporting a DNS outage as a security
  * refusal would teach operators to ignore the refusals that matter.
  *
- * **This does not close DNS rebinding.** Between this lookup and the one
- * `fetch` performs, a hostile resolver can answer differently. Closing that
- * needs an agent that pins the resolved address, which is a larger change than
- * any single caller here should carry — so the cost is raised and the class is
- * not eliminated, and saying otherwise would be the sort of claim this project
- * refuses.
+ * **On its own this does not close DNS rebinding**, and it is not meant to.
+ * A caller that resolves here and then hands the *hostname* to `fetch` has
+ * resolved twice, and a hostile resolver can answer differently in between.
+ * `guardedFetch` closes that by pinning the connection to the address this
+ * function returned — which is why callers should use it rather than pairing
+ * this with a bare `fetch`.
  */
 export interface ResolvedTarget {
   address: string;

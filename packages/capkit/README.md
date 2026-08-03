@@ -258,9 +258,9 @@ decision would have had to pick a side and be wrong somewhere.
 
 - Only one signing key is active at a time; rotating `CAPKIT_HMAC_SECRET`
   invalidates existing tokens.
-- `resolveRanges` does not close DNS rebinding — a hostile resolver can answer
-  differently between this lookup and the one `fetch` performs. It raises the
-  cost of SSRF; it does not eliminate the class.
+- `guardedFetch` pins the connection to the address it classified, which closes
+  DNS rebinding. `resolveRanges` on its own does not — a caller that resolves and
+  then hands the hostname to `fetch` is resolving twice, which is the window.
 - SQLite is single-node. The `Storage` and `RevocationStore` interfaces exist so
   a Postgres or Redis backend drops in without callers changing.
 

@@ -11,9 +11,10 @@
  * Everything runs on loopback with no external network, so these are as fast
  * and as deterministic as the stubbed suites.
  */
-import http from 'node:http';
+import http, { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { guardedFetch, BlockedTargetError } from './guarded-fetch';
+import { guardedFetch, BlockedTargetError, pinnedTo } from './guarded-fetch';
+import { fetch as undiciFetch } from 'undici';
 
 /** Start a server on loopback and return its port. */
 async function serve(handler: http.RequestListener): Promise<{ port: number; close: () => void }> {
@@ -156,6 +157,57 @@ describe('an allowlist that only binds the first hop is not an allowlist', () =>
     await expect(
       guardedFetch('http://no-such-host.invalid/', {}, { refuse: [], only: ['localhost'], verb: 'call' })
     ).rejects.toThrow(/not on the allowed host list/);
+  });
+});
+
+describe('the socket goes to the address that was checked', () => {
+  /*
+   * DNS rebinding, which every earlier version of this file listed as open.
+   *
+   * The guard resolved a hostname, classified the answer, then handed the
+   * *hostname* to `fetch` — which resolved it a second time. A resolver that
+   * answers differently between the two calls gets a request the guard approved,
+   * sent to an address it never saw.
+   *
+   * `pinnedTo` is what closes it, and this proves the pin actually controls the
+   * socket rather than being decorative: two servers on the same port, on
+   * different loopback addresses, one hostname. Only the pin differs, and the
+   * body that comes back says which machine answered.
+   *
+   * `guardedFetch` pins to the address it classified — one line in the source,
+   * covered by every other test in this file, which all still pass through the
+   * pinned path.
+   */
+  let onOne: Server;
+  let onTwo: Server;
+  let port = 0;
+
+  beforeAll(async () => {
+    onOne = createServer((_req, res) => { res.writeHead(200); res.end('SERVER-ON-127.0.0.1'); });
+    await new Promise<void>(resolve => { onOne.listen(0, '127.0.0.1', resolve); });
+    port = (onOne.address() as AddressInfo).port;
+
+    onTwo = createServer((_req, res) => { res.writeHead(200); res.end('SERVER-ON-127.0.0.2'); });
+    await new Promise<void>(resolve => { onTwo.listen(port, '127.0.0.2', resolve); });
+  });
+
+  afterAll(() => { onOne.close(); onTwo.close(); });
+
+  test.each([
+    ['127.0.0.1', 'SERVER-ON-127.0.0.1'],
+    ['127.0.0.2', 'SERVER-ON-127.0.0.2'],
+  ])('pinned to %s, the request arrives at %s', async (address, expected) => {
+    // The hostname is `localhost` both times. DNS says 127.0.0.1 both times.
+    const response = await undiciFetch(`http://localhost:${port}/`, { dispatcher: pinnedTo(address) });
+
+    expect(await response.text()).toBe(expected);
+  });
+
+  test('an ordinary request through guardedFetch still works on the pinned path', async () => {
+    // Half of what the fix has to be true of: pinning must not break anything.
+    const response = await guardedFetch(`http://localhost:${port}/`, {}, { refuse: [], verb: 'call' });
+
+    expect(await response.text()).toBe('SERVER-ON-127.0.0.1');
   });
 });
 
