@@ -3,3 +3,13 @@ packages:
 allowBuilds:
   esbuild: true
   unrs-resolver: true
+# pnpm 11 asks before wiping an existing node_modules, and a Docker build has no
+# TTY to answer with. Every container that installs twice — once in full, then
+# again with --prod to drop devDependencies — aborted with
+# ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY. Setting it here rather than
+# exporting CI=true in each Dockerfile keeps one source of truth, and fixes the
+# same abort for anyone re-installing in a local clone. The trade is deliberate:
+# a local `pnpm install --prod` now wipes node_modules without asking. What it
+# wipes is reproducible from the lockfile, so the cost of being wrong is a
+# reinstall, not lost work.
+confirmModulesPurge: false

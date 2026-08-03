@@ -2,7 +2,7 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/capkit/package.json ./packages/capkit/package.json

@@ -160,10 +160,18 @@ const docs = ['README.md', 'deploy/serve-all.mjs', ...readdirSync(join(root, 'do
  * from six services in a promise. It also had to be taught number-words: the
  * figure that shipped wrong eleven times was spelled out, not written as a
  * digit, and a guard that only understood digits let every one of them past.
+ *
+ * **Bold is not quoting.** It used to be exempt here, and that exempted the
+ * loudest numbers in the repository — `**932 tests, 42 suites, 19 checks**` is
+ * a headline assertion, not a figure being held up for inspection, and it sat
+ * stale at 19 while the line under it was policed at 24. Italic still counts as
+ * quoting, because §3e really does write *six services* to correct it; the
+ * pattern below just refuses to see the inside of a `**bold**` span as italic,
+ * which is how the stale headline hid behind a rule written for something else.
  */
 const quotedRanges = (line) => {
   const ranges = [];
-  const spans = [/"[^"]*"/g, /'[^']*'/g, /[“][^”]*[”]/g, /`[^`]*`/g, /\*\*[^*]+\*\*/g, /\*[^*]+\*/g];
+  const spans = [/"[^"]*"/g, /'[^']*'/g, /[“][^”]*[”]/g, /`[^`]*`/g, /(?<!\*)\*(?!\*)[^*]+\*(?!\*)/g];
   for (const span of spans) {
     for (const match of line.matchAll(span)) ranges.push([match.index, match.index + match[0].length]);
   }

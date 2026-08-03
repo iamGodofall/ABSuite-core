@@ -158,6 +158,112 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4j. The pin said pnpm 9. The build ran pnpm 11
+
+Both container jobs went red — `CI / Docker Build` and `CD / build` — while
+lint, test and the whole local chain stayed green. Second time in one day, and
+the first instinct was wrong: the guess was that the Dockerfiles' `pnpm@9.15.0`
+pin had fallen behind the workspace's move to `pnpm@11.18.0`. The logs said
+something stranger.
+
+```
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+...
+Done in 22.8s using pnpm v11.18.0
+```
+
+Both lines are from the same build. **Corepack takes the version from
+`packageManager` in `package.json`**, so the pin never selected anything — it
+downloaded a pnpm that was then not used. It read like a version decision and
+had not been one for as long as it had existed. When `packageManager` moved 9 →
+11, nothing in the tree changed, nothing local failed, and every container
+silently crossed a major version.
+
+pnpm 11 asks before wiping an existing `node_modules`. Every service image
+installs twice — once in full to build, then again with `--prod` to drop
+devDependencies before the artefact is copied out — and the second install
+purges. A Docker build has no TTY to answer with:
+
+```
+ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY
+```
+
+### Seven images, one of them visible
+
+The log names `capkit`. Seven images have the identical double-install shape;
+BuildKit cancels its siblings the moment one target fails, so the build can only
+ever show whichever reached the step first. A fix aimed at the image in the
+error message would have gone red six more times, once per image, each looking
+like a fresh problem. **The failure that gets reported and the failure that
+exists are different sizes**, and nothing in the output says so.
+
+### The part that is mine
+
+§4h explains why nothing local catches a container defect: nothing local
+installs from a Dockerfile's build context. True again here, and not the real
+answer. The identical error had already happened **on this machine, an hour
+earlier**, upgrading a local clone. It was cleared with `CI=true pnpm install`
+and nothing else — the symptom went away, the question *where else does this
+install run without a TTY?* was never asked, and the answer was: every image in
+the repository.
+
+### The fix, and what was deliberately not done
+
+`confirmModulesPurge: false` in `pnpm-workspace.yaml`. One setting, one place,
+already copied into every image before any install runs — and it fixes the same
+abort for anyone re-installing a local clone, which `ENV CI=true` in seven
+Dockerfiles would not have. The trade is recorded there: a local
+`pnpm install --prod` now purges without asking, and what it purges is
+reproducible from the lockfile.
+
+The `corepack prepare` lines were **deleted rather than corrected**. Re-pinning
+them to 11.18.0 would have been true for exactly as long as nobody bumped
+`packageManager` again. Two places that state a version can only drift, and the
+drift is what made this silent.
+
+Reproduced and fixed under real pnpm 11.18.0 in a throwaway two-project
+workspace: baseline `exit 1` with that exact error, `exit 0` with the setting.
+The images themselves were not built here — no Docker daemon in this
+environment — so CI is the end-to-end proof, not this document. An earlier run
+of the same experiment reported both fixes working under **pnpm 10.33.0**,
+because the scratch workspace had no `packageManager` field and quietly used the
+ambient binary. That result proved nothing and was discarded. It is the same
+mistake as the one being audited, made while auditing it.
+
+### The check that exists now
+
+`check:container-pnpm`, in `pnpm verify`. It builds nothing. It holds the three
+properties that make this failure impossible:
+
+1. `pnpm-workspace.yaml` sets `confirmModulesPurge: false`.
+2. Every Dockerfile **stage** that runs `pnpm install` has copied
+   `pnpm-workspace.yaml` first — the setting only applies where the file is, and
+   a new stage starts empty.
+3. No Dockerfile pins a pnpm version at all.
+
+Each was proved by putting the defect back and watching it go red: removing the
+setting, restoring the `pnpm@9.15.0` pin, and dropping `pnpm-workspace.yaml`
+from a stage's `COPY` — that last one correctly reporting *both* installs in the
+stage, not just the first.
+
+### And it immediately caught something else
+
+Adding the check moved `pnpm verify` from 24 to 25, and `check:numbers` failed
+on three documents that published 24. A fourth line was stale at **19** and had
+been for some time, one line above a line policed at 24 — because
+`check:numbers` treated `**bold**` as quoting rather than asserting.
+
+Bold is how this repository writes its loudest claims.
+`**932 tests, 42 suites, 19 checks, exit 0.**` is a headline, not a figure held
+up for inspection, and it was exempt. Italic still counts as quoting — §3e
+really does write *six services* in order to correct it — so the rule now
+refuses to read the inside of a `**bold**` span as italic, which is the overlap
+the stale number had been hiding in. The removed sentence next to it,
+*"Four of them are new"*, went for the same reason: a snapshot phrased as a
+standing fact, with nothing to make it fail when it stopped being true.
+
+---
+
 ## 4i. "The password is not optional" was a heading, not a mechanism
 
 Before drafting anything that points strangers at a demo instance, the obvious
@@ -211,9 +317,9 @@ build died before it started.
 
 ### Why nothing local caught it
 
-`pnpm verify` runs 24 checks and 932 tests and every one passed, in the same
-commits that broke the image — because **nothing local installs from a
-Dockerfile's build context.** The dependency resolves perfectly in the
+`pnpm verify` ran its full chain of checks and 932 tests and every one passed,
+in the same commits that broke the image — because **nothing local installs from
+a Dockerfile's build context.** The dependency resolves perfectly in the
 repository, where capkit is present. It resolves nowhere in an image that never
 received it.
 
@@ -1952,11 +2058,10 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **932 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 24 checks. Four of them are new — three police this document, and the fourth runs the demo:
-  `check:numbers` compares every figure the documents publish against what the
-  repository measures, and `check:config` fails the build if a variable is
-  offered to an operator and read by nothing (§3c).
+- **932 tests, 42 suites, 25 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 25 checks. `check:numbers` compares every figure the documents
+  publish against what the repository measures, and `check:config` fails the
+  build if a variable is offered to an operator and read by nothing (§3c).
 
   The count itself is the demonstration. This section said "17 gates" — here
   and in FAQ §20 — for a long time, when the real number was 16, because nobody

@@ -11,7 +11,7 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+RUN corepack enable
 
 # Manifests first, so a source edit does not invalidate the install layer.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
@@ -53,7 +53,7 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+RUN corepack enable
 
 COPY --from=builder /app /app
 
