@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CapabilityToken, RevocationList, hasCapability, scopeSatisfies } from './capability';
@@ -373,5 +373,78 @@ describe('the admin key is compared in constant time', () => {
     });
 
     expect(allowed).toBe(true);
+  });
+});
+
+/**
+ * The eight rejection codes, and what a default token actually carries.
+ *
+ * The package README listed four of the eight, so a caller switching on
+ * `result.error` fell through on half of them — including
+ * `TOKEN_AUDIENCE_MISMATCH`, which is the one that matters if you thought
+ * audience binding was protecting you.
+ *
+ * `docs/SECURITY-MODEL.md` separately showed `kid` and `aud` as unconditional
+ * fields of every token. Both are opt-in and absent by default, which was found
+ * by decoding a minted token rather than by reading the interface.
+ */
+describe('what the documentation publishes about a token', () => {
+  const SECRET = 'x'.repeat(32);
+
+  const decode = (token: string) =>
+    token.split('.').slice(0, 2).map(part => JSON.parse(Buffer.from(part, 'base64url').toString()));
+
+  test('a default token carries sub, scope, iat, exp and jti — and nothing else', () => {
+    const { token } = CapabilityToken.create(
+      { sub: 'agent-42', scope: ['read:users'], expiresIn: '8h' }, SECRET);
+    const [header, payload] = decode(token);
+
+    expect(Object.keys(payload as object).sort()).toEqual(['exp', 'iat', 'jti', 'scope', 'sub']);
+    // Not in the header either. The document showed it as always present.
+    expect(header).not.toHaveProperty('kid');
+  });
+
+  test('kid and aud appear only when supplied', () => {
+    const { token } = CapabilityToken.create(
+      { sub: 'agent-42', scope: ['read:users'], expiresIn: '8h',
+        aud: 'absuite://production', kid: 'key-2026-08' }, SECRET);
+    const [header, payload] = decode(token);
+
+    expect((header as { kid?: string }).kid).toBe('key-2026-08');
+    expect((payload as { aud?: string }).aud).toBe('absuite://production');
+  });
+
+  test('a mismatched audience is refused, with the code the docs now list', () => {
+    const { token } = CapabilityToken.create(
+      { sub: 'agent-42', scope: ['read:users'], expiresIn: '8h', aud: 'absuite://production' }, SECRET);
+
+    const result = CapabilityToken.validate(token, SECRET, { audience: 'absuite://staging' });
+
+    expect(result.valid).toBe(false);
+    if (result.valid) throw new Error('unreachable — narrows the union');
+    expect(result.error).toBe('TOKEN_AUDIENCE_MISMATCH');
+  });
+
+  /*
+   * The enumeration itself. If a ninth code is added, this fails and whoever
+   * adds it has to decide what the documents should say — which is the only
+   * mechanism that would have caught the list going stale at four.
+   */
+  test('there are exactly eight rejection codes', () => {
+    const documented = [
+      'TOKEN_MISSING', 'TOKEN_MALFORMED', 'TOKEN_INVALID', 'TOKEN_EXPIRED',
+      'TOKEN_NOT_ACTIVE', 'TOKEN_AUDIENCE_MISMATCH', 'TOKEN_REVOKED',
+      'CAPABILITY_INSUFFICIENT',
+    ];
+
+    const sources = ['capability.ts', 'jwt.ts', 'middleware.ts']
+      .map(name => readFileSync(join(__dirname, name), 'utf8'))
+      .join('\n');
+
+    const found = new Set(
+      [...sources.matchAll(/'(TOKEN_[A-Z_]+|CAPABILITY_[A-Z_]+)'/g)].map(match => match[1]!)
+    );
+
+    expect([...found].sort()).toEqual([...documented].sort());
   });
 });

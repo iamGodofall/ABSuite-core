@@ -266,7 +266,7 @@ Full list, with the reasoning: [CONSTITUTION.md](CONSTITUTION.md).
 
 ### Q20. Is it production-ready?
 
-The code is: 879 tests, 41 suites, 21 build checks, a frozen-fixture chain that
+The code is: 883 tests, 41 suites, 22 build checks, a frozen-fixture chain that
 still verifies across versions, and a second implementation that agrees with the
 first.
 

@@ -28,7 +28,9 @@ const result = CapabilityToken.validate(created.token, secret, {
 })
 
 if (!result.valid) {
-  // 'TOKEN_EXPIRED' | 'TOKEN_INVALID' | 'CAPABILITY_INSUFFICIENT' | 'TOKEN_REVOKED'
+  // 'TOKEN_MISSING' | 'TOKEN_MALFORMED' | 'TOKEN_INVALID' | 'TOKEN_EXPIRED'
+  // | 'TOKEN_NOT_ACTIVE' | 'TOKEN_AUDIENCE_MISMATCH' | 'TOKEN_REVOKED'
+  // | 'CAPABILITY_INSUFFICIENT'
   throw new Error(result.error)
 }
 ```

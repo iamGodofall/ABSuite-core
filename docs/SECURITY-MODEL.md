@@ -46,8 +46,9 @@ HMAC tokens avoid this: the signing key and the validating key are the same. Any
 
 ```typescript
 interface CapabilityToken {
-  // Identify the signing key (for key rotation support)
-  kid: string                    // "key-2026-03-rotation-a"
+  // Identifies the signing key, for key rotation. OPTIONAL, and absent
+  // unless you pass one — a default token carries no kid at all.
+  kid?: string                   // "key-2026-03-rotation-a"
 
   // Who this grants access to
   sub: string                    // "agent-42" or "user:enock"
@@ -63,8 +64,9 @@ interface CapabilityToken {
   iat: number                    // Unix timestamp: issued at
   exp: number                    // Unix timestamp: expires at
 
-  // Audience binds token to a specific deployment
-  aud: 'absuite://production'   // Tokens only work in intended environment
+  // Binds the token to a deployment. OPTIONAL, and absent unless you pass
+  // one. Supplied, a mismatch is refused with TOKEN_AUDIENCE_MISMATCH.
+  aud?: 'absuite://production'
 
   // Unique ID for revocation
   jti: string                    // UUID: track in DB for revocation
@@ -75,13 +77,36 @@ interface CapabilityToken {
 
 ```
 Client → sends token in Authorization header
-       → CapKit extracts kid, looks up signing key
+       → CapKit reads kid from the header, if there is one, and looks up that key
        → CapKit computes HMAC-SHA256(header.payload, key)
        → Compares computed MAC with received MAC (timing-safe)
-       → Checks exp < now
-       → Checks aud matches
+       → Checks exp, and nbf if present
+       → Checks aud, if an audience was configured
        → Returns capability set or rejection
 ```
+
+**Two of those steps are conditional, and this page used to present all seven as
+unconditional.** Minting a token with no options produces exactly
+`sub`, `scope`, `iat`, `exp`, `jti` — verified by decoding one, not read off the
+interface. `kid` appears in the JWT header only when you pass one, and `aud` only
+when you pass one. An operator who believed audience binding was on by default
+would have had none.
+
+A rejection is one of eight codes, not the four the package README used to list:
+
+| | |
+|---|---|
+| `TOKEN_MISSING` | no Authorization header |
+| `TOKEN_MALFORMED` | not three segments, or not JSON |
+| `TOKEN_INVALID` | signature does not verify |
+| `TOKEN_EXPIRED` | past `exp` |
+| `TOKEN_NOT_ACTIVE` | before `nbf` |
+| `TOKEN_AUDIENCE_MISMATCH` | `aud` does not match the configured audience |
+| `TOKEN_REVOKED` | `jti` is in the revocation store |
+| `CAPABILITY_INSUFFICIENT` | valid token, wrong scope |
+
+A caller switching on `result.error` against the old list of four fell through
+on half of them.
 
 ### Key rotation
 
@@ -90,10 +115,20 @@ CapKit maintains a key ring — the current key plus previous keys (for in-fligh
 ```typescript
 import { KeyRing } from '@absuitecore/capkit'
 
-// You supply the new secret and its kid. Nothing generates or schedules this.
-const rotated = ring.rotate(process.env.CAPKIT_HMAC_SECRET_NEW!, 'key-2026-08', 2)
-// Tokens signed with a retained previous key still validate until they expire.
+const ring = new KeyRing([{ kid: 'key-2026-07', secret: current, status: 'active' }])
+
+// You supply the new secret and its kid. Nothing generates or schedules either.
+const rotated = ring.rotate(next, 'key-2026-08')
+
+rotated.active.kid            // 'key-2026-08'  — signs new tokens
+rotated.retired               // [{ kid: 'key-2026-07', retiredAt: … }]
+rotated.find('key-2026-07')   // still resolves, so in-flight tokens verify
 ```
+
+`active` and `retired` are getters, not methods. `KeyRing.fromEnv()` builds one
+from the environment. The output above was produced by running it, not written
+from the type signature — the first draft of this example called `ring` without
+constructing it and `rotated.active()` as a function, and both were wrong.
 
 **Rotation is manual.** An earlier version of this page showed
 `await capkit.rotateKey()` — a method that does not exist — and said above that

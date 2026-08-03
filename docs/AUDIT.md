@@ -150,6 +150,75 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3u. A code block is the most credible thing on the page
+
+§3t ended by saying the rest of `docs/` was UNKNOWN rather than sound. This is
+the pass that stopped it being UNKNOWN for the parts that can be checked
+mechanically, and it found three more things.
+
+### The token structure block was wrong about what a token contains
+
+`SECURITY-MODEL.md` presented `kid: string` and `aud: 'absuite://production'` as
+unconditional fields. Minting one and decoding it:
+
+```
+payload: { sub, scope, iat, exp, jti }
+header : { alg, typ }
+```
+
+Both are opt-in and absent unless passed. **An operator who believed audience
+binding was on by default had none.** The validation flow listed *"extracts kid,
+looks up signing key"* and *"checks aud matches"* as unconditional steps; both
+are conditional.
+
+Worth recording how this got missed: §3t's own table marked this row
+**Accurate**, on the strength of reading `capability.ts` and seeing `kid?:` and
+`aud?:` declared. The declaration was right and the conclusion was wrong — an
+optional field in a type says nothing about whether the document showing it as
+required is honest. Decoding a real token took ten seconds and settled it.
+
+### The published README listed half the error codes
+
+`@absuitecore/capkit`'s README — the page npm renders — enumerated four
+rejection codes. There are eight. A caller switching on `result.error` fell
+through on `TOKEN_MISSING`, `TOKEN_MALFORMED`, `TOKEN_NOT_ACTIVE` and
+`TOKEN_AUDIENCE_MISMATCH`, the last of which is the one that matters if you
+believed audience binding was protecting you.
+
+Four tests now pin it, including one that fails if a ninth code is ever added —
+proved by adding `TOKEN_ISSUER_MISMATCH` and watching it go red. That is the
+only mechanism that would have caught the list going stale at four.
+
+### The fix I wrote for §3t was itself an example nobody could run
+
+Replacing `await capkit.rotateKey()`, I wrote `ring.rotate(…)` in a block that
+never constructs `ring`, and called `rotated.active()` as a method when `active`
+is a getter. Both wrong, in the correction to a section about wrong examples.
+
+It surfaced because the example was **run before it was published**, which is now
+the standard for a code block in this repository: the output in
+`SECURITY-MODEL.md` is copied from a terminal, not written from a type signature.
+
+### `pnpm check:apis`
+
+Every `import { … } from '@absuitecore/…'` in a fenced ts/js block, in every
+document, checked against the real export surface — read from the built
+`dist/index.js` rather than a list maintained here, because a list here would be
+one more hand-copied fact that drifts.
+
+Currently 52 symbols across 40 blocks in 31 documents, all real. **It found
+nothing new**, and that is the honest result: it is a tripwire for the next
+`AIPolicyRule`, not a discovery. Proved by adding a fabricated `rotateKey` import
+to `docs/MODULES.md` and watching it name the file and line.
+
+**What it does not check.** Method calls and prose. `capkit.rotateKey()` had no
+import to check and would still pass — so this narrows the class rather than
+closing it, and saying otherwise would be the same overstatement §3t is about.
+Type-checking the blocks against the workspace would close it properly, and is
+not done.
+
+---
+
 ## 3t. The security document described controls that do not exist
 
 Three passes of outbound work all assumed `docs/SECURITY-MODEL.md` was true, and
@@ -167,7 +236,7 @@ none of them checked it. Read against the code, claim by claim:
 | *"defense-in-depth at four levels: … transport encryption …"* and *"in production, enable TLS by configuring certificates in each service's environment"* | **No service terminates TLS.** No service reads a certificate. There is no such configuration. |
 | Audit log written synchronously, immutable, no UPDATE or DELETE | **Accurate.** `appendFileSync`, append-only. |
 | *"Stored in SQLite"* (audit log) | A JSONL file. |
-| Token carries `kid`, `aud`, `jti` | **Accurate.** |
+| Token carries `kid`, `aud`, `jti` | `jti` always. **`kid` and `aud` are opt-in and absent by default** — I marked this row accurate on a first pass by reading `capability.ts`, where both are `?:`. Decoding a minted token is what settled it. See §3u. |
 
 ### This is §3's own defect, in the same family of document
 
@@ -1149,8 +1218,8 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **879 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 21 checks. Four of them are new — three police this document, and the fourth runs the demo:
+- **883 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 22 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
   offered to an operator and read by nothing (§3c).
