@@ -58,7 +58,8 @@
     "check:listings": "node scripts/check-package-listings.mjs",
     "demo": "node scripts/demo.mjs",
     "check:demo": "node scripts/demo.mjs --fast",
-    "demo:gif": "node scripts/gen-demo-gif.mjs"
+    "demo:gif": "node scripts/gen-demo-gif.mjs",
+    "check:registry": "node scripts/check-registry-drift.mjs"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"

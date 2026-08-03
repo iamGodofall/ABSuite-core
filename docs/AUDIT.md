@@ -150,6 +150,47 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3p. A security fix that was done everywhere except where people install it
+
+Publishing §3o surfaced something that had nothing to do with it. The registry
+said:
+
+```
+@absuitecore/edge-run   local 1.2.0   registry 1.0.2
+```
+
+**The §3n SSRF fix never reached npm.** It was committed, the audit recorded it
+as done, the README described the guard, and `npm i @absuitecore/edge-run` still
+delivered the version that would fetch `169.254.169.254` for you. Nothing looked
+wrong from inside the repository, because nothing *was* wrong inside it.
+
+This is §3f in a new shape. There, a hand-written package list meant three
+documents named a package the registry did not have. Here, a version bump that
+never got published meant every document described code nobody could install.
+Same failure both times: **the repository and the artifact people actually
+receive drifted apart, and the repository could not see it** — every check ran
+against the tree, and the tree was fine.
+
+`pnpm check:registry` now asks the registry directly and reports each package in
+the same four words as everything else:
+
+- `DEMONSTRATED` — the published version is the documented one
+- `PENDING` — committed here, not published yet
+- `FAILED` — the registry is *ahead*, so something was published from another tree
+- `ABSENT` / `UNKNOWN` — no record, or the registry could not be reached
+
+It exits non-zero only for `FAILED` and `ABSENT`. `PENDING` is the ordinary state
+of a repository between a commit and a release, and `UNKNOWN` is a network
+condition — failing on either would make it a gate people learn to ignore, which
+is worse than not having one. It is not in `pnpm verify` for the same reason
+`pnpm adoption` is not: it needs the network, and a gate that fails when the wifi
+drops takes the twenty offline checks down with it.
+
+The gap here was hours, not months. The check exists because the next one might
+not be, and because a security fix that is only true in git is not a fix.
+
+---
+
 ## 3o. The third instance, and the copy-paste that nearly shipped with it
 
 §3j found SSRF in `webhook.send`. §3n found it in edge-run by asking the obvious

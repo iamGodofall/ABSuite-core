@@ -608,6 +608,11 @@ mostly mirrors and scanners. `pnpm adoption` shows the daily series and refuses
 to convert it into a user count; [`docs/ROADMAP.md`](./docs/ROADMAP.md) says what
 would count instead.
 
+`pnpm check:registry` asks the other half of that question — whether what these
+documents describe is what `npm install` actually delivers. It exists because a
+security fix was once committed, documented and audited while the registry still
+served the version without it.
+
 ---
 
 ## Documentation
