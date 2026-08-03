@@ -30,6 +30,7 @@ import { UnknownsPanel } from './tabs/Unknowns';
 import { Approvals } from './tabs/Approvals';
 import { IdentityLayer } from './tabs/Identity';
 import { ModelIdentityLayer } from './tabs/ModelIdentity';
+import { TenancyLayer } from './tabs/Tenancy';
 import { WatchLayer } from './tabs/WatchLayer';
 import { Provenance } from './tabs/Provenance';
 import { LiveFeed } from './tabs/LiveFeed';
@@ -82,6 +83,9 @@ type TabId =
   | 'evidence' | 'policies' | 'agents' | 'unknowns' | 'approvals' | 'watch' | 'identity'
   // The identity question, asked about a model rather than a subject.
   | 'models'
+  // Who is metered, on what plan, against which limits — and which of those
+  // limits anything actually counts.
+  | 'tenancy'
   // Not a record, but the relationship between two of them.
   | 'provenance'
   // A transport over the log, rather than a place. Replay is the only view
@@ -1362,6 +1366,7 @@ const TAB_CONFIG: {
   // The same question Identity asks about a subject, asked about a model.
   { id: 'models',    label: 'Model identity', question: 'Is it still the model you approved', icon: Bot },
   { id: 'approvals', label: 'Approvals',   question: 'What is waiting on a person',        icon: Scale },
+  { id: 'tenancy',   label: 'Tenancy',     question: 'Who is metered, and against what', icon: Scale },
   { id: 'watch',     label: 'Watch',       question: 'What has been raised, and how much it covers', icon: Eye },
   // The failure that matters in a multi-agent system happens between two
   // records, and every other station here shows one record at a time.
@@ -1678,6 +1683,10 @@ export default function App() {
       // so every attestation answered UNKNOWN because nothing had been approved.
       case 'models' as TrustLayer: return <ModelIdentityLayer />;
       case 'approvals' as TrustLayer: return <Approvals />;
+      // The last row of AUDIT §2 with no interface. Two of the five limits a
+      // plan declares are counted; the panel says which, rather than showing
+      // three gauges that read empty for the wrong reason.
+      case 'tenancy' as TrustLayer: return <TenancyLayer />;
       case 'watch' as TrustLayer: return <WatchLayer />;
       case 'provenance' as TrustLayer: return <Provenance />;
       case 'replay' as TrustLayer: return <Replay onOpenRecord={setOpenRecordId} onWitness={setWitnessing} />;

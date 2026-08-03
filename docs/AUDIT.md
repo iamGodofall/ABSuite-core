@@ -37,7 +37,7 @@ capability that exists and cannot be opened.
 | **Identity (Layer 1)** — enrolment, key rotation, suspension, proof of possession | `capkit/src/identity.ts`, 7 routes | **Built.** Enrol, suspend, reinstate, and proven-vs-enrolled shown per subject. |
 | **Provenance** — which agent's output became which agent's input | `capkit/src/provenance.ts`, 2 routes | **Built.** Coverage first, then failures something else consumed, then the edges with their shared hash on screen. |
 | **Model identity** — is the thing answering still the model that was approved | `capkit/src/model-identity.ts`, 4 routes | **Built.** Approve, supersede and attest, with drift shown field by field and the limits carried on the answer. |
-| **Tenancy and billing** | `tenancy.ts`, `billing.ts`, 6 admin routes | **None.** |
+| **Tenancy and billing** | `tenancy.ts`, `billing.ts`, 6 admin routes | **Built.** Tenants, plans, suspension and key rotation — and the panel says which of the five plan limits anything actually counts. |
 
 Identity is the base of the ascent, and it was top of this list until
 `absuite doctor` made the case unanswerable: the doctor's first finding on any
@@ -50,9 +50,11 @@ every attestation answered `UNKNOWN` because nothing had ever been approved. A
 layer that cannot be operated reports the same thing as a layer that was never
 built, and the record cannot tell you which.
 
-One row is left. Tenancy and billing have no interface at all, and unlike the
-two that came before it, nothing in the product reports `UNKNOWN` because of it —
-which is why it is last.
+**The table is now empty.** Every layer that was built is reachable. That is
+worth stating carefully rather than triumphantly: it means nothing in this
+product is now built-and-unusable, which was the largest gap in it. It does not
+mean every layer is finished — §3 is still where the honest shortfalls live, and
+building the tenancy surface added one to it.
 
 ---
 
@@ -153,6 +155,86 @@ recovery and there should not be one.
 **Nothing notifies anybody.** No incident, no escalation, no email. That is a
 constitutional refusal, and it is also a real gap against EU AI Act Article
 26(5). Both things are true and [COMPLIANCE.md](COMPLIANCE.md) §1.4 says so.
+
+---
+
+## 4g. Three of five plan limits are advertised and counted by nothing
+
+Building the tenancy surface meant asking what the numbers on it would mean. The
+answer is the finding.
+
+Every plan in `billing.ts` declares five limits. **`enforceQuota` is applied to
+two routes** — `POST /auth/token` and `POST /auth/token/validate` — and nowhere
+else:
+
+| Limit | Counted by | Free plan says |
+|---|---|---|
+| `agents` | `POST /auth/token` | 3 |
+| `validations` | `POST /auth/token/validate` | 10,000 |
+| `schedules` | **nothing** | 5 |
+| `benchmarkRuns` | **nothing** | 100 |
+| `auditRetentionDays` | **nothing, and nothing enforces retention either** | 7 days |
+
+Schedules are created in edge-run and benchmark runs in quickbench; neither
+shares the meter. `auditRetentionDays` is not a counter at all — and since
+ABSuite deletes no records, nothing acts on it in either direction.
+
+Measured rather than read. A tenant on the free plan, three tokens issued:
+
+```
+agents               used 3    of 3         ← moved, and 402 on the fourth
+validations          used 0    of 10000     ← real, just unused
+auditRetentionDays   used 0    of 7         ← cannot move
+schedules            used 0    of 5         ← cannot move
+benchmarkRuns        used 0    of 100       ← cannot move
+```
+
+Suspension works too: `403 TENANT_SUSPENDED` on the next request.
+
+### Why this decided what the screen is
+
+Five gauges all reading `0 / N` are indistinguishable from each other, and three
+of them are meaningless. **Zero because nothing counted looks exactly like zero
+because nothing happened**, and the reader concludes they have headroom. It is
+the defect `watch.coverage()` exists to prevent, arriving in a screen about
+money — which is the worst place for it, because the reader is deciding whether
+to upgrade.
+
+So an unmetered limit reads `ABSENT` with its reason attached, never a number and
+never a bar. `approachingLimit` is described as covering counted limits only,
+because a metric nothing increments can never appear there.
+
+### The hand-copied fact, and the gate that holds it
+
+Which limits are real is written into `Tenancy.tsx` as a map. **That is a
+hand-copied fact — the defect this repository keeps finding in itself** — and it
+is copied deliberately, because the alternative is inferring *metered* from a
+usage of zero, which cannot tell the two zeros apart.
+
+`pnpm check:metered` reads `enforceQuota` from capkit's server and the map from
+the panel and fails on any disagreement. Proved in both directions: wiring
+`enforceQuota('schedules')` into a route turns it red, and so does the panel
+claiming `schedules` is counted when nothing counts it.
+
+### The rest of the surface
+
+Six routes proxied, all admin-guarded. Eleven tests. The one piece of real logic
+is that `/admin/tenants/:id/:action` checks the action against a list rather than
+interpolating it — without that, the route would let a caller aim the dashboard's
+admin key at any capkit path beneath `/admin/tenants/:id/`. Disabling the
+allowlist turns three red, including a path-traversal attempt.
+
+The API key is returned exactly once, by create and by rotate, and stored only as
+a SHA-256 hash. It is absent from the list response — checked, not assumed — and
+the panel says it cannot be shown again, because a screen that could show it
+twice would mean the key had been kept.
+
+### And a note on `check:numbers`, twice in one day
+
+Adding these routes moved the admin-guarded count from 42 to 45, and adding the
+gate moved the check count from 23 to 24. Both were caught by gates written
+earlier today, in the same session, against documents I had corrected hours
+before. That is the mechanism doing exactly what it exists for, on its author.
 
 ---
 
@@ -1783,8 +1865,8 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **908 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 23 checks. Four of them are new — three police this document, and the fourth runs the demo:
+- **919 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 24 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
   offered to an operator and read by nothing (§3c).

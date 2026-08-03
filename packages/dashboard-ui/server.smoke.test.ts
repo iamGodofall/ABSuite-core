@@ -338,6 +338,70 @@ describe('the model-identity proxy', () => {
   });
 });
 
+/**
+ * Tenancy and billing — the last §2 row, and the one about money.
+ *
+ * These assert the proxy and its one piece of real logic: the action segment is
+ * checked against a list rather than interpolated. Without that, a route reading
+ * `/admin/tenants/:id/:action` would let a caller aim the dashboard's admin key
+ * at any capkit path beneath `/admin/tenants/:id/`.
+ */
+describe('the tenancy proxy', () => {
+  let dashboard: Instance | undefined;
+
+  beforeAll(async () => { dashboard = await start({ ABSUITE_ADMIN_API_KEY: ADMIN }); }, 60_000);
+  afterAll(async () => { await stop(dashboard); }, 20_000);
+
+  const admin = { 'content-type': 'application/json', 'x-absuite-admin-key': ADMIN };
+
+  test.each([
+    ['GET', '/admin/tenants'],
+    ['POST', '/admin/tenants'],
+    ['POST', '/admin/tenants/ten_1/plan'],
+    ['POST', '/admin/tenants/ten_1/rotate-key'],
+  ])('%s %s refuses an unauthenticated caller', async (method, path) => {
+    const response = await fetch(`${dashboard!.base}${path}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      ...(method === 'POST' ? { body: '{}' } : {}),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  test.each(['plan', 'status', 'rotate-key'])('%s is a permitted action', async (action) => {
+    const response = await fetch(`${dashboard!.base}/admin/tenants/ten_1/${action}`, {
+      method: 'POST', headers: admin, body: '{}',
+    });
+
+    // 502 because capkit is not running here — the point is that it was allowed
+    // through rather than refused as an unknown action.
+    expect(response.status).toBe(502);
+  });
+
+  test.each([
+    ['an invented action', 'delete'],
+    ['a path traversal in the action', '..%2f..%2fexecutions'],
+    ['an upstream admin path', 'rotate-key%2f..%2f..%2ftenants'],
+  ])('refuses %s', async (_label, action) => {
+    const response = await fetch(`${dashboard!.base}/admin/tenants/ten_1/${action}`, {
+      method: 'POST', headers: admin, body: '{}',
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('Unknown tenant action') });
+  });
+
+  test('an unreachable capkit is reported, not answered with an empty list', async () => {
+    // An empty tenants array would read as "nobody is metered", which is the
+    // same false zero this whole panel exists to avoid.
+    const response = await fetch(`${dashboard!.base}/admin/tenants`, { headers: admin });
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ error: 'CapKit is unreachable' });
+  });
+});
+
 describe('the dashboard with no admin key configured', () => {
   let dashboard: Instance | undefined;
 

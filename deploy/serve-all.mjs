@@ -144,7 +144,7 @@ const required = [
   {
     name: 'ABSUITE_ADMIN_API_KEY',
     why:
-      '42 routes sit behind it — executions, chain verification, the queue, the\n' +
+      '45 routes sit behind it — executions, chain verification, the queue, the\n' +
       '      disputes, the unknowns. Without it the instance answers /status and returns 503 to\n' +
       '      everything else, so the room reports UNKNOWN everywhere while being perfectly healthy.',
     when: () => true,

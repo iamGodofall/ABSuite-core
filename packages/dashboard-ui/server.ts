@@ -608,6 +608,70 @@ app.get('/executions/:id/lineage', requireAdminAccess, async (req, res) => {
  * is an approval that does not exist, so every attestation answered `UNKNOWN`
  * for the honest reason that nothing had ever been approved.
  */
+/**
+ * Tenancy and billing — the last row of AUDIT §2 with no interface.
+ *
+ * Six admin routes existed in capkit and none were reachable, so creating a
+ * tenant, moving a plan or rotating an API key was curl only.
+ *
+ * **The API key is returned exactly once**, by create and by rotate, and is
+ * stored only as a SHA-256 hash. This proxy passes it straight through and does
+ * not log it; the interface shows it once and says so. A key this server could
+ * show twice is a key this server kept.
+ */
+const tenantUpstream = async (path: string, init: RequestInit = {}) =>
+  fetchJson(`${SERVICE_BASE_URLS.capkit}${path}`, {
+    ...init,
+    headers: {
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+    },
+  });
+
+app.get('/admin/tenants', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await tenantUpstream('/admin/tenants');
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+app.post('/admin/tenants', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await tenantUpstream('/admin/tenants', {
+      method: 'POST', body: JSON.stringify(req.body ?? {}),
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+app.post('/admin/tenants/:id/:action', requireAdminAccess, async (req, res) => {
+  /*
+   * One route for three actions, with the action checked against a list rather
+   * than interpolated. `plan`, `status` and `rotate-key` are the only things
+   * capkit accepts here, and an unchecked segment would make this a way to aim
+   * the dashboard's admin key at any capkit path under /admin/tenants/:id/.
+   */
+  const ALLOWED = ['plan', 'status', 'rotate-key'];
+  const action = String(req.params.action);
+  if (!ALLOWED.includes(action)) {
+    return res.status(400).json({ error: `Unknown tenant action: ${action}` });
+  }
+
+  try {
+    const { response, data } = await tenantUpstream(
+      `/admin/tenants/${encodeURIComponent(String(req.params.id))}/${action}`,
+      { method: 'POST', body: JSON.stringify(req.body ?? {}) }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 app.get('/models', requireAdminAccess, async (_req, res) => {
   try {
     const { response, data } = await fetchJson(
