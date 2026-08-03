@@ -5,6 +5,18 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+
+# capkit, because the dashboard depends on it as a workspace package.
+#
+# It was added for `guardedFetch` — the outbound guard the /endpoint-check route
+# needs — and this file was not updated, so `pnpm install --frozen-lockfile`
+# could not resolve `@absuitecore/capkit` and every container build failed for
+# five hours. `check:deploy` verifies that COPY paths exist; it did not verify
+# that a workspace dependency is among them, which is why nothing caught it.
+COPY packages/capkit/package.json ./packages/capkit/package.json
+COPY packages/capkit/tsconfig.json ./packages/capkit/tsconfig.json
+COPY packages/capkit/src ./packages/capkit/src
+
 COPY packages/dashboard-ui/package.json ./packages/dashboard-ui/package.json
 COPY packages/dashboard-ui/tsconfig.json ./packages/dashboard-ui/tsconfig.json
 COPY packages/dashboard-ui/vite.config.ts ./packages/dashboard-ui/vite.config.ts
@@ -15,6 +27,10 @@ COPY packages/dashboard-ui/server.ts ./packages/dashboard-ui/server.ts
 COPY packages/dashboard-ui/src ./packages/dashboard-ui/src
 
 RUN pnpm install --frozen-lockfile
+
+# capkit first: the dashboard imports from its built `dist/`, not its source.
+RUN pnpm --filter @absuitecore/capkit build
+
 WORKDIR /app/packages/dashboard-ui
 RUN pnpm build
 

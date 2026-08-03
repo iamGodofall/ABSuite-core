@@ -158,6 +158,55 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4h. Five hours of red container builds, and `pnpm verify` green throughout
+
+Asked to publish, the first thing to check was what actually ships. npm was in
+sync — the last two features are in `dashboard-ui`, which is `private: true`.
+**The container images were not.** Every CD run since 02:57 had failed: fourteen
+consecutive pushes, five hours.
+
+The cause was mine, and it is a single edge. Adding `guardedFetch` to
+`/endpoint-check` meant giving `dashboard-ui` a `workspace:^` dependency on
+capkit. Its Dockerfile copies only its own directory, so
+`pnpm install --frozen-lockfile` could not resolve `@absuitecore/capkit` and the
+build died before it started.
+
+### Why nothing local caught it
+
+`pnpm verify` runs 24 checks and 919 tests and every one passed, in the same
+commits that broke the image — because **nothing local installs from a
+Dockerfile's build context.** The dependency resolves perfectly in the
+repository, where capkit is present. It resolves nowhere in an image that never
+received it.
+
+`check:deploy` was the gate closest to this and it looked directly past it. It
+verifies that every `COPY` names something real — written after
+`COPY packages/mcp-server/package.json` broke CD for three commits — and a
+missing COPY names nothing at all. **A check for wrong paths cannot see an absent
+one.**
+
+### The check that exists now
+
+For every `packages/*/Dockerfile`, each `workspace:` dependency of that package
+must appear as a `COPY packages/<dep>/` in it. Five edges across the repository,
+all present. Proved by deleting the three lines I just added and watching it name
+the file, the dependency and the consequence.
+
+That is the honest version of "we fixed it": the Dockerfile is correct now, and
+the reason it was wrong for five hours is that the gate protecting it could only
+see one half of the problem.
+
+### What it says about the rest of the gates
+
+Twenty-four checks, and the deployment path had a hole this size. Every gate here
+answers a question somebody thought to ask; none of them answers *what did I
+change that nothing watches?* The container build was the one thing in this
+repository that could only be tested by doing it, and it is the one thing this
+environment cannot do — no Docker daemon. That gap is now covered statically,
+which is weaker than building the image and is what is available.
+
+---
+
 ## 4g. Three of five plan limits are advertised and counted by nothing
 
 Building the tenancy surface meant asking what the numbers on it would mean. The

@@ -322,6 +322,52 @@ if (dockerfiles.length > 0 && !failures.some(f => /COPY /.test(f))) {
   passes.push(`${copyPaths} COPY path(s) across ${dockerfiles.length} Dockerfile(s) exist`);
 }
 
+/* ── 6. A package's workspace dependencies must be in its image ───────────── */
+//
+// The path check above verifies that every COPY names something real. It cannot
+// notice a COPY that is *missing*, and that is the shape this failed in next.
+//
+// `packages/dashboard-ui` gained a `workspace:^` dependency on capkit — for the
+// outbound guard that /endpoint-check needs — and its Dockerfile still copied
+// only its own directory. `pnpm install --frozen-lockfile` then could not
+// resolve `@absuitecore/capkit`, and every container build failed for five
+// hours while `pnpm verify` stayed green, because nothing local installs from a
+// Dockerfile's build context.
+//
+// A dependency edge added in one file and not the other is the same hand-copied
+// fact this repository keeps finding. Here it is checked instead.
+
+let edges = 0;
+for (const file of dockerfiles) {
+  const text = readFileSync(file, 'utf8');
+  const owner = rel(file).match(/^packages\/([a-z-]+)\/Dockerfile$/)?.[1];
+  if (!owner) continue;   // deploy/Dockerfile copies the whole context.
+
+  // A Dockerfile that copies everything needs no per-package COPY.
+  if (/^\s*COPY\s+\.\s+\.\s*$/m.test(text)) continue;
+
+  const manifestPath = join(root, 'packages', owner, 'package.json');
+  if (!existsSync(manifestPath)) continue;
+
+  const deps = JSON.parse(readFileSync(manifestPath, 'utf8')).dependencies ?? {};
+  for (const [name, range] of Object.entries(deps)) {
+    if (!String(range).startsWith('workspace:')) continue;
+    const dir = name.replace('@absuitecore/', '');
+    edges += 1;
+
+    if (!new RegExp(`COPY\\s+packages/${dir}/`).test(text)) {
+      failures.push(
+        `${rel(file)}: depends on ${name} (workspace:) and never COPYs packages/${dir}/.\n` +
+        `      pnpm install cannot resolve a workspace package that is not in the build context.\n` +
+        `      The image build fails; nothing local does, because nothing local installs from a Dockerfile.`,
+      );
+    }
+  }
+}
+if (edges > 0 && !failures.some(f => /workspace:/.test(f))) {
+  passes.push(`${edges} workspace dependency edge(s) present in the image that needs them`);
+}
+
 /* ── Report ───────────────────────────────────────────────────────────────── */
 
 for (const line of passes) console.log(`✓ ${line}`);
