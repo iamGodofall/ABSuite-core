@@ -509,7 +509,9 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
 
     try {
       const healthUrl = url.includes('/service-health/') || url.endsWith('/health') ? url : `${url}/health`;
-      const res = await fetch(`/endpoint-check?url=${encodeURIComponent(healthUrl)}`);
+      const res = await fetch(`/endpoint-check?url=${encodeURIComponent(healthUrl)}`, {
+        headers: getAdminHeaders(),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? 'Endpoint test failed');
 

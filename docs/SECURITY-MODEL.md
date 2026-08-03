@@ -213,9 +213,9 @@ Services communicate over the Docker bridge network using HTTP. In production, e
 
 ### Outbound requests
 
-Three services take a URL from a caller and fetch it: `webhook.send` in
-connector-starter, `http` tasks in edge-run, and the `http` provider in
-quickbench. Each holds a capability scope that means *send a webhook*, *queue a
+Four services take a URL from a caller and fetch it: `webhook.send` in
+connector-starter, `http` tasks in edge-run, the `http` provider in quickbench,
+and `/endpoint-check` on the dashboard. Each holds a capability scope that means *send a webhook*, *queue a
 task*, *run a benchmark* — none of which mean *read this machine's cloud
 credentials*, which is what an unguarded fetch of `169.254.169.254` returns on a
 cloud VM.
@@ -229,6 +229,7 @@ shared**, because it genuinely differs:
 | connector-starter | loopback, private, link-local, unique-local, CGNAT, unspecified | posts to third parties; an internal address is never a legitimate webhook target |
 | edge-run | link-local | calling your own `10.0.0.5` on a schedule is the product |
 | quickbench | link-local | benchmarking your own service is the use case |
+| dashboard `/endpoint-check` | everything but the suite's own hostnames | it answers *is my own service up?* and nothing else is a target |
 
 All three refuse link-local, because `169.254.0.0/16` is where every major cloud
 puts instance metadata. `metadata.google.internal` is refused **by name** as well
@@ -262,6 +263,22 @@ re-serialises IPv6 to its shortest form, so `[::ffff:169.254.169.254]` arrives
 as `::ffff:a9fe:a9fe`; a pattern looking for a dotted quad sees none. IPv4-mapped,
 IPv4-compatible and NAT64-embedded forms are all resolved to the IPv4 address
 they reach.
+
+### An allowlist has to bind every hop
+
+There are two different questions and they are configured separately, because
+conflating them left a live hole for as long as it took to probe the fix:
+
+- **`allow`** — *these hosts skip the range check*. An operator naming an
+  internal host has said what they mean.
+- **`only`** — *nothing but these hosts, at any hop*. This is what
+  `EDGERUN_ALLOWED_HOSTS` and the dashboard's health-host list compile to.
+
+Passing an allowlist as `allow` restricted the first request and nothing after
+it: an allowlisted host answering a `302` reached anywhere, with the body
+returned. A restriction that binds the first request and not the second is not a
+restriction. `only` is also checked *before* name resolution, so a host that
+fails to resolve is still held to the list.
 
 ### Escape hatches, and what they are allowed to open
 

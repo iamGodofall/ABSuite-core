@@ -150,6 +150,82 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3r. The fix for §3q had the same hole in it, ninety seconds after publishing
+
+§3q made every redirect hop get classified. It did not make every redirect hop
+get *allowlisted*, and those are different things.
+
+edge-run enforces `EDGERUN_ALLOWED_HOSTS` before fetching, then passed the same
+list to `guardedFetch` as `allow` — which exempts a host from the **range**
+check and says nothing about hosts arrived at later. So with an allowlist naming
+exactly one host:
+
+```
+direct call to a host NOT on the allowlist:
+   {"ok":false,"error":"Host not allowed: 192.0.2.2"}
+
+same host, via a redirect from the ONE allowlisted host:
+   {"ok":true,"output":{"reached":"not-on-the-allowlist"},"statusCode":200}
+   off-allowlist server hit 1 time(s)
+```
+
+`.env.example` calls `EDGERUN_ALLOWED_HOSTS` *the single most useful line in this
+file*. A restriction that binds the first request and not the second is not a
+restriction, and this was live in a version published minutes earlier.
+
+`GuardedFetchOptions` now separates the two. `allow` means *these hosts skip the
+range check*; `only` means *nothing but these hosts, ever*, and it binds every
+hop. It is also checked **before** resolution, because it is a rule about names:
+`resolveRanges` returning undefined is deliberately not a refusal, so checking
+`only` afterwards would have let an unresolvable host skip the one rule that does
+not depend on resolution.
+
+### A fourth service was doing the same thing, unauthenticated
+
+Asking *what else in this repository fetches a caller-supplied URL* — the
+question that found §3n, §3o and §3q — turned up `/endpoint-check` on the
+dashboard, which none of the previous passes had looked at because it is not a
+published package.
+
+Two defects, both demonstrated against a running server:
+
+**It had no `requireAdminAccess`.** Every sibling route that touches a service
+carries it; this one did not. The response distinguishes an answer from a refused
+connection, so it was an unauthenticated localhost port scanner.
+
+**Its hostname allowlist covered one hop.** An allowlisted service answering
+`302 Location: http://192.0.2.2/` reached that host, and the route reported
+`ok: true`. Same shape as edge-run's, found in the same hour, in a file with no
+tests.
+
+Both fixed, both verified against the running server: the redirect is now refused
+naming the hop, the off-allowlist server logs zero requests, and checking a real
+local service still returns `200` — the route still does its job.
+
+### Two process notes, because they cost more than the bugs
+
+**A test edit silently did not apply, and I nearly reported the result.** A
+compound command began with `pkill -9 -f "server.ts"`, and the pattern matched
+the shell's own command line — killing the shell before the rest ran. The
+subsequent "tests pass after reintroducing the defect" was not evidence of a
+weak test; nothing had been edited. It surfaced only because *tests still passing
+after a defect is reintroduced* was treated as a result to explain rather than a
+result to accept.
+
+**A `.replace()` with no assertion is not an edit.** An earlier attempt at the
+same revert matched nothing and reported success. Every scripted edit in this
+pass asserts its pattern first, which is what turned the second failure into a
+loud one.
+
+Both are the same lesson as the rest of this document: **a step that cannot fail
+loudly will eventually fail quietly**, and a green result whose cause you have
+not verified is not a green result.
+
+Proved by reintroducing the defect: making `only` bind hop zero alone turns 2
+red — one in capkit, one in edge-run, both against real sockets.
+
+---
+
 ## 3q. The guard was correct and completely bypassed, by one line of HTTP
 
 Three packages had an SSRF guard. Each classified the URL before calling
@@ -975,7 +1051,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **871 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **875 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 20 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is

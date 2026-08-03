@@ -25,6 +25,8 @@
  * switched off, which protects nobody. Link-local is different: never a
  * legitimate scheduled-task target, and the highest-value one there is.
  */
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { TaskRuntime } from './runtime';
 
 describe('http tasks refuse the cloud metadata service', () => {
@@ -132,6 +134,40 @@ describe('the task runner keeps doing its job', () => {
     const result = await runtime.execute({ type: 'http', url: 'http://169.254.169.254/x' });
 
     expect(result.ok).toBe(true);
+  });
+
+  /*
+   * The allowlist has to survive a redirect, or it is a check on the URL that
+   * was queued rather than a restriction on what the runtime may reach. It did
+   * not, at first: an allowlisted host answering a 302 returned the body from a
+   * host the operator had excluded.
+   *
+   * Real servers here rather than the stubbed fetch the rest of this file uses,
+   * because the defect is in how redirects are followed and a stub follows none.
+   */
+  test('the allowlist survives a redirect, which is what makes it a restriction', async () => {
+    globalThis.fetch = realFetch;
+
+    let offListHits = 0;
+    const offList = http.createServer((_q, r) => { offListHits++; r.writeHead(200); r.end('{"reached":true}'); });
+    await new Promise<void>(resolve => { offList.listen(0, '127.0.0.1', resolve); });
+    const offPort = (offList.address() as AddressInfo).port;
+
+    const listed = http.createServer((_q, r) => {
+      r.writeHead(302, { location: `http://127.0.0.1:${offPort}/` });
+      r.end();
+    });
+    await new Promise<void>(resolve => { listed.listen(0, '127.0.0.1', resolve); });
+    const listedPort = (listed.address() as AddressInfo).port;
+
+    try {
+      const result = await new TaskRuntime({ allowedHosts: ['localhost'] })
+        .execute({ type: 'http', url: `http://localhost:${listedPort}/` });
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/not on the allowed host list/);
+      expect(offListHits).toBe(0);
+    } finally { offList.close(); listed.close(); }
   });
 
   test('an allowlist still excludes everything not on it', async () => {

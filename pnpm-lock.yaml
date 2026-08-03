@@ -95,6 +95,9 @@ importers:
 
   packages/dashboard-ui:
     dependencies:
+      '@absuitecore/capkit':
+        specifier: workspace:^
+        version: link:../capkit
       '@react-three/drei':
         specifier: ^10.7.0
         version: 10.7.7(@react-three/fiber@9.6.1(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.180.0))(@types/react@19.2.18)(@types/three@0.180.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.180.0)

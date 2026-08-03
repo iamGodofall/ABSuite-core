@@ -174,6 +174,10 @@ export class TaskRuntime {
     return {
       refuse: ['link-local'] as const,
       allow: this.allowedHosts,
+      // Binds every hop. `assertHostAllowed` enforces the allowlist on the URL
+      // that was queued; without this a permitted host answering a 302 reached
+      // anywhere, which is the allowlist not being an allowlist.
+      only: this.allowedHosts.length > 0 ? this.allowedHosts : undefined,
       allowMetadata: this.allowMetadata,
       protocols: ['http:', 'https:'],
       verb: 'call',

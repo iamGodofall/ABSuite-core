@@ -57,6 +57,21 @@ export interface GuardedFetchOptions {
    */
   allow?: string[];
   /**
+   * If set, **every** hop's hostname must appear here. Anything else is refused.
+   *
+   * Distinct from `allow`, and the difference is the whole point. `allow` says
+   * *these hosts skip the range check*; `only` says *nothing but these hosts,
+   * ever*. Conflating them left a hole in the first version of this file:
+   * edge-run enforced `EDGERUN_ALLOWED_HOSTS` before calling `fetch` and passed
+   * the same list as `allow`, so hop zero was restricted to the named hosts and
+   * every subsequent hop was not. An allowlisted host answering a `302` reached
+   * anywhere — demonstrated, with the body returned in `output`.
+   *
+   * A restriction that applies to the first request and not the second is not a
+   * restriction.
+   */
+  only?: string[];
+  /**
    * Permit known instance metadata endpoints. Off unless explicitly set.
    *
    * This is separate from `allow` on purpose. edge-run's allowlist previously
@@ -117,11 +132,22 @@ async function checkHop(
   hop: number,
   options: GuardedFetchOptions,
 ): Promise<void> {
-  const { refuse, allow = [], protocols = ['http:', 'https:'], verb = 'call' } = options;
+  const { refuse, allow = [], only, protocols = ['http:', 'https:'], verb = 'call' } = options;
   const where = hop === 0 ? '' : ` (redirected from hop ${hop})`;
 
   if (!protocols.includes(url.protocol)) {
     throw new Error(`Refusing to ${verb} ${url.protocol}//${url.hostname}: unsupported protocol${where}`);
+  }
+
+  /*
+   * `only` is checked before anything is resolved, because it is a restriction
+   * on names rather than on addresses. Checking it after the resolver would
+   * have meant an unresolvable host skipped it — and `resolveRanges` returning
+   * undefined is deliberately not a refusal, so a name that fails to resolve
+   * would have slipped past the one rule that does not depend on resolution.
+   */
+  if (only && !only.includes(url.hostname)) {
+    throw new Error(`Refusing to ${verb} ${url.hostname}: it is not on the allowed host list${where}.`);
   }
 
   const resolved = await resolveRanges(url.hostname);

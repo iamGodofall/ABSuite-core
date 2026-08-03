@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { guardedFetch } from '@absuitecore/capkit';
 
 const SERVICES = ['capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard', 'absuite-db'] as const;
 type ServiceName = typeof SERVICES[number];
@@ -259,10 +260,21 @@ async function fetchJson(url: string, init?: RequestInit) {
   return { response, data };
 }
 
+/**
+ * The only hosts `/endpoint-check` will contact — the suite's own services.
+ *
+ * A list, rather than a range rule, because this route exists to answer *is my
+ * own service answering?* and nothing else is a legitimate target for it.
+ */
+const HEALTH_HOSTS = [
+  'localhost', '127.0.0.1',
+  'capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard',
+];
+
 function isAllowedHealthUrl(rawUrl: string): boolean {
   try {
     const parsed = new URL(rawUrl);
-    return ['localhost', '127.0.0.1', 'capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard'].includes(parsed.hostname);
+    return ['http:', 'https:'].includes(parsed.protocol) && HEALTH_HOSTS.includes(parsed.hostname);
   } catch {
     return false;
   }
@@ -1249,14 +1261,38 @@ app.post('/connector-starter/generate', async (req, res) => {
   }
 });
 
-app.get('/endpoint-check', async (req, res) => {
+/**
+ * Is one of our own services answering?
+ *
+ * ## Two things this route got wrong
+ *
+ * **It was unauthenticated**, alone among the routes that reach anything. Every
+ * sibling that touches a service carries `requireAdminAccess`; this one did not,
+ * so anyone who could reach the dashboard could use it to map which localhost
+ * ports were open — the response distinguishes an answer from a refused
+ * connection.
+ *
+ * **The hostname allowlist covered one hop.** `fetch` follows redirects, so an
+ * allowlisted service answering `302 Location: http://192.0.2.2/` reached that
+ * host and the route reported `ok: true`. Demonstrated, not theorised: the
+ * off-allowlist server logged the request.
+ *
+ * `only` binds every hop, which is the difference between an allowlist and a
+ * check on the first request.
+ */
+app.get('/endpoint-check', requireAdminAccess, async (req, res) => {
   const rawUrl = String(req.query.url || '');
   if (!rawUrl || !isAllowedHealthUrl(rawUrl)) {
     return res.status(400).json({ error: 'Endpoint URL is missing or not allowed.' });
   }
 
   try {
-    const response = await fetch(rawUrl);
+    const response = await guardedFetch(rawUrl, {}, {
+      refuse: [],                  // these are our own services; ranges are not the rule
+      only: HEALTH_HOSTS,          // the rule is the host list, at every hop
+      protocols: ['http:', 'https:'],
+      verb: 'check',
+    });
     return res.status(response.ok ? 200 : 502).json({
       ok: response.ok,
       status: response.status,

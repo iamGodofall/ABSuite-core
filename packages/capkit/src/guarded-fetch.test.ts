@@ -103,6 +103,62 @@ describe('a redirect cannot smuggle a request past the guard', () => {
   });
 });
 
+describe('an allowlist that only binds the first hop is not an allowlist', () => {
+  /*
+   * This was a hole in the first version of this file, found by probing the fix
+   * rather than by reading it.
+   *
+   * edge-run enforced `EDGERUN_ALLOWED_HOSTS` before calling in, and passed the
+   * same list as `allow` — which exempts a host from the *range* check, and says
+   * nothing about hosts arrived at later. So hop zero was restricted to the
+   * named hosts and every later hop was not: an allowlisted service answering a
+   * `302` reached anywhere, with the body returned in `output`.
+   *
+   * `allow` and `only` answer different questions, and conflating them cost
+   * exactly this.
+   */
+  test('a redirect to a host that is not on the list is refused', async () => {
+    let elsewhereHits = 0;
+    const elsewhere = await serve((_req, res) => {
+      elsewhereHits++;
+      res.writeHead(200); res.end('not on the list');
+    });
+    const listed = await serve((_req, res) => {
+      res.writeHead(302, { location: `http://127.0.0.1:${elsewhere.port}/` });
+      res.end();
+    });
+
+    try {
+      await expect(
+        guardedFetch(`http://localhost:${listed.port}/`, {}, { refuse: [], only: ['localhost'], verb: 'call' })
+      ).rejects.toThrow(/not on the allowed host list \(redirected from hop 1\)/);
+
+      expect(elsewhereHits).toBe(0);
+    } finally { elsewhere.close(); listed.close(); }
+  });
+
+  test('a host on the list is called normally', async () => {
+    const server = await serve((_req, res) => { res.writeHead(200); res.end('fine'); });
+    try {
+      const response = await guardedFetch(`http://localhost:${server.port}/`, {},
+        { refuse: [], only: ['localhost'], verb: 'call' });
+      expect(await response.text()).toBe('fine');
+    } finally { server.close(); }
+  });
+
+  test('a name that will not resolve is still held to the list', async () => {
+    /*
+     * Ordering, and it matters. `resolveRanges` returns undefined for a name it
+     * cannot resolve, and that is deliberately not a refusal — so if `only` were
+     * checked after resolution, an unresolvable host would skip the one rule
+     * that does not depend on resolution at all.
+     */
+    await expect(
+      guardedFetch('http://no-such-host.invalid/', {}, { refuse: [], only: ['localhost'], verb: 'call' })
+    ).rejects.toThrow(/not on the allowed host list/);
+  });
+});
+
 describe('credentials do not follow a redirect across origins', () => {
   /*
    * Following redirects by hand means owning the rules fetch was applying for

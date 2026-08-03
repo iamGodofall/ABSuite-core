@@ -212,6 +212,11 @@ the caller's URL is not partial protection; it is none. Every hop is classified,
 `Authorization` and `Cookie` are dropped when the origin changes, and a
 `BlockedTargetError` names which hop failed.
 
+`allow` and `only` are different questions, and the difference is load-bearing.
+`allow` exempts a host from the range check; `only` restricts **every hop** to a
+list and refuses anything else. Passing an allowlist as `allow` restricts the
+first request and nothing after it.
+
 **Known metadata endpoints are refused whatever your `refuse` list says.** They
 are not a range: `169.254.169.254` is link-local, `100.100.100.200` is
 carrier-grade NAT, and AWS serves IMDS over IPv6 at `fd00:ec2::254`, which is

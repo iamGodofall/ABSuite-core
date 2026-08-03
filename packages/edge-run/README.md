@@ -74,6 +74,10 @@ range. `EDGERUN_ALLOWED_HOSTS` scopes which hosts may be called; that is a
 different statement from *yes, read this machine's cloud credentials*, and it no
 longer makes it. `EDGERUN_ALLOW_METADATA=true` does, and says so.
 
+**The allowlist binds every hop.** It used to be enforced only on the URL you
+queued, so an allowlisted host answering a `302` reached anywhere — which made it
+a check on the request rather than a restriction on the runtime.
+
 Private and loopback addresses still work: calling `http://10.0.0.5/reindex` on
 a schedule is what this package is for, and naming a host in
 `EDGERUN_ALLOWED_HOSTS` still wins for every ordinary internal address.
