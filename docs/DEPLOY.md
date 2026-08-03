@@ -150,8 +150,15 @@ the host declare the container dead.
 Verified: 401 with no credentials, 401 with a wrong password, 200 with the
 right one, and `/health` 200 either way.
 
-Leave it unset and nothing changes — no gate, same as `pnpm room` and the same
-as compose, both of which bind loopback where a password protects nobody.
+`deploy/serve-all.mjs` **refuses to start without it.** That heading said "not
+optional" for a long time while the script started happily without one — a claim
+with no mechanism behind it, in the one file that exists solely to put an
+instance at a public address. `ABSUITE_PUBLIC_UNPROTECTED=true` is the way out
+for anyone who genuinely has an authenticating proxy in front, and it has to be
+asked for by name.
+
+`pnpm room` and compose are untouched. Both bind loopback, where a password
+protects nobody.
 
 Basic auth gates a demonstration instance. It is not an identity system and
 does not pretend to be one. The moment this holds records that matter, replace

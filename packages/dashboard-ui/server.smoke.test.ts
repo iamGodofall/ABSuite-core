@@ -416,6 +416,72 @@ describe('the tenancy proxy', () => {
   });
 });
 
+/**
+ * The gate a public instance rests on, which had no test at all.
+ *
+ * `ABSUITE_PUBLIC_PASSWORD` puts basic auth in front of every route including
+ * the static bundle. It is the only thing standing between a demo instance and
+ * anybody who finds the address — and that process holds `CAPKIT_ADMIN_KEY` and
+ * can start and stop services.
+ *
+ * It was written, documented under a heading reading *"The password is not
+ * optional"*, and asserted by nothing. These run before any link to a public
+ * instance is posted anywhere.
+ */
+describe('a public instance, gated by password', () => {
+  const PASSWORD = 'demo-pass-not-a-secret';
+  const credentials = `Basic ${Buffer.from(`absuite:${PASSWORD}`).toString('base64')}`;
+
+  let dashboard: Instance | undefined;
+
+  beforeAll(async () => {
+    dashboard = await start({ ABSUITE_PUBLIC_PASSWORD: PASSWORD, ABSUITE_ADMIN_API_KEY: ADMIN });
+  }, 60_000);
+
+  afterAll(async () => { await stop(dashboard); }, 20_000);
+
+  const get = (path: string, headers: Record<string, string> = {}) =>
+    fetch(`${dashboard!.base}${path}`, { headers });
+
+  /*
+   * Every route, including the ones added most recently. A gate registered
+   * before the routes covers them by construction — but "by construction" is
+   * the reasoning that produced four SSRF instances, so it is asserted instead.
+   */
+  test.each([
+    '/', '/status', '/models', '/admin/tenants', '/executions/public-key',
+    '/ai/providers', '/system/layers', '/bench/core',
+  ])('%s is 401 without credentials', async (path) => {
+    expect((await get(path)).status).toBe(401);
+  });
+
+  test('the challenge names basic auth, or a browser will not prompt', async () => {
+    expect((await get('/status')).headers.get('www-authenticate')).toMatch(/^Basic/);
+  });
+
+  test('a wrong password is refused', async () => {
+    const wrong = `Basic ${Buffer.from('absuite:not-the-password').toString('base64')}`;
+    expect((await get('/status', { authorization: wrong })).status).toBe(401);
+  });
+
+  test('the right password gets through', async () => {
+    expect((await get('/status', { authorization: credentials })).status).toBe(200);
+  });
+
+  /*
+   * Two gates, not one. The password admits you to the instance; the admin key
+   * is still required for anything that reads the record. A visitor to a public
+   * demo gets the interface, not the executions.
+   */
+  test('the password alone does not open the admin routes', async () => {
+    expect((await get('/models', { authorization: credentials })).status).toBe(403);
+  });
+
+  test('/health stays open, because a gated one reads as a dead container', async () => {
+    expect((await get('/health')).status).toBe(200);
+  });
+});
+
 describe('the dashboard with no admin key configured', () => {
   let dashboard: Instance | undefined;
 

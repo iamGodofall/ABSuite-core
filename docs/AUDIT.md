@@ -158,6 +158,44 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4i. "The password is not optional" was a heading, not a mechanism
+
+Before drafting anything that points strangers at a demo instance, the obvious
+question is whether a public instance is actually safe. Two answers, and they
+disagreed.
+
+**The gate works.** With `ABSUITE_PUBLIC_PASSWORD` set, every route answers
+`401` without credentials — including the model-identity and tenancy routes added
+hours earlier, which the middleware covers by registration order. `/health` stays
+open deliberately. The password admits you to the instance; the admin key is
+still required for anything that reads the record, so a visitor to a public demo
+gets the interface and not the executions. Verified against a running server.
+
+**It had no test.** The one control standing between a demo instance and anyone
+who finds the address, and nothing asserted it. Ten tests now, load-bearing:
+disabling the gate turns all ten red.
+
+**And `deploy/serve-all.mjs` did not require it.** `DEPLOY.md` carries a section
+headed *"The password is not optional"*. The script that section is about — the
+one that exists solely to run the all-in-one public container — started happily
+without one. A heading claiming mandatory over a mechanism saying optional is
+exactly the defect this document keeps recording, and it was sitting in the
+deployment path.
+
+It refuses now, with `ABSUITE_PUBLIC_UNPROTECTED=true` as the named way out for
+somebody who really does have an authenticating proxy in front. Both paths
+verified by running them. `pnpm room` and compose are untouched — they bind
+loopback, where a password protects nobody.
+
+### The pattern, stated once more
+
+Three times today a document asserted something the code did not enforce: the
+security model's filtering engine, the retention limits no meter counts, and
+this. **A sentence is not a control.** The difference is whether something fails
+when it stops being true.
+
+---
+
 ## 4h. Five hours of red container builds, and `pnpm verify` green throughout
 
 Asked to publish, the first thing to check was what actually ships. npm was in
@@ -173,7 +211,7 @@ build died before it started.
 
 ### Why nothing local caught it
 
-`pnpm verify` runs 24 checks and 919 tests and every one passed, in the same
+`pnpm verify` runs 24 checks and 932 tests and every one passed, in the same
 commits that broke the image — because **nothing local installs from a
 Dockerfile's build context.** The dependency resolves perfectly in the
 repository, where capkit is present. It resolves nowhere in an image that never
@@ -1914,7 +1952,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **919 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **932 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 24 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
