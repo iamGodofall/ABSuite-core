@@ -75,6 +75,27 @@ const RULES = [
     why: 'A constant named for its own fictionality is data waiting to be rendered as real.',
   },
   {
+    /**
+     * An address the browser cannot know.
+     *
+     * Settings built its endpoint list as `http://localhost:${service.port}`
+     * and handed each one to `/endpoint-check`, which runs in the *server*. On
+     * a host that is the right answer by luck; in a container `localhost` is
+     * the dashboard, so it dialled itself once per service and reported
+     * connection-refused for five services that were running. The one row that
+     * worked did so because its URL happened to name the dashboard's own port.
+     *
+     * Where a service listens depends on whether the server is in Docker and on
+     * env overrides that never reach this bundle. A hostname compiled into the
+     * browser is therefore a guess rendered as a fact, which is this file's
+     * subject even though it is an address rather than a metric. Name the
+     * service and let the server resolve it.
+     */
+    id: 'invented-address',
+    pattern: /['"`]https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|['"`])/gi,
+    why: 'A service address hardcoded into browser code. The browser cannot know where the server reaches a service — send the service name and let the server resolve it.',
+  },
+  {
     id: 'demo-literal',
     // Deliberately narrow: a demo/mock/fake prefix immediately followed by a
     // value, which is what a fabricated identifier looks like. Prose that

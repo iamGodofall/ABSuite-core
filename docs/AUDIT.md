@@ -158,6 +158,85 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4k. Test Endpoint dialled the dashboard, once per service
+
+In Settings, *Test Endpoint* answered `fetch failed` for all five backend
+services while every one of them was up and answering. Two of the seven rows
+worked — the database, and the dashboard's own — and that is the part that gives
+it away, because they worked for the same accidental reason.
+
+`/endpoint-check` runs in the dashboard **server**. The interface was building
+its targets in the browser:
+
+```ts
+url: `http://localhost:${service.port}`
+```
+
+On a host running `pnpm room` that is right, because the server and the ports are
+on the same machine. In a container it is the dashboard dialling itself. Five
+rows named ports 8081–8085, where, inside that container, nothing listens. The
+two that answered named port 3001 — `/health` and
+`/service-health/absuite-db` — which is the dashboard. Every row that resolved
+correctly did so because its address happened to name the process making the
+request.
+
+**The browser cannot know this address.** It depends on whether the *server* is
+in Docker, and on `CAPKIT_URL` and its siblings, which never reach the bundle.
+`useServices.ts` held its own `SERVICE_PORTS` map — half of the server's
+`SERVICE_BASE_URLS`, with the host guessed. §4a records the same shape: a fact
+hand-copied into a second place, where it can only be a guess.
+
+### Two lists of the same six names
+
+`HEALTH_HOSTS` — the `/endpoint-check` allowlist — also spelled out
+`capkit, edge-run, quickbench, connector-starter, trust, dashboard`, beside a
+`SERVICE_BASE_URLS` that already defined exactly those services. An operator who
+repointed `CAPKIT_URL` was still naming one of our own services, and the
+allowlist would have refused it for not being on a list somebody typed by hand.
+It is derived from the map now, so the two cannot disagree.
+
+### The fix, and the one that was not taken
+
+The interface sends `?service=capkit` and the server resolves it, from the same
+map every other proxy in the file already uses. The `?url=` form and its
+allowlist are untouched: naming a service does not widen what may be contacted,
+it stops the browser inventing a hostname it has no way to know.
+
+The alternative — route every row through `/service-health/:service`, which
+already resolves correctly — is a reasonable fix and was proposed first. It was
+not taken for two reasons. The button would no longer test the endpoint; it would
+test the dashboard's proxy, which answers `502` from the dashboard whether the
+service is down or the proxy is broken. And it would retire `/endpoint-check`
+without removing it, leaving a guarded, reachable route that nothing calls —
+which is how a route stops being maintained while still being exposed.
+
+### What is proved, and what is not
+
+Four smoke tests, each verified by putting the defect back:
+
+- A service resolves to the configured address, not `localhost`, and the
+  configured server counts the hit. Reverting to `?url=` only turns this red.
+- The allowlist follows a service configured at `127.0.0.3` — an address on no
+  hand-written list. Restoring the typed-out `HEALTH_HOSTS` turns this red.
+- `absuite-db` resolves through the dashboard, which is the thing that knows
+  whether the file opened.
+- An unknown service name is refused and nothing is contacted.
+
+The container case itself is **not executed here** — there is no Docker daemon in
+this environment, so no test in this repository has ever seen
+`http://capkit:8081`. What the tests exercise is the resolution path that
+produces it, driven by an env override, which is the same branch of the same map.
+The Docker value is reached by the same line and is not separately demonstrated.
+Stated rather than glossed, because "we fixed the Docker bug" and "we tested the
+Docker bug" are different sentences.
+
+`check:fabrication` gained an `invented-address` rule: no hostname for one of our
+own services may be compiled into browser code. It is an address rather than a
+metric, but it is the same defect that file exists for — a guess rendered as a
+fact.
+
+---
+
 ## 4j. The pin said pnpm 9. The build ran pnpm 11
 
 Both container jobs went red — `CI / Docker Build` and `CD / build` — while
@@ -2058,7 +2137,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **932 tests, 42 suites, 25 checks, exit 0.** `pnpm verify` runs a build, the
+- **936 tests, 42 suites, 25 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 25 checks. `check:numbers` compares every figure the documents
   publish against what the repository measures, and `check:config` fails the
   build if a variable is offered to an operator and read by nothing (§3c).

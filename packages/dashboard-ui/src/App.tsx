@@ -466,6 +466,12 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
   const [exportMsg, setExportMsg] = useState('');
   const [endpointMessage, setEndpointMessage] = useState('');
   const [endpointMessageTone, setEndpointMessageTone] = useState<'info' | 'warn' | 'error'>('info');
+  /**
+   * Addresses the server reported, keyed by service. Empty until something is
+   * tested, because until then this browser has not been told one — see the note
+   * on `endpoints` below.
+   */
+  const [endpointAddresses, setEndpointAddresses] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -502,28 +508,46 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
     };
   }, [services]);
 
+  /*
+   * These used to carry `url: http://localhost:${service.port}`.
+   *
+   * `/endpoint-check` runs in the dashboard *server*, so that address is
+   * resolved wherever the server is — and in a container `localhost` is the
+   * dashboard itself. Five services that were up reported connection-refused,
+   * and the only row that worked was the database, because its URL happened to
+   * point at the dashboard's own port.
+   *
+   * The browser cannot know the right host: it depends on whether the server is
+   * in Docker and on env overrides that never reach this bundle. So it stops
+   * guessing and sends the service name. The port is still shown because the
+   * port is true either way; the address appears once the server has reported
+   * one, which is the only point at which this browser knows it.
+   */
   const endpoints = [
     ...services.map(service => ({
       name: service.name,
-      url: `http://localhost:${service.port}`,
+      service: service.id,
+      port: service.port,
       status: service.status,
     })),
-    { name: 'ABSuite DB', url: 'http://localhost:3001/service-health/absuite-db', status: dbStatus },
+    { name: 'ABSuite DB', service: 'absuite-db', port: 3001, status: dbStatus },
   ];
 
-  const testEndpoint = async (url: string) => {
+  const testEndpoint = async (service: string) => {
     setEndpointMessage('');
 
     try {
-      const healthUrl = url.includes('/service-health/') || url.endsWith('/health') ? url : `${url}/health`;
-      const res = await fetch(`/endpoint-check?url=${encodeURIComponent(healthUrl)}`, {
+      const res = await fetch(`/endpoint-check?service=${encodeURIComponent(service)}`, {
         headers: getAdminHeaders(),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? 'Endpoint test failed');
 
+      if (typeof data.url === 'string') {
+        setEndpointAddresses(prev => ({ ...prev, [service]: data.url }));
+      }
       setEndpointMessageTone('info');
-      setEndpointMessage(`${healthUrl} responded with HTTP ${data.status}.`);
+      setEndpointMessage(`${data.url ?? service} responded with HTTP ${data.status}.`);
     } catch (err) {
       setEndpointMessageTone('error');
       setEndpointMessage((err as Error).message);
@@ -578,10 +602,12 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
               <StatusDot status={ep.status as 'up' | 'down' | 'unknown'} />
               <div className="flex-1">
                 <div className="text-sm font-medium text-text-primary">{ep.name}</div>
-                <div className="text-xs font-mono text-text-muted">{ep.url}</div>
+                <div className="text-xs font-mono text-text-muted">
+                  {endpointAddresses[ep.service] ?? `port ${ep.port}`}
+                </div>
               </div>
-              <button 
-                onClick={() => testEndpoint(ep.url)} 
+              <button
+                onClick={() => testEndpoint(ep.service)}
                 aria-label={`Test ${ep.name} endpoint`}
                 title={`Test ${ep.name} endpoint`}
                 className="px-3 py-1.5 rounded-lg bg-bg-tertiary hover:bg-border text-xs text-text-muted hover:text-text-primary transition-all focus:outline-none focus:outline-2 focus:outline-emerald-500 focus:outline-offset-2"

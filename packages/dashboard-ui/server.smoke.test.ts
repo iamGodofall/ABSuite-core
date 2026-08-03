@@ -108,6 +108,16 @@ describe('the dashboard with an admin key configured', () => {
   let redirector: Server;
   let redirectorPort = 0;
 
+  /**
+   * A service reached at an address no browser could have guessed — the case
+   * `?service=` exists for. On 127.0.0.3 deliberately: it is on no hand-written
+   * allowlist, so it only works if the allowlist is derived from the configured
+   * service map. 127.0.0.2 stays reserved for the off-allowlist assertions.
+   */
+  let configured: Server;
+  let configuredPort = 0;
+  let configuredHits = 0;
+
   beforeAll(async () => {
     offList = createServer((_req, res) => {
       offListHits += 1;
@@ -123,13 +133,24 @@ describe('the dashboard with an admin key configured', () => {
     });
     redirectorPort = await listen(redirector, '127.0.0.1');
 
-    dashboard = await start({ ABSUITE_ADMIN_API_KEY: ADMIN });
+    configured = createServer((_req, res) => {
+      configuredHits += 1;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{}');
+    });
+    configuredPort = await listen(configured, '127.0.0.3');
+
+    dashboard = await start({
+      ABSUITE_ADMIN_API_KEY: ADMIN,
+      TRUST_URL: `http://127.0.0.3:${configuredPort}`,
+    });
   }, 60_000);
 
   afterAll(async () => {
     await stop(dashboard);
     offList.close();
     redirector.close();
+    configured.close();
   }, 20_000);
 
   beforeEach(() => { offListHits = 0; });
@@ -196,6 +217,59 @@ describe('the dashboard with an admin key configured', () => {
     ['an empty url', ''],
   ])('refuses %s', async (_label, url) => {
     expect((await asAdmin(url)).status).toBe(400);
+  });
+
+  /*
+   * The interface used to send `http://localhost:${port}`, built in the browser
+   * from a port map compiled into the bundle. This route runs in the server, so
+   * in a container that address is the dashboard dialling itself — five running
+   * services reported connection-refused and the only row that worked was the
+   * one that happened to point at the dashboard's own port.
+   *
+   * `?service=` moves the decision to the side that can make it. `configured`
+   * stands in for a service reachable at an address no browser could guess.
+   */
+  const byService = (service: string) =>
+    fetch(`${dashboard!.base}/endpoint-check?service=${encodeURIComponent(service)}`, {
+      headers: { 'x-absuite-admin-key': ADMIN },
+    });
+
+  test('a service is resolved to the address this server actually uses', async () => {
+    const response = await byService('trust');
+    const body = await response.json() as { ok?: boolean; status?: number; url?: string };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, status: 200 });
+
+    // The assertion that matters: the caller never named a host, and the one
+    // that got contacted is the configured one — not `localhost`.
+    expect(body.url).toBe(`http://127.0.0.3:${configuredPort}/health`);
+    expect(configuredHits).toBe(1);
+  });
+
+  test('the allowlist follows the configured address, because it is still our own service', async () => {
+    // HEALTH_HOSTS is derived from SERVICE_BASE_URLS rather than typed out
+    // beside it. Pin the two lists apart again and this goes red: 127.0.0.3 is
+    // on no hand-written list, and it is exactly as legitimate as `capkit`.
+    const response = await asAdmin(`http://127.0.0.3:${configuredPort}/health`);
+
+    expect(response.status).toBe(200);
+  });
+
+  test('the database resolves through the dashboard, which is what knows whether it opened', async () => {
+    const body = await (await byService('absuite-db')).json() as { url?: string };
+
+    // Reachability depends on where this test's dashboard is listening; the
+    // resolution does not, and the resolution is the thing under test.
+    expect(body.url).toMatch(/\/service-health\/absuite-db$/);
+  });
+
+  test('an unknown service is refused, and nothing is contacted', async () => {
+    const before = configuredHits;
+    const response = await byService('../../etc/passwd');
+
+    expect(response.status).toBe(400);
+    expect(configuredHits).toBe(before);
   });
 });
 

@@ -268,10 +268,19 @@ async function fetchJson(url: string, init?: RequestInit) {
  *
  * A list, rather than a range rule, because this route exists to answer *is my
  * own service answering?* and nothing else is a legitimate target for it.
+ *
+ * Derived from `SERVICE_BASE_URLS` rather than typed out beside it. The two used
+ * to be separate lists holding the same six names, and a second list of the same
+ * facts can only ever disagree with the first — an operator who repoints
+ * `CAPKIT_URL` is still naming one of our own services, and the allowlist has to
+ * know that without being edited. `localhost` and `127.0.0.1` stay explicit
+ * because they are the non-Docker case and are not always what the map holds.
  */
 const HEALTH_HOSTS = [
-  'localhost', '127.0.0.1',
-  'capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard',
+  ...new Set([
+    'localhost', '127.0.0.1',
+    ...Object.values(SERVICE_BASE_URLS).map(base => new URL(base).hostname),
+  ]),
 ];
 
 function isAllowedHealthUrl(rawUrl: string): boolean {
@@ -281,6 +290,31 @@ function isAllowedHealthUrl(rawUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The address this process actually uses to reach a service.
+ *
+ * The interface used to build these itself, as `http://localhost:${port}` from a
+ * port map copied into the browser bundle. That is right on a host running
+ * `pnpm room` and wrong in every container: inside the dashboard image,
+ * `localhost` is the dashboard, so `/endpoint-check` dialled itself six times
+ * and reported connection-refused for five services that were running perfectly.
+ * Only the database entry worked, and only because it pointed at the dashboard's
+ * own port by accident of being a proxy path.
+ *
+ * The browser cannot know this address — it depends on whether the *server* is
+ * in Docker and on env overrides the browser never sees. So the browser stops
+ * guessing and names the service instead; resolution happens here, from the same
+ * map every other proxy in this file already uses.
+ */
+function healthUrlForService(name: string): string | null {
+  if (name === 'absuite-db') {
+    // No HTTP surface of its own. The dashboard is what knows whether it opened.
+    return `${SERVICE_BASE_URLS.dashboard}/service-health/absuite-db`;
+  }
+  const base = SERVICE_BASE_URLS[name as Exclude<ServiceName, 'absuite-db'>];
+  return base ? `${base}/health` : null;
 }
 
 function slugify(value: string): string {
@@ -1473,7 +1507,22 @@ app.post('/connector-starter/generate', async (req, res) => {
  * check on the first request.
  */
 app.get('/endpoint-check', requireAdminAccess, async (req, res) => {
-  const rawUrl = String(req.query.url || '');
+  // `service` is the form the interface uses: it names what to check and lets
+  // this process decide the address. `url` stays for anything else, held to the
+  // same allowlist it always was — resolving a name does not widen what may be
+  // contacted, it only stops the browser inventing a hostname it cannot know.
+  const serviceParam = String(req.query.service || '');
+  let rawUrl: string;
+  if (serviceParam) {
+    const resolved = healthUrlForService(serviceParam);
+    if (!resolved) {
+      return res.status(400).json({ error: 'Unknown service.' });
+    }
+    rawUrl = resolved;
+  } else {
+    rawUrl = String(req.query.url || '');
+  }
+
   if (!rawUrl || !isAllowedHealthUrl(rawUrl)) {
     return res.status(400).json({ error: 'Endpoint URL is missing or not allowed.' });
   }
