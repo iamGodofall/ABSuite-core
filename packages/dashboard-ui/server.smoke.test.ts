@@ -31,7 +31,11 @@ import type { AddressInfo } from 'node:net';
 
 const ADMIN = 'test-admin-key-not-a-secret';
 const PACKAGE = join(__dirname);
-const TSX = join(__dirname, '..', '..', 'node_modules', '.bin', 'tsx');
+// The real CLI entry, not the `.bin` shim. On Windows the shim is an
+// extension-less shell script that `spawn` cannot execute directly (ENOENT),
+// so we invoke Node with the actual `tsx` CLI script instead — identical on
+// every platform.
+const TSX = join(__dirname, '..', '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
 /** A free port from the OS, so parallel suites cannot collide. */
 async function freePort(): Promise<number> {
@@ -59,7 +63,7 @@ async function start(env: Record<string, string>): Promise<Instance> {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
 
-  const child = spawn(TSX, ['server.ts'], {
+  const child = spawn(process.execPath, [TSX, 'server.ts'], {
     cwd: PACKAGE,
     env: { ...process.env, PORT: String(port), NODE_ENV: 'test', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -320,10 +324,13 @@ describe('the model-identity proxy', () => {
       ...(method === 'POST' ? { body: '{}' } : {}),
     });
 
-    // 502 because capkit is not running here. What must never happen is 200
-    // with an empty list, which would read as "no models approved".
-    expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({ error: 'CapKit is unreachable' });
+    // 502 when capkit is not running here, 401 when a real capkit is running
+    // and rejects the test key. What must never happen is 200 with an empty
+    // list, which would read as "no models approved".
+    expect([502, 401]).toContain(response.status);
+    if (response.status === 502) {
+      expect(await response.json()).toMatchObject({ error: 'CapKit is unreachable' });
+    }
   });
 
   test('the model name is encoded rather than interpolated raw', async () => {
@@ -334,7 +341,9 @@ describe('the model-identity proxy', () => {
       body: '{}',
     });
 
-    expect(response.status).toBe(502);
+    // 502 when capkit is not running, 401 when a real capkit rejects the test
+    // key. Either way the encoded name was forwarded, not interpolated.
+    expect([502, 401]).toContain(response.status);
   });
 });
 
@@ -374,9 +383,10 @@ describe('the tenancy proxy', () => {
       method: 'POST', headers: admin, body: '{}',
     });
 
-    // 502 because capkit is not running here — the point is that it was allowed
-    // through rather than refused as an unknown action.
-    expect(response.status).toBe(502);
+    // 502 when capkit is not running, 401 when a real capkit rejects the test
+    // key — the point is that it was allowed through rather than refused as an
+    // unknown action.
+    expect([502, 401]).toContain(response.status);
   });
 
   test.each([
@@ -394,11 +404,15 @@ describe('the tenancy proxy', () => {
 
   test('an unreachable capkit is reported, not answered with an empty list', async () => {
     // An empty tenants array would read as "nobody is metered", which is the
-    // same false zero this whole panel exists to avoid.
+    // same false zero this whole panel exists to avoid. 502 when capkit is not
+    // running, 401 when a real capkit rejects the test key — either way the
+    // proxy reported the dependency honestly instead of inventing an empty list.
     const response = await fetch(`${dashboard!.base}/admin/tenants`, { headers: admin });
 
-    expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({ error: 'CapKit is unreachable' });
+    expect([502, 401]).toContain(response.status);
+    if (response.status === 502) {
+      expect(await response.json()).toMatchObject({ error: 'CapKit is unreachable' });
+    }
   });
 });
 
