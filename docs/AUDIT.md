@@ -150,6 +150,41 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4e. GUIDE, NOTARY and SERVICES — the last three no gate covers
+
+`PERFORMANCE`, `PROTOCOL`, `API`, `CONSTITUTION`, `MODULES` and `UI-PHILOSOPHY`
+are each already held to the code by a gate. That left three documents whose
+claims nothing checks.
+
+**`GUIDE.md` was run, verbatim.** It is a curl walkthrough, so the audit is to
+execute it against a real capkit rather than read it:
+
+```
+STEP 1 — mint a token                  token: eyJhbGciOiJIUzI1NiIs…
+STEP 2 — record an execution           {"id":"exec_0bcf8593…","outcome":"success"}
+STEP 3 — jq -r .publicKey              '-----BEGIN PUBLIC KEY-----…'
+STEP 4 — verify the chain              {"valid":true,"checked":1,…}
+```
+
+Four steps, four correct results, including the field name — `publicKey` on that
+route, which was worth confirming because `publicKeyPem` is the field name
+everywhere else in the same server.
+
+**`NOTARY.md` had one defect**: a heading reading *"The four endpoints"* above a
+table of **five**. All five exist. It is the same shape as `DEPLOY.md`'s "five
+secrets" listing six, found two entries earlier — a count written in prose beside
+a list that grew.
+
+Both are fixed the same way, and it is the fix the FAQ got too: **remove the
+count**. A number restated next to the thing it counts has no protection, and
+written as a word it is invisible to the gate that exists to catch exactly this.
+Three instances in one sweep is a pattern, not three typos.
+
+**`SERVICES.md`** marks five offerings **Built**, and each names a module that
+exists. Nothing there overstates.
+
+---
+
 ## 4d. The FAQ said microseconds; the measurement says milliseconds
 
 `FAQ.md` is the customer-facing document, and Q13 answers *will it slow my agent

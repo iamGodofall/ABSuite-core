@@ -83,7 +83,7 @@ It tells you when the key is ephemeral, at boot and in `/health`:
 
 ---
 
-## The four endpoints
+## The endpoints
 
 | | | |
 |---|---|---|
