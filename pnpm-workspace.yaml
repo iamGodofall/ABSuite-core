@@ -13,3 +13,27 @@ allowBuilds:
 # wipes is reproducible from the lockfile, so the cost of being wrong is a
 # reinstall, not lost work.
 confirmModulesPurge: false
+
+# Building the images should be possible on a domestic connection.
+#
+# `docker compose build` runs fourteen installs across seven images — each one
+# resolving four to seven hundred packages, all at once, all against
+# registry.npmjs.org. On a fast link that is merely wasteful. On a home
+# connection it saturates the line: a supply-chain policy check that takes about
+# twenty seconds in CI took **twenty-one minutes** and then failed with
+# ERR_PNPM_META_FETCH_FAIL, after hundreds of ETIMEDOUT and ECONNRESET retries.
+#
+# The failure had nothing to do with the code, but it looked exactly like a
+# broken build, and it cost a night of chasing lockfile drift that was not there.
+#
+# `networkConcurrency` is the one that matters: seven builders at pnpm's default
+# of 16 is 112 sockets competing for one line. The rest simply stop pnpm giving
+# up early when each request is genuinely slow rather than genuinely broken.
+#
+# The real answer for anyone who just wants to run it is not to build at all —
+# `ghcr.io/iamgodofall/absuite-allinone:latest` is published on every push and
+# does one install instead of fourteen. See the README.
+networkConcurrency: 8
+fetchRetries: 5
+fetchRetryMaxtimeout: 120000
+fetchTimeout: 300000

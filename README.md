@@ -97,6 +97,13 @@ There is deliberately **no "install everything" npm package.** Pulling eight
 packages into an application that needs one is a worse default, not a friendlier
 one — so the all-in-one is a container you run, not a dependency you take.
 
+<sub>**Pull it, do not build it.** `docker compose build` compiles seven images
+and runs fourteen `pnpm install`s against the registry at once, which saturates a
+domestic connection — a supply-chain check that takes twenty seconds in CI has
+taken twenty-one minutes and then failed on one. The published image was built
+on CI's connection and does one install instead of fourteen. Build locally only
+when you are changing the images, and expect it to take a while.</sub>
+
 **[Getting started →](./GETTING-STARTED.md)** · **[Run the full incident investigation →](./examples/incident-forensics.mjs)**
 
 ---
