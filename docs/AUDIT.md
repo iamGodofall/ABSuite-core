@@ -150,6 +150,38 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4c. A publish that failed twice, and not for the reason it looked like
+
+`capkit@1.8.0` was built, tested and packed cleanly and then failed to publish,
+twice:
+
+```
+npm error code TLOG_CREATE_ENTRY_ERROR
+npm error error creating tlog entry - (409) an equivalent entry already exists
+                                       in the transparency log
+```
+
+The first instinct was that the new dashboard smoke tests had broken CI — they
+spawn a real server, bind `127.0.0.2`, and had never run on a GitHub runner.
+**That was wrong.** The logs show build and test passing; the failure is in
+`npm publish --provenance`, after the tarball is packed.
+
+Both runs produced a **byte-identical tarball** — the same shasum,
+`4d7f50bd…` — so Sigstore's transparency log saw the same artifact signed by the
+same identity twice and refused the duplicate. The first attempt got far enough
+to write the log entry and not far enough to complete the publish, which leaves
+that exact version permanently unpublishable.
+
+The fix is a version whose tarball differs: **1.8.0 is skipped and 1.8.1 ships
+the same code.** A gap in the version series is cosmetic; a version that can
+never be published is not.
+
+Worth recording for the same reason as everything else here: *"CI is broken by my
+change"* was the available story, it fit, and reading the actual log took less
+time than acting on it would have.
+
+---
+
 ## 4b. Every document, checked for what it names
 
 The remaining thirteen documents were swept mechanically: every route, script and
