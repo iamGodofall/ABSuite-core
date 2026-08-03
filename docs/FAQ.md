@@ -146,9 +146,15 @@ Never the proof. See [SERVICES.md](SERVICES.md).
 
 ### Q13. Will it slow my agent down?
 
-Recording is a hash and a signature — microseconds. Measured figures, on a stated
-machine, are in [PERFORMANCE.md](PERFORMANCE.md), and CI fails if the document
-and the benchmark disagree.
+Barely, and the honest number is in [PERFORMANCE.md](PERFORMANCE.md) rather than
+repeated here — that document is generated from the benchmark and CI fails if the
+two disagree, which is not true of a figure retyped into an answer.
+
+What is worth knowing is the shape. **The hash and the signature really are
+microseconds; the commit to SQLite is not**, and `trace.record` measures all
+three together because that is what you actually call. An earlier version of this
+answer said "microseconds" about the whole operation and was out by a factor of
+about fifty — the cryptography was never the cost.
 
 The one thing to know: `/executions/stats` defaults to skipping signature
 verification and **says so in the response**, because verifying signatures across

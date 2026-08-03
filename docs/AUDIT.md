@@ -150,6 +150,39 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4d. The FAQ said microseconds; the measurement says milliseconds
+
+`FAQ.md` is the customer-facing document, and Q13 answers *will it slow my agent
+down?* with **"Recording is a hash and a signature — microseconds."**
+
+`trace.record` has a measured p50 of **1.27 ms**. Out by a factor of about fifty.
+
+The sentence is defensible word by word and wrong as an answer. The hash and the
+signature *are* microseconds. What a caller actually invokes is `record`, which
+also commits to SQLite in the same transaction — and the commit is the cost. The
+cryptography was never the expensive part, which is the genuinely useful thing to
+tell somebody, and the old answer hid it behind a flattering number.
+
+Fixed by not restating a number at all. `PERFORMANCE.md` is generated from the
+benchmark and CI fails if the two disagree; a figure retyped into an answer has
+no such protection, and this is the second time in one sweep that a hand-copied
+number was the defect.
+
+### The rest of the FAQ, checked by running it
+
+| Claim | Result |
+|---|---|
+| Q13: *"CI fails if the document and the benchmark disagree"* | **True.** `gen-performance-doc.mjs --check` is a step in `ci.yml`, and it passes |
+| Q14: *"inputs and outputs are hashed and dropped"* | **DEMONSTRATED.** A card number and an output canary were recorded, then searched for in the database file *and its write-ahead log*. Neither appears |
+| Q19: *"what it deliberately does not do"* | **True.** 8 advertised refusals, each still enforced by a test — `check:constraints` |
+
+Q14 is the one worth having proved rather than read. It is the claim that decides
+whether a regulated buyer can keep the record for seven years, and the WAL had to
+be searched too — a payload can be absent from the `.db` file and still sitting
+in the log beside it.
+
+---
+
 ## 4c. A publish that failed twice, and not for the reason it looked like
 
 `capkit@1.8.0` was built, tested and packed cleanly and then failed to publish,
