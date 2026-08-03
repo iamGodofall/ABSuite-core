@@ -150,6 +150,63 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3t. The security document described controls that do not exist
+
+Three passes of outbound work all assumed `docs/SECURITY-MODEL.md` was true, and
+none of them checked it. Read against the code, claim by claim:
+
+| Claim | What is there |
+|---|---|
+| *"CapKit's AI content policy engine filters prompts and responses"*, with an `AIPolicyRule` interface and a default policy blocking prompt-injection patterns | **ABSENT.** A repository-wide search for prompt-injection filtering returns nothing. |
+| Threat model: *Prompt injection → AI content policy regex patterns* | **ABSENT**, same cause — and this is the row a buyer reads. |
+| *"CapKit filters known patterns but cannot catch sophisticated jailbreaks"* | It filters none. The sentence conceded a limit on a thing that was not running. |
+| Rate limits: per token 100/min, per IP 500/min, per endpoint 1000/min | Token bucket, default **60/min**, keyed `tenant:<id>` or `ip:<addr>`. **No per-endpoint limit exists.** Numbers measured, not read. |
+| *"stored in SQLite with a sliding window algorithm"* | In-memory `Map`. A restart resets every bucket; two replicas at 60/min admit 120/min. |
+| `await capkit.rotateKey()` | No such method. Real API is `KeyRing.rotate(secret, kid, retain)` — synchronous, and you supply the secret. |
+| *"Keys are rotated regularly (automatically via the key rotation system)"* | Nothing rotates automatically. No scheduler exists. |
+| *"defense-in-depth at four levels: … transport encryption …"* and *"in production, enable TLS by configuring certificates in each service's environment"* | **No service terminates TLS.** No service reads a certificate. There is no such configuration. |
+| Audit log written synchronously, immutable, no UPDATE or DELETE | **Accurate.** `appendFileSync`, append-only. |
+| *"Stored in SQLite"* (audit log) | A JSONL file. |
+| Token carries `kid`, `aud`, `jti` | **Accurate.** |
+
+### This is §3's own defect, in the same family of document
+
+`ABSUITE_DB_ENCRYPTION_KEY` sat in `.env.example` telling operators to generate
+32 random bytes while nothing read it, and this audit already calls that *worse
+than a missing feature, because a missing feature does not produce false
+confidence.* The prompt-injection row is the same object and lands harder: an
+operator can check whether their database is encrypted, and cannot easily check
+whether an engine that was never built is filtering their prompts.
+
+### The filter was not implemented, and that is the decision
+
+The obvious repair is to build the thing the document promised. It is the wrong
+one. [PRINCIPLES.md](../PRINCIPLES.md) refuses **a hallucination detector**,
+because a control that cannot define the class it claims to catch produces false
+confidence rather than safety — and a regex list for prompt injection is the same
+object. It would stop the examples in its own tests, miss everything written
+afterwards, and leave an operator believing the class was covered.
+
+So the position is stated instead: **ABSuite does not filter prompts.** An
+injected agent still acts under a capability token that names what it may do, and
+whatever it does is signed, hash-chained and attributable. That is a smaller
+claim than filtering and it is one that holds.
+
+The rate-limiting correction went the other way — the implementation is *better*
+than the document. A token bucket beats the sliding window that was advertised,
+and `rate-limit.ts` explains why. The document was still wrong, and being wrong
+in your own favour is not better than being wrong: an operator sizing a
+deployment against "stored in SQLite" would have assumed limits survived a
+restart and held across replicas. Neither is true.
+
+### What this pass did not check
+
+Every claim above is from `SECURITY-MODEL.md` and `ARCHITECTURE.md`. The rest of
+`docs/` has not had the same treatment, and until it does, the honest state of
+those documents is UNKNOWN rather than sound.
+
+---
+
 ## 3s. Four instances of one defect, and nothing stopping a fifth
 
 `webhook.send`, edge-run's `http` tasks, quickbench's `http` provider, the
@@ -1092,7 +1149,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **875 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **879 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 21 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is

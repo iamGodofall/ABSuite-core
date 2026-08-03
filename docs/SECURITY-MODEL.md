@@ -15,7 +15,15 @@
 
 ## Overview
 
-ABSuite uses defense-in-depth at four levels: network isolation, transport encryption, application-level authentication, and capability scoping. No single layer depends on another — if one fails, the others still hold.
+ABSuite uses defense-in-depth at three levels: **network isolation**, **application-level
+authentication**, and **capability scoping**. No single layer depends on another — if one
+fails, the others still hold.
+
+**Transport encryption is not one of them, and this document used to claim it was.**
+No ABSuite service terminates TLS; every one speaks plain HTTP and binds loopback.
+Encryption in transit is the deployment's job — a terminating proxy, a service mesh, or
+a platform that does it for you. Saying otherwise gave an operator a layer they did not
+have.
 
 ---
 
@@ -31,7 +39,7 @@ HMAC tokens avoid this: the signing key and the validating key are the same. Any
 
 **Tradeoff:** If the HMAC key is compromised, all tokens signed with it are forgeable. Mitigations:
 - Keys are never logged or transmitted in cleartext
-- Keys are rotated regularly (automatically via the key rotation system)
+- Keys can be rotated through the key ring, which retains previous keys so in-flight tokens survive. This is **manual** — nothing rotates on a schedule
 - Tokens have short expiration windows (default: 8 hours)
 
 ### Token structure
@@ -80,58 +88,86 @@ Client → sends token in Authorization header
 CapKit maintains a key ring — the current key plus previous keys (for in-flight tokens). Key rotation is idempotent: new key added, old tokens with previous key still validate for their remaining lifetime.
 
 ```typescript
-// Rotate to new key
-await capkit.rotateKey()
-// Old tokens still valid until expiration
-// New tokens issued with new key
+import { KeyRing } from '@absuitecore/capkit'
+
+// You supply the new secret and its kid. Nothing generates or schedules this.
+const rotated = ring.rotate(process.env.CAPKIT_HMAC_SECRET_NEW!, 'key-2026-08', 2)
+// Tokens signed with a retained previous key still validate until they expire.
 ```
+
+**Rotation is manual.** An earlier version of this page showed
+`await capkit.rotateKey()` — a method that does not exist — and said above that
+keys "are rotated regularly (automatically via the key rotation system)". There
+is no scheduler, no generated secret, and nothing that rotates on its own. The
+key ring is real and retains previous keys; deciding when to turn it is yours.
 
 ---
 
-## AI Content Policy
+## Prompt filtering — which ABSuite does not do
 
-CapKit's AI content policy engine filters prompts and responses based on configurable rules.
+**This section used to describe an "AI content policy engine" that filters
+prompts and responses, with an `AIPolicyRule` interface and a default policy
+blocking "prompt injection patterns". None of it exists.** A repository-wide
+search for prompt-injection filtering returns nothing, because nothing
+implements it. The threat model below credited it as the mitigation for prompt
+injection, so a reader would have concluded prompt injection was handled. It is
+not handled at all.
 
-### Policy structure
+What does exist is `ai-policy-generator.ts`, which turns a description of what an
+agent should be allowed to do into a **policy document** — scopes, a rate limit,
+a content-filter level, an audit setting. It is deterministic and rule-based and
+it reports `source: 'rule-based'` so nobody mistakes it for a model. It emits
+text. It enforces nothing, and it was never wired to anything that does.
 
-```typescript
-interface AIPolicyRule {
-  id: string
-  action: 'allow' | 'deny' | 'flag'
-  resource: string              // e.g., "prompt", "response"
-  conditions: {
-    patterns?: string[]         // Regex patterns to match
-    maxLength?: number          // Max character length
-    maxTokens?: number          // Max token count
-    blockedDomains?: string[]   // URLs to block
-    requireApproval?: boolean  // Human-in-the-loop
-  }
-  severity: 'low' | 'medium' | 'high' | 'critical'
-  audit: boolean               // Log even if allowed
-}
-```
+### And it is not on the roadmap either
 
-### Default policy
+[`PRINCIPLES.md`](../PRINCIPLES.md) refuses to build **a hallucination
+detector**, on the grounds that a control which cannot define the class it claims
+to catch produces false confidence rather than safety. A regex list for prompt
+injection is the same object. It would stop the examples in its own test suite,
+miss everything written after it, and — the part that costs somebody money —
+leave an operator believing the class was covered.
 
-Out of the box, ABSuite ships with:
-- **Low severity:** Rate limiting (100 req/min per token)
-- **Medium severity:** Content length limits (prompt < 128k tokens)
-- **High severity:** Blocked prompt injection patterns (markdown injection, system prompt extraction)
-- **Critical severity:** Configurable sensitive data detection (PII patterns)
+**So ABSuite's answer to prompt injection is not prevention. It is the record.**
+An injected agent still acts under a capability token that names what it may do;
+whatever it does is signed, hash-chained, and attributable afterwards. That is a
+smaller claim than filtering, and it is one that holds.
+
+Anyone who needs prompt filtering should put it in front of their model, and not
+believe this page when it says otherwise — which is why it no longer does.
 
 ---
 
 ## Rate Limiting
 
-ABSuite implements layered rate limiting:
+A **token bucket**, keyed per tenant where a tenant is resolved and per client IP
+otherwise:
 
-| Level | Scope | Default |
-|-------|-------|---------|
-| Per token | By capability token ID | 100 req/min |
-| Per IP | By client IP address | 500 req/min |
-| Per endpoint | Per API route | 1000 req/min |
+| | |
+|---|---|
+| Key | `tenant:<id>`, or `ip:<address>` when no tenant is resolved |
+| Default | **60 requests/minute** (`ABSUITE_RATE_LIMIT_PER_MINUTE`) |
+| Per plan | 60 / 300 / 1200 per minute; `-1` means unlimited |
+| Exempt | `/health`, `/ready`, `/metrics` |
+| On refusal | `429` with `Retry-After`, plus `X-RateLimit-Limit` and `-Remaining` |
 
-Rate limit state is stored in SQLite with a sliding window algorithm. Redis support planned for multi-instance deployments.
+A bucket rather than a window on purpose: a fixed window lets a caller spend the
+whole allowance in the last second of one window and again in the first second of
+the next, producing double the intended rate at the boundary.
+
+**State is in memory, in the process.** This page previously said it was "stored
+in SQLite with a sliding window algorithm", and described per-token, per-IP and
+per-endpoint limits of 100, 500 and 1000 per minute. Every one of those was
+wrong: there is no per-endpoint limit at all, the numbers were invented, the
+algorithm is a bucket, and nothing is persisted. Two consequences an operator
+needs, which the old text hid:
+
+- **A restart resets every bucket.** Rate limiting is not durable.
+- **Each replica limits independently.** Two replicas at 60/min admit 120/min.
+
+Neither is a defect — it is what an in-process limiter is — but sizing a
+deployment against "stored in SQLite" would have been sizing against something
+that was not there.
 
 ---
 
@@ -160,7 +196,7 @@ interface AuditEntry {
 
 Audit logs are:
 - Written synchronously (no async batching that could lose events)
-- Stored in SQLite (can be exported to external SIEM)
+- Appended to a JSONL file (`AuditLog`), one record per line, easy to ship to a SIEM
 - Queryable via dashboard in real-time
 - Immutable (no UPDATE or DELETE operations)
 
@@ -209,7 +245,15 @@ guarantees can run CapKit alone and skip the dashboard entirely.
 
 ### Inter-service communication
 
-Services communicate over the Docker bridge network using HTTP. In production, enable TLS by configuring certificates in each service's environment.
+Services communicate over the Docker bridge network using plain HTTP.
+
+**There is no per-service TLS configuration**, and this page used to say there
+was. No service reads a certificate or key from its environment, and none
+terminates TLS. Encryption between services means putting something in front of
+them — a service mesh, a reverse proxy, or a platform that encrypts pod-to-pod
+traffic. The default deployment binds loopback and stays on one host, which is
+why plain HTTP is survivable there and is not survivable once the services are
+spread across machines.
 
 ### Outbound requests
 
@@ -333,10 +377,10 @@ ABSUITE_DB_ENCRYPTION_KEY=<random-256-bit-secret>
 |--------|------------|
 | Token forgery | HMAC-SHA256 with timing-safe comparison |
 | Token theft / replay | Short expiration (8h default) + revocation list |
-| Prompt injection | AI content policy regex patterns |
+| ~~Prompt injection~~ | **Not mitigated.** See *Prompt filtering* above — the control this row named does not exist |
 | Unauthorized access | Capability scoping (least privilege) |
 | Resource exhaustion | Rate limiting + process timeouts |
-| Data exfiltration | Audit logging of all requests |
+| Data exfiltration | Audit logging of all requests — detection after the fact, not prevention |
 | Privilege escalation | No privilege inheritance between scopes |
 | SSRF to cloud metadata | Outbound address classification, link-local refused by every service that fetches a caller-supplied URL |
 
@@ -345,7 +389,7 @@ ABSUITE_DB_ENCRYPTION_KEY=<random-256-bit-secret>
 - **Compromised host machine** — If Docker daemon is compromised, container isolation fails
 - **Malicious insiders with HMAC key access** — Key management is the operator's responsibility
 - **DDoS attacks** — Rate limiting helps but is not a substitute for network-level DDoS protection (use a CDN/WAF)
-- **Model-level prompt injection** — CapKit filters known patterns but cannot catch sophisticated jailbreaks
+- **Prompt injection, of any kind** — CapKit filters nothing. It does not inspect prompts or responses. An injected agent is still bound by its capability scope and still produces a signed, attributable record, which is a real limit on the damage and is not the same as prevention
 - **DNS rebinding** — the outbound guard resolves a hostname, then `fetch` resolves it again. A hostile resolver can answer differently between the two. Redirects no longer widen this (every hop is re-checked), so the window is one hop rather than unbounded — but closing it requires an HTTP agent that connects to the address it checked. Until then the class is made expensive, not removed, and claiming otherwise would be the kind of overstatement this project exists to prevent
 
 ---

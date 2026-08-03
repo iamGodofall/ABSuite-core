@@ -148,3 +148,61 @@ describe('plan rate limits', () => {
     expect('rateLimitPerMinute' in getPlan('free').limits).toBe(false);
   });
 });
+
+/**
+ * The numbers `docs/SECURITY-MODEL.md` publishes about this limiter.
+ *
+ * That document described rate limiting that did not exist — per-token,
+ * per-IP and per-endpoint limits of 100, 500 and 1000 per minute, "stored in
+ * SQLite with a sliding window algorithm". The real limiter is a token bucket
+ * at 60/min in memory, and every one of those figures was invented.
+ *
+ * The correction is only worth as much as its next reader can trust, so the
+ * corrected numbers are asserted here rather than left as prose that drifts
+ * back out of true.
+ */
+describe('what the security model publishes about this limiter', () => {
+  test('the documented default is 60 requests per minute', () => {
+    const limiter = new TenantRateLimiter();
+
+    let allowed = 0;
+    for (let i = 0; i < 200; i++) if (limiter.consume('ip:1.2.3.4').allowed) allowed++;
+
+    expect(allowed).toBe(60);
+  });
+
+  test('ABSUITE_RATE_LIMIT_PER_MINUTE overrides it, as documented', () => {
+    const limiter = new TenantRateLimiter({ defaultPerMinute: 5 });
+
+    let allowed = 0;
+    for (let i = 0; i < 50; i++) if (limiter.consume('ip:1.2.3.4').allowed) allowed++;
+
+    expect(allowed).toBe(5);
+  });
+
+  /*
+   * Both of these are consequences of an in-process limiter, and neither is a
+   * defect — but the old text said state was "stored in SQLite", which implied
+   * the opposite of both. An operator sizing a deployment needs the true one.
+   */
+  test('state does not survive a restart, and the document now says so', () => {
+    const before = new TenantRateLimiter();
+    for (let i = 0; i < 60; i++) before.consume('ip:1.2.3.4');
+    expect(before.consume('ip:1.2.3.4').allowed).toBe(false);
+
+    // A new process is a new limiter.
+    expect(new TenantRateLimiter().consume('ip:1.2.3.4').allowed).toBe(true);
+  });
+
+  test('two replicas admit twice the limit, because nothing is shared', () => {
+    const [a, b] = [new TenantRateLimiter(), new TenantRateLimiter()];
+
+    let allowed = 0;
+    for (let i = 0; i < 200; i++) {
+      if (a.consume('ip:1.2.3.4').allowed) allowed++;
+      if (b.consume('ip:1.2.3.4').allowed) allowed++;
+    }
+
+    expect(allowed).toBe(120);
+  });
+});

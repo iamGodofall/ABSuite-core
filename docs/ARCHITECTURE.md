@@ -158,7 +158,7 @@ unguarded to anything that reached them directly.
 **Responsibilities:**
 - **JWT creation and validation** — Issued by CapKit, validated on every request
 - **Capability tokens** — Scoped, time-limited permissions for agents and services
-- **AI content policy** — Filters prompts and responses using configurable policy rules
+- **Access-policy generation** — turns a description of what an agent should be allowed to do into a policy *document*: scopes, a rate limit, a filter level, an audit setting. Deterministic and rule-based, and it reports `source: 'rule-based'` so nobody mistakes it for a model. It emits text and **enforces nothing** — ABSuite does not inspect prompts or responses, and [SECURITY-MODEL.md](SECURITY-MODEL.md) says why that is a position rather than a gap
 - **Audit logging** — Every request logged with timestamp, identity, and action
 - **Rate limiting** — Per-token, per-IP, and per-endpoint rate limits
 - **LLM provider abstraction** — Unified interface across OpenAI, Anthropic, Ollama, etc.
