@@ -166,6 +166,30 @@ for (const file of files) {
       );
     }
 
+    // A runtime container must not start by running a package manager.
+    //
+    // The dashboard image did — `CMD ["pnpm", "start"]` — and crash-looped on
+    // every start the day pnpm 11.20 shipped, because `pnpm run` began
+    // verifying dependency status first and the image's `/app/package.json`
+    // declares a `workspace:^` dependency that is true in the repository and
+    // false in a one-package image. Corepack compounded it by fetching whatever
+    // pnpm was newest, since that manifest carries no `packageManager`.
+    //
+    // Nothing in this repository broke. An external version moved. **A runtime
+    // container that resolves dependencies at start is trusting the network at
+    // the one moment nothing should be uncertain** — every sibling image runs
+    // `node dist/server.js`, and this was the one that did not.
+    if (/^CMD\s/i.test(trimmed) && /\b(pnpm|npm|yarn|bun)\b/.test(trimmed)) {
+      failures.push(
+        `${shown}:${line} starts the container with a package manager.\n` +
+          `    ${trimmed.slice(0, 84)}\n` +
+          '    Run the program directly — `node dist/server.js`, or `node --import tsx`.\n' +
+          '    A package manager at CMD resolves dependencies on every start: it reaches\n' +
+          '    the network, runs a supply-chain check, and takes whatever version corepack\n' +
+          '    hands it. pnpm 11.20 turned that into a crash loop with no change here.',
+      );
+    }
+
     if (/--no-frozen-lockfile\b/.test(trimmed)) {
       failures.push(
         `${shown}:${line} installs with \`--no-frozen-lockfile\`.\n` +

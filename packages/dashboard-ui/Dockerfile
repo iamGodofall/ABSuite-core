@@ -39,7 +39,8 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN corepack enable && apk add --no-cache docker-cli docker-compose
+# No corepack here. The runtime image runs no package manager — see CMD.
+RUN apk add --no-cache docker-cli docker-compose
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/dashboard-ui/package.json ./package.json
@@ -48,5 +49,28 @@ COPY --from=builder /app/packages/dashboard-ui/server.ts ./server.ts
 
 EXPOSE 3001
 
-CMD ["pnpm", "start"]
+# `node`, not `pnpm start`. This container crash-looped on every start:
+#
+#     ! Corepack is about to download .../pnpm-11.20.0.tgz
+#     [ERR_PNPM_WORKSPACE_PKG_NOT_FOUND] "@absuitecore/capkit@workspace:^" is in
+#     the dependencies but no package named "@absuitecore/capkit" is present
+#     Packages found in the workspace: @absuitecore/dashboard-ui
+#
+# Three things compounded. `/app/package.json` is dashboard-ui's, and it declares
+# a `workspace:^` dependency on capkit — true in the repository, false in an
+# image that contains one package. That file carries no `packageManager`, so
+# corepack downloaded whatever pnpm was newest rather than the 11.18.0 this
+# repository pins. And pnpm 11.20 verifies dependency status before `run`, so
+# `pnpm start` resolved the workspace, could not, and exited 1.
+#
+# The deeper mistake is running a package manager in a runtime container at all.
+# It resolves dependencies at container start — reaching the network, running a
+# supply-chain check, and taking whatever version it is handed — at the one
+# moment nothing should be uncertain. Every sibling image already runs
+# `node dist/server.js`, and `deploy/serve-all.mjs` already starts this same
+# server with `node --import tsx`. This was the one that did not.
+#
+# Nothing here failed in CI: when CI last built, latest pnpm still behaved. The
+# image was a time bomb with an external fuse, and 11.20.0 lit it.
+CMD ["node", "--import", "tsx", "server.ts"]
 
