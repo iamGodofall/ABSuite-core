@@ -142,6 +142,29 @@ const required = [
     when: () => Boolean(process.env.ABSUITE_PERSISTENT_DATA ?? true),
   },
   {
+    /*
+     * The gate that makes a public address survivable.
+     *
+     * `docs/DEPLOY.md` has a section headed "The password is not optional" and,
+     * until this entry existed, it was: this script started happily without it,
+     * and this script exists *only* for the all-in-one container — the one thing
+     * in the repository built specifically to be put at a public address.
+     *
+     * A heading that says mandatory over a mechanism that says optional is the
+     * defect this project keeps finding in its own documents. So it is required
+     * here, with a named way out for anyone who really has an authenticating
+     * proxy in front. `pnpm room` and compose are untouched; both bind loopback,
+     * where a password protects nobody.
+     */
+    name: 'ABSUITE_PUBLIC_PASSWORD',
+    why:
+      'This container publishes the room on a public port, and the process holds CAPKIT_ADMIN_KEY\n' +
+      '      and can control services. Without a password every route, including the admin console, is\n' +
+      '      open to anyone who finds the address. Set ABSUITE_PUBLIC_UNPROTECTED=true only if something\n' +
+      '      in front of this already authenticates.',
+    when: () => !/^(1|true|yes|on)$/i.test((process.env.ABSUITE_PUBLIC_UNPROTECTED || '').trim()),
+  },
+  {
     name: 'ABSUITE_ADMIN_API_KEY',
     why:
       '45 routes sit behind it — executions, chain verification, the queue, the\n' +
