@@ -1,0 +1,41 @@
+# Line endings are LF in the working tree on every platform.
+#
+# There was no .gitattributes here, so Git for Windows applied its default and
+# checked text files out with CRLF. Five generators build their output with `\n`
+# and compare it to the file on disk; all six of those comparisons failed, and
+# `pnpm verify` stopped at step three on any Windows clone with:
+#
+#     docs/API.md is out of date. Run: pnpm docs:api
+#
+# Running that command rewrote an identical document, so the advice in the error
+# could not work. Nothing past the third check had ever run on Windows.
+#
+# `eol=lf` rather than `text=auto` alone: `text=auto` normalises what goes into
+# the repository but still hands Windows a CRLF working tree, which is the half
+# that broke. Modern editors on Windows handle LF without complaint.
+#
+# The generators also compare newline-insensitively now (scripts/lib/generated.mjs).
+# Both, deliberately — this settles what a fresh clone gets, that one keeps an
+# existing checkout from reporting a difference that is not a difference.
+* text=auto eol=lf
+
+# Binary and already-compressed formats: never touched, never diffed as text.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+
+# Generated. Collapsed in diffs and excluded from language statistics, because
+# neither is written by hand and both are large enough to bury a real change.
+docs/index.html  linguist-generated=true
+docs/system.html linguist-generated=true
+pnpm-lock.yaml   linguist-generated=true

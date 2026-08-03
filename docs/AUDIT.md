@@ -158,6 +158,82 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4l. Twenty-two checks that had never run on Windows
+
+Reported from a Windows clone, on a commit where `pnpm verify` was green here.
+Same tree, same lockfile, same pnpm. Build passed. **936 tests passed.** Then:
+
+```
+$ node scripts/gen-api-docs.mjs --check
+docs/API.md is out of date. Run: pnpm docs:api
+```
+
+`docs:check` is the third link in a chain of twenty-six. Everything after it —
+including every gate written in the last two days — had never executed on that
+machine. Not failed: **never run.** The suite reported itself as a suite while a
+whole platform reached a fifth of it.
+
+### A newline is not a fact about content
+
+There was no `.gitattributes`. Git for Windows applies its own default and
+checks text files out with CRLF. The generators build their output in memory
+with `\n` and compared it byte-for-byte:
+
+```js
+if (current !== output) {
+```
+
+So `current` held CRLF, `output` held LF, and the documents were declared out of
+date for a difference that says nothing about what they contain.
+
+The worst part is the second line of the error. Running `pnpm docs:api` rewrote
+an identical document and changed nothing, so the fix the tool named could not
+work. **A check that reports a false difference and then prescribes a remedy for
+it is worse than a check that is simply wrong** — it sends someone round a loop
+until they conclude the repository is broken. On Windows, past step three, it
+was.
+
+Six comparisons, five generators — `gen-api-docs`, `gen-performance-doc`,
+`gen-site`, `gen-system-map`, `gen-architecture-layers`. One report surfaced one
+of them, for the same reason BuildKit only ever showed one failing image in §4j:
+the chain stops at the first.
+
+### Both halves, deliberately
+
+`.gitattributes` sets `* text=auto eol=lf`, which settles what a fresh clone
+gets. `text=auto` on its own is not enough — it normalises what enters the
+repository and still hands Windows a CRLF working tree, which is the half that
+broke.
+
+That alone would leave every existing checkout still failing until re-cloned, so
+the comparisons go through `sameGenerated` in `scripts/lib/generated.mjs`, which
+normalises line endings and nothing else. Trailing whitespace, final newlines and
+encoding differences are real and still fail; the point of these checks is that a
+generated file nobody regenerated gets caught, and that is untouched.
+
+Verified by converting all six target files to CRLF and running every generator
+against them: five of five green, where five of five had been red.
+
+### The check, and what it says about the last two days
+
+`check:cross-platform` holds four things: `.gitattributes` normalises to LF; no
+file in the tree carries CRLF; every `--check` generator imports `sameGenerated`;
+none of them compares file contents with `===`. Each proved by reintroducing it.
+
+This is the **second** Windows defect found by the one person running this on
+Windows, and §2b had already recorded the first — `spawn` on an extension-less
+`.bin` shim — before it was repeated in the dashboard smoke tests. Both are
+invisible from a Linux container, which is the only place this project's
+automation runs. Neither is exotic. The pattern is not that Windows is hard; it
+is that **every machine in this project's automation is the same machine**, and a
+suite that only ever runs in one place cannot tell you it is unreachable
+somewhere else.
+
+Two days of new gates were added in that window. On Windows, none of them had
+ever run.
+
+---
+
 ## 4k. Test Endpoint dialled the dashboard, once per service
 
 In Settings, *Test Endpoint* answered `fetch failed` for all five backend
@@ -2137,8 +2213,8 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **936 tests, 42 suites, 25 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 25 checks. `check:numbers` compares every figure the documents
+- **936 tests, 42 suites, 26 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 26 checks. `check:numbers` compares every figure the documents
   publish against what the repository measures, and `check:config` fails the
   build if a variable is offered to an operator and read by nothing (§3c).
 

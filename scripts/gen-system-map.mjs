@@ -30,6 +30,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sameGenerated } from './lib/generated.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -417,7 +418,7 @@ const target = join(root, 'docs/system.html');
 
 if (process.argv.includes('--check')) {
   const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
-  if (current !== page) {
+  if (!sameGenerated(current, page)) {
     console.error('docs/system.html is out of date — the map and the repository disagree.');
     console.error('Run: pnpm docs:map');
     process.exit(1);

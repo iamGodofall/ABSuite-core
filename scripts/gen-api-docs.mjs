@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sameGenerated } from './lib/generated.mjs';
 
 // fileURLToPath, not .pathname: on Windows the latter yields
 // "/D:/A%20B/..." which join() mangles into "D:\\D:\\A%20B\\..." — a path that
@@ -198,7 +199,7 @@ const target = join(ROOT, 'docs/API.md');
 
 if (process.argv.includes('--check')) {
   const current = (() => { try { return readFileSync(target, 'utf8'); } catch { return ''; } })();
-  if (current !== output) {
+  if (!sameGenerated(current, output)) {
     console.error('docs/API.md is out of date. Run: pnpm docs:api');
     process.exit(1);
   }

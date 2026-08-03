@@ -14,6 +14,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sameGenerated } from './lib/generated.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dataPath = join(root, 'bench/core-latest.json');
@@ -145,11 +146,11 @@ function renderReadme() {
 
 if (check) {
   const current = existsSync(docPath) ? readFileSync(docPath, 'utf8') : '';
-  if (current !== doc) {
+  if (!sameGenerated(current, doc)) {
     console.error('docs/PERFORMANCE.md does not match bench/core-latest.json. Run: pnpm bench:doc');
     process.exit(1);
   }
-  if (readFileSync(readmePath, 'utf8') !== renderReadme()) {
+  if (!sameGenerated(readFileSync(readmePath, 'utf8'), renderReadme())) {
     console.error('The performance table in README.md does not match bench/core-latest.json. Run: pnpm bench:doc');
     process.exit(1);
   }

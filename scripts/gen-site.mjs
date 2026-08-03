@@ -29,6 +29,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sameGenerated } from './lib/generated.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -851,7 +852,7 @@ if (deadLinks.length > 0) {
 
 if (process.argv.includes('--check')) {
   const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
-  if (current !== page) {
+  if (!sameGenerated(current, page)) {
     console.error('docs/index.html is out of date. Run: pnpm docs:site');
     process.exit(1);
   }

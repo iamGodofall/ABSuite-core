@@ -21,6 +21,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sameGenerated } from './lib/generated.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, 'docs/CONSTITUTION.md');
@@ -76,7 +77,7 @@ if (process.argv.includes('--check')) {
     console.error(`${target} does not exist. Run: node scripts/gen-architecture-layers.mjs`);
     process.exit(1);
   }
-  if (committed !== payload) {
+  if (!sameGenerated(committed, payload)) {
     console.error(
       'The generated architecture layers no longer match docs/CONSTITUTION.md.\n' +
       'The room would be drawing a roadmap the constitution has moved on from.\n' +
