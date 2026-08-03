@@ -161,6 +161,50 @@ for (const entry of readdirSync(scripts)) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// 4. Nothing hardcodes an interpreter name.
+//
+// `spawnSync('python3', ...)` in gen-site and `"check:python": "python3 ..."` in
+// package.json both fail on Windows running Anaconda, which installs
+// `python.exe` and no `python3.exe`. The first did not fail cleanly: it treated
+// "no interpreter" as "no Python", generated a page with different wording, and
+// reported `docs/index.html is out of date` — a fact about PATH, published as a
+// fact about a document. `scripts/lib/python.mjs` is the one place allowed to
+// know what the binary might be called.
+// ---------------------------------------------------------------------------
+const INTERPRETER = /(?:spawnSync|spawn|exec|execSync|execFileSync)\s*\(\s*['"`]python\d?['"`]/;
+
+for (const entry of readdirSync(scripts)) {
+  if (!entry.endsWith('.mjs')) continue;
+  readFileSync(join(scripts, entry), 'utf8').split('\n').forEach((line, index) => {
+    // A comment describing the defect is not the defect. This rule's first run
+    // flagged its own explanatory note — and because the note sorts first, it
+    // masked the two real regressions being tested at the time.
+    if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+    if (INTERPRETER.test(line)) {
+      failures.push(
+        `scripts/${entry}:${index + 1} spawns an interpreter by a hardcoded name.\n` +
+          `    ${line.trim().slice(0, 88)}\n` +
+          '    Use findPython()/runPython() from ./lib/python.mjs — `python3` does not\n' +
+          '    exist on a Windows machine running Anaconda, and the failure does not look\n' +
+          '    like a missing interpreter, it looks like a stale document.',
+      );
+    }
+  });
+}
+
+const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+for (const [name, command] of Object.entries(manifest.scripts ?? {})) {
+  if (/(^|&&\s*|\|\s*)python\d?\s/.test(command)) {
+    failures.push(
+      `package.json script "${name}" runs \`python\` directly:\n` +
+        `    ${command.slice(0, 88)}\n` +
+        '    Route it through a script that resolves the interpreter, so the command\n' +
+        '    works on a machine where Python is not called `python3`.',
+    );
+  }
+}
+
 if (generators < GENERATOR_FLOOR) {
   failures.push(
     `Only ${generators} generators with a --check mode were found, fewer than the floor of ${GENERATOR_FLOOR}.\n` +

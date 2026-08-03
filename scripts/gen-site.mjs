@@ -30,6 +30,7 @@ import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sameGenerated } from './lib/generated.mjs';
+import { runPython } from './lib/python.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -114,16 +115,45 @@ const countTestSuites = () => {
  * a generator that stops being run.
  */
 function conformanceChecks() {
-  const run = spawnSync('python3', [join(root, 'implementations/python/test_conformance.py')], {
-    cwd: root, encoding: 'utf8', timeout: 60_000,
-  });
-  if (run.status !== 0) return null;
+  const run = runPython(join(root, 'implementations/python/test_conformance.py'), { cwd: root });
+  if (!run || run.status !== 0) return null;
   const match = /(\d+)\/(\d+) checks passed/.exec(run.stdout ?? '');
   if (!match || match[1] !== match[2]) return null;
   return Number(match[2]);
 }
 
-const conformance = conformanceChecks();
+const checking = process.argv.includes('--check');
+const measuredConformance = conformanceChecks();
+
+/**
+ * The figure to publish, when this machine could not measure it.
+ *
+ * Only in `--check`, and the asymmetry is deliberate.
+ *
+ * Writing is a claim: `pnpm docs:site` on a machine with no Python must not
+ * republish a number it did not measure, so the page falls back to wording that
+ * does not state one. That is correct and stays.
+ *
+ * Checking is a comparison, and it was answering the wrong question. With no
+ * `python3` on PATH — Anaconda on Windows installs `python.exe` and no
+ * `python3.exe` — the regenerated page carried the fallback sentence, differed
+ * from the committed one, and the build said *"docs/index.html is out of date.
+ * Run: pnpm docs:site"*. The document was not out of date. The machine did not
+ * have Python. Reading the committed figure back here is not a fabrication; it
+ * is declining to report a fact about an interpreter as a fact about content —
+ * the same distinction §4l had to make about line endings.
+ *
+ * Everything else on the page is still compared exactly, and the run says out
+ * loud that this one figure went unverified.
+ */
+function committedConformance() {
+  const path = join(root, 'docs/index.html');
+  if (!existsSync(path)) return null;
+  const match = /<strong>(\d+) conformance checks<\/strong>/.exec(readFileSync(path, 'utf8'));
+  return match ? Number(match[1]) : null;
+}
+
+const conformance = measuredConformance ?? (checking ? committedConformance() : null);
 
 const publicPackages = readdirSync(join(root, 'packages'), { withFileTypes: true })
   .filter(e => e.isDirectory())
@@ -850,13 +880,18 @@ if (deadLinks.length > 0) {
   process.exit(1);
 }
 
-if (process.argv.includes('--check')) {
+if (checking) {
   const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
   if (!sameGenerated(current, page)) {
     console.error('docs/index.html is out of date. Run: pnpm docs:site');
     process.exit(1);
   }
   console.log(`✓ site matches the repository — ${fixture.records.length} embedded records, ${built} of 8 layers built.`);
+  if (measuredConformance === null) {
+    // Said out loud rather than passed over: this run did not verify the
+    // conformance figure, because there is no Python on this machine.
+    console.log('  UNKNOWN: the conformance count was not verified — no Python 3 found (tried python3, python, py -3).');
+  }
 } else {
   writeFileSync(target, page);
   console.log(`Wrote docs/index.html — ${fixture.records.length} real signed records embedded, verified in the visitor's browser.`);

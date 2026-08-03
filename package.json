@@ -51,7 +51,7 @@
     "check:site": "node scripts/gen-site.mjs --check",
     "check:surface": "node scripts/check-surface-primitives.mjs",
     "check:protocol": "node scripts/check-protocol-conformance.mjs",
-    "check:python": "python3 implementations/python/test_conformance.py",
+    "check:python": "node scripts/check-python.mjs",
     "check:numbers": "node scripts/check-published-numbers.mjs",
     "check:config": "node scripts/check-config.mjs",
     "notary": "pnpm --filter @absuitecore/notary start",

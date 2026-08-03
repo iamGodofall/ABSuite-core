@@ -158,6 +158,85 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4n. `python3` is not what Python is called on every machine
+
+The `.gitattributes` fix in §4l worked. A fresh Windows clone ran the build, 936
+tests, and twenty checks that had never executed on that machine — then stopped
+at the twenty-first:
+
+```
+$ node scripts/gen-site.mjs --check
+docs/index.html is out of date. Run: pnpm docs:site
+```
+
+Not line endings this time; the comparison is newline-insensitive now and four
+other generators passed. A different defect wearing the same error message.
+
+`gen-site` measures one figure by running the Python conformance suite, because
+typing the number would be the exact thing this project fails builds over. It
+shells out to **`python3`**. The reporting machine runs Anaconda, which installs
+`python.exe` and no `python3.exe`. Reproduced here by pointing the spawn at a
+name that does not exist, and the whole difference is one line:
+
+```diff
+- <strong>33 conformance checks</strong> run on every build, and they are the reason this is a
++ <strong>A conformance suite</strong> runs on every build, and it is the reason this is a
+```
+
+The fallback wording is right — a page must not publish a number nobody
+measured. What was wrong is what happened next: `--check` compared that page to
+the committed one and reported the *document* as stale. **The document was
+current. The machine did not have `python3`.** Same confusion as the CRLF one, a
+layer up: a fact about the environment, published as a fact about content.
+
+`"check:python": "python3 ..."` in package.json had it too, so the last link in
+`pnpm verify` would have failed next for the same reason.
+
+### Writing and checking are not the same act
+
+`scripts/lib/python.mjs` tries `python3`, then `python`, then `py -3`, and
+confirms each is Python 3 before trusting it — `python` is still Python 2 on
+some systems, and running the suite under it would fail in a way that looks like
+a defect in the suite. On the reporting machine this now finds Anaconda's
+`python` and genuinely runs the conformance suite, which is the outcome worth
+having.
+
+When there is no Python at all the two modes diverge, deliberately:
+
+- **Writing** falls back to wording that states no number. Publishing a figure
+  nobody measured is the defect; that behaviour was already correct and stays.
+- **Checking** reads the committed figure back and compares everything else
+  exactly, then prints `UNKNOWN: the conformance count was not verified`. It is
+  not a fabrication — it is declining to report an absent interpreter as a
+  changed document.
+
+`check:python` does the same: UNKNOWN and exit 0 when no Python exists, naming
+what it tried and what would settle it. Uncomfortable, and correct. The four
+words this product is built on separate *the evidence contradicts it* from
+*nobody checked*, and a missing interpreter is squarely the second. Failing the
+build would state FAILED for something never run — in the check that exists to
+demonstrate the distinction. CI has Python, so the suite still runs on every
+push; what changes is that a contributor without it gets a stated UNKNOWN rather
+than a wall, or a green tick they did not earn.
+
+`check:cross-platform` now also fails on any hardcoded interpreter name outside
+that one module.
+
+### The gate flagged its own comment
+
+First run, the new rule fired on the line in its own header quoting
+`spawnSync('python3', ...)` as the thing to avoid — and because that hit sorted
+first, it **masked both regression tests**, which appeared to pass by reporting
+the self-hit instead of the defects being reintroduced. Comment lines are
+skipped now, and both regressions were re-run properly and do go red.
+
+Worth recording rather than quietly fixing: for two runs the evidence that the
+gate worked was evidence of something else entirely, and only re-reading the
+line numbers caught it. **A check that fires is not the same as a check that
+fired for the reason you think.**
+
+---
+
 ## 4m. Six images that would install a package the lockfile never pinned
 
 A local Docker build failed on one service:
