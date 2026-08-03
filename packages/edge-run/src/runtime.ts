@@ -10,6 +10,8 @@
  */
 import { spawn } from 'node:child_process';
 import { resolve, sep } from 'node:path';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 
 export type TaskType = 'http' | 'script';
 
@@ -74,7 +76,61 @@ export class TaskRuntime {
     }
   }
 
-  private assertHostAllowed(url: string): URL {
+  /**
+   * Whether an address is the cloud metadata range.
+   *
+   * `169.254.0.0/16` is link-local, and every major cloud puts its instance
+   * metadata service at `169.254.169.254` — AWS, GCP, Azure, DigitalOcean,
+   * Oracle. `metadata.google.internal` resolves there. Reading it returns the
+   * machine's IAM credentials.
+   *
+   * Deliberately narrow. **Private ranges are not blocked**, and that is the
+   * whole judgement in this function: edge-run is a task runner inside your own
+   * infrastructure, so *call `http://10.0.0.5/reindex` every fifteen minutes*
+   * is the product's primary job, not an attack. Refusing `10.x` by default
+   * would break real deployments to stop nothing, and a control that breaks the
+   * main use case gets switched off, which protects nobody.
+   *
+   * Link-local is different: it is never a legitimate scheduled-task target,
+   * and it is the single highest-value one.
+   */
+  private static metadataReason(address: string): string | undefined {
+    if (isIP(address) === 4 && /^169\.254\./.test(address)) {
+      return 'the cloud instance metadata range (169.254.0.0/16)';
+    }
+    const v6 = address.toLowerCase().replace(/^\[|\]$/g, '');
+    if (/^fe[89ab]/.test(v6)) return 'an IPv6 link-local address';
+    const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    return mapped?.[1] ? TaskRuntime.metadataReason(mapped[1]) : undefined;
+  }
+
+  /**
+   * Check a task URL before anything is sent to it.
+   *
+   * ## What was wrong
+   *
+   * `EDGERUN_ALLOWED_HOSTS` empty means *any host*, and empty is the default —
+   * so out of the box an `http` task reached
+   * `http://169.254.169.254/latest/meta-data/iam/security-credentials/` and
+   * returned the body in `output`. Plain `http:` is accepted, which matters
+   * because AWS IMDSv1 is HTTP-only: the sibling defect in connector-starter
+   * required https and incidentally blocked that path. This one did not.
+   *
+   * A `queue:write` scope means *queue a task*. It does not mean *read this
+   * machine's cloud credentials*, and a capability that grants more than its
+   * name says is the defect this project exists to prevent.
+   *
+   * ## The limit, stated
+   *
+   * The hostname is resolved and the result checked, so a name pointing at the
+   * metadata address is refused too. It does not close DNS rebinding — between
+   * this lookup and the one `fetch` performs, a hostile resolver can answer
+   * differently. Closing that needs an agent that pins the resolved address.
+   *
+   * An explicit `EDGERUN_ALLOWED_HOSTS` entry always wins: an operator who
+   * names `169.254.169.254` has said what they mean, and this does not argue.
+   */
+  private async assertHostAllowed(url: string): Promise<URL> {
     let parsed: URL;
     try {
       parsed = new URL(url);
@@ -86,15 +142,58 @@ export class TaskRuntime {
       throw new Error(`Unsupported protocol: ${parsed.protocol}`);
     }
 
+    const host = parsed.hostname.replace(/^\[|\]$/g, '');
+
     if (this.allowedHosts.length > 0 && !this.allowedHosts.includes(parsed.hostname)) {
       throw new Error(`Host not allowed: ${parsed.hostname}`);
+    }
+    // Named explicitly, so it was meant.
+    if (this.allowedHosts.includes(parsed.hostname)) return parsed;
+
+    const direct = TaskRuntime.metadataReason(host);
+    if (direct) {
+      throw new Error(`Refusing to call ${direct}. Add it to EDGERUN_ALLOWED_HOSTS if that is genuinely intended.`);
+    }
+
+    /*
+     * By name as well as by address, and the difference is not belt-and-braces.
+     *
+     * `metadata.google.internal` resolves to 169.254.169.254 **on GCP** and
+     * nowhere else — it returns ENOTFOUND on any other machine, which was
+     * verified rather than assumed. So the DNS check below cannot catch it
+     * anywhere except the one environment where it matters, and a guard that
+     * only works where it is hardest to test is a guard nobody should trust.
+     */
+    if (/(^|\.)metadata\.(google\.internal|goog)$/i.test(host)) {
+      throw new Error(
+        `Refusing to call ${parsed.hostname}: it is the GCP metadata service. ` +
+        'Add it to EDGERUN_ALLOWED_HOSTS if that is genuinely intended.'
+      );
+    }
+
+    if (!isIP(host)) {
+      try {
+        for (const { address } of await lookup(host, { all: true })) {
+          const reason = TaskRuntime.metadataReason(address);
+          if (reason) {
+            throw new Error(
+              `Refusing to call ${parsed.hostname}: it resolves to ${address}, ${reason}. ` +
+              'Add it to EDGERUN_ALLOWED_HOSTS if that is genuinely intended.'
+            );
+          }
+        }
+      } catch (error) {
+        // A name that will not resolve fails at fetch anyway; only re-throw our
+        // own refusal, so a DNS outage does not masquerade as a security event.
+        if ((error as Error).message.startsWith('Refusing to call')) throw error;
+      }
     }
 
     return parsed;
   }
 
   private async executeHttp(task: HttpTask, timeoutMs: number, startedAt: number): Promise<TaskResult> {
-    this.assertHostAllowed(task.url);
+    await this.assertHostAllowed(task.url);
 
     const response = await fetch(task.url, {
       method: task.method ?? 'GET',

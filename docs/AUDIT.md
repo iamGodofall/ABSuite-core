@@ -150,6 +150,62 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3n. The same SSRF in edge-run, and worse — found by asking the obvious question
+
+Fixing `webhook.send` in §3j left a question that should have been asked in the
+same breath: **edge-run makes outbound HTTP calls too.** It does, and the answer
+was worse.
+
+`EDGERUN_ALLOWED_HOSTS` empty means *any host*, and empty is the documented
+default. Probing a default runtime, every one of these was reachable with the
+body returned in `output`:
+
+```
+REACHED  http://169.254.169.254/latest/meta-data/iam/security-credentials/
+REACHED  http://metadata.google.internal/computeMetadata/v1/
+REACHED  http://127.0.0.1:8081/executions
+```
+
+**Worse than §3j for one specific reason: plain `http:` is accepted.** AWS
+IMDSv1 is HTTP-only. Requiring https in connector-starter incidentally blocked
+the classic credential-theft path; here nothing did. And these are *scheduled*
+tasks, so it runs unattended and repeatedly.
+
+A `queue:write` scope means *queue a task*. It does not mean *read this
+machine's IAM credentials*.
+
+### The judgement call, and why it went the other way than §3j
+
+`webhook.send` sends to third parties, so refusing private ranges there is
+right. **edge-run is the opposite:** a task runner inside your own
+infrastructure, where *call `http://10.0.0.5/reindex` every fifteen minutes* is
+the product's primary job. Blocking `10.x` by default would break real
+deployments to prevent nothing — and a control that breaks the main use case
+gets switched off, which protects nobody.
+
+So the fix is deliberately narrow. **Link-local only** — `169.254.0.0/16`, IPv6
+`fe80::/10`, and IPv4-mapped forms — because that is never a legitimate
+scheduled-task target and is the highest-value one there is. Private ranges and
+loopback still work. An explicit `EDGERUN_ALLOWED_HOSTS` entry always wins: an
+operator who names `169.254.169.254` has said what they mean.
+
+### One thing the DNS check could not do
+
+`metadata.google.internal` was still reachable after the first fix. It resolves
+to `169.254.169.254` **on GCP and nowhere else** — `ENOTFOUND` here, verified
+rather than assumed. So a resolution-based guard works only in the one
+environment where it is hardest to test, which is not a guard worth trusting.
+The name is now refused outright, alongside the address.
+
+Twelve tests, proved by deleting the guard: six turn red. Four of them assert
+the *permissive* half — private, loopback and public hosts must still work, or
+the fix would have broken the product to secure it.
+
+`.env.example` now says the empty default is a wide-open default, in those
+words, rather than presenting it as neutral.
+
+---
+
 ## 3m. Chain checkpointing, and the thing it cannot do
 
 The last item in §5. Measured before it was built, because the rule here is that
@@ -690,7 +746,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **777 tests, 38 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **789 tests, 39 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 20 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
