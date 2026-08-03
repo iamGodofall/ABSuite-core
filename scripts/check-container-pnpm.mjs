@@ -38,6 +38,28 @@
  *   3. No Dockerfile pins a pnpm version at all. `packageManager` is the one
  *      place the version is decided; a second place can only ever drift out of
  *      agreement with it, and drift is what made this silent.
+ *   4. No Dockerfile installs with `--no-frozen-lockfile`.
+ *
+ * ## On the fourth
+ *
+ * Six of the seven service images used `--no-frozen-lockfile`; only the
+ * dashboard was strict. That asymmetry surfaced the day a local clone's
+ * lockfile drifted: six images swallowed it and built, the dashboard refused,
+ * and the report that came back was "the dashboard is broken" — when what was
+ * actually broken was shared by all seven and hidden in six.
+ *
+ * Demonstrated, both ways, in a real build context. With an undeclared
+ * dependency added to a manifest:
+ *
+ *     --frozen-lockfile      ERR_PNPM_OUTDATED_LOCKFILE, names the file, exit 1
+ *     --no-frozen-lockfile   installs it, exit 0
+ *
+ * The loose flag does not tolerate drift, it *resolves* it — fetching a package
+ * the lockfile never pinned, into an image, silently. For a project whose whole
+ * argument is that evidence beats assurance, an image that cannot be rebuilt
+ * from its lockfile is the wrong artifact to ship. There was no technical reason
+ * for it either: strict was tested in these exact contexts, both the build
+ * install and the `--prod` prune, and passes.
  *
  *   node scripts/check-container-pnpm.mjs      # or: pnpm check:container-pnpm
  *
@@ -141,6 +163,15 @@ for (const file of files) {
           '    Corepack takes the version from `packageManager` in package.json, so this\n' +
           '    pin is inert — it downloads a pnpm the build then does not use, while\n' +
           '    reading like the version decision. Delete it; `corepack enable` is enough.',
+      );
+    }
+
+    if (/--no-frozen-lockfile\b/.test(trimmed)) {
+      failures.push(
+        `${shown}:${line} installs with \`--no-frozen-lockfile\`.\n` +
+          '    That does not tolerate a drifted lockfile, it resolves around it — the\n' +
+          '    image gets a package the lockfile never pinned, and says nothing. Six of\n' +
+          '    seven images did this, so a real drift looked like one broken service.',
       );
     }
 

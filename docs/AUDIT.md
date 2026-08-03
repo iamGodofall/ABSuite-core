@@ -158,6 +158,68 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4m. Six images that would install a package the lockfile never pinned
+
+A local Docker build failed on one service:
+
+```
+target dashboard: failed to solve:
+process "/bin/sh -c pnpm install --frozen-lockfile" did not complete successfully
+```
+
+Six images built. One did not. The obvious readings — the dashboard is the
+largest install, or something is wrong with the dashboard's Dockerfile — are
+both wrong, and the discriminating fact is a flag:
+
+```
+capkit, connector-starter, edge-run, notary, quickbench, trust
+    pnpm install --filter ... --no-frozen-lockfile
+
+dashboard
+    pnpm install --frozen-lockfile
+```
+
+**The dashboard was the only strict install in the suite.** It did not fail
+because it was different; it failed because it was the only one that would.
+
+### What the loose flag actually does
+
+Not "tolerate a lockfile that is slightly behind" — it resolves around it.
+Demonstrated in a real build context by adding an undeclared dependency to a
+manifest and running both flags against it:
+
+| flag | result |
+|---|---|
+| `--frozen-lockfile` | `ERR_PNPM_OUTDATED_LOCKFILE`, names the disagreeing file, exit 1 |
+| `--no-frozen-lockfile` | fetches and installs it, exit 0 |
+
+So six of seven service images would build with a package the lockfile never
+pinned, and report success. **Those images are not reproducible from the
+lockfile**, and no output anywhere says so. For a project whose entire argument
+is that evidence beats assurance, that is the wrong artifact to ship — a
+container nobody can rebuild identically is exactly the kind of unverifiable
+claim this repository exists to refuse.
+
+There was no technical reason for it. Strict was tested in these exact partial
+build contexts — one workspace manifest present out of ten — for both the build
+install and the `--prod` prune step. Both pass. All twelve installs across the
+six images are `--frozen-lockfile` now, and `check:container-pnpm` fails the
+build if one goes back.
+
+### The part worth keeping
+
+This was found while diagnosing somebody else's broken build, and it is not the
+cause of that build failing. The lockfile drift is on one machine; this is about
+what the other six images do when they meet one.
+
+The shape recurs in this document. §4j: seven images had the pnpm 11 defect and
+BuildKit only ever showed one, because it cancels its siblings. Here: seven
+images meet a drifted lockfile and only one says so, because the other six are
+configured not to look. **A report of one failure is not evidence of one
+defect**, and twice in two days the difference has been six.
+
+---
+
 ## 4l. Twenty-two checks that had never run on Windows
 
 Reported from a Windows clone, on a commit where `pnpm verify` was green here.

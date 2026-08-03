@@ -12,13 +12,13 @@ COPY packages/edge-run/package.json ./packages/edge-run/package.json
 COPY packages/edge-run/tsconfig.json ./packages/edge-run/tsconfig.json
 COPY packages/edge-run/src ./packages/edge-run/src
 
-RUN pnpm install --filter @absuitecore/edge-run... --no-frozen-lockfile
+RUN pnpm install --filter @absuitecore/edge-run... --frozen-lockfile
 RUN pnpm --filter @absuitecore/capkit build
 RUN pnpm --filter @absuitecore/edge-run build
 
 # Drop devDependencies now that dist exists. The runtime image carries the
 # workspace layout verbatim, so pruning has to happen here, before the copy.
-RUN pnpm install --filter @absuitecore/edge-run... --prod --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --filter @absuitecore/edge-run... --prod --frozen-lockfile --ignore-scripts
 
 FROM node:22-alpine
 

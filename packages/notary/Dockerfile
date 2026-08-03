@@ -27,12 +27,12 @@ COPY packages/notary/package.json ./packages/notary/package.json
 COPY packages/notary/tsconfig.json ./packages/notary/tsconfig.json
 COPY packages/notary/src ./packages/notary/src
 
-RUN pnpm install --filter @absuitecore/notary... --no-frozen-lockfile
+RUN pnpm install --filter @absuitecore/notary... --frozen-lockfile
 RUN pnpm --filter @absuitecore/notary build
 
 # Drop devDependencies now that dist exists. The runtime image carries the
 # workspace layout verbatim, so pruning has to happen here, before the copy.
-RUN pnpm install --filter @absuitecore/notary... --prod --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --filter @absuitecore/notary... --prod --frozen-lockfile --ignore-scripts
 
 FROM node:22-alpine
 
