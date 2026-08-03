@@ -35,6 +35,18 @@
  * API wrongly* fail the build. That list is short and stated below rather than
  * tuned until the output was quiet.
  *
+ * ## And then the citations
+ *
+ * Documents also name routes, scripts and files in backticks — `GET /watch`,
+ * `pnpm backup`, `scripts/backup.mjs`. Those are claims too, and a reader
+ * follows them. Each is checked against every server in the repository, the
+ * root `package.json` scripts, and the filesystem.
+ *
+ * Checking routes against *every* server matters. A first pass searched only
+ * capkit's and reported 37 broken citations; all 37 were real routes on trust,
+ * edge-run, quickbench, connector-starter or the dashboard. The probe was wrong,
+ * not the documents, and a gate that cries wolf like that gets switched off.
+ *
  * ## What it still does not check
  *
  * Prose, and the elided identifiers themselves — `ring.rotate(…)` in a block
@@ -140,6 +152,58 @@ for (const reference of references) {
   const surface = await exportsOf(reference.pkg);
   if (!surface) { unbuilt.add(reference.pkg); continue; }
   if (!surface.has(reference.name)) missing.push(reference);
+}
+
+/* ── Routes, scripts and files a document names ─────────────────────────── */
+
+const SERVERS = [
+  'packages/capkit/src/server.ts',
+  'packages/trust/src/server.ts',
+  'packages/edge-run/src/server.ts',
+  'packages/quickbench/src/server.ts',
+  'packages/connector-starter/src/server.ts',
+  'packages/notary/src/server.ts',
+  'packages/dashboard-ui/server.ts',
+].filter(path => existsSync(join(root, path)));
+
+const MIN_CITATIONS = 80;
+
+const allServers = SERVERS.map(path => readFileSync(join(root, path), 'utf8')).join('\n');
+const scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts ?? {};
+const BUILTIN_SCRIPTS = new Set(['install', 'build', 'test', 'dev', 'start', 'add', 'why']);
+
+const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const brokenCitations = [];
+let citations = 0;
+
+for (const document of documents) {
+  const text = readFileSync(join(root, document), 'utf8');
+  const at = (index) => ({ document, line: lineOf(text, index) });
+
+  // `GET /watch` — checked against every server, not just capkit's.
+  for (const match of text.matchAll(/`(GET|POST|PUT|DELETE|PATCH)\s+(\/[^`?]*)/g)) {
+    citations++;
+    const route = new RegExp(`\\.${match[1].toLowerCase()}\\(\\s*['"]${escape(match[2].trim())}['"]`);
+    if (!route.test(allServers)) brokenCitations.push({ ...at(match.index), what: `${match[1]} ${match[2].trim()}`, kind: 'route' });
+  }
+
+  // `pnpm backup` — a script somebody is told to run.
+  for (const match of text.matchAll(/`pnpm ([a-z][a-z:.-]*)`/g)) {
+    citations++;
+    const name = match[1];
+    if (!scripts[name] && !BUILTIN_SCRIPTS.has(name)) {
+      brokenCitations.push({ ...at(match.index), what: `pnpm ${name}`, kind: 'script' });
+    }
+  }
+
+  // `scripts/backup.mjs` — a path a reader opens.
+  for (const match of text.matchAll(/`((?:docs|scripts|packages|deploy|examples|implementations)\/[A-Za-z0-9._\/-]+)`/g)) {
+    citations++;
+    if (!existsSync(join(root, match[1]))) {
+      brokenCitations.push({ ...at(match.index), what: match[1], kind: 'file' });
+    }
+  }
 }
 
 /* ── Compile them ───────────────────────────────────────────────────────── */
@@ -269,8 +333,26 @@ if (typeErrors.length > 0) {
   process.exit(1);
 }
 
+if (citations < MIN_CITATIONS) {
+  console.error(
+    `\x1b[31m✗\x1b[0m only ${citations} citation(s) found, expected at least ${MIN_CITATIONS}.\n` +
+    '  The scan matched almost nothing, which is how a gate passes by checking nothing.'
+  );
+  process.exit(1);
+}
+
+if (brokenCitations.length > 0) {
+  console.error(`\x1b[31m✗\x1b[0m ${brokenCitations.length} citation(s) name something that does not exist:\n`);
+  for (const hit of brokenCitations) {
+    console.error(`  ${hit.document}:${hit.line}`);
+    console.error(`    ${hit.kind}: \`${hit.what}\`\n`);
+  }
+  process.exit(1);
+}
+
 const perPackage = [...new Set(references.map(r => r.pkg))].sort();
 console.log(`\x1b[32m✓\x1b[0m ${references.length} imported symbol(s) across ${blocks} code block(s) all exist.`);
 console.log(`  ${perPackage.length} package(s): ${perPackage.map(p => p.replace('@absuitecore/', '')).join(', ')}`);
 console.log(`  ${typeable.length} block(s) compiled against the real declarations, strict, clean.`);
+console.log(`  ${citations} route, script and file citation(s) across ${SERVERS.length} server(s) all resolve.`);
 console.log(`  ${documents.length} document(s) scanned.\n`);

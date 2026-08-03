@@ -150,6 +150,57 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4b. Every document, checked for what it names
+
+The remaining thirteen documents were swept mechanically: every route, script and
+file named in backticks, against every server in the repository, the root
+`package.json`, and the filesystem.
+
+**237 citations across 31 documents, all resolving.** That is the whole of
+`docs/` plus every package README, and it is now a gate rather than a sweep —
+`check:apis` fails the build on a document naming a route, script or file that
+does not exist. Proved by adding one of each and watching all three get named.
+
+### The probe was wrong before the documents were
+
+The first pass reported **37 broken route citations** and every one was real. It
+searched only capkit's `server.ts`; the routes belonged to trust, edge-run,
+quickbench, connector-starter and the dashboard. Six servers unexamined, thirty-
+seven false findings, and about ninety seconds from being written up.
+
+That is the fourth time in this sweep that a hasty probe produced a false
+finding, and the fourth time the thing that caught it was refusing to accept a
+surprising result without confirming the mechanism. A gate that cries wolf at
+that rate gets switched off, which is why it checks all seven servers and why
+this is recorded next to the gate rather than in a commit message nobody reads.
+
+### And it immediately caught two of mine
+
+The `/secrets/dump` and `/trust-score` routes appear in §3x and §3w — added
+temporarily to prove other gates fire, then removed. Written in backticks with a
+method in front they read as API citations, for routes that do not exist, and
+both were.
+
+Then this paragraph did it again. Naming them here in the same shape, to explain
+the problem, reproduced the problem — the gate flagged §4b while §4b was being
+written about the gate flagging §3x. Dropping the method prefix is the whole fix,
+and the rule it teaches is small and real: **describing an API and citing one
+look identical to a checker, so write the difference deliberately.**
+
+### What "audited" now means, per document
+
+| | |
+|---|---|
+| **Citations** — routes, scripts, files, imported symbols, compiled examples | **All 31 documents**, and gated |
+| **Behavioural claims** — does the thing described actually behave that way | `SECURITY-MODEL`, `ARCHITECTURE`, `COMPLIANCE`, `DEPLOY`, `HOSTING` |
+| Neither | none |
+
+The second row is the one that cannot be gated, and the distinction is worth
+keeping: a document can cite a real route and still be wrong about what it does.
+That is exactly what `SECURITY-MODEL.md` was.
+
+---
+
 ## 4a. The operational documents, and a number hand-copied into a program
 
 `DEPLOY.md`, `HOSTING.md`, `GUIDE.md` and `SERVICES.md` are what an operator acts
@@ -344,8 +395,8 @@ open *because nobody had*. `/endpoint-check` was the second kind for as long as
 it existed.
 
 `check:routeauth` now requires every route to be guarded or annotated
-`// public-route: <reason>`. All twelve carry one. Proved by adding
-`GET /secrets/dump` with neither and watching the gate name the file and line.
+`// public-route: <reason>`. All twelve carry one. Proved by adding a `/secrets/dump` route with neither, and watching the gate
+name the file and line.
 
 Four tests assert what the public routes disclose, including a blunt sweep for
 environment values across all of them. Proved by restoring the database path:
@@ -396,8 +447,8 @@ pointer.
 
 **"Anywhere" is not the scope.** The check reads the 53 source files under
 `packages/dashboard-ui/src` and matches *rendered* text. A score computed in a
-service and returned by an API is not caught — confirmed by adding
-`GET /trust-score` to capkit's server and watching the check pass. The doctrine
+service and returned by an API is not caught — confirmed by adding a
+`/trust-score` route to capkit's server and watching the check pass. The doctrine
 holds because nothing computes one, **not because a gate would stop it**, and the
 row now says so.
 
