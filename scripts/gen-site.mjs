@@ -30,7 +30,7 @@ import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sameGenerated } from './lib/generated.mjs';
-import { runPython } from './lib/python.mjs';
+import { findPython, runPython } from './lib/python.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -110,20 +110,57 @@ const countTestSuites = () => {
  * measurement produced, and that would drift silently the moment a check was
  * added. The suite reports its own total, so the total is read from the suite.
  *
- * Null when Python is unavailable — the sentence is written to survive that,
- * because a docs generator that cannot run without a second language runtime is
- * a generator that stops being run.
+ * Unmeasurable when Python is unavailable — the sentence on the page is written
+ * to survive that, because a docs generator that cannot run without a second
+ * language runtime is a generator that stops being run.
+ *
+ * Returns the count, or the reason there isn't one — never a bare `null`.
+ *
+ * The first version returned `null` for four different situations and the
+ * caller printed one sentence for all of them: *"no Python 3 found (tried
+ * python3, python, py -3)"*. A machine with Python 3.13 on its PATH, whose
+ * `check:python` ran the same suite to 33/33 in the same `pnpm verify`, printed
+ * that line. It was not merely unhelpful, it was **false** — the message named a
+ * cause the code had never established, which is the defect this whole
+ * repository exists to catch, sitting in its own diagnostics.
+ *
+ * A thing that could not be measured has to say what stopped it. Otherwise the
+ * next person debugs the wrong problem, which is exactly what happened.
  */
 function conformanceChecks() {
+  const python = findPython();
+  if (!python) {
+    return { value: null, why: 'no Python 3 found (tried python3, python, py -3)' };
+  }
+
+  const shown = [python.command, ...python.args].join(' ') + (python.shell ? ' (via shell)' : '');
   const run = runPython(join(root, 'implementations/python/test_conformance.py'), { cwd: root });
-  if (!run || run.status !== 0) return null;
+
+  if (run.error) {
+    return { value: null, why: `${shown} could not be started: ${run.error.message}` };
+  }
+  if (run.status !== 0) {
+    const said = `${run.stderr ?? ''}`.trim().split('\n').filter(Boolean).pop();
+    return { value: null, why: `${shown} exited ${run.status}${said ? ` — ${said}` : ''}` };
+  }
+
   const match = /(\d+)\/(\d+) checks passed/.exec(run.stdout ?? '');
-  if (!match || match[1] !== match[2]) return null;
-  return Number(match[2]);
+  if (!match) {
+    const bytes = (run.stdout ?? '').length;
+    return {
+      value: null,
+      why: `${shown} ran and exited 0, but its output carried no "N/N checks passed" line (${bytes} bytes captured)`,
+    };
+  }
+  if (match[1] !== match[2]) {
+    return { value: null, why: `the suite reported ${match[1]} of ${match[2]} checks passing` };
+  }
+
+  return { value: Number(match[2]), why: null };
 }
 
 const checking = process.argv.includes('--check');
-const measuredConformance = conformanceChecks();
+const { value: measuredConformance, why: conformanceGap } = conformanceChecks();
 
 /**
  * The figure to publish, when this machine could not measure it.
@@ -890,7 +927,7 @@ if (checking) {
   if (measuredConformance === null) {
     // Said out loud rather than passed over: this run did not verify the
     // conformance figure, because there is no Python on this machine.
-    console.log('  UNKNOWN: the conformance count was not verified — no Python 3 found (tried python3, python, py -3).');
+    console.log(`  UNKNOWN: the conformance count was not verified — ${conformanceGap}.`);
   }
 } else {
   writeFileSync(target, page);
