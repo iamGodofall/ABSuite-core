@@ -32,9 +32,16 @@ no language model at all.
 actually is.** That is the root every other principle here derives from, and it
 applies to this page as much as to a record.
 
-**Observation is automatic. Action is granted.** Nobody switches trust on; the
-moment a human has to remember to enable it, it has already failed. Humans
-decide what an AI may do. ABSuite makes sure nobody can forget what it did.
+**Recording is not a decision made twice. Action is granted.** Once capkit is in
+the path, everything through it is recorded — there is no per-action switch to
+remember, because the moment a human has to remember to enable it, it has
+already failed. Humans decide what an AI may *do*. ABSuite makes sure nobody can
+quietly change what it *did*.
+
+Said plainly, because that sentence has been read the other way: **ABSuite
+discovers nothing.** There is no agent, no sidecar, nothing scanning your
+network. It records what you route through it, and it tells you what it did not
+see. → [How it connects](#how-it-connects)
 
 ABSuite is not the intelligence — it is the witness. *The future is accountable.*
 
@@ -87,6 +94,44 @@ while the code underneath has stopped working.
 [![CI](https://github.com/iamGodofall/ABSuite-core/actions/workflows/ci.yml/badge.svg)](https://github.com/iamGodofall/ABSuite-core/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-7C3AED)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.5-3178C6)](https://nodejs.org/)
+
+---
+
+## How it connects
+
+Three ways in. **None of them is a discovery agent.**
+
+| | What you do | When it fits |
+|---|---|---|
+| **Library, in-process** | `npm install @absuitecore/capkit`, call `traces.record(...)` where the action happens | Node or TypeScript, and you own the code path |
+| **MCP server** | Point your agent at `@absuitecore/mcp` | Your agent speaks Model Context Protocol — instrument once at the transport, not per tool |
+| **HTTP API** | `POST /executions` | Any language, or a system you cannot import a library into |
+
+Pick one. The MCP route is the least work if it applies: every tool call through
+the server is attested without touching the tool implementations.
+
+### What it deliberately does not do
+
+- No agent or sidecar to install, and nothing running as root
+- No port scanning, no traffic interception, no eBPF, no kernel module
+- No log tailing, and no inference about what an execution "probably" was
+- Nothing is discovered, because nothing is watching
+
+**If you did not route it through ABSuite, ABSuite does not know it happened —
+and will tell you so rather than imply otherwise.** An empty result means *found
+none in what I was given*, never *there were none*; the difference is stated in
+the output rather than left for you to assume.
+
+That refusal is the product, not a shortcoming of it. A tool that inferred
+executions from logs would be producing evidence about events it never witnessed,
+and then signing that evidence. The signature would be perfectly real and the
+claim underneath it would be a guess — which is precisely the confusion this
+exists to end. **Everything ABSuite signs, it saw.**
+
+It is also why installing it changes nothing about how your system runs. There
+is no daemon to fail, no proxy in front of your traffic, and no privileged
+process. The failure mode of forgetting to instrument something is a visible gap
+in coverage; it is not a silent wrong answer.
 
 ---
 

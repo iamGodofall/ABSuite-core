@@ -382,6 +382,13 @@ design:
 - **Action is granted.** Humans decide what an AI may do. ABSuite enforces that
   boundary before the action runs and never widens it on its own.
 
+Automatic **within the boundary**, which is the half that gets misread. ABSuite
+discovers nothing: no agent, no sidecar, nothing scanning a network, no
+inference from logs. Once an agent is instrumented, recording is not a
+per-action choice anybody can forget — that is the claim. It is not a claim to
+witness what was never routed through it, and where coverage is incomplete the
+system says so rather than letting silence read as absence.
+
 Humans govern. ABSuite makes governing possible by never forgetting.
 
 ### What that looks like when it works
