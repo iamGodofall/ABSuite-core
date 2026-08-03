@@ -174,7 +174,7 @@ describe('providers report what they measured', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/169\.254\.0\.0\/16/);
+    expect(result.error).toMatch(/metadata service/);
   });
 
   test('refuses metadata.google.internal by name', async () => {

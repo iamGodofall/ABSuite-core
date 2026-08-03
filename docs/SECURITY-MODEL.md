@@ -232,13 +232,52 @@ shared**, because it genuinely differs:
 
 All three refuse link-local, because `169.254.0.0/16` is where every major cloud
 puts instance metadata. `metadata.google.internal` is refused **by name** as well
-as by address: it resolves only inside GCP, so a resolution-based check would
-work only where it cannot be tested.
+as by address — including with a trailing dot — because it resolves only inside
+GCP, so a resolution-based check would work only where it cannot be tested.
 
-Each has a documented escape hatch — `ABSUITE_ALLOW_PRIVATE_WEBHOOKS` for
-connector-starter, an explicit `EDGERUN_ALLOWED_HOSTS` entry for edge-run — on
-the principle that a control which breaks a legitimate deployment gets patched
-out, and then protects nobody.
+### Every hop, not just the first
+
+Classifying the caller's URL is not enough, and the gap is total rather than
+partial: `fetch` follows redirects by default and does not re-check. A permitted
+host answering `302 Location: http://169.254.169.254/…` was demonstrated to
+reach the metadata service with the body returned, past a guard that had
+classified hop one correctly.
+
+All outbound calls go through `guardedFetch`, which follows redirects itself and
+applies three rules `fetch` cannot be asked to apply:
+
+1. **Every hop is classified.** A redirect chain is checked link by link, and
+   the refusal names which hop failed.
+2. **Known metadata endpoints are refused whatever the range policy is.** These
+   are tracked as endpoints rather than a range, because they are not one:
+   `169.254.169.254` is link-local, `169.254.170.2` (ECS task role credentials)
+   is link-local, `100.100.100.200` (Alibaba) is carrier-grade NAT, and AWS
+   serves IMDS over IPv6 at `fd00:ec2::254`, which is **unique-local** — a range
+   edge-run and quickbench allow on purpose.
+3. **`Authorization` and `Cookie` are dropped when the origin changes**, so a
+   redirect cannot be used to harvest the caller's own credentials.
+
+Addresses are classified numerically rather than by text. `new URL()`
+re-serialises IPv6 to its shortest form, so `[::ffff:169.254.169.254]` arrives
+as `::ffff:a9fe:a9fe`; a pattern looking for a dotted quad sees none. IPv4-mapped,
+IPv4-compatible and NAT64-embedded forms are all resolved to the IPv4 address
+they reach.
+
+### Escape hatches, and what they are allowed to open
+
+Each control can be turned off by the operator, on the principle that a control
+which breaks a legitimate deployment gets patched out and then protects nobody:
+
+| Variable | Opens |
+|---|---|
+| `ABSUITE_ALLOW_PRIVATE_WEBHOOKS` | internal addresses for connector-starter |
+| `EDGERUN_ALLOWED_HOSTS` | scopes which hosts edge-run may call at all |
+| `EDGERUN_ALLOW_METADATA` | the instance metadata endpoints, for edge-run |
+
+**A host allowlist does not open the metadata endpoints.** *Restrict which hosts
+this may call* and *yes, read this machine's cloud credentials* are different
+statements, and the knob named for the first is not the one that does the
+second. This is a deliberate change from edge-run's earlier behaviour.
 
 **This raises the cost of SSRF; it does not eliminate it.** See the DNS rebinding
 note under *What ABSuite does NOT protect against*.
@@ -283,7 +322,7 @@ ABSUITE_DB_ENCRYPTION_KEY=<random-256-bit-secret>
 - **Malicious insiders with HMAC key access** — Key management is the operator's responsibility
 - **DDoS attacks** — Rate limiting helps but is not a substitute for network-level DDoS protection (use a CDN/WAF)
 - **Model-level prompt injection** — CapKit filters known patterns but cannot catch sophisticated jailbreaks
-- **DNS rebinding** — the outbound guard resolves a hostname, then `fetch` resolves it again. A hostile resolver can answer differently between the two. Closing that requires an HTTP agent that pins the address it checked; until then the class is made expensive, not removed, and claiming otherwise would be the kind of overstatement this project exists to prevent
+- **DNS rebinding** — the outbound guard resolves a hostname, then `fetch` resolves it again. A hostile resolver can answer differently between the two. Redirects no longer widen this (every hop is re-checked), so the window is one hop rather than unbounded — but closing it requires an HTTP agent that connects to the address it checked. Until then the class is made expensive, not removed, and claiming otherwise would be the kind of overstatement this project exists to prevent
 
 ---
 

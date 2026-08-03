@@ -95,6 +95,7 @@ services:
       # Script execution stays off unless an operator opts in explicitly.
       - EDGERUN_SCRIPT_ROOT=${EDGERUN_SCRIPT_ROOT:-}
       - EDGERUN_ALLOWED_HOSTS=${EDGERUN_ALLOWED_HOSTS:-}
+      - EDGERUN_ALLOW_METADATA=${EDGERUN_ALLOW_METADATA:-}
       # Shared with CapKit so this service can validate capability tokens
       # and sign execution traces with the same key.
       - CAPKIT_HMAC_SECRET=${CAPKIT_HMAC_SECRET}

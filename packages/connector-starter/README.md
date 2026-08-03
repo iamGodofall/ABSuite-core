@@ -60,6 +60,11 @@ service, and how a machine's IAM credentials are stolen. Loopback, private,
 link-local, unique-local, carrier-grade NAT and the unspecified address are all
 refused, by resolved address rather than by the text of the hostname.
 
+Redirects are checked hop by hop, and `Authorization` is dropped when a redirect
+crosses an origin. Checking only the URL the caller supplied is no protection at
+all against a `302` to an internal address, and letting credentials follow one
+turns a redirect into a way to harvest the caller's own tokens.
+
 Set `ABSUITE_ALLOW_PRIVATE_WEBHOOKS=true` if your webhook receiver genuinely
 lives on an internal address. The escape hatch exists deliberately: a control
 that breaks a real deployment gets patched out, and then protects nobody.

@@ -12,7 +12,9 @@
  * their primary job). A shared `isAllowed()` would have had to pick a side and
  * be wrong somewhere.
  */
-import { classifyAddress, describeTarget, isMetadataHostname, resolveRanges, inAnyRange } from './outbound';
+import {
+  classifyAddress, describeTarget, isMetadataHostname, isMetadataEndpoint, resolveRanges, inAnyRange,
+} from './outbound';
 
 describe('classifying an address', () => {
   test.each([
@@ -44,6 +46,72 @@ describe('classifying an address', () => {
     expect(classifyAddress('::ffff:127.0.0.1')).toBe('loopback');
     expect(classifyAddress('::ffff:169.254.169.254')).toBe('link-local');
   });
+
+  /*
+   * The spelling above is the one a person writes. It is not the one the guard
+   * receives.
+   *
+   * `new URL('http://[::ffff:169.254.169.254]/').hostname` is
+   * `[::ffff:a9fe:a9fe]` — the WHATWG parser re-serialises to the shortest
+   * form. The original check looked for a dotted quad, found none, and returned
+   * `public`. The test above passed the whole time, because it fed the function
+   * a string the parser never produces.
+   *
+   * That is the specific way a unit test can be green and wrong: it tested the
+   * input the author was thinking about instead of the input the caller sends.
+   */
+  test.each([
+    ['::ffff:a9fe:a9fe', 'link-local'],           // 169.254.169.254, as URL writes it
+    ['::ffff:7f00:1', 'loopback'],                // 127.0.0.1
+    ['::ffff:0a00:5', 'private'],                 // 10.0.0.5
+    ['0:0:0:0:0:ffff:a9fe:a9fe', 'link-local'],   // fully expanded
+    ['::a9fe:a9fe', 'link-local'],                // IPv4-compatible, deprecated and still routable
+    ['64:ff9b::a9fe:a9fe', 'link-local'],         // NAT64
+  ])('%s is %s, however it is spelled', (address, expected) => {
+    expect(classifyAddress(address)).toBe(expected);
+  });
+
+  test('fec0::/10 site-local is treated as internal, not public', () => {
+    expect(classifyAddress('fec0::1')).toBe('unique-local');
+  });
+
+  test('a zone index does not change what an address is', () => {
+    expect(classifyAddress('fe80::1%eth0')).toBe('link-local');
+  });
+});
+
+describe('the metadata endpoints, which cut across ranges', () => {
+  /*
+   * `fd00:ec2::254` is AWS IMDS over IPv6. It is a unique-local address, and
+   * edge-run and quickbench allow unique-local deliberately — an `fd00::/8`
+   * service is exactly the kind of internal thing they exist to call. So a
+   * link-local-only rule refused the IPv4 metadata service and permitted the
+   * IPv6 one, which is the same credentials.
+   *
+   * Endpoints are therefore tracked separately from ranges, and refused by
+   * `guardedFetch` whatever a caller's range policy says.
+   */
+  test.each([
+    ['169.254.169.254', 'link-local'],
+    ['169.254.170.2', 'link-local'],        // ECS task role credentials
+    ['100.100.100.200', 'carrier-grade-nat'],  // Alibaba, in a range nobody refuses
+    ['fd00:ec2::254', 'unique-local'],
+  ])('%s is an endpoint, and its range is %s', (address, range) => {
+    expect(isMetadataEndpoint(address)).toBe(true);
+    expect(classifyAddress(address)).toBe(range);
+  });
+
+  test('the same endpoint written differently is the same endpoint', () => {
+    expect(isMetadataEndpoint('fd00:ec2:0:0:0:0:0:254')).toBe(true);
+    expect(isMetadataEndpoint('::ffff:169.254.169.254')).toBe(true);
+    expect(isMetadataEndpoint('::ffff:a9fe:a9fe')).toBe(true);
+  });
+
+  test('an ordinary address is not one', () => {
+    expect(isMetadataEndpoint('169.254.1.1')).toBe(false);
+    expect(isMetadataEndpoint('10.0.0.5')).toBe(false);
+    expect(isMetadataEndpoint('fd00::1')).toBe(false);
+  });
 });
 
 describe('describing what matched', () => {
@@ -57,7 +125,8 @@ describe('describing what matched', () => {
    * error message.
    */
   test('names the metadata range only when it really is that range', () => {
-    expect(describeTarget('169.254.169.254')).toMatch(/169\.254\.0\.0\/16/);
+    expect(describeTarget('169.254.169.254')).toMatch(/metadata service/);
+    expect(describeTarget('169.254.1.1')).toMatch(/169\.254\.0\.0\/16/);
     expect(describeTarget('fe80::1')).toMatch(/IPv6 link-local/);
     expect(describeTarget('fe80::1')).not.toMatch(/169\.254/);
   });
@@ -80,6 +149,12 @@ describe('the metadata hostname', () => {
     'METADATA.GOOGLE.INTERNAL',
     'metadata.goog',
     'something.metadata.google.internal',
+    // The trailing dot is a valid fully-qualified name that resolves exactly
+    // like the undotted form, and did not match the original pattern. Found by
+    // probing spellings, not by reading the regex.
+    'metadata.google.internal.',
+    'Metadata.Google.Internal.',
+    'metadata.goog.',
   ])('%s is recognised without a resolver', (host) => {
     expect(isMetadataHostname(host)).toBe(true);
   });
@@ -99,7 +174,7 @@ describe('resolving a target', () => {
 
     expect(resolved).toHaveLength(1);
     expect(resolved![0]!.range).toBe('link-local');
-    expect(resolved![0]!.why).toMatch(/169\.254\.0\.0\/16/);
+    expect(resolved![0]!.why).toMatch(/metadata service/);
   });
 
   test('the metadata hostname is caught by name, with its own reason', async () => {

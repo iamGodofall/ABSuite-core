@@ -192,7 +192,35 @@ the public one to give auditors and the private one for your secret manager.
 
 Three services in this suite take a URL from a caller and fetch it. Rather than
 three copies of one address table — the drift this project keeps catching in
-itself — classification lives here:
+itself — classification lives here, and so does the fetch that uses it:
+
+```ts
+import { guardedFetch } from '@absuitecore/capkit';
+
+const response = await guardedFetch(url, init, {
+  refuse: ['link-local'],   // your policy; metadata endpoints are always refused
+  allow: allowedHosts,      // hosts an operator named explicitly
+  verb: 'call',             // used in the error: "Refusing to call …"
+});
+```
+
+`guardedFetch` follows redirects itself, because `fetch` follows them without
+asking again — a permitted host answering `302 Location:
+http://169.254.169.254/…` was demonstrated to reach the metadata service past a
+guard that had classified hop one correctly. Against a redirect, checking only
+the caller's URL is not partial protection; it is none. Every hop is classified,
+`Authorization` and `Cookie` are dropped when the origin changes, and a
+`BlockedTargetError` names which hop failed.
+
+**Known metadata endpoints are refused whatever your `refuse` list says.** They
+are not a range: `169.254.169.254` is link-local, `100.100.100.200` is
+carrier-grade NAT, and AWS serves IMDS over IPv6 at `fd00:ec2::254`, which is
+unique-local — a range services that call their own infrastructure allow on
+purpose. `allowMetadata: true` overrides it, and a host allowlist deliberately
+does not.
+
+The classifier is exported on its own for callers that need to decide before
+fetching:
 
 ```ts
 import { resolveRanges, inAnyRange } from '@absuitecore/capkit';
@@ -204,10 +232,15 @@ if (blocked) throw new Error(`Refusing to call ${url.hostname}: it is ${blocked.
 `resolveRanges` returns every address a hostname resolves to, each tagged
 `loopback | private | link-local | carrier-grade-nat | unique-local |
 unspecified | public`, with a `why` string naming the specific thing that
-matched — `169.254.169.254` is described as the cloud metadata range, `fe80::1`
-is not. It returns `undefined` for a name that will not resolve, because
-reporting a DNS outage as a security event teaches operators to ignore security
-events.
+matched — `169.254.169.254` is described as the metadata service, `fe80::1` is
+not. It returns `undefined` for a name that will not resolve, because reporting a
+DNS outage as a security event teaches operators to ignore security events.
+
+Addresses are compared numerically, not as text. `new URL()` re-serialises IPv6
+to its shortest form, so `[::ffff:169.254.169.254]` arrives as
+`::ffff:a9fe:a9fe`; a pattern looking for a dotted quad sees none and calls it
+public. IPv4-mapped, IPv4-compatible and NAT64-embedded forms all classify as
+the IPv4 address they reach.
 
 **It classifies and does not decide.** There is no `isAllowed()`, because
 `webhook.send` posts to third parties and must refuse private ranges, while

@@ -61,10 +61,22 @@ credentials — and AWS IMDSv1 is HTTP-only, so requiring https would not have
 stopped it. `metadata.google.internal` is refused by name as well, because it
 resolves only inside GCP.
 
+**Redirects are checked hop by hop.** Checking only the URL you queued is not
+partial protection against a redirect — it is none. A permitted host answering
+`302 Location: http://169.254.169.254/…` reached the metadata service and
+returned the body in `output`, past a check that had classified the first hop
+correctly. Every hop is now classified, and the refusal says which one failed.
+
+**The metadata endpoints are refused even when allowlisted.** AWS also serves
+IMDS over IPv6 at `fd00:ec2::254`, which is *unique-local* — a range this
+package allows on purpose — so these are tracked as endpoints rather than as a
+range. `EDGERUN_ALLOWED_HOSTS` scopes which hosts may be called; that is a
+different statement from *yes, read this machine's cloud credentials*, and it no
+longer makes it. `EDGERUN_ALLOW_METADATA=true` does, and says so.
+
 Private and loopback addresses still work: calling `http://10.0.0.5/reindex` on
-a schedule is what this package is for. Naming a host in `EDGERUN_ALLOWED_HOSTS`
-overrides the refusal — an operator who writes `169.254.169.254` has said what
-they mean.
+a schedule is what this package is for, and naming a host in
+`EDGERUN_ALLOWED_HOSTS` still wins for every ordinary internal address.
 
 ## Configuration
 
@@ -76,6 +88,7 @@ they mean.
 | `EDGERUN_TASK_TIMEOUT_MS` | `30000` | Per-task timeout |
 | `EDGERUN_SCRIPT_ROOT` | _unset_ | Enables script tasks under this directory |
 | `EDGERUN_ALLOWED_HOSTS` | _unset_ | Comma-separated host allowlist |
+| `EDGERUN_ALLOW_METADATA` | `false` | Permit the cloud metadata endpoints |
 | `EDGERUN_FAILURE_THRESHOLD` | `5` | Failures before the breaker opens |
 | `EDGERUN_COOLDOWN_MS` | `30000` | Time before a half-open probe |
 | `CAPKIT_HMAC_SECRET` | — | Shared with CapKit to validate tokens |

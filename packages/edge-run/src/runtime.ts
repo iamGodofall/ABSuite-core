@@ -10,7 +10,7 @@
  */
 import { spawn } from 'node:child_process';
 import { resolve, sep } from 'node:path';
-import { resolveRanges, inAnyRange } from '@absuitecore/capkit';
+import { resolveRanges, inAnyRange, guardedFetch } from '@absuitecore/capkit';
 
 export type TaskType = 'http' | 'script';
 
@@ -43,18 +43,23 @@ export interface RuntimeOptions {
   scriptRoot?: string;
   /** Hosts an http task may target. Empty means any host is allowed. */
   allowedHosts?: string[];
+  /** Permit the cloud metadata endpoints. Off unless explicitly asked for. */
+  allowMetadata?: boolean;
   defaultTimeoutMs?: number;
 }
 
 export class TaskRuntime {
   private readonly scriptRoot: string;
   private readonly allowedHosts: string[];
+  private readonly allowMetadata: boolean;
   private readonly defaultTimeoutMs: number;
 
   constructor(options: RuntimeOptions = {}) {
     this.scriptRoot = (options.scriptRoot ?? process.env.EDGERUN_SCRIPT_ROOT ?? '').trim();
     this.allowedHosts = options.allowedHosts
       ?? (process.env.EDGERUN_ALLOWED_HOSTS || '').split(',').map(host => host.trim()).filter(Boolean);
+    this.allowMetadata = options.allowMetadata
+      ?? /^(1|true|yes|on)$/i.test((process.env.EDGERUN_ALLOW_METADATA || '').trim());
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? Number(process.env.EDGERUN_TASK_TIMEOUT_MS || 30_000);
   }
 
@@ -98,8 +103,16 @@ export class TaskRuntime {
    * this lookup and the one `fetch` performs, a hostile resolver can answer
    * differently. Closing that needs an agent that pins the resolved address.
    *
-   * An explicit `EDGERUN_ALLOWED_HOSTS` entry always wins: an operator who
-   * names `169.254.169.254` has said what they mean, and this does not argue.
+   * An explicit `EDGERUN_ALLOWED_HOSTS` entry wins for every range — an
+   * operator who names an internal host has said what they mean.
+   *
+   * It no longer wins for the metadata endpoints themselves. Those two
+   * statements were conflated, and they are not the same: *restrict which hosts
+   * this may call* is a scoping decision, while *yes, read this machine's cloud
+   * credentials* is not, and a knob named for the first should not quietly be
+   * the one that does the second. `EDGERUN_ALLOW_METADATA=true` does that, and
+   * says so. The override exists at all because a control an operator cannot
+   * turn off gets patched out, and a patched-out control protects nobody.
    */
   private async assertHostAllowed(url: string): Promise<URL> {
     let parsed: URL;
@@ -116,8 +129,6 @@ export class TaskRuntime {
     if (this.allowedHosts.length > 0 && !this.allowedHosts.includes(parsed.hostname)) {
       throw new Error(`Host not allowed: ${parsed.hostname}`);
     }
-    // Named explicitly, so it was meant.
-    if (this.allowedHosts.includes(parsed.hostname)) return parsed;
 
     /*
      * Link-local only. Private and loopback stay allowed on purpose — calling
@@ -128,7 +139,20 @@ export class TaskRuntime {
      * that is not a refusal: it fails at fetch anyway, and reporting a DNS
      * outage as a security event teaches operators to ignore security events.
      */
-    const blocked = inAnyRange(await resolveRanges(parsed.hostname), ['link-local']);
+    const resolved = await resolveRanges(parsed.hostname);
+    const metadata = resolved?.find(entry => entry.metadata);
+    if (metadata && !this.allowMetadata) {
+      throw new Error(
+        `Refusing to call ${parsed.hostname}: it is ${metadata.why}. ` +
+        'Set EDGERUN_ALLOW_METADATA=true if that is genuinely intended.'
+      );
+    }
+
+    // Named explicitly, so it was meant — but only now that the metadata
+    // endpoints have been ruled out above.
+    if (this.allowedHosts.includes(parsed.hostname)) return parsed;
+
+    const blocked = inAnyRange(resolved, ['link-local']);
     if (blocked) {
       throw new Error(
         `Refusing to call ${parsed.hostname}: it is ${blocked.why}. ` +
@@ -139,15 +163,39 @@ export class TaskRuntime {
     return parsed;
   }
 
+  /**
+   * The allowlist, as `guardedFetch` needs it.
+   *
+   * An empty `EDGERUN_ALLOWED_HOSTS` means *any host*, so there is nothing to
+   * pass; a populated one has already been enforced for hop zero above, and is
+   * passed on so a named host keeps winning at every later hop too.
+   */
+  private get guardOptions() {
+    return {
+      refuse: ['link-local'] as const,
+      allow: this.allowedHosts,
+      allowMetadata: this.allowMetadata,
+      protocols: ['http:', 'https:'],
+      verb: 'call',
+    };
+  }
+
   private async executeHttp(task: HttpTask, timeoutMs: number, startedAt: number): Promise<TaskResult> {
     await this.assertHostAllowed(task.url);
 
-    const response = await fetch(task.url, {
+    /*
+     * `guardedFetch` rather than `fetch`, because `assertHostAllowed` above can
+     * only see hop zero. A permitted host answering `302 Location:
+     * http://169.254.169.254/...` was demonstrated to reach the metadata
+     * service with the body returned in `output` — past a check that had
+     * classified the first hop entirely correctly.
+     */
+    const response = await guardedFetch(task.url, {
       method: task.method ?? 'GET',
       headers: { 'Content-Type': 'application/json', ...(task.headers ?? {}) },
       ...(task.body !== undefined ? { body: typeof task.body === 'string' ? task.body : JSON.stringify(task.body) } : {}),
       signal: AbortSignal.timeout(timeoutMs),
-    });
+    }, { ...this.guardOptions, refuse: ['link-local'] });
 
     const text = await response.text();
     let output: unknown = text;

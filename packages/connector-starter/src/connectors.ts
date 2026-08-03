@@ -7,7 +7,10 @@
  * what the dashboard needs to render honest status.
  */
 
-import { resolveRanges, inAnyRange, type AddressRange } from '@absuitecore/capkit';
+import {
+  resolveRanges, inAnyRange, guardedFetch,
+  type AddressRange, type GuardedFetchOptions,
+} from '@absuitecore/capkit';
 
 export interface ConnectorAction {
   name: string;
@@ -182,23 +185,10 @@ async function refuseUnsafeTarget(
     return 'Webhook URL must not carry credentials in the userinfo section';
   }
 
-  if (/^(1|true|yes|on)$/i.test((env.ABSUITE_ALLOW_PRIVATE_WEBHOOKS || '').trim())) {
-    return undefined;
-  }
-
-  /*
-   * Everything inward. Unlike edge-run and quickbench, this action posts to
-   * third parties, so a private or loopback target is never legitimate — the
-   * classifier is shared, the policy is not.
-   */
-  const REFUSED: AddressRange[] = [
-    'loopback', 'private', 'link-local', 'unique-local', 'carrier-grade-nat', 'unspecified',
-  ];
-
   const resolved = await resolveRanges(url.hostname);
   if (!resolved) return `Webhook URL host could not be resolved: ${url.hostname}`;
 
-  const blocked = inAnyRange(resolved, REFUSED);
+  const blocked = inAnyRange(resolved, refusedRanges(env));
   if (blocked) {
     return `Webhook URL resolves to ${blocked.address} — ${blocked.why} — which this connector will not call`;
   }
@@ -206,9 +196,40 @@ async function refuseUnsafeTarget(
   return undefined;
 }
 
-async function request(url: string, init: RequestInit, timeoutMs = 15_000): Promise<ConnectorResult> {
+/**
+ * Everything inward. Unlike edge-run and quickbench, this connector posts to
+ * third parties, so a private or loopback target is never legitimate — the
+ * classifier is shared, the policy is not.
+ */
+const REFUSED: AddressRange[] = [
+  'loopback', 'private', 'link-local', 'unique-local', 'carrier-grade-nat', 'unspecified',
+];
+
+const refusedRanges = (env: NodeJS.ProcessEnv): AddressRange[] =>
+  /^(1|true|yes|on)$/i.test((env.ABSUITE_ALLOW_PRIVATE_WEBHOOKS || '').trim()) ? [] : REFUSED;
+
+/**
+ * Every outbound call, redirects included.
+ *
+ * `refuseUnsafeTarget` above checks the URL a caller supplied and produces the
+ * specific message an operator needs. It cannot check where that URL leads: a
+ * `302` from a permitted host was demonstrated to reach loopback with the body
+ * returned, past a guard that had classified hop one correctly. `guardedFetch`
+ * classifies every hop, so the pre-flight check is now for the message and this
+ * is the control.
+ */
+async function request(
+  url: string,
+  init: RequestInit,
+  guard: Partial<GuardedFetchOptions> = {},
+  timeoutMs = 15_000
+): Promise<ConnectorResult> {
   try {
-    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    const response = await guardedFetch(
+      url,
+      { ...init, signal: AbortSignal.timeout(timeoutMs) },
+      { refuse: REFUSED, protocols: ['https:'], verb: 'call', ...guard }
+    );
     const text = await response.text();
 
     let data: unknown = text;
@@ -362,7 +383,7 @@ export async function runAction(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input.payload ?? {}),
-      });
+      }, { refuse: refusedRanges(env) });
     }
 
     case 'linear.viewer':

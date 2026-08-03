@@ -150,6 +150,120 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3q. The guard was correct and completely bypassed, by one line of HTTP
+
+Three packages had an SSRF guard. Each classified the URL before calling
+`fetch`. Each was right about that URL. All three were defeated by a redirect,
+which was demonstrated rather than reasoned about:
+
+```
+server A (public address)  →  302 Location: http://127.0.0.1:PORT/latest/meta-data/iam/
+
+  hop 1 classified: public   → ALLOWED
+  hop 2 classified: loopback → REFUSED
+  hops the guard actually inspected: 1
+  body returned: {"iam":"STOLEN-CREDENTIALS"}
+```
+
+`fetch` follows redirects by default and does not ask again. **Against a
+redirect this was not partial protection — it was none.** A guard that inspects
+only the URL the caller supplied is checking the one hop an attacker has no
+reason to make hostile.
+
+This is the finding that matters most in this pass, because everything written
+about the previous one was true and none of it helped. The audit said three
+services refuse link-local. They did. The READMEs said so. A `302` went straight
+through all of it. Documentation that describes a control accurately, while the
+control has a hole of this shape, is worse than no documentation — it is the
+gloss this section exists to catch.
+
+### Three more holes, found by probing spellings instead of reading code
+
+**`::ffff:a9fe:a9fe` classified as public.** `new URL()` re-serialises an IPv6
+address to its shortest form, so `[::ffff:169.254.169.254]` — what a person
+writes, and what the test asserted — reaches the guard as `::ffff:a9fe:a9fe`.
+The check looked for a dotted quad, found none, returned `public`.
+
+The existing test passed the entire time. It fed the function the spelling the
+author had in mind rather than the spelling the URL parser produces, which is a
+specific and repeatable way for a unit test to be green and wrong. Classification
+is now numeric — the address is expanded to its eight groups and compared as
+numbers, so every spelling of one address is one address.
+
+**`metadata.google.internal.` was not matched.** The trailing dot makes a valid
+fully-qualified name that resolves identically and did not match the pattern. On
+GCP the address check still caught it; the name check, which exists precisely
+for when resolution cannot be trusted, did not.
+
+**AWS serves IMDS over IPv6 at `fd00:ec2::254`.** That is a unique-local
+address. edge-run and quickbench refuse link-local and *allow* unique-local —
+correctly, because an `fd00::/8` service is exactly the kind of internal thing
+they exist to call. So the IPv4 metadata service was refused and the IPv6 one,
+serving the same credentials, was not.
+
+That one is a lesson about the shape of the abstraction, not a typo. Metadata
+endpoints are **not a range**, and modelling them as one guaranteed a gap the
+moment a provider put theirs somewhere else. They are now tracked as endpoints —
+`169.254.169.254`, `169.254.170.2` (ECS task role credentials), `100.100.100.200`
+(Alibaba), `fd00:ec2::254` — and refused whatever a caller's range policy says,
+so no caller carries the list.
+
+### `guardedFetch`, and the parts of the spec that came with it
+
+Following redirects by hand means owning what `fetch` was doing for us. Three
+rules, all in one place:
+
+1. **Every hop is classified**, not just the first.
+2. **Metadata endpoints are refused regardless of policy.**
+3. **`Authorization` and `Cookie` are dropped when the origin changes** — or a
+   redirect becomes a way to harvest the caller's own tokens. This one fails
+   silently: the request succeeds and the token is simply gone somewhere else.
+
+Method rewriting came with it too. A 303 becomes a GET; a 301 or 302 on a POST
+becomes a GET. Getting that wrong would not throw — it would re-POST a body to a
+URL it had never been sent to.
+
+### One promise was deliberately broken
+
+edge-run used to say an `EDGERUN_ALLOWED_HOSTS` entry always wins, because *an
+operator who names `169.254.169.254` has said what they mean*. That conflated two
+statements. *Restrict which hosts this may call* is routine scoping; *yes, read
+this machine's cloud credentials* is not, and the knob named for the first should
+not quietly be the one that does the second.
+
+The override still exists — a control an operator cannot switch off gets patched
+out, and a patched-out control protects nobody — but it is now
+`EDGERUN_ALLOW_METADATA=true`, which says what it does. The old test asserting
+the old promise was rewritten rather than deleted, and says why.
+
+### What this is proved by
+
+Twenty-three tests on `guardedFetch`, against **real HTTP servers rather than a
+stubbed `fetch`**. That is deliberate: the defect lived inside fetch's redirect
+handling, so a stub returning whatever the test says would have passed against
+the broken code. Two real servers, a real `302`, and the assertion is whether
+the second server was reached — it now records zero requests.
+
+Proved by reintroducing each defect in turn: the old redirect handling turns 3
+red, the old IPv6 text match turns 6 red, the trailing-dot pattern 3, removing
+`fd00:ec2::254` from the endpoint list 4.
+
+**One thing was not demonstrated here and is not claimed.** Whether a kernel
+routes `::ffff:a9fe:a9fe` to `169.254.169.254` depends on its network stack, and
+this container has no IPv6 at all — `listen ::` returns `EAFNOSUPPORT`. The
+misclassification is demonstrated; the reachability is UNKNOWN in this
+environment. The guard does not depend on the answer, which is the point: a
+control whose correctness rests on a property of the target machine's network
+stack is not a control.
+
+DNS rebinding is still open, and still stated as open. `guardedFetch` resolves
+and `fetch` resolves again, so a hostile resolver can answer differently in
+between. Closing it needs an HTTP agent that connects to the address that was
+checked. The window is now one hop wide instead of unbounded — smaller, not
+closed.
+
+---
+
 ## 3p. A security fix that was done everywhere except where people install it
 
 Publishing §3o surfaced something that had nothing to do with it. The registry
@@ -861,7 +975,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **827 tests, 40 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **871 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 20 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is

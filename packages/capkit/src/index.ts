@@ -148,12 +148,19 @@ export {
   classifyAddress,
   describeTarget,
   isMetadataHostname,
+  isMetadataEndpoint,
   resolveRanges,
   inAnyRange,
   RANGE_REASON,
   type AddressRange,
   type ResolvedTarget,
 } from './outbound';
+
+export {
+  guardedFetch,
+  BlockedTargetError,
+  type GuardedFetchOptions,
+} from './guarded-fetch';
 
 export {
   TraceStore,

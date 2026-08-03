@@ -34,7 +34,7 @@ describe('webhook.send refuses to reach inward', () => {
     runAction('webhook', 'send', { url, payload: { hello: 'world' } }, env);
 
   test.each([
-    ['the cloud metadata address', 'https://169.254.169.254/latest/meta-data/', /169\.254\.0\.0\/16/],
+    ['the cloud metadata address', 'https://169.254.169.254/latest/meta-data/', /metadata service/],
     ['loopback by literal', 'https://127.0.0.1:8081/executions', /loopback/],
     ['loopback by name', 'https://localhost/admin', /loopback/],
     ['loopback over IPv6', 'https://[::1]/admin', /loopback/],

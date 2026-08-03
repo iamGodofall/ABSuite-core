@@ -5,7 +5,7 @@
  * time-to-first-token where the provider exposes it. Adapters normalise onto a
  * single shape so benchmarks compare like with like across providers.
  */
-import { resolveRanges, inAnyRange } from '@absuitecore/capkit';
+import { resolveRanges, inAnyRange, guardedFetch } from '@absuitecore/capkit';
 
 
 export interface CompletionRequest {
@@ -59,9 +59,22 @@ async function refuseMetadataTarget(url: string): Promise<string | undefined> {
     : undefined;
 }
 
+/**
+ * Every benchmark request, redirects included.
+ *
+ * `refuseMetadataTarget` below checks the URL a caller supplied. It cannot see
+ * where that URL leads, and a `302` from a permitted host was demonstrated to
+ * reach an address the guard would have refused. `guardedFetch` classifies each
+ * hop, and refuses known metadata endpoints regardless of the range policy —
+ * AWS serves IMDS over IPv6 at `fd00:ec2::254`, which is unique-local and was
+ * therefore allowed by a link-local-only rule.
+ */
+const GUARD = { refuse: ['link-local'] as const, protocols: ['http:', 'https:'], verb: 'benchmark' };
+
 async function timedFetch(url: string, init: RequestInit, timeoutMs: number) {
   const startedAt = performance.now();
-  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  const response = await guardedFetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) },
+    { ...GUARD, refuse: ['link-local'] });
   const text = await response.text();
   const latencyMs = performance.now() - startedAt;
   return { response, text, latencyMs };

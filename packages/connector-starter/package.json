@@ -1,6 +1,6 @@
 {
   "name": "@absuitecore/connector-starter",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Connector registry, credential verification and deterministic connector scaffolding.",
   "license": "MIT",
   "main": "dist/index.js",

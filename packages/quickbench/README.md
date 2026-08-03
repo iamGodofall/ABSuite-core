@@ -71,6 +71,12 @@ are refused** — `169.254.0.0/16` and IPv6 `fe80::/10`, plus
 `metadata.google.internal` by name — because that is where every major cloud puts
 instance metadata and it is never a benchmark target.
 
+Redirects are checked hop by hop. Checking only the URL you submitted is no
+protection at all against a `302`, which was demonstrated rather than assumed.
+The metadata endpoints are refused regardless of range — AWS serves IMDS over
+IPv6 at `fd00:ec2::254`, which is unique-local and would otherwise have been
+allowed.
+
 Private and loopback addresses still work. Benchmarking your own service is the
 entire point of this provider, and a guard that broke it would be switched off.
 

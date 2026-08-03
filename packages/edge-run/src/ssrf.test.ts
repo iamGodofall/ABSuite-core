@@ -41,7 +41,9 @@ describe('http tasks refuse the cloud metadata service', () => {
     new TaskRuntime(allowedHosts ? { allowedHosts } : {}).execute({ type: 'http', url });
 
   test.each([
-    ['the AWS/GCP/Azure metadata address', 'http://169.254.169.254/latest/meta-data/', /metadata range/],
+    ['the AWS/GCP/Azure metadata address', 'http://169.254.169.254/latest/meta-data/', /metadata service/],
+    ['the ECS task credentials endpoint', 'http://169.254.170.2/v2/credentials/', /metadata service/],
+    ['AWS IMDS over IPv6, which is unique-local not link-local', 'http://[fd00:ec2::254]/latest/', /metadata service/],
     ['anything else in link-local', 'http://169.254.1.1/', /metadata range/],
     ['IPv6 link-local', 'http://[fe80::1]/admin', /IPv6 link-local/],
   ])('refuses %s', async (_label, url, expected) => {
@@ -99,12 +101,37 @@ describe('the task runner keeps doing its job', () => {
     expect(result.ok).toBe(true);
   });
 
-  test('an explicit allowlist entry wins, because the operator said what they meant', async () => {
-    const refused = await run('http://169.254.169.254/x');
+  test('an explicit allowlist entry wins for an ordinary internal host', async () => {
+    const refused = await run('http://169.254.1.1/x');
     expect(refused.ok).toBe(false);
 
-    const allowed = await run('http://169.254.169.254/x', ['169.254.169.254']);
+    const allowed = await run('http://169.254.1.1/x', ['169.254.1.1']);
     expect(allowed.ok).toBe(true);
+  });
+
+  /*
+   * This is a deliberate change from what this package used to promise, which
+   * was that naming a host in `EDGERUN_ALLOWED_HOSTS` always won.
+   *
+   * That conflated two different statements. *Restrict which hosts this may
+   * call* is a scoping decision an operator makes routinely; *yes, read this
+   * machine's cloud credentials* is not, and the knob named for the first
+   * should not quietly be the one that does the second. The override still
+   * exists — a control an operator cannot turn off gets patched out, and a
+   * patched-out control protects nobody — it just has to be asked for by name.
+   */
+  test('the allowlist alone no longer opens the metadata service', async () => {
+    const allowlisted = await run('http://169.254.169.254/x', ['169.254.169.254']);
+
+    expect(allowlisted.ok).toBe(false);
+    expect(allowlisted.error).toMatch(/EDGERUN_ALLOW_METADATA/);
+  });
+
+  test('EDGERUN_ALLOW_METADATA=true does open it, for the operator who means it', async () => {
+    const runtime = new TaskRuntime({ allowedHosts: ['169.254.169.254'], allowMetadata: true });
+    const result = await runtime.execute({ type: 'http', url: 'http://169.254.169.254/x' });
+
+    expect(result.ok).toBe(true);
   });
 
   test('an allowlist still excludes everything not on it', async () => {
