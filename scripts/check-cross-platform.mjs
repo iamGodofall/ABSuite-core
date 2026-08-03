@@ -43,7 +43,8 @@
  * Wired into `pnpm verify`. Static, no network, no platform of its own.
  */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
-import { join, dirname, relative, extname } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -55,10 +56,6 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
  */
 const GENERATOR_FLOOR = 5;
 const FILE_FLOOR = 200;
-
-const SKIP_DIRS = new Set([
-  'node_modules', '.git', 'dist', 'build', 'coverage', '.next', '.turbo', 'out',
-]);
 
 /** Formats that are compressed or already binary; a `\r` in them means nothing. */
 const BINARY = new Set([
@@ -94,12 +91,30 @@ if (!existsSync(attributesPath)) {
 // ---------------------------------------------------------------------------
 let filesInspected = 0;
 
-function walk(dir) {
-  for (const entry of readdirSync(dir)) {
-    if (SKIP_DIRS.has(entry)) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) { walk(full); continue; }
-    if (BINARY.has(extname(entry).toLowerCase())) continue;
+/*
+ * Only files Git tracks.
+ *
+ * This walked the filesystem at first, and immediately failed a contributor's
+ * build with `.env:9 contains CRLF`. `.env` is in `.gitignore` — `.gitattributes`
+ * cannot normalise a file Git does not track, so the check was demanding
+ * something of a file nothing in this repository controls, and any stray
+ * `build.log` or editor scratch file would have done the same.
+ *
+ * **A shared gate must not fail on a private file.** The set this rule is about
+ * is the set that reaches other machines, and that set is exactly what Git
+ * tracks.
+ */
+const tracked = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
+
+if (tracked.status !== 0) {
+  // No git, or not a checkout. Nothing was examined, so nothing is claimed —
+  // the same UNKNOWN the Python check reports, for the same reason.
+  console.log('UNKNOWN: line endings were not checked — `git ls-files` did not run here.');
+} else {
+  for (const path of tracked.stdout.split('\0').filter(Boolean)) {
+    if (BINARY.has(extname(path).toLowerCase())) continue;
+    const full = join(root, path);
+    if (!existsSync(full) || statSync(full).isDirectory()) continue;
 
     const buffer = readFileSync(full);
     // A NUL byte means binary regardless of extension. Not our business.
@@ -110,20 +125,19 @@ function walk(dir) {
     if (index !== -1) {
       const line = buffer.subarray(0, index).toString('utf8').split('\n').length;
       failures.push(
-        `${relative(root, full)}:${line} contains CRLF.\n` +
+        `${path}:${line} contains CRLF.\n` +
           '    LF normalisation is not reaching this file. A Windows clone will read\n' +
           '    it differently from CI, which is the difference that hid for a day.',
       );
     }
   }
-}
-walk(root);
 
-if (filesInspected < FILE_FLOOR) {
-  failures.push(
-    `Only ${filesInspected} text files were inspected, fewer than the floor of ${FILE_FLOOR}.\n` +
-      '    The walk is no longer reaching the tree, so this check is proving nothing.',
-  );
+  if (filesInspected < FILE_FLOOR) {
+    failures.push(
+      `Only ${filesInspected} tracked text files were inspected, fewer than the floor of ${FILE_FLOOR}.\n` +
+        '    The listing is no longer reaching the tree, so this check is proving nothing.',
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

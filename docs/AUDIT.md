@@ -158,6 +158,67 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4o. A gate that failed the build over somebody's `.env`
+
+The Windows run got all the way to check twenty-five. Twenty-four passed. The
+last one said:
+
+```
+- .env:9 contains CRLF.
+```
+
+`.env` is in `.gitignore`. **`.gitattributes` cannot normalise a file Git does
+not track**, so the check was demanding something of a file the repository has
+no control over — and failing a shared build over a contributor's private
+secrets file. Any stray `build.log`, editor swap file or scratch note would have
+done the same.
+
+The cause is one line: the rule walked the filesystem when the set it is
+actually about is the set that *reaches other machines*. That set is exactly
+what `git ls-files` returns, and it is what the rule reads now. Proved both
+ways — an untracked CRLF file no longer fails it, a tracked one still does.
+
+The gate was written yesterday to catch a portability defect, and its own first
+contact with the platform it was written for produced a false failure. Third
+time in two days something has been reported as a defect in the repository when
+it was a fact about a machine: CRLF (§4l), a missing interpreter (§4n), and now
+a gate confusing *present on disk* with *part of this project*.
+
+### And the interpreter still was not found
+
+The same run printed:
+
+```
+UNKNOWN: the conformance count was not verified — no Python 3 found (tried python3, python, py -3)
+```
+
+On a machine with Anaconda active. The §4n fix tried the right names and still
+came back empty, because of something upstream of names: since Node 18.20 and
+20.12 — **CVE-2024-27980** — `spawn` refuses to launch a `.bat` or `.cmd`
+without `shell: true`, and conda puts `python` on Windows behind exactly that
+kind of shim. Every candidate was rejected by Node before it ever ran.
+
+Each name is now tried directly first, then through a shell. Direct first
+because it needs no quoting and cannot be re-parsed; the shell only as fallback.
+`findPython()` reports which applied, because it changes what the caller must
+do: under a shell the argv becomes a command line again, and a path containing a
+space — `D:\ABS main\ABSuite-core`, which is where this was found — splits in
+two unless quoted, while a direct spawn must *not* be quoted or the quotes
+become part of the filename. Both paths verified by running the conformance
+suite from a directory with a space in its name.
+
+The probe also stopped passing `-c "import sys; print(sys.version_info[0])"`.
+Under a shell that string is at the mercy of `cmd.exe`. `--version` answers the
+same question with no parsing surface at all.
+
+**The lesson is the ordering.** The §4n fix was reasoned from *what is Python
+called* and was right about that, which made it look complete. It was wrong
+about something one level down that no amount of thinking about names would have
+surfaced — and it took the fix being run on the actual machine to find it. A fix
+verified only where the bug is absent is a hypothesis.
+
+---
+
 ## 4n. `python3` is not what Python is called on every machine
 
 The `.gitattributes` fix in §4l worked. A fresh Windows clone ran the build, 936

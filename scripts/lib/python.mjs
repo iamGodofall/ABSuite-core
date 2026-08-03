@@ -48,25 +48,53 @@ const CANDIDATES = [
 let cached;
 
 /**
+ * `--version` rather than `-c "import sys; ..."`.
+ *
+ * The first version of this probe passed a `-c` snippet full of spaces,
+ * semicolons and parentheses. Node builds a single command line from argv on
+ * Windows, and under a shell that string is at the mercy of `cmd.exe` parsing.
+ * `--version` has no such surface and answers the same question.
+ */
+function probe(candidate, shell) {
+  const result = spawnSync(candidate.command, [...candidate.args, '--version'], {
+    encoding: 'utf8', timeout: 15_000, shell,
+  });
+  if (result.status !== 0) return false;
+  // Python 3.4+ prints to stdout; older builds used stderr. Read both rather
+  // than depend on which, since the whole point is not to assume the flavour.
+  const said = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  return /Python\s+3\./.test(said);
+}
+
+/**
  * The interpreter this machine has, or `null`.
  *
- * Result is cached: this runs at most three subprocesses, and a generator that
- * asks twice should not pay twice.
+ * Each name is tried directly first, then through a shell.
+ *
+ * The shell retry is not belt-and-braces. Since Node 18.20 and 20.12 —
+ * CVE-2024-27980 — `spawn` **refuses** to launch a `.bat` or `.cmd` without
+ * `shell: true`, and conda installs `python` on Windows behind exactly that kind
+ * of shim. A machine running Anaconda reported *"no Python 3 found (tried
+ * python3, python, py -3)"* while having a perfectly good Python on PATH,
+ * because every candidate was rejected by Node before it ever ran.
+ *
+ * Direct is tried first because it needs no quoting and cannot be confused by a
+ * shell. The shell is the fallback, and callers are told which one applied so
+ * they can quote accordingly.
+ *
+ * Result is cached: this runs at most six probes, and a generator that asks
+ * twice should not pay twice.
  */
 export function findPython() {
   if (cached !== undefined) return cached;
 
-  for (const candidate of CANDIDATES) {
-    const probe = spawnSync(
-      candidate.command,
-      [...candidate.args, '-c', 'import sys; print(sys.version_info[0])'],
-      { encoding: 'utf8', timeout: 15_000 },
-    );
-    // status is null when the binary was not found at all, rather than 0 or 1.
-    if (probe.status !== 0) continue;
-    if ((probe.stdout ?? '').trim() !== '3') continue;
-    cached = candidate;
-    return cached;
+  for (const shell of [false, true]) {
+    for (const candidate of CANDIDATES) {
+      if (probe(candidate, shell)) {
+        cached = { ...candidate, shell };
+        return cached;
+      }
+    }
   }
 
   cached = null;
@@ -81,9 +109,16 @@ export function findPython() {
 export function runPython(scriptPath, options = {}) {
   const python = findPython();
   if (!python) return null;
-  return spawnSync(python.command, [...python.args, scriptPath], {
+  // Under a shell the argv is re-parsed as a command line, so a path containing
+  // a space — `D:\ABS main\ABSuite-core\...`, which is where this was found —
+  // splits into two arguments unless it is quoted. Direct spawn must not be
+  // quoted, for the mirror-image reason: the quotes would become part of the
+  // filename.
+  const argument = python.shell ? `"${scriptPath}"` : scriptPath;
+  return spawnSync(python.command, [...python.args, argument], {
     encoding: 'utf8',
     timeout: 60_000,
+    shell: python.shell,
     ...options,
   });
 }
