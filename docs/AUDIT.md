@@ -150,6 +150,73 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3w. The compliance document, audited the same way — and it mostly held
+
+`COMPLIANCE.md` is the highest-stakes document in the repository: it maps EU AI
+Act articles, ISO 42001 controls, SOC 2 criteria and NIST AI RMF functions onto
+specific endpoints, fields and test files. It is the document a buyer's auditor
+reads, and it had never been checked against the code.
+
+**Every citation resolves.** All 10 routes exist in `server.ts`, all 4 named test
+files exist, all 6 cited record fields are real, and all 4 cited modules are
+there. The specific claims tested by running them:
+
+| Claim | Result |
+|---|---|
+| *"working `backup`/`restore`"* | **DEMONSTRATED.** `scripts/backup.mjs create` snapshots via SQLite's online backup API, captures WAL content, and verifies the chain — run against a database with 3 records, reported 3 and intact |
+| *a record this build cannot read reports `checkable: false`* | Real, in `explain.ts` and `conditions.ts` |
+| *`watch.test.ts` fails if "incident", "severity", "critical" or a recommendation appears* | Real, and asserted exactly as described |
+| *every report carries an `unverifiable` list* | Real |
+| *ABSuite does not notify anybody* | Real, and correctly stated as **a gap against a real obligation** |
+
+That is a document written by someone who checked. The preamble — *"a mapping
+document that only lists the boxes it fills is a sales brochure"* — is honoured
+by the body, which is more than `SECURITY-MODEL.md` managed.
+
+### Two rows were wrong, both in §1.5
+
+*"There is no trust score anywhere, and `check:doctrine` fails the build if one
+appears."*
+
+**The wrong gate is named.** It is `check:fabrication`. An auditor following that
+pointer finds a gate that checks something else entirely, which is worse than no
+pointer.
+
+**"Anywhere" is not the scope.** The check reads the 53 source files under
+`packages/dashboard-ui/src` and matches *rendered* text. A score computed in a
+service and returned by an API is not caught — confirmed by adding
+`GET /trust-score` to capkit's server and watching the check pass. The doctrine
+holds because nothing computes one, **not because a gate would stop it**, and the
+row now says so.
+
+### The process failure in this pass, which is the part worth keeping
+
+Testing whether the gate really fires, I injected `'Trust score: 87'` into
+`Agents.tsx` with a Python `.replace()` anchored on `export default function`.
+That string does not appear in the file. The replace matched nothing, wrote the
+file unchanged, and reported success. The gate then passed — correctly, because
+nothing had been injected.
+
+I read that as the gate failing to fire, reasoned that its negation exemption had
+swallowed the match, **and wrote a fix for it** — narrowing the exemption to a
+single line, with a comment confidently explaining a cause that had not happened.
+It was reverted before it was committed, but only because the next probe
+contradicted it.
+
+This is the second occurrence of the exact failure §3r records, and §3r states
+the lesson: *a `.replace()` with no assertion is not an edit.* Writing a lesson
+down did not prevent it. What caught it both times was the same thing — treating
+a result that should have been red, and was green, as something to explain rather
+than accept.
+
+The rule that actually works is narrower than the lesson: **every scripted edit
+asserts its pattern before writing**, and every negative result gets one
+confirmation that the change under test was really applied. The three probes in
+this pass that carried an `assert` all behaved correctly; the one that did not is
+the one that produced a false finding and nearly a false fix.
+
+---
+
 ## 3v. The most privileged process in the deployment had no tests at all
 
 `find packages/dashboard-ui -name '*.test.ts'` returned nothing. The dashboard

@@ -156,7 +156,20 @@ believable.
 |---|---|
 | Output a deployer can interpret | `GET /executions/:id/conditions` — five conditions, each `DEMONSTRATED / FAILED / UNKNOWN / ABSENT`, each naming the field it was read from |
 | Characteristics, capabilities and limitations | Every report carries an `unverifiable` list: what this answer cannot tell you, attached to the answer rather than footnoted |
-| Not overstating what the system knows | There is no trust score anywhere, and `check:doctrine` fails the build if one appears |
+| Not overstating what the system knows | No trust score is displayed anywhere in the interface. `check:fabrication` fails the build if the phrase appears in rendered text — verified by adding one and watching it name the file and line |
+
+**The scope of that check, stated precisely**, because a compliance reader may
+test it. `check:fabrication` scans the 53 source files under
+`packages/dashboard-ui/src` and matches *rendered* text — a string or JSX node
+containing "trust score", "confidence score", "attacks prevented" or an
+intelligence rating. It exempts a match preceded by a negation, so the product's
+own argument against scoring survives.
+
+It does **not** scan the services. A score computed in `capkit` and returned by
+an API would not be caught, which was confirmed by adding such a route and
+watching the check pass. The doctrine holds because nothing computes one, not
+because a gate would stop it — and an earlier version of this row named the
+wrong gate (`check:doctrine`) and claimed a scope of "anywhere".
 
 **Automation bias, Article 14(4)(b), is a design constraint here rather than a
 feature.** A single number invites reliance; four words about specific evidence
