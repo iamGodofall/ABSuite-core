@@ -20,6 +20,23 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
+# This file prints § and ✓, and on Windows that was enough to make it exit 1.
+#
+# Python picks the encoding for stdout from the locale when output is redirected
+# rather than attached to a console — cp1252 on a typical Windows install, which
+# has no U+2713. Run by hand it printed fine; run by anything that captured the
+# output it died with UnicodeEncodeError before reaching the summary line.
+#
+# That asymmetry is why it took three passes to find. `check:python` inherits the
+# console and passed, while `gen-site.mjs` captures stdout to read the check
+# count out of it and failed — same machine, same interpreter, same suite, in the
+# same `pnpm verify`. The conformance suite is meant to be runnable by anyone
+# against any implementation, and `python test_conformance.py > report.txt` is an
+# ordinary thing to do, so this belongs here rather than in the caller.
+if hasattr(sys.stdout, "reconfigure"):  # Python 3.7+
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from absuite_verify import (  # noqa: E402
     GENESIS_HASH,
     Outcome,

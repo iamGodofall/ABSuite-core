@@ -158,6 +158,82 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4p. The reference verifier crashed instead of reporting
+
+Three passes were spent on *"no Python 3 found"* appearing on a machine with
+Python 3.13 on its PATH. The first fix reasoned about interpreter names (§4n).
+The second found Node's `.cmd` restriction (§4o). Both were real. Neither was
+this. The message only became true after it was made to say what actually
+happened:
+
+```
+UNKNOWN: the conformance count was not verified —
+  python exited 1 — UnicodeEncodeError: 'charmap' codec can't encode
+  character '✓' in position 7: character maps to <undefined>
+```
+
+Python was found. The suite ran. It **died printing `✓`**.
+
+On Windows, Python takes stdout's encoding from the locale whenever output is
+redirected rather than attached to a console — cp1252 on a typical install,
+which has no U+2713, no `§`, no em dash. Both Python files here print all three.
+
+### Why it took three passes
+
+The failure depends on **who is listening**, not on the machine:
+
+| caller | stdout | result |
+|---|---|---|
+| `check:python` | inherits the console | 33/33 passed |
+| `gen-site.mjs` | captured, to read the count | exit 1, UnicodeEncodeError |
+
+Same machine, same interpreter, same suite, same `pnpm verify`. One passed and
+one reported "no Python", and the difference was a pipe. Every hypothesis that
+reasoned about *the environment* was looking in the wrong place, because the
+variable was the caller.
+
+### The one that actually mattered
+
+`absuite_verify.py` had it too, and that is the serious one. It is the reference
+verifier — the file somebody who has no reason to trust us downloads and points
+at our records. Confirmed by running it:
+
+```
+$ python absuite_verify.py records.json > report.txt
+UnicodeEncodeError: ... '—' ...
+```
+
+Redirecting a verifier's output to a file is the ordinary case, not the exotic
+one. And a verifier that crashes instead of reporting is worse than useless: to
+the person running it, **a tool that dies is indistinguishable from a
+verification that failed**. The entire argument of this project is that a
+stranger can check the record without trusting us. On Windows, into a file, they
+could not — and nothing here knew.
+
+Both files set their output encoding now, at the source rather than in the
+caller, because `python test_conformance.py > report.txt` is a thing a person
+does and no Node wrapper is present to help them. `runPython` also exports
+`PYTHONIOENCODING` as a second line of defence for anything spawned that has not
+learned to. Verified by forcing a codec that cannot encode the output: exit 1
+before, exit 0 and a full verdict after.
+
+`check:cross-platform` now fails if a printing Python file carries non-ASCII
+without setting its encoding.
+
+### What this cost, and the rule that would have saved it
+
+Two wrong fixes shipped before the right one, and both were shipped as though
+they were explanations. §4o already recorded *"a fix verified only where the bug
+is absent is a hypothesis"* — and the next thing to go out was another
+hypothesis, presented as a diagnosis, by a message that named a cause the code
+had never established.
+
+The change that ended it was not a better guess. It was making the failure
+report what it observed instead of what it assumed. **Four `null`s meaning four
+different things, printed as one sentence, cost more than the bug did.**
+
+---
+
 ## 4o. A gate that failed the build over somebody's `.env`
 
 The Windows run got all the way to check twenty-five. Twenty-four passed. The

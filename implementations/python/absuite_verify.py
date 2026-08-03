@@ -28,6 +28,24 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+# The verdict has to survive being redirected to a file.
+#
+# This is the reference verifier — the thing somebody who does not trust us
+# downloads and points at our records. Its output contains § and — and ✓, and on
+# Windows Python encodes stdout with the locale codepage whenever it is not a
+# console. cp1252 has none of those characters, so
+# `python absuite_verify.py records.json > report.txt` died with
+# UnicodeEncodeError before printing a verdict, while the same command run
+# straight to the terminal worked.
+#
+# An auditor redirecting output to a file is the ordinary case, not the exotic
+# one, and a verifier that crashes instead of reporting is worse than useless —
+# it is indistinguishable, to the person running it, from a verification that
+# failed.
+if hasattr(sys.stdout, "reconfigure"):  # Python 3.7+
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 __all__ = [
     "GENESIS_HASH",
     "SUPPORTED_CANONICAL_VERSIONS",

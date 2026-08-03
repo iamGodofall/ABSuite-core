@@ -120,5 +120,11 @@ export function runPython(scriptPath, options = {}) {
     timeout: 60_000,
     shell: python.shell,
     ...options,
+    // Belt and braces. The scripts set their own output encoding, which is the
+    // real fix because a human redirecting to a file gets no help from here.
+    // This covers anything spawned that has not yet learned to, and costs
+    // nothing: on Windows a captured stdout otherwise defaults to the locale
+    // codepage and dies on the first `§`.
+    env: { PYTHONIOENCODING: 'utf-8', ...process.env, ...(options.env ?? {}) },
   });
 }

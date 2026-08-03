@@ -219,6 +219,53 @@ for (const [name, command] of Object.entries(manifest.scripts ?? {})) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 5. Python that prints non-ASCII says which encoding it means.
+//
+// Both Python files here print `§`, `—` and `✓`. On Windows, Python takes the
+// encoding for stdout from the locale whenever output is redirected rather than
+// attached to a console — cp1252 on a typical install, which has none of those
+// characters. Run by hand they worked; captured or redirected they exited 1 with
+// UnicodeEncodeError, before printing anything.
+//
+// That asymmetry is what made it expensive: `check:python` inherits the console
+// and passed while `gen-site` captured stdout and failed, on the same machine,
+// in the same run. And `absuite_verify.py` is the reference verifier a stranger
+// downloads — `python absuite_verify.py records.json > report.txt` crashed
+// instead of reporting, which to the person running it is indistinguishable from
+// a verification that failed.
+// ---------------------------------------------------------------------------
+const NON_ASCII = /[^\x00-\x7F]/;
+let pythonFiles = 0;
+
+const pythonDir = join(root, 'implementations/python');
+if (existsSync(pythonDir)) {
+  for (const entry of readdirSync(pythonDir)) {
+    if (!entry.endsWith('.py')) continue;
+    const text = readFileSync(join(pythonDir, entry), 'utf8');
+    // Only files that actually print. A module nobody runs cannot break on it.
+    if (!text.includes('print(')) continue;
+
+    pythonFiles += 1;
+    if (NON_ASCII.test(text) && !/sys\.stdout\.reconfigure\(/.test(text)) {
+      failures.push(
+        `implementations/python/${entry} prints non-ASCII without setting the output encoding.\n` +
+          '    Add `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`. Without it\n' +
+          '    this exits 1 on Windows the moment its output is redirected — including\n' +
+          '    into a file, a pipe, or another program reading its result.',
+      );
+    }
+  }
+}
+
+if (pythonFiles < 2) {
+  failures.push(
+    `Only ${pythonFiles} printing Python file(s) were found, expected at least 2.\n` +
+      '    The second implementation is the strongest evidence this project has; if it\n' +
+      '    moved, this rule is no longer looking at it.',
+  );
+}
+
 if (generators < GENERATOR_FLOOR) {
   failures.push(
     `Only ${generators} generators with a --check mode were found, fewer than the floor of ${GENERATOR_FLOOR}.\n` +
