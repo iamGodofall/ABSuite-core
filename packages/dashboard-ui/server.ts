@@ -254,6 +254,9 @@ function percentile(values: number[], p: number): number {
 }
 
 async function fetchJson(url: string, init?: RequestInit) {
+  // outbound-ok: every one of the 42 call sites builds its URL from the fixed
+  // SERVICE_BASE_URLS map with encodeURIComponent on each path segment, so the
+  // host is never caller-supplied. Checked by enumeration, not assumed.
   const response = await fetch(url, init);
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
@@ -1154,6 +1157,7 @@ app.post('/benchmark/run', requireAdminAccess, async (req, res) => {
 
     for (let i = 0; i < count; i++) {
       const requestStartedAt = performance.now();
+      // outbound-ok: fixed internal base URL; `service` is checked against SERVICES first
       const response = await fetch(`${SERVICE_BASE_URLS[service as keyof typeof SERVICE_BASE_URLS]}/health`);
       const elapsed = performance.now() - requestStartedAt;
       latencies.push(elapsed);
@@ -1227,6 +1231,7 @@ app.post('/connector-starter/generate', async (req, res) => {
     : 'http://localhost:8084/generate';
 
   try {
+    // outbound-ok: serviceUrl is one of two literals chosen by `inDocker` above
     const response = await fetch(serviceUrl, {
       method: 'POST',
       headers: {
@@ -1421,6 +1426,7 @@ async function suiteStatusWithHealthFallback(
       if (!baseUrl) return;
 
       try {
+        // outbound-ok: fixed internal base URL from SERVICE_BASE_URLS
         const response = await fetch(`${baseUrl}/health`, {
           signal: AbortSignal.timeout(2000),
         });

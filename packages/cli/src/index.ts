@@ -254,7 +254,9 @@ async function cmdDoctor(base: string) {
     findings.push({ state, what, detail })
 
   const get = async (path: string) => {
-    const res = await fetch(`${base}${path}`, { headers })
+    // outbound-ok: `base` is the operator's own --url or ABSUITE_URL, and `path` is
+  // fixed by the command. A CLI reaching the server its user named is not forgery.
+  const res = await fetch(`${base}${path}`, { headers })
     const text = await res.text()
     let body: any = {}
     try { body = text ? JSON.parse(text) : {} } catch { throw new Error(`${path} did not return JSON (${res.status})`) }

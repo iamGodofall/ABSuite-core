@@ -140,11 +140,14 @@ export function toTypeScript(spec: ConnectorSpec): string {
   const methods = spec.actions
     .map(action => {
       const body = action.method === 'GET'
+        // outbound-ok: inside a template literal — generated source text for a
+        // connector, not a call this process makes.
         ? `    const response = await fetch(this.endpoint, {
       method: 'GET',
       headers: this.headers(),
       signal: AbortSignal.timeout(this.timeoutMs),
     });`
+        // outbound-ok: generated source text, as above.
         : `    const response = await fetch(this.endpoint, {
       method: 'POST',
       headers: { ...this.headers(), 'Content-Type': 'application/json' },

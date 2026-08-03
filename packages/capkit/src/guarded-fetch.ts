@@ -218,6 +218,8 @@ export async function guardedFetch(
   for (let hop = 0; hop <= maxRedirects; hop++) {
     await checkHop(url, hop, options);
 
+    // outbound-ok: this is the guard. `url` was classified by checkHop above,
+    // and `redirect: 'manual'` is what stops fetch from going anywhere else.
     const response = await fetch(url.href, { ...request, redirect: 'manual' });
 
     const location = response.headers.get('location');

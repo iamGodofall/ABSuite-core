@@ -150,6 +150,47 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 3s. Four instances of one defect, and nothing stopping a fifth
+
+`webhook.send`, edge-run's `http` tasks, quickbench's `http` provider, the
+dashboard's `/endpoint-check`. Four packages, three passes, one defect — and
+every one of them was found by a person asking *what else fetches a URL somebody
+else chose?* The fourth was found only because the question got asked a fourth
+time.
+
+That is not a process. A `fetch(url)` added to a route handler next month looks
+exactly like the forty-two calls in this repository that are perfectly safe, and
+the difference is invisible at a glance.
+
+`pnpm check:outbound` requires every `fetch(` in server-side source to be either
+`guardedFetch`, or annotated `// outbound-ok: <reason>`.
+
+**The annotation does not make anything safe.** It makes someone write down why
+it is safe, on the line, where the next reader sees it. A gate that tried to
+infer safety from the shape of a URL expression would be guessing, and would be
+wrong quietly — this one is wrong loudly or not at all. Current state: 5 guarded,
+9 annotated, 0 unaccounted, across 69 files.
+
+Enumerating them was itself worth doing. The dashboard's 42 `fetchJson` calls all
+build their URL from a fixed `SERVICE_BASE_URLS` map with `encodeURIComponent` on
+each path segment — checked one by one rather than assumed, and now recorded on
+the function so the next person does not have to check again.
+
+It carries a `FLOOR` of 40 files, for the reason §3d exists: three gates in this
+repository once passed by matching an empty file set, one of them written to
+catch exactly that.
+
+Proved by adding a fifth instance the way a real one would arrive — a `notify()`
+helper on `TaskRuntime` calling `fetch(url)` — and watching the gate name the
+file and line and exit 1.
+
+**And it immediately caught something else.** Adding a twenty-first check made
+`check:numbers` fail on two documents that said `20 checks`. That is two gates
+working: one that counts what the repository has, another that refuses to let a
+document claim a number nobody measured.
+
+---
+
 ## 3r. The fix for §3q had the same hole in it, ninety seconds after publishing
 
 §3q made every redirect hop get classified. It did not make every redirect hop
@@ -1052,7 +1093,7 @@ Chased down in §3f and published on 2026-08-02.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
 - **875 tests, 41 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 20 checks. Four of them are new — three police this document, and the fourth runs the demo:
+  suite, and 21 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is
   offered to an operator and read by nothing (§3c).

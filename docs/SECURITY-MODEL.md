@@ -264,6 +264,13 @@ as `::ffff:a9fe:a9fe`; a pattern looking for a dotted quad sees none. IPv4-mappe
 IPv4-compatible and NAT64-embedded forms are all resolved to the IPv4 address
 they reach.
 
+### Nothing stops a fifth instance except a gate
+
+This defect was found four times, in four services, by a person asking the same
+question each time. `pnpm check:outbound` now requires every server-side `fetch(`
+to be either `guardedFetch` or annotated with a stated reason, so a new unguarded
+call fails the build rather than waiting for someone to ask again.
+
 ### An allowlist has to bind every hop
 
 There are two different questions and they are configured separately, because

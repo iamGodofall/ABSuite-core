@@ -37,7 +37,7 @@
     "check:motion": "node scripts/check-motion-is-evidence.mjs",
     "check:layers": "node scripts/gen-architecture-layers.mjs --check",
     "gen:layers": "node scripts/gen-architecture-layers.mjs",
-    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine && pnpm check:ui && pnpm check:fabrication && pnpm check:doctrine-ui && pnpm check:motion && pnpm check:layers && pnpm check:deploy && pnpm check:styles && pnpm check:map && pnpm check:site && pnpm check:surface && pnpm check:protocol && pnpm check:numbers && pnpm check:config && pnpm check:listings && pnpm check:demo && pnpm check:python",
+    "verify": "pnpm build && pnpm test && pnpm docs:check && pnpm check:routes && pnpm check:constraints && pnpm check:doctrine && pnpm check:ui && pnpm check:fabrication && pnpm check:doctrine-ui && pnpm check:motion && pnpm check:layers && pnpm check:deploy && pnpm check:styles && pnpm check:map && pnpm check:site && pnpm check:surface && pnpm check:protocol && pnpm check:numbers && pnpm check:config && pnpm check:outbound && pnpm check:listings && pnpm check:demo && pnpm check:python",
     "check:live": "node scripts/check-live-routes.mjs",
     "bench:core": "pnpm --filter @absuitecore/quickbench build && node packages/quickbench/dist/bench-cli.js",
     "bench:doc": "node scripts/gen-performance-doc.mjs",
@@ -59,7 +59,8 @@
     "demo": "node scripts/demo.mjs",
     "check:demo": "node scripts/demo.mjs --fast",
     "demo:gif": "node scripts/gen-demo-gif.mjs",
-    "check:registry": "node scripts/check-registry-drift.mjs"
+    "check:registry": "node scripts/check-registry-drift.mjs",
+    "check:outbound": "node scripts/check-outbound-guard.mjs"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"

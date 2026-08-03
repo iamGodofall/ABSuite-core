@@ -151,7 +151,8 @@ export const SIGNUP_PAGE = `<!doctype html>
     submit.disabled = true;
     submit.textContent = 'Creating…';
 
-    fetch('/signup', {
+    // outbound-ok: browser code, same-origin relative path
+  fetch('/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
