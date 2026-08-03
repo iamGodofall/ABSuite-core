@@ -29,6 +29,7 @@ import { AuthorityPanel } from './tabs/Authority';
 import { UnknownsPanel } from './tabs/Unknowns';
 import { Approvals } from './tabs/Approvals';
 import { IdentityLayer } from './tabs/Identity';
+import { ModelIdentityLayer } from './tabs/ModelIdentity';
 import { WatchLayer } from './tabs/WatchLayer';
 import { Provenance } from './tabs/Provenance';
 import { LiveFeed } from './tabs/LiveFeed';
@@ -79,6 +80,8 @@ type TabId =
   | 'observe' | 'verify' | 'explain' | 'govern' | 'arbitrate' | 'act' | 'learn'
   // The standing views. Not stages — the things the stages act on.
   | 'evidence' | 'policies' | 'agents' | 'unknowns' | 'approvals' | 'watch' | 'identity'
+  // The identity question, asked about a model rather than a subject.
+  | 'models'
   // Not a record, but the relationship between two of them.
   | 'provenance'
   // A transport over the log, rather than a place. Replay is the only view
@@ -1356,6 +1359,8 @@ const TAB_CONFIG: {
   { id: 'policies', label: 'Policies',     question: 'The rules, and what is owed',         icon: Scale },
   { id: 'unknowns', label: 'Unknown queue', question: 'What cannot yet be shown',           icon: HelpCircle },
   { id: 'identity',  label: 'Identity',    question: 'Who is acting, and can they prove it', icon: Bot },
+  // The same question Identity asks about a subject, asked about a model.
+  { id: 'models',    label: 'Model identity', question: 'Is it still the model you approved', icon: Bot },
   { id: 'approvals', label: 'Approvals',   question: 'What is waiting on a person',        icon: Scale },
   { id: 'watch',     label: 'Watch',       question: 'What has been raised, and how much it covers', icon: Eye },
   // The failure that matters in a multi-agent system happens between two
@@ -1669,6 +1674,9 @@ export default function App() {
       // is why a fresh instance reports Identity: UNKNOWN on every record and
       // nobody could do anything about it from here.
       case 'identity' as TrustLayer: return <IdentityLayer />;
+      // Layer 4. Built, with four routes, and reachable only by curl until now —
+      // so every attestation answered UNKNOWN because nothing had been approved.
+      case 'models' as TrustLayer: return <ModelIdentityLayer />;
       case 'approvals' as TrustLayer: return <Approvals />;
       case 'watch' as TrustLayer: return <WatchLayer />;
       case 'provenance' as TrustLayer: return <Provenance />;

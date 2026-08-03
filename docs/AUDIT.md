@@ -36,7 +36,7 @@ capability that exists and cannot be opened.
 |---|---|---|
 | **Identity (Layer 1)** — enrolment, key rotation, suspension, proof of possession | `capkit/src/identity.ts`, 7 routes | **Built.** Enrol, suspend, reinstate, and proven-vs-enrolled shown per subject. |
 | **Provenance** — which agent's output became which agent's input | `capkit/src/provenance.ts`, 2 routes | **Built.** Coverage first, then failures something else consumed, then the edges with their shared hash on screen. |
-| **Model identity** — is the thing answering still the model that was approved | `capkit/src/model-identity.ts`, 4 routes | Partial — no approve/supersede surface |
+| **Model identity** — is the thing answering still the model that was approved | `capkit/src/model-identity.ts`, 4 routes | **Built.** Approve, supersede and attest, with drift shown field by field and the limits carried on the answer. |
 | **Tenancy and billing** | `tenancy.ts`, `billing.ts`, 6 admin routes | **None.** |
 
 Identity is the base of the ascent, and it was top of this list until
@@ -44,9 +44,15 @@ Identity is the base of the ascent, and it was top of this list until
 fresh instance is *no subject is enrolled*, and there was nothing anybody could
 do about it from inside the product. A finding nobody can act on is a complaint.
 
-Sixty capkit routes exist; the dashboard reaches roughly a third of them. The
-remaining three rows are real, and none of them is load-bearing the way Identity
-was — nothing else in the product reports UNKNOWN because of them.
+Model identity was the second row to come off this list, and for the same reason
+Identity did: **four routes existed and the only way to reach them was curl**, so
+every attestation answered `UNKNOWN` because nothing had ever been approved. A
+layer that cannot be operated reports the same thing as a layer that was never
+built, and the record cannot tell you which.
+
+One row is left. Tenancy and billing have no interface at all, and unlike the
+two that came before it, nothing in the product reports `UNKNOWN` because of it —
+which is why it is last.
 
 ---
 
@@ -147,6 +153,72 @@ recovery and there should not be one.
 **Nothing notifies anybody.** No incident, no escalation, no email. That is a
 constitutional refusal, and it is also a real gap against EU AI Act Article
 26(5). Both things are true and [COMPLIANCE.md](COMPLIANCE.md) §1.4 says so.
+
+---
+
+## 4f. Model identity, which was built and unreachable
+
+`capkit/src/model-identity.ts` and its four routes have existed for a long time.
+Nothing could reach them. The only way to approve a model, replace an approval or
+ask for an attestation was curl — so on every real instance, nothing had ever
+been approved, and every attestation therefore answered `UNKNOWN`.
+
+That is the same failure Identity had, and it is worth naming precisely: **a
+layer that cannot be operated reports exactly what an unbuilt one reports.** The
+record cannot distinguish them, and neither can a buyer.
+
+### What it catches, and what it does not
+
+The claim is deliberately narrow. It compares **identifying material** — provider,
+model, version, digest — and says nothing about behaviour. What that catches is
+the set of changes that do not announce themselves in an execution log: a
+provider rolling a version silently, a quantisation changing numerics, a proxy
+repointed at a different endpoint.
+
+Demonstrated end to end through the dashboard against a live capkit:
+
+```
+approve   refunds-classifier   anthropic / claude-sonnet-4-5 / 2026-05-01
+attest    same fingerprint     DEMONSTRATED
+attest    version 2026-08-01   FAILED — drift: version 2026-05-01 -> 2026-08-01
+supersede by ops:bob, with a basis
+attest    version 2026-08-01   DEMONSTRATED
+approve   the same name again  409 ALREADY_APPROVED
+```
+
+`SERVICES.md` has claimed for months that *"a silent provider version roll is a
+`FAILED` attestation, not a surprise."* That is now something a person can
+produce from the interface rather than a sentence.
+
+### Three decisions in the surface
+
+**Superseding is its own action, with its own form.** capkit answers `409` if you
+approve a name twice, and that refusal is load-bearing — replacing an approval is
+a decision somebody makes, not something that happens because setup ran again. So
+the panel asks who and why, and will not submit without both.
+
+**The attestation is a question you ask, not a stored verdict.** You supply what
+you observe now. Nothing here goes and interrogates a provider on your behalf,
+because a fingerprint this server collected is a fingerprint this server could
+invent — and the whole point is that the comparison is checkable by someone who
+does not trust the server.
+
+**The limits travel with the answer.** `behaviour` and `reasoning` are printed
+beside every attestation rather than footnoted, because a reader who takes
+`DEMONSTRATED` away without them has taken the wrong thing: the model reporting
+the same version can still answer differently, and nothing here would know.
+
+### Proved, including by the gate written this morning
+
+Eight tests on the proxy — four asserting `403` unauthenticated, three asserting
+that an unreachable capkit produces `502` rather than an empty list, one that a
+model name with a slash is encoded rather than interpolated. Load-bearing:
+removing `requireAdminAccess` from one route turns one red.
+
+And `check:numbers` caught the change immediately. Four new admin-guarded routes
+moved the count from 38 to 42, and `DEPLOY.md` still said 38 — in the gate added
+two entries earlier, for exactly this. **A number that corrects itself the same
+day it is written is the mechanism working**, not a coincidence.
 
 ---
 
@@ -1711,7 +1783,7 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **900 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
+- **908 tests, 42 suites, 19 checks, exit 0.** `pnpm verify` runs a build, the
   suite, and 23 checks. Four of them are new — three police this document, and the fourth runs the demo:
   `check:numbers` compares every figure the documents publish against what the
   repository measures, and `check:config` fails the build if a variable is

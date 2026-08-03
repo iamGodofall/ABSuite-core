@@ -273,6 +273,71 @@ describe('what the public routes disclose', () => {
   });
 });
 
+/**
+ * Layer 4 — model identity, reachable from the interface for the first time.
+ *
+ * Four routes existed in capkit and none were proxied here, so the only way to
+ * approve a model was curl. These assert the proxy, not the registry: capkit's
+ * own suite covers fingerprint comparison, and duplicating it here would test
+ * the same logic twice and the wiring not at all.
+ *
+ * capkit is not running in this suite, so the proxy answers 502. That is the
+ * assertion worth having — the route exists, is guarded, and reports the
+ * dependency honestly rather than inventing an empty list, which is exactly the
+ * failure `Empty` and `unverifiable` exist to prevent in the interface.
+ */
+describe('the model-identity proxy', () => {
+  let dashboard: Instance | undefined;
+
+  beforeAll(async () => { dashboard = await start({ ABSUITE_ADMIN_API_KEY: ADMIN }); }, 60_000);
+  afterAll(async () => { await stop(dashboard); }, 20_000);
+
+  const admin = { 'x-absuite-admin-key': ADMIN };
+
+  test.each([
+    ['GET', '/models'],
+    ['POST', '/models'],
+    ['POST', '/models/refunds-classifier/supersede'],
+    ['POST', '/models/refunds-classifier/attest'],
+  ])('%s %s refuses an unauthenticated caller', async (method, path) => {
+    const response = await fetch(`${dashboard!.base}${path}`, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      ...(method === 'POST' ? { body: '{}' } : {}),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  test.each([
+    ['GET', '/models'],
+    ['POST', '/models'],
+    ['POST', '/models/refunds-classifier/attest'],
+  ])('%s %s reaches capkit when authenticated, and says so when it cannot', async (method, path) => {
+    const response = await fetch(`${dashboard!.base}${path}`, {
+      method,
+      headers: { 'content-type': 'application/json', ...admin },
+      ...(method === 'POST' ? { body: '{}' } : {}),
+    });
+
+    // 502 because capkit is not running here. What must never happen is 200
+    // with an empty list, which would read as "no models approved".
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ error: 'CapKit is unreachable' });
+  });
+
+  test('the model name is encoded rather than interpolated raw', async () => {
+    // A name with a slash must not become a different upstream path.
+    const response = await fetch(`${dashboard!.base}/models/${encodeURIComponent('a/../b')}/attest`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...admin },
+      body: '{}',
+    });
+
+    expect(response.status).toBe(502);
+  });
+});
+
 describe('the dashboard with no admin key configured', () => {
   let dashboard: Instance | undefined;
 

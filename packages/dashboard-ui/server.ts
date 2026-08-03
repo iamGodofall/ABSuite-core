@@ -594,6 +594,94 @@ app.get('/executions/:id/lineage', requireAdminAccess, async (req, res) => {
  * never be given a path that could carry one — capkit refuses a PEM containing
  * PRIVATE KEY outright, and that refusal is the thing keeping this honest.
  */
+/**
+ * Layer 4 — model identity. Is the thing answering still the model you approved?
+ *
+ * Four routes existed in capkit and none were reachable from here, so the only
+ * way to approve a model, supersede an approval or ask for an attestation was
+ * curl. That is the same shape as Identity before it got a surface: a layer that
+ * is built, and cannot be operated.
+ *
+ * It matters more than a missing screen sounds. Providers roll versions
+ * silently, quantisations change numerics, and a proxy can be repointed — none
+ * of which announces itself in an execution log. An approval nobody can record
+ * is an approval that does not exist, so every attestation answered `UNKNOWN`
+ * for the honest reason that nothing had ever been approved.
+ */
+app.get('/models', requireAdminAccess, async (_req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/models`,
+      { headers: capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {} }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+app.post('/models', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/models`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/**
+ * Superseding is deliberately its own route rather than a second POST /models.
+ *
+ * capkit answers `409 ALREADY_APPROVED` if you approve a name twice, and that
+ * refusal is load-bearing: replacing an approval is a decision somebody makes,
+ * not something that happens because setup ran again.
+ */
+app.post('/models/:name/supersede', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/models/${encodeURIComponent(String(req.params.name))}/supersede`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+        },
+        body: JSON.stringify(req.body ?? {}),
+      }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
+/** Compare an observed fingerprint against the approved one. */
+app.post('/models/:name/attest', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(
+      `${SERVICE_BASE_URLS.capkit}/models/${encodeURIComponent(String(req.params.name))}/attest`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+        },
+        body: JSON.stringify(req.body ?? {}),
+      }
+    );
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 app.get('/identities', requireAdminAccess, async (_req, res) => {
   try {
     const { response, data } = await fetchJson(
