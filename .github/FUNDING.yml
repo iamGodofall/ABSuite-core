@@ -28,9 +28,9 @@
 # willing to send something once should not be asked to commit forever in order
 # to do it, and most of them will simply close the tab instead.
 #
-# To enable: uncomment the line, put a real URL in, push. Nothing else changes.
+# The custom link below is live now. The GitHub Sponsors profile is not yet, so
+# until it is approved the PayPal link is the only one of these two that works.
 # ---------------------------------------------------------------------------
 
 github: [iamGodofall]
-
-# custom: ['https://ko-fi.com/YOUR-HANDLE', 'https://paypal.me/YOUR-HANDLE']
+custom: ['https://paypal.me/ThembaMpehle']
