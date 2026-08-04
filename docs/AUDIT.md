@@ -158,6 +158,56 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4s. Three design tokens the config pointed at and nothing defined
+
+The sharp-cornered buttons were not carelessness. `rounded-lg` is right there in
+the markup on the record surface, on the dropdowns, on the console fields — the
+class was simply **dead**.
+
+`tailwind.config.ts` maps `rounded-sm`, `rounded-md` and `rounded-lg` onto
+`var(--radius-sm | md | lg)`. None of the three was ever defined. A CSS custom
+property with no value makes the whole declaration invalid, so the browser drops
+it, and every one of those classes has rendered a square corner since the config
+was written. The controls that stayed soft happened to use `rounded-xl`,
+`rounded-2xl` or `rounded-full` — literal values, no variable — which is exactly
+the pattern of *some are round and some are not, with no logic to it*.
+
+A fourth token was dead the same way: `text-text-secondary` resolves to
+`hsl(var(--text-secondary))`, also undefined, so every element using it silently
+inherited its colour instead of taking one. That is the more likely explanation
+for a panel that looked blank than any missing data — the sweep below found no
+view that fails to explain itself.
+
+**`check:styles-are-real` could not have caught this**, and its whole subject is
+a class name that generates no CSS. The class generates a rule perfectly well.
+The rule points at nothing. It now reads every `var(--x)` in the Tailwind config
+and fails if the stylesheet does not define it — confirmed by deleting one.
+
+### The sweep that found nothing wrong
+
+All fifteen standing views and all seven operations were driven through the
+command palette and the number keys against an instance holding exactly one
+record — the state an operator is in one minute after pressing *Record the first
+execution*. Every one of the twenty-two explains itself: Learn says *"No
+benchmark has been run on this machine"*, Act says *"The queue is empty. That is
+a measured result"*, Approvals says what an empty queue does and does not mean.
+Total errors across both sweeps: the two 403s before an admin key is entered.
+
+### And the shape, declared once
+
+Fifty-two buttons, five selects and twenty-eight fields were each styled where
+they were written. Fixing fifty-two call sites fixes fifty-two call sites; the
+fifty-third is written next week by someone who has not read this file. The
+radius now lives on the elements in `@layer base`, which loses to every Tailwind
+utility by construction — so a control that wants a different radius still says
+so and still wins, and a control that says nothing is soft rather than square.
+Native `<select>` chrome is suppressed and the arrow redrawn in the room's own
+emerald; the open popup is left to the operating system, because a hand-rolled
+listbox that gets keyboard and screen-reader semantics wrong is worse for the
+person using it than an OS popup that looks plain.
+
+---
+
 ## 4r. Twenty-one providers said NEEDS SETUP and offered no setup
 
 A sweep of all fifteen standing views — the ones with no station on the ring —

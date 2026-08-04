@@ -153,6 +153,122 @@ if (files.length < FLOOR) {
   process.exit(1);
 }
 
+/* ---------------------------------------------------------------------------
+ * Nothing operated has a square corner.
+ *
+ * The interface is built out of 26px panels and pill-shaped chips, and a sharp
+ * control dropped into one does not read as a variation — it reads as a
+ * component from another product. It happened often enough to be found by eye
+ * twice, in the record surface and in the native dropdowns.
+ *
+ * Two assertions, both about the rule rather than about the call sites. Fixing
+ * every button individually fixes every button individually; the next one is
+ * written by somebody who has not read this file.
+ *
+ * 1. The base-layer default exists. It is what makes an unstyled control soft,
+ *    and it lives in @layer base so any Tailwind utility still overrides it.
+ * 2. Nothing squares a corner back off. `rounded-none` on a control is the one
+ *    way to defeat the default, and it is never what this interface wants —
+ *    the layer surface uses it on a panel edge that meets the viewport, which
+ *    is a container and not something you press.
+ * ------------------------------------------------------------------------- */
+const cssPath = join(root, 'packages/dashboard-ui/src/styles/globals.css');
+const css = readFileSync(cssPath, 'utf8');
+
+const radiusFailures = [];
+
+/* ---------------------------------------------------------------------------
+ * A theme token the config points at and the stylesheet never defines.
+ *
+ * This file's whole subject is a class name that generates no CSS, and it could
+ * not see the worst instance of that idea in the project. `rounded-lg` maps to
+ * `var(--radius-lg)` in tailwind.config.ts; `--radius-lg` was never defined; a
+ * custom property with no value makes the entire declaration invalid, so the
+ * browser drops it. The class generated a rule, the rule pointed at nothing,
+ * and every `rounded-lg` in the interface rendered a square corner.
+ *
+ * Four tokens were dead this way. Three of them were the corner scale, which is
+ * why some controls were round and some were sharp with no pattern to it — the
+ * soft ones happened to use rounded-xl and rounded-full, which are literals.
+ * The fourth was a text colour, and elements using it silently inherited.
+ *
+ * Nothing failed. Nothing warned. It is only visible by looking at the screen,
+ * which is how it was found, twice, by someone who had to say it twice.
+ * ------------------------------------------------------------------------- */
+const themeConfig = readFileSync(configPath, 'utf8');
+const referenced = [...new Set([...themeConfig.matchAll(/var\((--[A-Za-z0-9-]+)\)/g)].map(match => match[1]))];
+const defined = new Set([...css.matchAll(/(--[A-Za-z0-9-]+)\s*:/g)].map(match => match[1]));
+const dead = referenced.filter(name => !defined.has(name));
+
+for (const name of dead) {
+  radiusFailures.push(
+    `tailwind.config.ts builds a utility on var(${name}) and globals.css never defines it. ` +
+    'Every class using it emits a declaration the browser discards, so the utility renders as nothing at all — ' +
+    'and both the build and this check would otherwise call that fine.',
+  );
+}
+if (referenced.length < 10) {
+  radiusFailures.push(
+    `Only ${referenced.length} theme token(s) were read from tailwind.config.ts, and far more were expected. ` +
+    'The config moved or the match broke, so this assertion is inspecting almost nothing.',
+  );
+}
+
+// The default itself. Matched on the selector and the property together, so
+// deleting the rule fails even if the word "button" survives elsewhere.
+if (!/\bbutton\s*,[\s\S]{0,80}?\{[^}]*border-radius/.test(css)) {
+  radiusFailures.push(
+    'globals.css no longer gives buttons a default border-radius in @layer base. ' +
+    'Every control written without a rounded utility goes square, and nothing in the build would say so.',
+  );
+}
+if (!/\binput\s*,[\s\S]{0,80}?\bselect\b[\s\S]{0,80}?\{[^}]*border-radius/.test(css)) {
+  radiusFailures.push(
+    'globals.css no longer gives inputs, selects and textareas a default border-radius in @layer base.',
+  );
+}
+// And the OS dropdown, which is foreign to this room until appearance is off.
+if (!/\bselect\s*\{[^}]*appearance:\s*none/.test(css)) {
+  radiusFailures.push(
+    'Native <select> chrome is no longer suppressed. The operating system draws its own bevel and arrow, ' +
+    'which is the most obviously foreign object this interface can put on screen.',
+  );
+}
+
+// A control that squares itself back off.
+for (const file of files) {
+  const text = readFileSync(file, 'utf8');
+  for (const match of text.matchAll(/<(button|select|input|textarea)\b/g)) {
+    // The element's own attributes, to the first `>` that closes the tag rather
+    // than the one inside an arrow function — which is why this counts braces
+    // instead of stopping at the first angle bracket.
+    let depth = 0;
+    let end = match.index;
+    for (let at = match.index; at < text.length && at < match.index + 2000; at += 1) {
+      const character = text[at];
+      if (character === '{') depth += 1;
+      else if (character === '}') depth -= 1;
+      else if (character === '>' && depth === 0 && text[at - 1] !== '=') { end = at; break; }
+    }
+    const attributes = text.slice(match.index, end);
+    if (/\brounded-none\b/.test(attributes)) {
+      radiusFailures.push(
+        `${relative(root, file)}: a <${match[1]}> squares its own corners with rounded-none. ` +
+        'Controls in this interface are pills or soft-edged; only a container that meets the viewport edge is square.',
+      );
+    }
+  }
+}
+
+if (radiusFailures.length > 0) {
+  console.error(`\n${radiusFailures.length} sharp-corner problem(s):\n`);
+  for (const line of radiusFailures) console.error(`  ✗ ${line}\n`);
+  console.error('  The shape is declared once, on the elements, in @layer base — so a');
+  console.error('  utility can still override it and a control that says nothing is soft.\n');
+  process.exit(1);
+}
+
 console.log(`✓ ${opacityChecked} opacity modifier(s) resolve to a real step.`);
 console.log(`✓ ${literalsChecked} concatenated class literal(s) keep their names whole.`);
+console.log('✓ nothing operated has a square corner, and the default that guarantees it is present.');
 console.log(`  ${files.length} interface source file(s) scanned.`);

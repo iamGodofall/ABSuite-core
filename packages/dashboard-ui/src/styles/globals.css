@@ -83,6 +83,40 @@
     /* The supplied panel is rounded-sm. A 12px corner is what made every
        surface behind a layer read as a card in a dashboard. */
     --radius: 2px;
+
+    /* -----------------------------------------------------------------------
+       The corner scale, which did not exist.
+
+       tailwind.config.ts maps rounded-sm, rounded-md and rounded-lg onto
+       var(--radius-sm | md | lg), and none of the three was ever defined. A
+       CSS custom property with no value makes the whole declaration invalid,
+       so the browser drops it — and every `rounded-lg` in this interface has
+       been rendering a square corner since the day the config was written.
+
+       That is why the sharp buttons looked arbitrary. They were not written
+       carelessly; `rounded-lg` is right there in the markup on the record
+       surface, on the dropdowns, on the console fields. The class was dead.
+       Everything that happened to use rounded-xl, rounded-2xl or rounded-full
+       — literal values, no variable — stayed soft, which is exactly the
+       pattern of "some are round and some are not" with no logic to it.
+
+       check:styles-are-real is the gate for a class name that generates no
+       CSS, and it could not catch this: the class generates a rule perfectly
+       well. The rule points at nothing. It now checks that too.
+       ----------------------------------------------------------------------- */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+
+    /*
+     * The second voice in the type scale, also referenced and never defined.
+     *
+     * tailwind.config.ts declares text-text-secondary as hsl(var(--text-secondary)).
+     * With the variable missing the colour is invalid and the element simply
+     * inherits, so every use of it has been silently rendering as whatever was
+     * around it. It sits between primary (96% lightness) and muted (53%).
+     */
+    --text-secondary: 195 12% 76%;  /* #BCC7CB */
     
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
@@ -109,6 +143,94 @@
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* -------------------------------------------------------------------------
+     Nothing operated has a square corner.
+
+     Fifty-two buttons, five native selects and twenty-eight inputs across the
+     interface, each one styled where it was written. Most had a radius because
+     whoever wrote them remembered; the rest were sharp, and a sharp control
+     sitting inside a 26px panel does not read as a variation — it reads as a
+     component from a different product that someone pasted in. The record
+     surface and the dropdowns were the visible ones, and they were visible
+     because the eye finds the one square thing in a room of soft ones.
+
+     Fixing fifty-two call sites would fix fifty-two call sites. The fifty-third
+     is written next week by someone who has not read this file, and there is no
+     honest way to say the design holds if holding it depends on memory.
+
+     So the shape is declared once, on the elements themselves. This lives in
+     @layer base, which loses to every Tailwind utility by construction — so a
+     control that genuinely wants a different radius still says `rounded-xl` and
+     still wins, and a control that says nothing is soft rather than square.
+     Default, not override.
+
+     Buttons are pills because they are the thing you press. Fields are 12px:
+     a pill-shaped text input pushes its own text away from the caret at both
+     ends, which is a real legibility cost rather than a taste one.
+     ------------------------------------------------------------------------- */
+  button,
+  [role='button'] {
+    border-radius: 9999px;
+  }
+
+  input,
+  select,
+  textarea {
+    border-radius: 12px;
+  }
+
+  /*
+   * The exception, and it is a real one.
+   *
+   * A checkbox or radio is a control the browser draws, and a 9999px radius on
+   * a checkbox makes it a circle — which already means "radio" to everyone who
+   * has ever used a form. Shape carries meaning here, so it is left alone.
+   */
+  input[type='checkbox'],
+  input[type='radio'] {
+    border-radius: revert;
+  }
+
+  /*
+   * Native selects, brought into the room.
+   *
+   * A `<select>` renders the operating system's control: a grey chrome bevel on
+   * Windows, a blue focus ring on macOS, and a dropper arrow drawn in a colour
+   * nobody here chose. Inside a near-black panel with an emerald hairline it is
+   * the most obviously foreign object on the screen, and there were five of
+   * them — Identity, Tenancy twice, and the two in the console.
+   *
+   * `appearance: none` removes the OS drawing, and the arrow is redrawn as an
+   * inline SVG data URI in the room's own emerald. Not a font glyph and not a
+   * pseudo-element: a `<select>` cannot carry `::after`, which is why so many
+   * attempts at this end up wrapping the element in a div that then has to
+   * re-implement focus.
+   *
+   * What this deliberately does not attempt: the open list. The popup is drawn
+   * by the operating system and cannot be styled from CSS at all. Replacing it
+   * means building a listbox — keyboard semantics, type-ahead, screen-reader
+   * roles, all of it — and a hand-rolled listbox that gets those wrong is worse
+   * for the person using it than an OS popup that looks plain. The closed state
+   * is what sits in the layout; that is the part that was breaking the room.
+   */
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%2300F58C' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    /* Room for the arrow, so a long option never runs underneath it. */
+    padding-right: 2.25rem;
+  }
+
+  /* The options themselves take the panel's ground where the platform allows
+     it — Windows and most Linux browsers honour this, macOS does not. A partial
+     improvement that costs nothing and breaks nothing where it is ignored. */
+  select option {
+    background-color: #0A0F0D;
+    color: #F4F7FA;
   }
 }
 
