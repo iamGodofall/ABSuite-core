@@ -1,0 +1,165 @@
+name: Deploy the public instance to Fly
+
+# The demo is the shortest path from "interesting claim" to "I looked at it".
+# Everything the deploy needs is already in fly.toml, so the only thing standing
+# between this repository and a live instance was somebody running two commands
+# on a laptop at the right moment. This runs them.
+#
+# ---------------------------------------------------------------------------
+# ONE MANUAL STEP, ONCE.
+#
+#   1. flyctl auth token          (on your machine, after `fly auth login`)
+#   2. Paste it into Settings → Secrets and variables → Actions → New secret
+#      as FLY_API_TOKEN.
+#
+# That is all. Until it is set, this workflow skips rather than failing — a red
+# badge for a credential nobody has configured teaches people to stop reading
+# the badge, and then it cannot warn them about anything.
+#
+# Two secrets are generated here on first launch and never printed:
+# CAPKIT_HMAC_SECRET and CAPKIT_ADMIN_KEY. One is NOT: CAPKIT_TRACE_PRIVATE_KEY
+# signs every execution trace and must stay the same forever, because a new one
+# makes every record ever written fail verification, permanently and with no
+# recovery. Generate it once with `node scripts/gen-deploy-secrets.mjs`, set it
+# with `fly secrets set`, and back it up somewhere that is not this repository.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/**'
+      - 'packages/**'
+      - 'fly.toml'
+      - '.github/workflows/fly.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Is a Fly token configured?
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Fly is not connected yet"
+              echo ""
+              echo "Run \`flyctl auth token\` locally and add the value as the"
+              echo "**FLY_API_TOKEN** repository secret. Nothing else needs changing —"
+              echo "\`fly.toml\` already carries the region, the volume, the health check"
+              echo "and the memory."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    name: Deploy
+    needs: guard
+    if: needs.guard.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # `flyctl deploy` fails on an app that does not exist, and app names are
+      # global to Fly — "absuite" may well be taken by someone else. The name is
+      # read from fly.toml so there is one source of truth for it, and creating
+      # it is idempotent: an app that already exists is not an error here.
+      - name: Ensure the app and its volume exist
+        run: |
+          APP=$(grep -m1 '^app *=' fly.toml | sed 's/.*= *"\(.*\)"/\1/')
+          REGION=$(grep -m1 '^primary_region *=' fly.toml | sed 's/.*= *"\(.*\)"/\1/')
+          echo "app=$APP region=$REGION"
+
+          if ! flyctl apps list | grep -qw "$APP"; then
+            echo "Creating $APP"
+            flyctl apps create "$APP" --machines || {
+              echo "::error::Could not create the Fly app '$APP'."
+              echo "App names are global to Fly, so this one is probably taken."
+              echo "Change the 'app' line in fly.toml to something unique and push again."
+              exit 1
+            }
+          fi
+
+          # Records survive deploys only if the SQLite file is on a volume.
+          # Without this the chain is empty after every release, which is honest
+          # and makes the demo impossible — nothing is ever more than a minute
+          # old, so there is no history to show anyone.
+          if ! flyctl volumes list --app "$APP" | grep -q absuite_data; then
+            echo "Creating the data volume"
+            flyctl volumes create absuite_data --app "$APP" --region "$REGION" --size 1 --yes
+          fi
+
+      # Generated in Fly, never printed, and only if absent — regenerating
+      # CAPKIT_ADMIN_KEY on every deploy would silently invalidate the key the
+      # operator is using, on a schedule nobody chose.
+      - name: Set the secrets that can be generated
+        run: |
+          APP=$(grep -m1 '^app *=' fly.toml | sed 's/.*= *"\(.*\)"/\1/')
+          EXISTING=$(flyctl secrets list --app "$APP" || true)
+
+          set_if_absent() {
+            if echo "$EXISTING" | grep -qw "$1"; then
+              echo "$1 already set, leaving it alone"
+            else
+              flyctl secrets set "$1=$(openssl rand -hex 32)" --app "$APP" --stage
+              echo "$1 generated"
+            fi
+          }
+
+          set_if_absent CAPKIT_HMAC_SECRET
+          set_if_absent CAPKIT_JWT_SECRET
+          set_if_absent CAPKIT_ADMIN_KEY
+          set_if_absent ABSUITE_ADMIN_API_KEY
+          set_if_absent ABSUITE_PUBLIC_PASSWORD
+
+      - name: Deploy
+        run: flyctl deploy --remote-only
+
+      # The signing key is the one secret this workflow will not invent, and an
+      # instance running without it signs with a key that dies with the process
+      # — records verify now and fail after the next restart. Said here rather
+      # than discovered later, because "later" means after records exist.
+      - name: Report what still needs a human
+        run: |
+          APP=$(grep -m1 '^app *=' fly.toml | sed 's/.*= *"\(.*\)"/\1/')
+          {
+            echo "### Deployed"
+            echo ""
+            echo "https://$APP.fly.dev"
+            echo ""
+            if flyctl secrets list --app "$APP" | grep -qw CAPKIT_TRACE_PRIVATE_KEY; then
+              echo "The trace signing key is set. Records survive restarts."
+            else
+              echo "**The trace signing key is NOT set.** Traces are being signed with a"
+              echo "key that dies with the process: they verify now and fail after the"
+              echo "next restart. Fix it once:"
+              echo ""
+              echo '```'
+              echo "node scripts/gen-deploy-secrets.mjs"
+              echo "flyctl secrets set CAPKIT_TRACE_PRIVATE_KEY='...' CAPKIT_TRACE_KEY_ID='absuite-trace-key' --app $APP"
+              echo '```'
+              echo ""
+              echo "Back that value up somewhere that is not this repository. Losing it"
+              echo "makes every record ever written fail verification, permanently."
+            fi
+            echo ""
+            echo "The instance is password-gated. Read ABSUITE_PUBLIC_PASSWORD from"
+            echo "\`flyctl secrets list\` — the username is \`absuite\`."
+          } >> "$GITHUB_STEP_SUMMARY"
