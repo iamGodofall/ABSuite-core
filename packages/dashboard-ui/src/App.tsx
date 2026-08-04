@@ -461,7 +461,6 @@ const AIStudioTab = () => {
 
 const SettingsTab = ({ services }: { services: Service[] }) => {
   const [dbStatus, setDbStatus] = useState<Service['status']>('unknown');
-  const [notifs, setNotifs] = useState({ email: true, slack: false, alerts: true });
   const [adminApiKey, setAdminApiKey] = useState('');
   const [exportMsg, setExportMsg] = useState('');
   const [endpointMessage, setEndpointMessage] = useState('');
@@ -570,7 +569,9 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
   };
 
   const exportConfig = () => {
-    const config = { endpoints, notifications: notifs, version: __APP_VERSION__ };
+    // No `notifications` key: exporting preferences for a capability that does
+    // not exist would put the same fabrication in a file the user keeps.
+    const config = { endpoints, version: __APP_VERSION__ };
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'absuite-config.json'; a.click();
@@ -622,34 +623,44 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
 
       {endpointMessage && <NoticeCard tone={endpointMessageTone} title="Endpoint test result" message={endpointMessage} />}
 
-      {/* Notifications */}
+      {/*
+        * There were three toggles here: Email Alerts, Slack Integration and
+        * In-App Alerts — two of them defaulted on.
+        *
+        * None of them did anything. `notifs` was local React state; flipping a
+        * switch changed its own colour and nothing else. No request was sent,
+        * nothing was stored, and no notification has ever been delivered by this
+        * product.
+        *
+        * Worse than dead: COMPLIANCE.md 1.4 states in bold that **ABSuite does
+        * not notify anybody** — no incident, no severity, no escalation path,
+        * deliberately, because deciding that something is an incident is a
+        * judgement and this product does not make judgements. A buyer read that
+        * honest gap, opened Settings, and saw it apparently working.
+        *
+        * ActLayer's own header already records this defect being found once:
+        * "a hardcoded tile claiming Slack was enabled was a fabricated fact
+        * sitting two inches from a measured one". Same claim, same word, still
+        * live here.
+        *
+        * What replaces it is what actually happens.
+        */}
       <div className="glass-card p-5">
-        <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Notification Preferences</h3>
-        <div className="space-y-3">
-          {[
-            { key: 'email', label: 'Email Alerts', desc: 'Get notified via email for critical events' },
-            { key: 'slack', label: 'Slack Integration', desc: 'Send alerts to your Slack workspace' },
-            { key: 'alerts', label: 'In-App Alerts', desc: 'Show desktop notifications for important events' },
-          ].map(item => (
-            <label key={item.key} className="flex items-center justify-between p-3 bg-bg-primary/50 rounded-xl cursor-pointer hover:bg-bg-primary transition-colors">
-              <div>
-                <div className="text-sm font-medium text-text-primary">{item.label}</div>
-                <div className="text-xs text-text-muted">{item.desc}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNotifs(prev => ({ ...prev, [item.key]: !prev[item.key as keyof typeof notifs] }))}
-                aria-label={`Toggle ${item.label} ${notifs[item.key as keyof typeof notifs] ? 'on' : 'off'}`}
-                title={`Toggle ${item.label} ${notifs[item.key as keyof typeof notifs] ? 'on' : 'off'}`}
-                className={cn('w-11 h-6 rounded-full transition-all relative focus:outline-none focus:outline-2 focus:outline-emerald-500 focus:outline-offset-2', notifs[item.key as keyof typeof notifs] ? 'bg-emerald-500' : 'bg-bg-tertiary')}
-              >
-                <span className="sr-only">
-                  Toggle {item.label} {notifs[item.key as keyof typeof notifs] ? 'on' : 'off'}
-                </span>
-                <span className={cn('block w-5 h-5 rounded-full bg-white shadow transition-transform absolute top-0.5', notifs[item.key as keyof typeof notifs] ? 'translate-x-5.5' : 'translate-x-0.5')} />
-              </button>
-            </label>
-          ))}
+        <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Notifications</h3>
+        <div className="p-3 bg-bg-primary/50 rounded-xl">
+          <div className="text-sm font-medium text-text-primary mb-1">ABSuite does not notify anybody.</div>
+          <p className="text-xs text-text-muted leading-relaxed">
+            There is no email, no Slack, no incident and no escalation path — deliberately.
+            Deciding that something <em>is</em> an incident is a judgement, and this product
+            does not make judgements. Findings accumulate in the watch queue at
+            <code className="mx-1 text-text-primary">GET /watch</code>, each with the record it
+            came from, for a monitoring system or a person to read and decide about.
+          </p>
+          <p className="text-xs text-text-muted leading-relaxed mt-2">
+            This is a real gap against EU AI Act Article 26(5), and
+            <span className="text-text-primary"> COMPLIANCE.md 1.4</span> says so rather than
+            hoping you do not check.
+          </p>
         </div>
       </div>
 
