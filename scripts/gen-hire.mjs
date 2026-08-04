@@ -264,6 +264,29 @@ const page = `<!doctype html>
 
 const target = join(root, 'docs/hire.html');
 
+/*
+ * Generated, committed, linked — and returning 404 for a day.
+ *
+ * GitHub Pages here publishes an explicit allowlist rather than all of docs/,
+ * which is right: `cp -r docs/*` once put the strategy folder on the public web
+ * at guessable URLs. But an allowlist is a second list of what the site
+ * contains, and a second list always drifts from the first. This page was
+ * built, verified by its own staleness gate, and linked from the landing page
+ * while the workflow quietly never copied it.
+ *
+ * Nothing failed. The page was perfect and unreachable, which is this
+ * project's oldest failure shape wearing a new costume.
+ */
+const workflow = read('.github/workflows/pages.yml');
+if (!/cp\s+docs\/hire\.html/.test(workflow)) {
+  console.error('\ndocs/hire.html is not published.\n');
+  console.error('  .github/workflows/pages.yml copies an explicit list of files into the');
+  console.error('  site, and this page is not on it — so it is generated, committed, linked');
+  console.error('  from the landing page, and answers 404 to everyone who clicks it.\n');
+  console.error('  Add: cp docs/hire.html _site/\n');
+  process.exit(1);
+}
+
 if (process.argv.includes('--check')) {
   const current = readFileSync(target, 'utf8');
   if (!sameGenerated(current, page)) {
