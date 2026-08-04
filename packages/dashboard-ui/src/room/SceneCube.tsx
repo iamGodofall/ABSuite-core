@@ -27,7 +27,7 @@ import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import { LayerVertices } from './LayerVertices';
-import { createCausticTexture, createPointSprite, createRadianceMap } from './iceTextures';
+import { createCausticTexture, createOpaquePointSprite, createPointSprite, createRadianceMap } from './iceTextures';
 import { GlassShell } from './GlassShell';
 import * as THREE from 'three';
 
@@ -193,6 +193,32 @@ export function SceneCube({ activeLayer, isIdle, witnessing = false, connected =
    * edge is invisible, and opaque, so the glass transmits it.
    */
   const radiance = useMemo(() => createRadianceMap(), []);
+  const opaqueSprite = useMemo(() => createOpaquePointSprite(), []);
+
+  /**
+   * A glow that survives the glass.
+   *
+   * Everything in the orbital rings and the particle field was `transparent`
+   * and additively blended — which looks right on a machine without glass and
+   * does not exist on one with it, because three builds the transmission buffer
+   * from opaque objects only. The core already had this fixed. Nothing around
+   * it did, so on real hardware the cube gained realism and lost its rings,
+   * its lines and its particles at the same moment.
+   *
+   * Without glass, nothing changes: the additive path is returned untouched,
+   * because that is what the field is made of there and it looks right.
+   *
+   * With glass, the opacity is folded into the colour instead — multiplying
+   * toward black is what additive blending against a dark ground was already
+   * approximating — and the material becomes opaque, so it enters the buffer.
+   */
+  const radiant = (
+    hex: THREE.ColorRepresentation,
+    opacity: number,
+    extra: Record<string, unknown> = {},
+  ) => (glass
+    ? { color: new THREE.Color(hex).multiplyScalar(opacity), toneMapped: false, depthWrite: false, ...extra }
+    : { color: hex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, ...extra });
   const radianceRef = useRef<THREE.Mesh>(null);
   const cubeRef = useRef<THREE.Group>(null);
   const innerCubeRef = useRef<THREE.Mesh>(null);
@@ -848,25 +874,25 @@ export function SceneCube({ activeLayer, isIdle, witnessing = false, connected =
                   drawn circle. */}
               <mesh rotation={[-Math.PI / 2, 0, 0]}>
                 <torusGeometry args={[radius, 0.015, 8, 128]} />
-                <meshBasicMaterial color={coreColor} transparent opacity={(0.15 + (i * 0.05)) * Math.max(0.55, core.intensity / 9)} blending={THREE.AdditiveBlending} />
+                <meshBasicMaterial {...radiant(coreColor, (0.15 + (i * 0.05)) * Math.max(0.55, core.intensity / 9))} />
               </mesh>
               {i > 1 && (
                 <mesh rotation={[-Math.PI / 2, 0, 0]}>
                   <torusGeometry args={[radius + 0.12, 0.02, 8, 64]} />
-                  <meshBasicMaterial color={color} transparent opacity={0.14} blending={THREE.AdditiveBlending} />
+                  <meshBasicMaterial {...radiant(color, 0.14)} />
                 </mesh>
               )}
               {/* Add data arcs */}
               <mesh rotation={[-Math.PI / 2, 0, (i * Math.PI) / 2]}>
                 <torusGeometry args={[radius, 0.03, 8, 64, Math.PI / (i + 2)]} />
-                <meshBasicMaterial color={color} transparent opacity={0.3} blending={THREE.AdditiveBlending} />
+                <meshBasicMaterial {...radiant(color, 0.3)} />
               </mesh>
             </group>
           ))}
           {/* Dashed outer boundary ring */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
              <torusGeometry args={[9, 0.01, 8, 128]} />
-             <meshBasicMaterial color={color} transparent opacity={0.1} blending={THREE.AdditiveBlending} />
+             <meshBasicMaterial {...radiant(color, 0.1)} />
           </mesh>
         </group>
       )}
@@ -886,14 +912,18 @@ export function SceneCube({ activeLayer, isIdle, witnessing = false, connected =
         {/* A disc with a soft centre, not a square. See createPointSprite. */}
         <pointsMaterial
           size={0.075}
-          map={sprite ?? undefined}
-          alphaMap={sprite ?? undefined}
+          // With glass the falloff has to live in RGB, so the opaque sprite is
+          // used as a colour map with no alphaMap at all. Handing an alpha
+          // falloff to an opaque material is what made the field vanish.
+          map={glass ? opaqueSprite : (sprite ?? undefined)}
+          alphaMap={glass ? undefined : (sprite ?? undefined)}
           vertexColors
-          transparent
+          transparent={!glass}
           opacity={0.85}
           sizeAttenuation
-          blending={THREE.AdditiveBlending}
+          blending={glass ? THREE.NormalBlending : THREE.AdditiveBlending}
           depthWrite={false}
+          toneMapped={false}
         />
       </points>
       

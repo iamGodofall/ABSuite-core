@@ -289,6 +289,56 @@ export function createIceMaps(): IceMaps {
  * The falloff is in the pixels rather than in the blending, which is the only
  * kind a transmission pass can see.
  */
+/**
+ * The same point sprite, with its falloff in pixels instead of in alpha.
+ *
+ * `createPointSprite` puts the glow in the alpha channel, which forces the
+ * material to be `transparent` — and three builds the transmission buffer from
+ * **opaque objects only**, the rule stated in docs/SCENE-GRAPH.md. So on a
+ * machine that renders glass, the particle field did not exist. Not dimmed:
+ * absent. Reported by the one person looking at it on real hardware, who said
+ * the particles disappeared when the cube became realistic, and was exactly
+ * right about both the symptom and the moment.
+ *
+ * This is the technique `createRadianceMap` already uses for the core, applied
+ * to the field the core sits in: fill black everywhere first, then draw the
+ * white gradient over it. The glow ends up in RGB, the rim reaches the scene's
+ * own ground, and the sprite is fully opaque — so it enters the buffer the
+ * glass reads and survives refraction.
+ *
+ * Against a dark ground the square edge is invisible, which is the same trade
+ * the radiance billboard makes and the same risk: on a light ground it would
+ * read as a panel. This room has no light ground.
+ */
+export function createOpaquePointSprite(): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const c = size / 2;
+
+  // Black first, and everywhere — the rim must reach the ground or the sprite's
+  // square becomes a visible tile.
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, size, size);
+
+  // The same stops as createPointSprite, so the field reads identically with
+  // and without glass. Alpha here composites against the black beneath rather
+  // than against the scene, which is what moves the falloff into RGB.
+  const gradient = ctx.createRadialGradient(c, c, 0, c, c, c);
+  gradient.addColorStop(0.0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.22, 'rgba(255,255,255,0.85)');
+  gradient.addColorStop(0.55, 'rgba(255,255,255,0.28)');
+  gradient.addColorStop(1.0, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export function createRadianceMap(): THREE.CanvasTexture {
   const size = 256;
   const canvas = document.createElement('canvas');
