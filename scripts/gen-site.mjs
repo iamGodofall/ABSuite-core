@@ -534,6 +534,16 @@ const page = `<!doctype html>
     <a class="cta" href="./verify.html">Verify your own trace &rarr;</a>
     <a class="ghost" href="./system.html">See the whole system</a>
     <a class="ghost" href="https://github.com/iamGodofall/ABSuite-core">Source on GitHub</a>
+    <!--
+      Support, on the project page and deliberately not on hire.html.
+
+      They are different asks made of different readers. This page is read by
+      someone deciding whether the work is worth backing; the hiring page is
+      read by someone deciding whether to pay for a contract, and a donate
+      button beside a rate card reads as a weaker position to negotiate from.
+      Keeping them apart costs nothing and protects the more valuable ask.
+    -->
+    <a class="ghost" href="https://paypal.me/ThembaMpehle">Support this work</a>
   </div>
 
   <h2>[ Where this is ]</h2>
