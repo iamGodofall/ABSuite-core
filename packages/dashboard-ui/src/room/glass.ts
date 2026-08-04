@@ -43,10 +43,68 @@ function override(): boolean | null {
   return null;
 }
 
+/**
+ * The answer, once decided, stays decided.
+ *
+ * The probe reads the live WebGL renderer. On Windows the browser hands a page
+ * different GPUs depending on power state and load — discrete, integrated, or a
+ * software rasteriser under pressure — so the same machine on the same URL
+ * answered differently between reloads. The room changed identity while
+ * somebody watched it: realistic core, then the additive one with its rings and
+ * particles, then back.
+ *
+ * That is worse than either answer. A viewer cannot tell a deliberate visual
+ * from a fault when the visual keeps changing, and the person it happened to
+ * spent an evening reasonably convinced the renderer was broken.
+ *
+ * So the first answer is written down and reused. `?glass=on|off` still
+ * overrides, and clearing it is one line in the console, printed below.
+ */
+const REMEMBERED = 'absuite.glass';
+
+function remembered(): boolean | null {
+  try {
+    const stored = window.localStorage.getItem(REMEMBERED);
+    if (stored === 'true') return true;
+    if (stored === 'false') return false;
+  } catch {
+    // Private browsing, or storage disabled. Probing every time is worse than
+    // this, but it is not a failure — the probe below still answers.
+  }
+  return null;
+}
+
+function remember(supported: boolean): void {
+  try {
+    window.localStorage.setItem(REMEMBERED, String(supported));
+  } catch {
+    // Nothing to do. The decision simply is not carried to the next load.
+  }
+}
+
 export function probeGlassSupport(renderer: THREE.WebGLRenderer): GlassSupport {
   const forced = override();
-  if (forced === true) return { supported: true, reason: 'forced on by ?glass=on', renderer: 'overridden' };
-  if (forced === false) return { supported: false, reason: 'forced off by ?glass=off', renderer: 'overridden' };
+  if (forced === true) {
+    remember(true);
+    return { supported: true, reason: 'forced on by ?glass=on', renderer: 'overridden' };
+  }
+
+  // Decided on a previous load. Re-probing is what made the room flicker
+  // between two identities on one machine.
+  const before = remembered();
+  if (before !== null) {
+    return {
+      supported: before,
+      reason: before
+        ? 'decided on a previous load — run localStorage.removeItem("absuite.glass") to decide again'
+        : 'decided on a previous load as unsupported — run localStorage.removeItem("absuite.glass") to decide again',
+      renderer: 'remembered',
+    };
+  }
+  if (forced === false) {
+    remember(false);
+    return { supported: false, reason: 'forced off by ?glass=off', renderer: 'overridden' };
+  }
 
   const gl = renderer.getContext();
 
@@ -62,6 +120,7 @@ export function probeGlassSupport(renderer: THREE.WebGLRenderer): GlassSupport {
   }
 
   if (/swiftshader|llvmpipe|softpipe|software|microsoft basic render/i.test(name)) {
+    remember(false);
     return { supported: false, reason: 'software rendering — refraction would run at a few frames per second', renderer: name };
   }
 
@@ -81,13 +140,16 @@ export function probeGlassSupport(renderer: THREE.WebGLRenderer): GlassSupport {
     renderer.setRenderTarget(previous);
 
     if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      remember(false);
       return { supported: false, reason: `the driver cannot complete a half-float render target (0x${status.toString(16)})`, renderer: name };
     }
   } catch (error) {
+    remember(false);
     return { supported: false, reason: `render target allocation threw: ${(error as Error).message}`, renderer: name };
   } finally {
     target?.dispose();
   }
 
+  remember(true);
   return { supported: true, reason: 'half-float render targets available on hardware', renderer: name };
 }
