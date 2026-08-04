@@ -158,6 +158,55 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4r. Twenty-one providers said NEEDS SETUP and offered no setup
+
+A sweep of all fifteen standing views — the ones with no station on the ring —
+found them working. Evidence, Agents, Policies, the unknown queue, Identity,
+Model identity, Approvals, Tenancy, Watch, Provenance, Replay, the manual,
+Console, System health and Settings each render real figures from real routes
+against a seeded instance, and the only HTTP errors in the whole sweep were the
+two 403s before an admin key is entered. That is the finding, and it is a good
+one.
+
+The gap was configuration. Every provider in the Console reported `NEEDS SETUP`
+and the only route out of it was a file on a server the reader may not be
+sitting at. The same dead end `§4j` recorded for the provider list and the
+connector panel had for longer: **a state that names no step out of itself**,
+which is the one thing this system is not allowed to do.
+
+`POST /config/credentials` writes the key for them. Three rules make it safe
+enough to ship:
+
+**The allowlist is derived, never typed.** `describeProviders({})` on an empty
+environment reports every variable each provider would read — 27 of them — and
+that is exactly the set the route accepts. A second hand-written list of the
+same facts can only ever disagree with the first, and here disagreement means
+either a key the room cannot set or a name outside the registry landing in the
+environment of a process we start. `NODE_OPTIONS` in a `.env` is arbitrary code
+execution. Confirmed refused, along with a newline in a value — which would
+otherwise end one assignment and begin another, so a single field could set any
+variable it liked.
+
+**Values are never read back.** The API answers whether a key is set and refuses
+to say what it is. A settings screen that redisplays a secret turns every
+screen-share into a disclosure, and this room is demonstrated on video.
+
+**It reports the absolute path and what it takes to apply.** capkit reads its
+environment at boot, so a file written afterwards changes nothing until a
+restart. Saying *saved* while the provider stays unreachable would be the
+interface claiming more than it did at the exact moment somebody is trusting it
+with a secret — and *"we wrote it to .env"* is not an answer on a machine with
+more than one of them.
+
+### The inconsistency this does not fix
+
+The admin key is still in `localStorage`, which is the browser. That is
+defensible — it is how this tab proves itself to the instance, so it has to live
+where the tab is — and it is still the one secret in this product held on the
+side that is easiest to read. Written down here rather than left implied.
+
+---
+
 ## 4q. The room could read the evidence chain and could not add to it
 
 A visitor to a fresh instance met a completely motionless scene: the core dim,

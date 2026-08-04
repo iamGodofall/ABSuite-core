@@ -18,7 +18,7 @@ import {
   Bot, Zap, Shield,
   Server, MessageSquare, Copy, Check, AlertCircle, Loader2,
   Download, Upload, Eye, Hexagon, Network, Gauge, Wrench,
-  Layers, Scale, HelpCircle, Play, Share2
+  Layers, Scale, HelpCircle, Play, Share2, KeyRound
 } from 'lucide-react';
 import { useServices, Service } from './hooks/useServices';
 import { PerformanceTab } from './tabs/Performance';
@@ -57,6 +57,7 @@ import { useSocket } from './hooks/useSocket';
 import { useTheme } from './hooks/useTheme';
 import { cn } from './utils';
 import type { ProviderOption } from './types';
+import { CredentialsPanel } from './components/CredentialsPanel';
 import './styles/globals.css';
 
 
@@ -375,6 +376,34 @@ const AIStudioTab = () => {
             </button>
           ))}
         </div>
+
+        {/*
+          * Setup, where the words `needs setup` are.
+          *
+          * Twenty-one providers each said `NEEDS SETUP` and the only route out
+          * of it was a file on the server. Selecting an unconfigured provider
+          * now opens its own field right here, so the sentence naming the
+          * problem and the thing that fixes it are in the same place — which is
+          * the rule this system already applies to every other determination
+          * and had never applied to its own configuration.
+          *
+          * Only for the selected one. Twenty-one inputs stacked down the page
+          * is a form, and nobody fills in a form to try one model.
+          */}
+        {(() => {
+          const selected = providers.find((option: ProviderOption) => option.name === provider);
+          if (!selected || selected.configured) return null;
+          return (
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-3 text-xs text-text-muted">
+                {selected.label ?? selected.name} is not configured on this instance. Paste its key and ABSuite
+                writes it to the server&rsquo;s environment file — it is not kept in this browser, and this panel
+                cannot read it back.
+              </div>
+              <CredentialsPanel headers={getAdminHeaders()} only={selected.name} />
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -682,6 +711,24 @@ const SettingsTab = ({ services }: { services: Service[] }) => {
           <button onClick={saveAdminApiKey} className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 text-sm font-medium">Save key</button>
           <button onClick={clearAdminApiKey} className="px-4 py-2 rounded-lg bg-bg-tertiary text-text-secondary hover:text-text-primary text-sm font-medium">Clear</button>
         </div>
+      </div>
+
+      {/*
+        * Provider credentials, kept on the server.
+        *
+        * The field above is the odd one out and stays that way for a reason:
+        * the admin key is how this browser proves itself to the instance, so it
+        * has to live in the browser. Everything below is a secret the *server*
+        * uses, and there was never a reason for those to pass through here
+        * twice — they were only in the browser because there was nowhere else
+        * to put them. Now there is.
+        */}
+      <div className="glass-card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <KeyRound className="w-5 h-5 text-emerald-400" />
+          <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider">Provider credentials</h3>
+        </div>
+        <CredentialsPanel headers={getAdminHeaders()} />
       </div>
 
       {/* Export / Import */}

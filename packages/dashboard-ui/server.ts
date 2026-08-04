@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { guardedFetch } from '@absuitecore/capkit';
+import { guardedFetch, describeProviders } from '@absuitecore/capkit';
 
 const SERVICES = ['capkit', 'edge-run', 'quickbench', 'connector-starter', 'trust', 'dashboard', 'absuite-db'] as const;
 type ServiceName = typeof SERVICES[number];
@@ -436,6 +436,183 @@ app.get('/ai/providers', async (req, res) => {
       message: (error as Error).message,
     });
   }
+});
+
+/* ---------------------------------------------------------------------------
+ * Credentials, entered once and kept on the server.
+ *
+ * Every provider in the room reported `NEEDS SETUP` and offered no setup. The
+ * same dead end the connector panel had and the provider list had: a state with
+ * no route out of it, which is the one thing this system is not allowed to do.
+ * The instruction was always "put it in your .env" — a file the person reading
+ * the screen may not know exists, on a machine they may not be sitting at.
+ *
+ * So this writes it for them. Three rules make that safe enough to ship:
+ *
+ * 1. The allowlist is DERIVED, never typed. `describeProviders` on an empty
+ *    environment reports every variable each provider would read, and that is
+ *    the complete set of names this route will accept. A second hand-written
+ *    list of the same facts can only ever disagree with the first — and here
+ *    disagreement means either a key the room cannot set or, far worse, a name
+ *    outside the registry being written into the environment of a process we
+ *    start. `NODE_OPTIONS` in a .env file is arbitrary code execution.
+ *
+ * 2. Values are never read back. The API answers whether a key is set and
+ *    nothing else. A settings screen that redisplays a secret turns every
+ *    shoulder, screenshot and screen-share into a disclosure, and this room is
+ *    demonstrated on video.
+ *
+ * 3. It reports the absolute path it wrote and what it takes to apply, rather
+ *    than implying the key is live. capkit reads its environment at boot; a
+ *    file written after that changes nothing until the process restarts. Saying
+ *    "saved" and leaving the provider still unreachable would be the interface
+ *    claiming more than it did, at the exact moment somebody is trusting it
+ *    with a secret.
+ * ------------------------------------------------------------------------- */
+
+/** Every variable the provider registry actually reads. One source, no copy. */
+const CREDENTIAL_KEYS: Map<string, { provider: string; label: string }> = (() => {
+  const map = new Map<string, { provider: string; label: string }>();
+  // An empty environment, so every provider reports the full set it would read
+  // rather than only the ones this deployment happens to be missing.
+  for (const provider of describeProviders({}).providers) {
+    for (const key of provider.missing) {
+      if (!map.has(key)) map.set(key, { provider: provider.name, label: provider.label });
+    }
+  }
+  return map;
+})();
+
+/**
+ * The file the room writes.
+ *
+ * Resolved once and reported in full to the caller, because "we saved it to
+ * .env" is not an answer on a machine with more than one of them — a container
+ * writing its own copy while compose reads the host's is a silent no-op that
+ * looks exactly like success.
+ */
+const ENV_FILE = path.resolve(
+  process.env.ABSUITE_ENV_PATH || path.join(process.cwd(), '..', '..', '.env'),
+);
+
+/** Whether a name may be written. Membership of the derived registry, only. */
+const isWritableCredential = (key: string) => CREDENTIAL_KEYS.has(key);
+
+/** Which keys the file already carries. Names only — never the values. */
+function credentialsInFile(): Set<string> {
+  const present = new Set<string>();
+  try {
+    const text = fs.readFileSync(ENV_FILE, 'utf8');
+    for (const line of text.split(/\r?\n/)) {
+      const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+      if (match && match[1]) present.add(match[1]);
+    }
+  } catch {
+    // No file yet is not an error. It is the normal state of a fresh install,
+    // and the first save creates it.
+  }
+  return present;
+}
+
+/**
+ * Set one key in the file, preserving everything else in it.
+ *
+ * Rewritten line by line rather than parsed and re-serialised: an operator's
+ * .env carries comments, ordering and grouping they put there deliberately, and
+ * a round trip through a key-value object throws all of it away. Written to a
+ * temporary file and renamed, so an interrupted write cannot leave a truncated
+ * .env behind — that file is how the whole suite boots.
+ */
+function writeCredential(key: string, value: string): void {
+  let lines: string[] = [];
+  try {
+    lines = fs.readFileSync(ENV_FILE, 'utf8').split(/\r?\n/);
+  } catch {
+    lines = ['# Written by the ABSuite room. Keep this file; do not commit it.'];
+  }
+
+  const pattern = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`);
+  const replacement = `${key}=${value}`;
+  const at = lines.findIndex(line => pattern.test(line));
+  if (at === -1) lines.push(replacement);
+  else lines[at] = replacement;
+
+  const body = lines.join('\n').replace(/\n+$/, '') + '\n';
+  const temporary = `${ENV_FILE}.absuite-tmp`;
+  fs.writeFileSync(temporary, body, { mode: 0o600 });
+  fs.renameSync(temporary, ENV_FILE);
+  try {
+    fs.chmodSync(ENV_FILE, 0o600);
+  } catch {
+    // Some filesystems refuse it. The write still happened, and reporting a
+    // permission-mode failure as a save failure would be wrong.
+  }
+}
+
+/** What can be set here, and which of it already is. No values, ever. */
+app.get('/config/credentials', requireAdminAccess, (_req, res) => {
+  const inFile = credentialsInFile();
+  return res.status(200).json({
+    file: ENV_FILE,
+    fileExists: fs.existsSync(ENV_FILE),
+    credentials: [...CREDENTIAL_KEYS].map(([key, meta]) => ({
+      key,
+      provider: meta.provider,
+      label: meta.label,
+      // Two different ways of being set, kept apart. A key in this process's
+      // environment is live now; a key only in the file applies at the next
+      // start, and telling a person their provider is configured when it will
+      // not answer until a restart is the failure this route exists to avoid.
+      inEnvironment: Boolean((process.env[key] || '').trim()),
+      inFile: inFile.has(key),
+    })),
+  });
+});
+
+/** Save one. Allowlisted, never echoed back. */
+app.post('/config/credentials', requireAdminAccess, (req, res) => {
+  const key = String(req.body?.key ?? '').trim();
+  const value = String(req.body?.value ?? '').trim();
+
+  if (!isWritableCredential(key)) {
+    return res.status(400).json({
+      error: 'Not a credential this room sets',
+      message: `${key || '(empty)'} is not read by any provider ABSuite knows about, so writing it would put a name nobody uses into the environment of every service.`,
+    });
+  }
+  if (!value) {
+    return res.status(400).json({ error: 'No value given', message: 'Send the value to store. To remove one, edit the file directly.' });
+  }
+  // A newline would end this assignment and begin another, so one field could
+  // set any variable it liked — including the ones the allowlist exists to
+  // keep out. Rejected rather than stripped: a silently altered secret is a
+  // secret that will fail authentication for reasons nobody can see.
+  if (/[\r\n]/.test(value)) {
+    return res.status(400).json({
+      error: 'The value contains a line break',
+      message: 'A credential cannot span lines. Paste the key on its own, with no surrounding quotes or newlines.',
+    });
+  }
+
+  try {
+    writeCredential(key, value);
+  } catch (error) {
+    return res.status(500).json({
+      error: 'Could not write the file',
+      message: `${ENV_FILE}: ${(error as Error).message}`,
+    });
+  }
+
+  // This process picks it up now. The others do not, and the response says so
+  // rather than letting the interface imply otherwise.
+  process.env[key] = value;
+
+  return res.status(200).json({
+    saved: key,
+    file: ENV_FILE,
+    appliesAfterRestart: true,
+    message: `Written to ${ENV_FILE}. CapKit reads its environment at start, so restart the suite for this provider to answer.`,
+  });
 });
 
 app.get('/logs/:service', requireAdminAccess, (req, res) => {
