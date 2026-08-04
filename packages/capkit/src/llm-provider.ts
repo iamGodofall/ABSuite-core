@@ -27,7 +27,119 @@ interface ProviderDefinition {
   envKeys: string[];
 }
 
+/*
+ * Every provider a deployment might actually be using.
+ *
+ * This list held three entries: Anthropic, OpenAI and Ollama. Two American APIs
+ * and a local runner — and it was written by someone whose default sample of
+ * "the AI industry" is American, which is a description of the author rather
+ * than of the world.
+ *
+ * That is not a cosmetic gap in a governance product. A European buyer subject
+ * to the AI Act is often running Mistral. Deployments across Asia run Qwen,
+ * DeepSeek, Kimi and GLM. A tool that claims to record what your AI did, and
+ * recognises two vendors from one country, is not a governance tool for anyone
+ * outside that country — it is a governance tool for the market its author
+ * happened to picture.
+ *
+ * Most of these speak the OpenAI wire format, so the cost of including them is
+ * a name and an environment variable. The cost of omitting them was telling a
+ * whole hemisphere that their models were not real enough to appear in a list.
+ *
+ * `defaultModel` is a starting suggestion, never an approval: an approved model
+ * is a row somebody wrote in `approved_models`, and appearing here confers
+ * nothing. Aggregators are included because a deployment reaching Kimi through
+ * OpenRouter is still accountable for what Kimi did.
+ */
 const DEFINITIONS: ProviderDefinition[] = [
+  // ---- Local and self-hosted. Listed first: sovereignty is the default, not
+  // the fallback, and everything below can also be run this way.
+  {
+    name: 'ollama',
+    label: 'Ollama',
+    type: 'local',
+    defaultModel: 'llama3.2',
+    description: 'Local inference. Runs Llama, Qwen, DeepSeek, Mistral, Gemma and others on your own hardware.',
+    envKeys: ['OLLAMA_URL', 'QUICKBENCH_OLLAMA_URL'],
+  },
+  {
+    name: 'vllm',
+    label: 'vLLM',
+    type: 'local',
+    defaultModel: 'Qwen/Qwen2.5-7B-Instruct',
+    description: 'Self-hosted serving of any open-weights model, OpenAI-compatible.',
+    envKeys: ['VLLM_URL'],
+  },
+  {
+    name: 'llamacpp',
+    label: 'llama.cpp',
+    type: 'local',
+    defaultModel: 'gguf',
+    description: 'Self-hosted GGUF inference, OpenAI-compatible server.',
+    envKeys: ['LLAMACPP_URL'],
+  },
+
+  // ---- Asia
+  {
+    name: 'deepseek',
+    label: 'DeepSeek',
+    type: 'hosted',
+    defaultModel: 'deepseek-chat',
+    description: 'DeepSeek models. Open weights, and an OpenAI-compatible API.',
+    envKeys: ['DEEPSEEK_API_KEY'],
+  },
+  {
+    name: 'qwen',
+    label: 'Qwen (Alibaba)',
+    type: 'hosted',
+    defaultModel: 'qwen-max',
+    description: 'Qwen models via Alibaba Cloud DashScope.',
+    envKeys: ['QWEN_API_KEY', 'DASHSCOPE_API_KEY'],
+  },
+  {
+    name: 'moonshot',
+    label: 'Kimi (Moonshot AI)',
+    type: 'hosted',
+    defaultModel: 'kimi-k2',
+    description: 'Kimi models via the Moonshot API.',
+    envKeys: ['MOONSHOT_API_KEY', 'KIMI_API_KEY'],
+  },
+  {
+    name: 'zhipu',
+    label: 'GLM (Zhipu AI)',
+    type: 'hosted',
+    defaultModel: 'glm-4',
+    description: 'GLM models via Zhipu AI.',
+    envKeys: ['ZHIPU_API_KEY', 'GLM_API_KEY'],
+  },
+  {
+    name: 'minimax',
+    label: 'MiniMax',
+    type: 'hosted',
+    defaultModel: 'minimax-text',
+    description: 'MiniMax models.',
+    envKeys: ['MINIMAX_API_KEY'],
+  },
+
+  // ---- Europe
+  {
+    name: 'mistral',
+    label: 'Mistral',
+    type: 'hosted',
+    defaultModel: 'mistral-large-latest',
+    description: 'Mistral models, hosted in the EU. Several are open weights.',
+    envKeys: ['MISTRAL_API_KEY'],
+  },
+  {
+    name: 'aleph-alpha',
+    label: 'Aleph Alpha',
+    type: 'hosted',
+    defaultModel: 'luminous-supreme',
+    description: 'Aleph Alpha models, hosted in Germany.',
+    envKeys: ['ALEPH_ALPHA_API_KEY'],
+  },
+
+  // ---- North America
   {
     name: 'anthropic',
     label: 'Anthropic',
@@ -45,12 +157,82 @@ const DEFINITIONS: ProviderDefinition[] = [
     envKeys: ['OPENAI_API_KEY'],
   },
   {
-    name: 'ollama',
-    label: 'Ollama',
-    type: 'local',
-    defaultModel: 'llama3.2',
-    description: 'Sovereign local inference via Ollama.',
-    envKeys: ['OLLAMA_URL', 'QUICKBENCH_OLLAMA_URL'],
+    name: 'google',
+    label: 'Google',
+    type: 'hosted',
+    defaultModel: 'gemini-2.0-flash',
+    description: 'Gemini models via the Google AI API.',
+    envKeys: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+  },
+  {
+    name: 'cohere',
+    label: 'Cohere',
+    type: 'hosted',
+    defaultModel: 'command-r-plus',
+    description: 'Command models via Cohere, based in Canada.',
+    envKeys: ['COHERE_API_KEY'],
+  },
+
+  // ---- Aggregators and clouds. A model reached through a broker is still a
+  // model this deployment is accountable for.
+  {
+    name: 'openrouter',
+    label: 'OpenRouter',
+    type: 'hosted',
+    defaultModel: 'openrouter/auto',
+    description: 'One API over many providers, including most models listed here.',
+    envKeys: ['OPENROUTER_API_KEY'],
+  },
+  {
+    name: 'together',
+    label: 'Together AI',
+    type: 'hosted',
+    defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    description: 'Hosted open-weights models.',
+    envKeys: ['TOGETHER_API_KEY'],
+  },
+  {
+    name: 'groq',
+    label: 'Groq',
+    type: 'hosted',
+    defaultModel: 'llama-3.3-70b-versatile',
+    description: 'Low-latency serving of open-weights models.',
+    envKeys: ['GROQ_API_KEY'],
+  },
+  {
+    name: 'azure-openai',
+    label: 'Azure OpenAI',
+    type: 'hosted',
+    defaultModel: 'gpt-4o',
+    description: 'OpenAI models through an Azure tenancy, with its own residency terms.',
+    envKeys: ['AZURE_OPENAI_API_KEY'],
+  },
+  {
+    name: 'bedrock',
+    label: 'AWS Bedrock',
+    type: 'hosted',
+    defaultModel: 'anthropic.claude-sonnet-4-5',
+    description: 'Several vendors through one AWS region.',
+    envKeys: ['AWS_BEDROCK_REGION'],
+  },
+  {
+    name: 'vertex',
+    label: 'Google Vertex AI',
+    type: 'hosted',
+    defaultModel: 'gemini-2.0-flash',
+    description: 'Several vendors through one Google Cloud project.',
+    envKeys: ['GOOGLE_VERTEX_PROJECT'],
+  },
+
+  // ---- Anything else. The list above will always be behind the world; this is
+  // how a deployment names a provider nobody here has heard of yet.
+  {
+    name: 'custom',
+    label: 'Custom (OpenAI-compatible)',
+    type: 'hosted',
+    defaultModel: 'unspecified',
+    description: 'Any OpenAI-compatible endpoint. Set the base URL and a key.',
+    envKeys: ['CUSTOM_LLM_URL', 'CUSTOM_LLM_API_KEY'],
   },
 ];
 
