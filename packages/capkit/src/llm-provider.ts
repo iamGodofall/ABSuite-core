@@ -15,6 +15,23 @@ export interface ProviderOption {
   configured: boolean;
   defaultModel: string;
   description: string;
+  /**
+   * The environment variables that would configure this provider.
+   *
+   * The interface rendered `not configured` and stopped there — a state with no
+   * route out of it. A reader learned that something was missing and not what,
+   * where, or who sets it, which is the one thing they needed.
+   *
+   * This repository already had the answer twice over: `envKeys` existed on the
+   * server-side definition and was never sent, and the connector panel beside
+   * this one has carried `missing: string[]` all along. The fix existed; it had
+   * simply not reached here.
+   *
+   * Named for the constitutional rule it restores: a determination carries the
+   * step that would settle it. `UNKNOWN` without a next step is a dead end
+   * wearing the costume of a finding.
+   */
+  missing: string[];
 }
 
 interface ProviderDefinition {
@@ -243,6 +260,9 @@ export function describeProviders(env: NodeJS.ProcessEnv = process.env): {
   const providers = DEFINITIONS.map<ProviderOption>(definition => {
     const configured = definition.envKeys.some(key => Boolean((env[key] || '').trim()));
     return {
+      // Empty once configured: there is nothing outstanding to report, and a
+      // list of variables beside a working provider reads as a warning.
+      missing: configured ? [] : definition.envKeys,
       name: definition.name,
       label: definition.label,
       type: definition.type,
