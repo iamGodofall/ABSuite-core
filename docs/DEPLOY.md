@@ -46,7 +46,7 @@ strings. The sixth is not, and the difference matters:
 |---|---|
 | `CAPKIT_HMAC_SECRET` | Signs capability tokens. capkit **refuses to start** without it when `NODE_ENV=production`, so a container missing it never reaches a health check. |
 | `CAPKIT_ADMIN_KEY` | Mints the first token. Without it nothing can be recorded and every layer stays legitimately empty. |
-| `ABSUITE_ADMIN_API_KEY` | Reads the record. 45 routes sit behind it. Without it the instance answers `/status` and returns 503 to everything else — perfectly healthy, reporting `UNKNOWN` across the board. |
+| `ABSUITE_ADMIN_API_KEY` | Reads the record, and writes one. 46 routes sit behind it. Without it the instance answers `/status` and returns 503 to everything else — perfectly healthy, reporting `UNKNOWN` across the board. |
 | `ABSUITE_PUBLIC_PASSWORD` | The basic-auth gate. Required for any public address. |
 | `CAPKIT_TRACE_PRIVATE_KEY` | Ed25519, signs execution traces. **Keep it forever and back it up.** |
 | `CAPKIT_TRACE_KEY_ID` | Names the signing key in every trace. Not secret, and not optional if you ever rotate — defaults to `absuite-trace-key`. The script emits it; an earlier version of this table did not, so an operator copying six lines from the script found only five described here. |

@@ -33,17 +33,43 @@ function sources(dir) {
 const ui = sources(uiDir).map(f => readFileSync(f, 'utf8')).join('\n');
 const server = readFileSync(serverFile, 'utf8');
 
+/**
+ * The verb the call uses, read from the options object that follows the URL.
+ *
+ * Express registers a handler per method, so `app.get('/executions')` does not
+ * answer a POST to the same path — the request falls through to the SPA
+ * catch-all and returns index.html, which is the exact failure this file was
+ * written to catch. Matching on the path alone therefore passed the one case it
+ * most needed to fail: `POST /executions` existed in capkit, was called from
+ * the browser, and had no route on the dashboard server at all.
+ *
+ * The options object is read from the source that follows the URL literal,
+ * stopping at the next `fetch(` so one call's verb cannot be attributed to the
+ * next. A call whose options are held in a variable has no readable verb; those
+ * are treated as GET, which is what `fetch` itself defaults to.
+ */
+const verbOf = (text, index) => {
+  const window = text.slice(index, index + 600);
+  const nextCall = window.indexOf('fetch(', 6);
+  const scope = nextCall === -1 ? window : window.slice(0, nextCall);
+  const method = scope.match(/\bmethod\s*:\s*['"`](\w+)['"`]/);
+  return (method ? method[1] : 'GET').toUpperCase();
+};
+
 // Paths the client asks for. A `${...}` hole becomes one wildcard segment.
 const calls = new Map();
 for (const m of ui.matchAll(/fetch\(\s*[`'"]([^`'"]+)/g)) {
   const raw = m[1];
   if (!raw.startsWith('/')) continue;
   const path = raw.replace(/\$\{[^}]*\}/g, 'WILDCARD').split('?')[0].replace(/\/$/, '');
-  if (!calls.has(path)) calls.set(path, raw);
+  const verb = verbOf(ui, m.index);
+  const key = `${verb} ${path}`;
+  if (!calls.has(key)) calls.set(key, { verb, path, raw });
 }
 
-// Routes the server declares.
-const routes = [...server.matchAll(/app\.(get|post|put|patch|delete)\(\s*'([^']+)'/g)].map(m => m[2]);
+// Routes the server declares, each with the verb it answers.
+const routes = [...server.matchAll(/app\.(get|post|put|patch|delete)\(\s*'([^']+)'/g)]
+  .map(m => ({ verb: m[1].toUpperCase(), path: m[2] }));
 
 const matches = (call, route) => {
   const pattern = route
@@ -53,13 +79,19 @@ const matches = (call, route) => {
   return new RegExp(`^${pattern}$`).test(call);
 };
 
-const missing = [...calls].filter(([call]) => !routes.some(r => matches(call, r)));
+const missing = [...calls.values()].filter(
+  call => !routes.some(route => route.verb === call.verb && matches(call.path, route.path)),
+);
 
 console.log(`dashboard: ${calls.size} client calls, ${routes.length} server routes`);
 
 if (missing.length > 0) {
   console.error(`\n${missing.length} client call(s) have no matching server route:\n`);
-  for (const [, raw] of missing) console.error(`  x ${raw}`);
+  for (const call of missing) {
+    const samePath = routes.filter(route => matches(call.path, route.path)).map(route => route.verb);
+    const note = samePath.length > 0 ? ` (the server answers ${samePath.join(', ')} on this path, not ${call.verb})` : '';
+    console.error(`  x ${call.verb} ${call.raw}${note}`);
+  }
   console.error(
     '\nThe SPA catch-all serves index.html for these, so the client receives HTML' +
     '\nwhere it expects JSON and reports a parse error that blames the user.\n'
@@ -67,4 +99,4 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-console.log('every client call has a server route.');
+console.log('every client call has a server route, on the verb it uses.');

@@ -158,6 +158,94 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4q. The room could read the evidence chain and could not add to it
+
+A visitor to a fresh instance met a completely motionless scene: the core dim,
+the rings stopped, the particle field not drawn at all, and seven grey stations
+reporting nothing. Every part of that was correct. `SceneCube` stops the rings
+at exactly zero when the determination is `ABSENT`, because motion is evidence
+and nothing had happened.
+
+It is also indistinguishable from a dead product, and there was no way at all to
+tell the two apart from the screen you were looking at.
+
+It fooled the person who built it. Four rounds went into hunting a rendering bug
+in a scene that was reporting the truth perfectly; the answer was in the
+masthead the whole time, reading `EVIDENCE HELD 0`.
+
+### The half that was missing
+
+`POST /executions` has existed in capkit since the first commit. The dashboard
+server proxied **fourteen** execution routes and not that one, so the product's
+central act — *record what an agent did* — was reachable by `curl` and by
+nothing else. An evaluator could only start the thing by first reading the
+documentation for the thing they were evaluating.
+
+Its absence did not 404 either. The SPA catch-all answers `index.html`, so the
+first person to try it would have been told their JSON was malformed.
+
+`check:routes` was written to catch precisely that failure and did not, because
+it matched on **path** and Express registers a handler per **verb**: `app.get`
+does not answer a POST, and the check saw `/executions` on both sides and
+agreed. It now compares the verb as well, and reports the near miss by name —
+*the server answers GET on this path, not POST*. Confirmed by deleting the new
+route and watching it fail.
+
+### The rule the largest object on screen was exempt from
+
+Everywhere else, this system carries the step that would settle a
+determination — `UNKNOWN` without a next step is a dead end wearing the costume
+of a finding. The connector panel does it. The provider list does it, since §4j.
+The cube did not.
+
+`FirstRecord` is that step, on the core's own face, and it performs the act
+rather than describing it. What it records is not a fictional invoice —
+`seed-scenario.mjs` exists for that and is candid about it. It records the one
+event anyone can be certain occurred: an operator opened this room and asked it
+to record. Signed with the instance's own key, chained to the genesis hash,
+verifiable by the same routes as everything else. Every claim in it is true.
+
+The panel can only be seen by an instance holding nothing, and the only thing it
+does is end that condition. **Stillness with an explanation is evidence.
+Stillness without one is a bug report.**
+
+`check:doctrine-ui` gained a fifth rule so it cannot come back: the shell must
+mount something on an ABSENT determination, and that something must contain an
+action rather than a paragraph. Confirmed by deleting the mount and watching the
+build fail.
+
+### The second empty room, which was worse
+
+There are two ways to arrive at an unreadable room and only one of them had ever
+been considered. A browser holding no admin key gets 403 from every evidence
+route, so `integrity` falls to UNKNOWN and all seven stations go amber — the
+ordinary first minute of anyone's first install, drawn identically to an outage,
+with no field anywhere in the room to fix it. Settings held the only copy of
+that field, and Settings is reached through a command palette a newcomer does
+not know exists.
+
+The panel now distinguishes them, because *nobody has introduced themselves to
+this instance* and *the service holding the record is not answering* have
+different next steps. The key is **tried before it is stored** — a key saved and
+then silently rejected leaves somebody pressing a button that appears to do
+nothing, waiting on a poll that has no way to say *that key was wrong* rather
+than *still nothing*.
+
+### Two defects the screenshots found and the reasoning did not
+
+The confirmation was **unreachable code**. Recording flips the determination
+away from ABSENT, which is the condition the panel is mounted on, so the success
+message was written and unmounted in the same frame — a sentence that would have
+rendered for nobody, ever. And the panel's own headline reading stayed at `0`
+while the masthead four inches above it read `1`: the interface disagreeing with
+itself on screen.
+
+Neither was visible in the diff. Both were obvious in a screenshot. That is now
+three separate occasions in this repository where the browser knew and the
+reasoning did not.
+
+---
+
 ## 4p. The reference verifier crashed instead of reporting
 
 Three passes were spent on *"no Python 3 found"* appearing on a machine with

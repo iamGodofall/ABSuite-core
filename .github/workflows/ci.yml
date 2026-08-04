@@ -97,9 +97,11 @@ jobs:
       - name: Every perpetual motion is earned
         run: pnpm check:motion
 
-      # No sidebar, no scrolling-document shell, no cube nobody can steer, and
-      # state before explanation. Regression, not fabrication, is what turns a
-      # room back into a dashboard.
+      # No sidebar, no scrolling-document shell, no cube nobody can steer,
+      # state before explanation, and no unexplained stillness — an instance
+      # holding nothing renders a motionless room, which is honest and reads as
+      # a dead product unless something on screen says why. Regression, not
+      # fabrication, is what turns a room back into a dashboard.
       - name: The interaction model has not regressed
         run: pnpm check:doctrine-ui
 

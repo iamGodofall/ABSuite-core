@@ -1508,29 +1508,59 @@ export default function App() {
    */
   const [figures, setFigures] = useState<{ total: number; withoutScope: number; failures: number; subjects: number } | null>(null);
   const [queue, setQueue] = useState<{ total: number; breakdown: { label: string; count: number }[] } | null>(null);
+  /**
+   * Bumped when this tab writes something, so the instruments are re-read now
+   * rather than up to ten seconds from now.
+   *
+   * The poll below already re-runs on `liveExecutions.length`, which covers a
+   * record that arrives over the socket. A record this tab just wrote is the
+   * one case where waiting on the socket is waiting on a round trip we do not
+   * need — and it is the first thing a new operator ever does, so it is the
+   * worst place in the product for a delay that looks like nothing happening.
+   */
+  const [written, setWritten] = useState(0);
+  /**
+   * Why the evidence chain is unreadable, when it is.
+   *
+   * Every failure to read it collapsed into `integrity = UNKNOWN`, which is the
+   * correct determination and is not the whole answer. *Nobody has introduced
+   * themselves to this instance* and *the service holding the record is not
+   * answering* are different situations with different next steps, and the room
+   * drew them identically — seven amber stations and no route out of either.
+   *
+   * `refused` is the 401/403 case: the instance is up and this browser is not
+   * carrying its key. That is the ordinary first minute of anyone's first
+   * install, and it was indistinguishable from an outage.
+   */
+  const [evidenceAccess, setEvidenceAccess] = useState<'ok' | 'refused' | 'unreachable'>('unreachable');
   useEffect(() => {
     let active = true;
     const read = async () => {
       try {
         const res = await fetch('/executions/stats?windowHours=24', { headers: getAdminHeaders() });
         if (!active) return;
-        if (!res.ok) { setIntegrity('UNKNOWN'); return; }
+        if (!res.ok) {
+          setIntegrity('UNKNOWN');
+          setEvidenceAccess(res.status === 401 || res.status === 403 || res.status === 503 ? 'refused' : 'unreachable');
+          return;
+        }
         const data = (await res.json()) as {
           total: number; withoutScope: number; failures: number; subjects: number;
           chain: { valid: boolean; checkable?: boolean };
         };
+        setEvidenceAccess('ok');
         setFigures({ total: data.total, withoutScope: data.withoutScope ?? 0, failures: data.failures ?? 0, subjects: data.subjects ?? 0 });
         if (data.total === 0) setIntegrity('ABSENT');
         else if (data.chain?.checkable === false) setIntegrity('UNKNOWN');
         else setIntegrity(data.chain?.valid ? 'DEMONSTRATED' : 'FAILED');
       } catch {
-        if (active) { setIntegrity('UNKNOWN'); setFigures(null); }
+        if (active) { setIntegrity('UNKNOWN'); setFigures(null); setEvidenceAccess('unreachable'); }
       }
     };
     void read();
     const timer = window.setInterval(read, 10_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [liveExecutions.length]);
+  }, [liveExecutions.length, written]);
 
   /**
    * What the instruments read.
@@ -1748,6 +1778,10 @@ export default function App() {
         views={TAB_CONFIG.map(tab => ({ id: tab.id, label: tab.label, question: tab.question }))}
         witnessing={witnessing}
         live={{ executions: liveExecutions, arrivedIds }}
+        /* Writing needs the credential; reading the room does not. */
+        adminHeaders={getAdminHeaders()}
+        evidenceAccess={evidenceAccess}
+        onRoomChanged={() => setWritten(n => n + 1)}
         /*
          * The strongest claim this instance can presently defend.
          *

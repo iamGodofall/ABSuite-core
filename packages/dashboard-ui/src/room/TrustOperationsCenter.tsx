@@ -3,6 +3,7 @@ import React, { type ReactNode } from 'react';
 import { Scene } from './Scene';
 import { OrbitalNodes, type LayerReading } from './OrbitalNodes';
 import { CommandPalette } from './CommandPalette';
+import { FirstRecord } from './FirstRecord';
 import { TopBar, type Vital } from './TopBar';
 import { BottomBar } from './BottomBar';
 import { ChainSeal } from './ChainSeal';
@@ -147,7 +148,7 @@ function LayerSurface({ layer, reading, question, onClose, children }: {
 /** The ring, in the order the stations sit on it. Dragging walks this. */
 const ORBIT: TrustLayer[] = ['observe', 'verify', 'explain', 'govern', 'arbitrate', 'act', 'learn'];
 
-export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views, evidence, witnessing = false, live }: {
+export function TrustOperationsCenter({ readings, vitals, connected, version, surface, onLayerChange, onOpenRecord, views, evidence, witnessing = false, live, adminHeaders = {}, evidenceAccess = 'ok', onRoomChanged }: {
   /** Live readings per layer. Absent when the layer has nothing to report. */
   readings: Record<string, LayerReading | undefined>;
   /** The masthead's metric columns, each bound to what the instance holds. */
@@ -174,6 +175,17 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
   witnessing?: boolean;
   /** The live feed, so the room can draw a link at the moment it is sealed. */
   live?: { executions: import('../hooks/useSocket').LiveExecution[]; arrivedIds: Set<string> };
+  /** The admin credential this tab holds. Needed to write, never to read the room. */
+  adminHeaders?: HeadersInit;
+  /**
+   * Whether the evidence chain can be read from here, and if not, why.
+   *
+   * `refused` and `unreachable` both render UNKNOWN on every station. Only one
+   * of them has a next step the person at the keyboard can take.
+   */
+  evidenceAccess?: 'ok' | 'refused' | 'unreachable';
+  /** Something changed from inside the room — re-read the instruments. */
+  onRoomChanged?: () => void;
 }) {
   const [activeLayer, setActiveLayerState] = useState<TrustLayer>('overview');
   /** Entering a layer. Every route into a layer goes through this. */
@@ -181,6 +193,8 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
   const setActiveLayer = commit;
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isIdle, setIsIdle] = useState(false);
+  /** The empty-state panel has something left to say after the room fills. */
+  const [confirming, setConfirming] = useState(false);
 
   /*
    * Steering the core.
@@ -328,6 +342,27 @@ export function TrustOperationsCenter({ readings, vitals, connected, version, su
             reading already happened, and the record is not being changed by looking at it.
           </p>
         </div>
+      )}
+
+      {/*
+        * Nothing held, and the room saying so out loud.
+        *
+        * ABSENT is the one determination the cube expresses by doing nothing at
+        * all, which makes it the one determination a viewer cannot read. This
+        * puts the missing sentence on the core itself and hands over the step
+        * that ends it — and it is mounted here, outside the overlay, on purpose:
+        * the overlay fades to thirty percent after thirty idle seconds, and
+        * someone reading an explanation is exactly someone who is not moving
+        * their mouse.
+        */}
+      {activeLayer === 'overview' && !witnessing
+        && (evidenceAccess === 'refused' || evidence?.determination === 'ABSENT' || confirming) && (
+        <FirstRecord
+          mode={evidenceAccess === 'refused' ? 'unauthorised' : 'empty'}
+          headers={adminHeaders}
+          onChanged={() => onRoomChanged?.()}
+          onHoldOpen={setConfirming}
+        />
       )}
 
       {/*

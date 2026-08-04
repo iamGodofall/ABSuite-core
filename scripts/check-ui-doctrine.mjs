@@ -141,6 +141,57 @@ if (!stations) {
   }
 }
 
+// ── 5. assertStillnessIsExplained ───────────────────────────────────────────
+//
+// ABSENT is the one determination the room expresses by doing nothing: the
+// rings stop at exactly zero, the particle field is not drawn, and the seven
+// stations go grey. That is correct — motion is evidence, and nothing had
+// happened — and it is indistinguishable from a dead product to the only person
+// who matters, the one seeing it for the first time. It fooled the author of
+// this repository for four rounds.
+//
+// Stillness with an explanation is evidence. Stillness without one is a bug
+// report. So the shell must mount something when the determination is ABSENT,
+// and that something must offer an action rather than a sentence — the rule the
+// rest of this system already keeps is that a determination carries the step
+// that would settle it.
+
+const absentAt = code
+  .map(source => ({ source, index: source.text.indexOf("=== 'ABSENT'") }))
+  .filter(entry => entry.index !== -1);
+
+if (absentAt.length === 0) {
+  failures.push(
+    'Nothing in the shell reacts to an ABSENT determination. An instance holding no evidence renders a ' +
+    'motionless room with no explanation, which reads as a broken product rather than an honest one.',
+  );
+} else {
+  // The component mounted on that condition, read from the JSX that follows it.
+  const mounted = absentAt
+    .map(entry => entry.source.text.slice(entry.index, entry.index + 400).match(/<([A-Z]\w+)/))
+    .find(Boolean);
+
+  if (!mounted) {
+    failures.push(
+      'The shell tests for ABSENT but mounts nothing on it. The determination is checked and the room still ' +
+      'shows a viewer nothing but stillness.',
+    );
+  } else {
+    const name = mounted[1];
+    const panel = sources.find(source => source.file.endsWith(`${name}.tsx`));
+    if (!panel) {
+      failures.push(`The shell mounts <${name}> when nothing is held, and no file under src/room defines it.`);
+    } else if (!/<button/.test(strip(panel.text))) {
+      failures.push(
+        `<${name}> explains the empty room and offers no way out of it. A determination must carry the step ` +
+        'that would settle it; a paragraph is not a step.',
+      );
+    } else {
+      passes.push(`stillness is explained and actionable when nothing is held (${panel.file})`);
+    }
+  }
+}
+
 // ── Report ──────────────────────────────────────────────────────────────────
 
 for (const line of passes) console.log(`✓ ${line}`);

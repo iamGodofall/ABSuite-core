@@ -487,6 +487,41 @@ app.get('/executions', requireAdminAccess, async (req, res) => {
   }
 });
 
+/**
+ * Recording one.
+ *
+ * The room could read the evidence chain from the first day and could not add
+ * to it. Every route into this product's core act — *record what an agent did*
+ * — was a curl command, so an evaluator who opened the interface met a
+ * completely still room, seven grey stations and no way at all to make anything
+ * happen from the screen they were looking at. The honest reading (nothing has
+ * been recorded) was indistinguishable from the damning one (this does not
+ * work), and nothing on the page could tell them which they were seeing.
+ *
+ * capkit has had `POST /executions` since the beginning. This is the half that
+ * was missing, and its absence did not 404 — the SPA catch-all answered with
+ * index.html, so the first thing anyone tried would have failed with a JSON
+ * parse error blaming their input.
+ *
+ * Admin-guarded like every other write here: what goes in is signed and chained
+ * and can never be removed, so it is not something an anonymous caller does.
+ */
+app.post('/executions', requireAdminAccess, async (req, res) => {
+  try {
+    const { response, data } = await fetchJson(`${SERVICE_BASE_URLS.capkit}/executions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(capkitAdminKey ? { 'X-ABSuite-Admin-Key': capkitAdminKey } : {}),
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    return res.status(response.status).json(data);
+  } catch {
+    return res.status(502).json({ error: 'CapKit is unreachable' });
+  }
+});
+
 /** Aggregate counts plus a live chain verification — the global view. */
 app.get('/executions/stats', requireAdminAccess, async (req, res) => {
   try {

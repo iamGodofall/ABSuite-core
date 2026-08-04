@@ -663,7 +663,12 @@ services and shows UNKNOWN for anything it cannot reach, and never substitutes a
 figure for a gap.
 
 A fresh instance has recorded nothing, so it honestly reports ABSENT everywhere
-— which is correct and tells you very little. To see it with a day's work in it:
+— which is correct and tells you very little. The room now says so on the core
+itself and offers the way out of it: **Record the first execution** writes one
+real signed record — an operator opened this room and asked it to record — and
+the rings begin to turn. The panel exists only while the instance is empty.
+
+To see it with a day's work in it:
 
 ```bash
 pnpm seed
