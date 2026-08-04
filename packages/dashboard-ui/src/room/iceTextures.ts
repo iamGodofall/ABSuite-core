@@ -352,12 +352,42 @@ export function createRadianceMap(): THREE.CanvasTexture {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, size, size);
 
+  /*
+   * A halo around the body, not a disc over it.
+   *
+   * This used to peak at full white in the very centre, which was right when
+   * the billboard *was* the core. It is wrong now that there is a body inside
+   * it: the plane passes through the sphere's centre, the sphere's silhouette
+   * covers exactly the inner third of it, and a white centre paints over the
+   * one part of the core that has any shape — the terminator, the rim and the
+   * key highlight, all of it, behind a flat wash. The unlit core reads as a
+   * physical object and the lit one reads as a smear, and the difference was
+   * never the geometry. They are the same mesh.
+   *
+   * So the centre is dark and the peak sits at 0.33 — the body's own edge —
+   * with the long shoulder outward. That is what bloom does around a bright
+   * object: it hugs the silhouette and falls away. The dark middle is never
+   * seen, because the body is in front of it.
+   */
   const gradient = ctx.createRadialGradient(c, c, 0, c, c, c);
-  gradient.addColorStop(0.0, 'rgba(255,255,255,1)');
-  gradient.addColorStop(0.12, 'rgba(255,255,255,0.92)');
-  // The long shoulder is what reads as radiance. A short one reads as a ball.
-  gradient.addColorStop(0.34, 'rgba(255,255,255,0.34)');
-  gradient.addColorStop(0.62, 'rgba(255,255,255,0.08)');
+  /*
+   * Dimmed out to 0.33 — the body's silhouette — then peaking just past it.
+   *
+   * A halo that peaks *on* the edge blurs the edge, and the object goes back to
+   * being a smudge. The bloom has to be quietest where the body is, so the
+   * silhouette is read against something darker than itself.
+   *
+   * Dimmed, not black. A hole in the middle of a glow is visible as a hole on
+   * the machines that do not render glass, where the body is smaller on screen
+   * and the additive shells sit over it: the core read as a target, with a dark
+   * ring inside a bright one. 0.18 is low enough to leave the edge its contrast
+   * and high enough that there is nothing to notice.
+   */
+  gradient.addColorStop(0.0, 'rgba(255,255,255,0.18)');
+  gradient.addColorStop(0.30, 'rgba(255,255,255,0.20)');
+  gradient.addColorStop(0.36, 'rgba(255,255,255,0.60)');
+  gradient.addColorStop(0.50, 'rgba(255,255,255,0.28)');
+  gradient.addColorStop(0.72, 'rgba(255,255,255,0.07)');
   gradient.addColorStop(1.0, 'rgba(255,255,255,0)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);

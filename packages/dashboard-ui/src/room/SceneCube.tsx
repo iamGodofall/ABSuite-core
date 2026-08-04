@@ -178,6 +178,74 @@ export function SceneCube({ activeLayer, isIdle, witnessing = false, connected =
   const core = EVIDENCE_CORE[determination];
   const coreColor = useMemo(() => new THREE.Color(core.hex), [core.hex]);
 
+  /**
+   * How bright the core's own surface is, which is not how much light it throws.
+   *
+   * `core.intensity` was doing both jobs, and at ABSENT that is harmless — the
+   * ember is 0.35 over a near-black colour, so the two directional lights in
+   * Scene.tsx sculpt the body and you get the thing this room does best: a dark
+   * stone with a terminator, a cold rim and one highlight. It reads as an
+   * object because it is being lit like one.
+   *
+   * At DEMONSTRATED the same number is 9, and `toneMapped` is off. The green
+   * channel of #00F58C is 0.961, so anything above 1.04 clips it — at 9 every
+   * facet of the icosahedron resolves to the identical pixel. The shading is
+   * not dim, it is *gone*: same mesh, same lights, no surface left to see. The
+   * lit core stopped being a body and became a flat lozenge, and no amount of
+   * work on the geometry could have fixed it.
+   *
+   * Real sources do not do this. A filament, a coal, a bulb all keep their form
+   * while throwing light, because the light they emit and the brightness of
+   * their own surface are two different quantities. Here they had been one.
+   *
+   * So the lamps and the halo keep `core.intensity` — that is radiance, and it
+   * should scale freely. The body gets whatever is left below the clipping
+   * point of its own brightest channel, so there is always a gradient across
+   * it. ABSENT is arithmetically untouched: 0.35 is far under its ceiling, so
+   * the pebble is exactly the pebble.
+   */
+  const bodyEmissive = useMemo(() => {
+    const peak = Math.max(coreColor.r, coreColor.g, coreColor.b);
+    /*
+     * Well under 1, and this is the number that decides whether there is a
+     * terminator at all.
+     *
+     * Emissive is uniform across a surface by definition — it does not know
+     * where the lights are, so it cannot round anything. Every unit of it is a
+     * unit of flat. What rounds the pebble is the key and rim in Scene.tsx
+     * landing on a diffuse surface, and emissive competes with that: once it
+     * dominates, the lit side and the dark side arrive at the same value and
+     * the sphere is a disc.
+     *
+     * So this is deliberately dim. It is here to say *this thing is glowing*,
+     * and the brightness proper comes from the halo, the shells and the lamps —
+     * the parts that are allowed to be flat because they are not the object.
+     */
+    const CEILING = 0.45;
+    return peak > 0 ? Math.min(core.intensity, CEILING / peak) : 0;
+  }, [coreColor, core.intensity]);
+
+  /**
+   * The stone's own colour, which is what the light actually plays on.
+   *
+   * At rest this is the near-black pebble and nothing here changes it: at
+   * ABSENT the ratio below is 0.039, so the lerp barely moves and the body is
+   * the same stone it has always been.
+   *
+   * As the claim strengthens the surface itself takes the colour, and that —
+   * not the emissive — is where a lit core gets its roundness. A near-black
+   * diffuse has almost nothing for a key light to return, so the only way the
+   * old core could be bright was to emit, and emitting is the one thing that
+   * cannot be shaped. Giving the surface something to reflect lets the same two
+   * lights that sculpt the pebble sculpt the lit core, which is the whole of
+   * what was asked for: the same body, hot.
+   */
+  const bodyColor = useMemo(() => {
+    const stone = new THREE.Color('#04180F');
+    const heat = Math.min(1, core.intensity / 9);
+    return stone.lerp(coreColor.clone().multiplyScalar(0.55), heat * 0.85);
+  }, [coreColor, core.intensity]);
+
   /*
    * The radiance, as something the glass can actually see.
    *
@@ -780,15 +848,39 @@ const GLASS_GLOW = (opacity: number) =>
                   />
                 </mesh>
 
+                {/*
+                  * The body. The same one in every state, which is the point.
+                  *
+                  * Physical rather than standard, for the clearcoat: one crisp
+                  * specular from the key light is the single strongest cue that
+                  * a thing is a thing. It is what makes the unlit core read as
+                  * a wet stone rather than a dark circle, and the lit core had
+                  * never been allowed to have it — a clipped surface cannot
+                  * carry a highlight, because it is already at maximum
+                  * everywhere.
+                  */}
+                {/*
+                  * Detail 3, not 1.
+                  *
+                  * Eighty faces is invisible while the body is nearly black —
+                  * which is why the unlit pebble has always looked smooth — and
+                  * very visible once it has a specular to carry. The highlight
+                  * jumped from facet to facet as the core turned, so the one
+                  * cue that says "solid object" was the cue that flickered.
+                  * Smooth normals let it slide across the surface instead, and
+                  * 1,280 triangles is nothing next to the ice around it.
+                  */}
                 <mesh>
-                  <icosahedronGeometry args={[0.19, 1]} />
-                  <meshStandardMaterial
-                    color={'#04180F'}
+                  <icosahedronGeometry args={[0.19, 3]} />
+                  <meshPhysicalMaterial
+                    color={bodyColor}
                     emissive={coreColor}
-                    emissiveIntensity={core.intensity}
+                    emissiveIntensity={bodyEmissive}
                     toneMapped={false}
-                    roughness={0.35}
+                    roughness={0.32}
                     metalness={0}
+                    clearcoat={1}
+                    clearcoatRoughness={0.16}
                   />
                 </mesh>
 
