@@ -243,9 +243,18 @@ const GLASS_GLOW = (opacity: number) =>
     hex: THREE.ColorRepresentation,
     opacity: number,
     extra: Record<string, unknown> = {},
-  ) => (glass
-    ? { color: new THREE.Color(hex).multiplyScalar(GLASS_GLOW(opacity)), toneMapped: false, depthWrite: false, ...extra }
-    : { color: hex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, ...extra });
+  ) => ({
+    color: hex,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    // The scene fogs to pure black from 5 units out. These rings orbit at 3.5
+    // to 9, and additive light crushed toward black is nothing at all — the
+    // outer rings were being faded out of existence by distance.
+    fog: false,
+    ...extra,
+  });
   const radianceRef = useRef<THREE.Mesh>(null);
   const cubeRef = useRef<THREE.Group>(null);
   const innerCubeRef = useRef<THREE.Mesh>(null);
@@ -893,7 +902,7 @@ const GLASS_GLOW = (opacity: number) =>
 
       {/* Orbital Rings */}
       {activeLayer !== 'explain' && activeLayer !== 'govern' && (
-        <group ref={ringsRef}>
+        <group ref={ringsRef} renderOrder={20}>
           {[3.5, 4.5, 6, 7.5].map((radius, i) => (
             <group key={i}>
               {/* A tube, not a flat annulus. A ring with thickness catches
@@ -925,7 +934,7 @@ const GLASS_GLOW = (opacity: number) =>
       )}
 
       {/* Orbiting Particles */}
-      <points ref={particlesRef}>
+      <points ref={particlesRef} renderOrder={20}>
         <bufferGeometry>
           <bufferAttribute
             attach="attributes-position"
@@ -942,15 +951,17 @@ const GLASS_GLOW = (opacity: number) =>
           // With glass the falloff has to live in RGB, so the opaque sprite is
           // used as a colour map with no alphaMap at all. Handing an alpha
           // falloff to an opaque material is what made the field vanish.
-          map={glass ? opaqueSprite : (sprite ?? undefined)}
-          alphaMap={glass ? undefined : (sprite ?? undefined)}
+          map={sprite ?? undefined}
+          alphaMap={sprite ?? undefined}
           vertexColors
-          transparent={!glass}
+          transparent
           opacity={0.85}
           sizeAttenuation
-          blending={glass ? THREE.NormalBlending : THREE.AdditiveBlending}
+          blending={THREE.AdditiveBlending}
           depthWrite={false}
           toneMapped={false}
+          // Same reason as the rings: the field spans the fogged range.
+          fog={false}
         />
       </points>
       
