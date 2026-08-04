@@ -243,7 +243,21 @@ export function SceneCube({ activeLayer, isIdle, witnessing = false, connected =
   const bodyColor = useMemo(() => {
     const stone = new THREE.Color('#04180F');
     const heat = Math.min(1, core.intensity / 9);
-    return stone.lerp(coreColor.clone().multiplyScalar(0.55), heat * 0.85);
+    /*
+     * A tint, not a repaint.
+     *
+     * The first version lerped 85% of the way to a bright green and the stone
+     * stopped being a stone — it became a green ball with a highlight on it.
+     * That is the wrong order: the light belongs *inside*, and the surface
+     * should only take a trace of it, the way a dark pebble held over a flame
+     * goes warm at the edges without becoming the flame.
+     *
+     * So the surface stays close to the stone and is tinted a third of the way
+     * at most, toward a darker sample of the core's colour rather than the full
+     * value. The emissive underneath and the halo around it are what carry the
+     * light; this is only what the light does to the skin of the thing.
+     */
+    return stone.lerp(coreColor.clone().multiplyScalar(0.38), heat * 0.32);
   }, [coreColor, core.intensity]);
 
   /*

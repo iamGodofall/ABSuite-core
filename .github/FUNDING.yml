@@ -3,4 +3,34 @@
 # Free, and the only way a reader who finds this useful can act on that. Without
 # it the answer to "how do I support this?" is silence, which readers correctly
 # interpret as "you cannot".
+#
+# ---------------------------------------------------------------------------
+# READ THIS BEFORE ASSUMING THE BUTTON WORKS.
+#
+# `github:` below does nothing on its own. It renders a Sponsor button pointing
+# at a GitHub Sponsors profile, and that profile does not exist until it has
+# been created and approved at:
+#
+#     https://github.com/sponsors/iamGodofall
+#
+# It requires identity verification and a payout account, and approval is not
+# instant. Until then the button is either absent or leads to a dead page —
+# which is worse than no button, because a reader who tries once and finds
+# nothing does not try twice.
+#
+# `custom:` is the escape hatch and works the moment it is pushed. It takes up
+# to four URLs and GitHub does not check what is behind them, so any payment
+# link belongs there: Ko-fi, Buy Me a Coffee, PayPal.me, Liberapay, a Stripe
+# payment link, an invoice page.
+#
+# Keep one live even after Sponsors is approved. A sponsor tier is a monthly
+# subscription and a one-off payment is a different decision entirely — a reader
+# willing to send something once should not be asked to commit forever in order
+# to do it, and most of them will simply close the tab instead.
+#
+# To enable: uncomment the line, put a real URL in, push. Nothing else changes.
+# ---------------------------------------------------------------------------
+
 github: [iamGodofall]
+
+# custom: ['https://ko-fi.com/YOUR-HANDLE', 'https://paypal.me/YOUR-HANDLE']
