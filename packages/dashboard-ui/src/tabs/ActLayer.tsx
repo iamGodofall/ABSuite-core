@@ -215,6 +215,28 @@ export const ActLayer = () => {
           connector is listed rather than hidden — knowing what you cannot reach is part of knowing what
           you can.
         </p>
+        {/*
+          * "How do I configure them?" — asked while looking straight at the answer.
+          *
+          * Each card already named the variables it needed, in ten-pixel amber,
+          * which is information present and not delivered. What no card said was
+          * where to put them, so the panel says it once, here.
+          *
+          * Deliberately not a form. This dashboard holds no secrets, and a text
+          * box that accepted a GitHub token would make it a secret store: it
+          * would need encryption at rest, and the admin key would become worth
+          * stealing for what it unlocks rather than what it reads. For an audit
+          * product that is a materially worse posture and a harder story to tell
+          * a buyer. Naming the variable and where it goes is most of the
+          * convenience at none of the custody.
+          */}
+        <p className="text-xs text-text-muted mb-3">
+          <span className="text-text-primary">To configure one:</span> add its variable to
+          <code className="mx-1 text-text-primary">.env</code> beside
+          <code className="mx-1 text-text-primary">docker-compose.yml</code>, then
+          <code className="mx-1 text-text-primary">docker compose up -d</code>. Credentials are read
+          from the environment and never stored here — this interface deliberately holds no secrets.
+        </p>
 
         {!connectors ? (
           <p className="text-sm text-text-muted">
@@ -239,9 +261,16 @@ export const ActLayer = () => {
                 </div>
                 <p className="text-[11px] text-text-muted mt-1 leading-snug">{connector.description}</p>
                 {!connector.configured && connector.missing.length > 0 && (
-                  <p className="text-[10px] font-mono text-amber-400/80 mt-1.5">
-                    needs {connector.missing.join(', ')}
-                  </p>
+                  <div className="mt-2 rounded border border-amber-400/25 bg-amber-400/[0.06] px-2 py-1.5">
+                    <div className="text-[10px] uppercase tracking-wider text-amber-400/70 mb-0.5">
+                      Set in .env
+                    </div>
+                    {connector.missing.map(key => (
+                      <div key={key} className="text-[11px] font-mono text-amber-300 leading-snug break-all">
+                        {key.startsWith('one of:') ? key : `${key}=`}
+                      </div>
+                    ))}
+                  </div>
                 )}
                 {connector.actions.length > 0 && (
                   <p className="text-[10px] font-mono text-text-muted/50 mt-1.5">
