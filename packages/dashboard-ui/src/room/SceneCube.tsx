@@ -192,6 +192,33 @@ export function SceneCube({ activeLayer, isIdle, witnessing = false, connected =
    * in its blending. Black at the rim, so against the room's ground its square
    * edge is invisible, and opaque, so the glass transmits it.
    */
+/**
+ * How bright an opaque ring has to be to read as the additive one did.
+ *
+ * The first attempt multiplied the colour by its old opacity and called that
+ * equivalent. It is not, and the difference is the whole bug: additive blending
+ * **adds** to what is behind it, so a ring at 0.1 on a near-black ground still
+ * lifts those pixels visibly. An opaque object **replaces** what is behind it,
+ * so the same 0.1 paints a near-black solid onto a near-black background and
+ * disappears. Entering the transmission buffer and then being invisible inside
+ * it is not an improvement over never entering it.
+ *
+ * Refraction costs more on top: the shell's roughness blurs and dims whatever
+ * it transmits, so matching the old value exactly would still land short.
+ *
+ * The floor is the fix. Even the faintest ring keeps enough luminance to read
+ * through glass, and the ordering between rings is preserved so the field still
+ * has depth rather than becoming one flat brightness.
+ *
+ * These two numbers are the ones to turn if it reads wrong on real hardware —
+ * which is the only place it can be judged. Lower FLOOR if the rings shout,
+ * raise it if they vanish.
+ */
+const GLASS_GLOW_FLOOR = 0.42;
+const GLASS_GLOW_RANGE = 0.58;
+const GLASS_GLOW = (opacity: number) =>
+  GLASS_GLOW_FLOOR + Math.min(1, Math.max(0, opacity)) * GLASS_GLOW_RANGE;
+
   const radiance = useMemo(() => createRadianceMap(), []);
   const opaqueSprite = useMemo(() => createOpaquePointSprite(), []);
 
@@ -217,7 +244,7 @@ export function SceneCube({ activeLayer, isIdle, witnessing = false, connected =
     opacity: number,
     extra: Record<string, unknown> = {},
   ) => (glass
-    ? { color: new THREE.Color(hex).multiplyScalar(opacity), toneMapped: false, depthWrite: false, ...extra }
+    ? { color: new THREE.Color(hex).multiplyScalar(GLASS_GLOW(opacity)), toneMapped: false, depthWrite: false, ...extra }
     : { color: hex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, ...extra });
   const radianceRef = useRef<THREE.Mesh>(null);
   const cubeRef = useRef<THREE.Group>(null);
