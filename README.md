@@ -722,6 +722,37 @@ served the version without it.
 
 ---
 
+## Work with me
+
+I built this, and I take engagements on it.
+
+**AI governance audit.** I instrument your existing agent deployment with
+ABSuite and deliver a signed record of what your agents actually did over an
+agreed window. Most audits end in a PDF of opinions. This one ends in a
+hash-chained artifact **you** keep, can re-verify yourself with a public key,
+and can hand to your own auditor without trusting either of us. Fixed fee per
+engagement.
+
+**Deployment and integration.** Getting the suite running against your stack —
+your models, your providers, your compliance boundary — including providers this
+list does not name yet.
+
+**The compliance narrative.** Mapping what you already do onto the EU AI Act
+(Articles 12, 13, 14, 19, 26 and 72), ISO/IEC 42001, SOC 2 and the NIST AI RMF —
+including, in writing, where the evidence does not reach. See
+[COMPLIANCE.md](docs/COMPLIANCE.md), which states the gaps before a buyer finds
+them.
+
+The case for hiring me is this repository. [AUDIT.md](docs/AUDIT.md) is a running
+record of this project's own defects — forty-seven numbered sections, including
+the ones I got wrong first and the fixes that were themselves wrong. If you want
+to know how someone works before you pay them, that file will tell you more than
+any CV.
+
+**→ Open an issue, or reach me through [my GitHub profile](https://github.com/iamGodofall).**
+
+---
+
 ## Contributing
 
 Open an issue before writing anything beyond a small fix — it avoids duplicate
