@@ -42,10 +42,34 @@ ENV NODE_ENV=production
 # No corepack here. The runtime image runs no package manager — see CMD.
 RUN apk add --no-cache docker-cli docker-compose
 
+# The workspace layout, exactly as the builder produced it — the same shape
+# every sibling image uses, and for the reason capkit's Dockerfile already
+# states: pnpm does not put real packages in a project's node_modules, it puts
+# symlinks into the root `.pnpm` store. Those links are relative, so both ends
+# have to be copied or they dangle.
+#
+# This image used to flatten the package instead: dashboard-ui's package.json,
+# dist and server.ts were copied to `/app`, beside the *root* node_modules.
+# `express` is dashboard-ui's dependency, not the root's, so it lived at
+# `packages/dashboard-ui/node_modules/express` — a directory that was never
+# copied — and the container died on every start with:
+#
+#     Error: Cannot find module 'express'
+#     Require stack: - /app/server.ts
+#
+# capkit hit this and was fixed. The dashboard was the one image that flattened,
+# so the fix never reached it, and CI never said so — its health loop waits on
+# capkit, edge-run, quickbench, connector-starter and trust, and not on the
+# dashboard. The one service the gate omitted is the one that was broken.
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/dashboard-ui/package.json ./package.json
-COPY --from=builder /app/packages/dashboard-ui/dist ./dist
-COPY --from=builder /app/packages/dashboard-ui/server.ts ./server.ts
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder /app/packages/capkit ./packages/capkit
+COPY --from=builder /app/packages/dashboard-ui ./packages/dashboard-ui
+
+# `express.static('dist')` resolves against the working directory, so this must
+# be the package root rather than /app.
+WORKDIR /app/packages/dashboard-ui
 
 EXPOSE 3001
 

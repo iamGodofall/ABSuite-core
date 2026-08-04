@@ -180,7 +180,18 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up -d
 
-          for service in capkit edge-run quickbench connector-starter trust; do
+          # The list is read from docker-compose.yml rather than typed here.
+          #
+          # It was typed, and it omitted `dashboard`. That image crash-looped on
+          # every start for want of a module it could not resolve, and this step
+          # reported the suite healthy anyway — because the one service it did
+          # not wait on was the one that was broken. A hand-written list of what
+          # to check is a list that will eventually disagree with what exists.
+          services=$(docker compose -f docker-compose.yml config --services \
+            | grep -v '^absuite-db$')
+          echo "Waiting on: $services"
+
+          for service in $services; do
             echo "Waiting for $service..."
             for attempt in $(seq 1 30); do
               # Match "(healthy)" with the bracket, not the bare word:

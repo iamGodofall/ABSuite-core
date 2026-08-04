@@ -412,6 +412,44 @@ if (published.length > 0 && !failures.some(f => /publishes `absuite-/.test(f))) 
   passes.push(`${published.length} image(s) tagged :latest, each named in a document that says how to run it`);
 }
 
+/* ── §8 The health gate waits on everything that exists ────────────────────
+ *
+ * CI's container smoke test looped over a list typed into the workflow:
+ *
+ *     for service in capkit edge-run quickbench connector-starter trust; do
+ *
+ * `dashboard` was not in it. That image crash-looped on every start — it could
+ * not resolve `express`, because it flattened the pnpm workspace layout and the
+ * symlinks dangled — and this step reported the suite healthy through all of it.
+ * **The one service the gate omitted was the one that was broken**, and it
+ * stayed broken across every green build until somebody ran compose by hand.
+ *
+ * A hand-written list of what to check will eventually disagree with what
+ * exists, and the disagreement is silent by construction: nothing fails when a
+ * service is missing from a list of things to wait for. The workflow enumerates
+ * from `docker compose config --services` now, and this holds it there.
+ */
+const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
+const healthStep = ciWorkflow.slice(ciWorkflow.indexOf('Start the suite and wait for health'));
+
+if (!healthStep) {
+  failures.push('ci.yml has no "Start the suite and wait for health" step to check.');
+} else if (!/config\s+--services/.test(healthStep)) {
+  failures.push(
+    'The CI health step does not enumerate services from docker-compose.yml.\n' +
+      '      A typed list omitted `dashboard`, whose image crash-looped on every start\n' +
+      '      while this step reported the suite healthy. Use\n' +
+      '      `docker compose config --services` so the list cannot fall behind.',
+  );
+} else if (/for\s+service\s+in\s+[a-z]/.test(healthStep)) {
+  failures.push(
+    'The CI health step still loops over a literal service list.\n' +
+      '      Loop over the variable filled from `docker compose config --services`.',
+  );
+} else {
+  passes.push(`the CI health step waits on every service docker-compose.yml defines (${SERVICES.length})`);
+}
+
 /* ── Report ───────────────────────────────────────────────────────────────── */
 
 for (const line of passes) console.log(`✓ ${line}`);
