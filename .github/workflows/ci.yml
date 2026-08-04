@@ -118,6 +118,12 @@ jobs:
       - name: The deployment manifests can deploy
         run: pnpm check:deploy
 
+      # The hiring page makes claims about this body of work, and every figure
+      # on it is read from the repository when it is generated. A page selling
+      # honesty is the worst possible place for a number nobody measured.
+      - name: The hiring page matches the repository
+        run: pnpm check:hire
+
       # A class name that generates no CSS. Three have shipped: five undefined
       # keyframes, a class split across concatenated literals, and an opacity
       # step outside the scale. Each rendered valid DOM and did nothing, and

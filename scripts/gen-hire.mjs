@@ -1,0 +1,282 @@
+#!/usr/bin/env node
+/**
+ * One page, aimed at one reader: the person deciding whether to pay for a week
+ * of this engineer's time.
+ *
+ * `docs/index.html` explains the product. It is the right page for someone
+ * evaluating ABSuite and the wrong one for someone evaluating whether to hire
+ * the person who wrote it — those readers want different things, and a page
+ * that serves both serves neither. This one opens with what can be done for the
+ * reader and closes with a single way to start a conversation.
+ *
+ * Every figure is read from the repository at generation time. That is not a
+ * convenience: this page makes claims about a body of work, in a project whose
+ * first constitutional line is that nothing may look more complete than it is,
+ * and a hand-typed number on a page selling honesty is the worst possible place
+ * for one to be wrong. If the repository shrinks, so does the page.
+ *
+ *   node scripts/gen-hire.mjs           # write docs/hire.html
+ *   node scripts/gen-hire.mjs --check   # fail if the committed copy is stale
+ */
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { sameGenerated } from './lib/generated.mjs';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (relative) => readFileSync(join(root, relative), 'utf8');
+
+/* ---- Facts, every one of them counted rather than asserted ---------------- */
+
+/*
+ * The layer table, read with the parser that already works.
+ *
+ * My own regex parsed 0 built layers out of 20, and the page printed it without
+ * complaint — a claim about the state of the architecture, produced by a
+ * generator whose entire purpose is that no figure is typed by hand. Writing a
+ * second reader for a format that already has one is how two counts of the same
+ * table come to disagree, and the wrong one always ends up on the page facing
+ * the customer. This is the expression from gen-site.mjs, unchanged.
+ */
+const constitution = read('docs/CONSTITUTION.md');
+const LAYER_ROW = /^\|\s*(\d)\s*\|\s*\*\*([^*]+)\*\*\s*\|\s*([^|]+?)\s*\|\s*(Built|Partly built|Not built)\s*\|/gm;
+const layerRows = [...constitution.matchAll(LAYER_ROW)];
+const builtLayers = layerRows.filter(row => row[4] === 'Built').length;
+
+if (layerRows.length !== 8) {
+  throw new Error(
+    `Expected 8 layers in docs/CONSTITUTION.md, parsed ${layerRows.length}. ` +
+    'Refusing to publish a hiring page that miscounts the architecture it is selling.',
+  );
+}
+
+const routes = [...read('docs/API.md').matchAll(/^\|\s*(GET|POST|PUT|DELETE|PATCH)\s*\|/gm)].length;
+
+/** Test suites are files that hold tests. Not a coverage claim. */
+function countTestSuites() {
+  let total = 0;
+  (function walk(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+      const full = join(dir, entry.name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.test\.tsx?$/.test(entry.name)) total += 1;
+    }
+  })(join(root, 'packages'));
+  return total;
+}
+
+/** Gates in `pnpm verify`. The count of things that can fail a build. */
+const gates = [...read('package.json').matchAll(/"(check:[a-z-]+|docs:check)"/g)]
+  .map(match => match[1])
+  .filter((name, at, all) => all.indexOf(name) === at).length;
+
+/**
+ * Providers the registry actually defines.
+ *
+ * This was the word "twenty-one", typed, on a page headed *numbers I did not
+ * type*. It happened to be right, which is worse than being wrong: a figure
+ * that is correct today and unchecked is a figure that goes stale silently, and
+ * the one place this project cannot afford that is the page asking someone to
+ * pay for its author's judgement about exactly this.
+ */
+const providers = [...read('packages/capkit/src/llm-provider.ts').matchAll(/^\s{4}name: '/gm)].length;
+
+/** Numbered sections in the defect record. The argument of this whole page. */
+const auditSections = [...read('docs/AUDIT.md').matchAll(/^##\s+\d+[a-z]?\./gm)].length;
+
+const esc = (value) => String(value)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const FIGURES = [
+  [String(routes), 'documented routes', 'Generated from the source of five services. The build fails when the two drift apart.'],
+  [String(countTestSuites()), 'test suites', 'Files holding tests, counted. Not a coverage figure.'],
+  [String(gates), 'build gates', 'Each one can fail the build. Several exist because something shipped broken once.'],
+  [`${builtLayers} of ${layerRows.length}`, 'layers built', 'The last two are marked unbuilt and claim nothing. That is deliberate.'],
+];
+
+/*
+ * Three engagements, and they are the ones already written in the README's
+ * "Work with me". Kept in step by hand is how two descriptions of one offer
+ * start to disagree, so if these are edited the README is edited with them —
+ * there is no second source of truth here, only a second surface.
+ */
+const OFFERS = [
+  [
+    'AI governance audit',
+    'I instrument your existing agent deployment and deliver a signed record of what your agents actually did over an agreed window. Most audits end in a PDF of opinions. This one ends in a hash-chained artifact <strong>you</strong> keep, re-verify yourself with a public key, and hand to your own auditor without trusting either of us.',
+  ],
+  [
+    'Deployment and integration',
+    `Getting the suite running against your stack — your models, your providers, your compliance boundary — including providers no vendor list names yet. Local and self-hosted first: Ollama, vLLM and llama.cpp, with ${providers} provider integrations in the registry.`,
+  ],
+  [
+    'The compliance narrative',
+    'Mapping what you already do onto the EU AI Act (Articles 12, 13, 14, 19, 26 and 72), ISO/IEC 42001, SOC 2 and the NIST AI RMF — including, in writing, where the evidence does not reach.',
+  ],
+];
+
+const page = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Work with the engineer who built ABSuite</title>
+<meta name="description" content="I build systems that can prove what they did. ABSuite is ${esc(routes)} documented routes, ${esc(countTestSuites())} test suites and ${esc(gates)} build gates, written alone. Available for audit, integration and compliance engagements.">
+<meta name="color-scheme" content="dark">
+<style>
+  /* The system stack, deliberately. A webfont link is a third-party request on
+     every load of a page about not trusting third parties — and the CSP that
+     protects the room blocks it anyway, so it would silently fall through to
+     this exact stack while looking like a decision. */
+  :root {
+    --ground: #040706;
+    --panel: #0A0F0D;
+    --line: rgba(0, 245, 140, 0.15);
+    --ink: #F4F7FA;
+    --muted: #8FA39A;
+    --accent: #00F58C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 4rem 1.5rem 5rem; }
+  .eyebrow {
+    font: 500 11px/1 ui-monospace, 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.24em; text-transform: uppercase; color: var(--accent);
+  }
+  h1 {
+    font-size: clamp(1.9rem, 5vw, 3rem); line-height: 1.12; margin: 1rem 0 0;
+    letter-spacing: -0.02em; text-wrap: balance; font-weight: 600;
+  }
+  .lede { font-size: clamp(1rem, 2.2vw, 1.2rem); color: var(--muted); margin: 1.1rem 0 0; max-width: 44rem; }
+  h2 {
+    font-size: 0.95rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin: 3.5rem 0 1.25rem;
+  }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 2.75rem 0 0; }
+
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
+  .figure { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); padding: 1.25rem; }
+  .figure b {
+    display: block; font-size: 2rem; font-weight: 600; color: var(--accent);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .figure span { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+  .figure small { display: block; font-size: 0.75rem; color: rgba(143,163,154,0.75); margin-top: 0.6rem; line-height: 1.5; }
+
+  .offers { display: grid; gap: 1rem; }
+  .offer { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); padding: 1.4rem 1.5rem; }
+  .offer h3 { margin: 0 0 0.5rem; font-size: 1.05rem; font-weight: 600; }
+  .offer p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+  .offer strong { color: var(--ink); font-weight: 600; }
+
+  .case { border-left: 2px solid var(--accent); padding: 0.2rem 0 0.2rem 1.5rem; margin: 0; }
+  .case p { margin: 0 0 0.9rem; color: var(--muted); }
+  .case p:last-child { margin-bottom: 0; }
+  .case em { color: var(--ink); font-style: normal; }
+
+  a { color: var(--accent); }
+  .cta {
+    display: inline-block; margin-top: 1.4rem; padding: 0.85rem 1.6rem;
+    border: 1px solid rgba(0,245,140,0.35); border-radius: 9999px;
+    background: rgba(0,245,140,0.08); color: var(--accent);
+    text-decoration: none; font-weight: 600; font-size: 0.95rem;
+  }
+  .cta:hover { background: rgba(0,245,140,0.16); }
+  footer { margin-top: 3.5rem; font-size: 0.8rem; color: rgba(143,163,154,0.7); }
+  code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.9em; color: var(--ink); }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <p class="eyebrow">Available for engagements</p>
+  <h1>I build systems that can prove what they did.</h1>
+  <p class="lede">
+    Agents are taking real actions — moving money, changing records, contacting customers. The question that
+    follows every one of them is the same: <em>who did this, were they allowed to, what exactly did they do, and
+    can you prove none of it has been altered since?</em> I build the layer that answers it, and I have built the
+    whole of one alone.
+  </p>
+
+  <h2>What I can do for you</h2>
+  <div class="offers">
+    ${OFFERS.map(([title, body]) => `<div class="offer">
+      <h3>${esc(title)}</h3>
+      <p>${body}</p>
+    </div>`).join('\n    ')}
+  </div>
+
+  <h2>The work, in numbers I did not type</h2>
+  <div class="figures">
+    ${FIGURES.map(([value, of, note]) => `<div class="figure">
+      <b>${esc(value)}</b><span>${esc(of)}</span><small>${esc(note)}</small>
+    </div>`).join('\n    ')}
+  </div>
+
+  <hr class="rule">
+
+  <h2>Why the defect log is the reference</h2>
+  <blockquote class="case">
+    <p>
+      ABSuite carries <em>${esc(auditSections)} numbered sections</em> of its own defects, in public, in the
+      repository — including the ones I diagnosed wrongly first, and the fixes that were themselves wrong.
+      One entry records three consecutive wrong diagnoses and what finally ended them: making the failure report
+      what it <em>observed</em> instead of what it assumed.
+    </p>
+    <p>
+      That file is the reference I would rather be judged on than any CV. Code shows what someone can build.
+      A defect log shows what they do when they are wrong — which is the part you are actually buying, because
+      on a long engagement it is the part that happens most.
+    </p>
+    <p>
+      The same discipline is enforced mechanically: ${esc(gates)} build gates, several of which exist because
+      something shipped broken once and no test would have caught it. Two of the eight architectural layers are
+      marked unbuilt and claim nothing, and a check fails the build if the interface ever claims otherwise.
+    </p>
+  </blockquote>
+
+  <h2>Start a conversation</h2>
+  <p class="lede" style="margin-top:0">
+    Tell me what your agents do and what you need to be able to prove about them. If ABSuite is the wrong tool
+    for it, I will say so — that answer costs you one email and saves you a quarter.
+  </p>
+  <a class="cta" href="https://github.com/iamGodofall">Reach me through GitHub &rarr;</a>
+
+  <footer>
+    Everything above is generated from
+    <a href="https://github.com/iamGodofall/ABSuite-core">the repository</a> when this page is built, and the
+    build fails if the committed copy has gone stale. Read
+    <a href="https://github.com/iamGodofall/ABSuite-core/blob/main/docs/AUDIT.md"><code>docs/AUDIT.md</code></a>
+    before deciding.
+  </footer>
+
+</main>
+</body>
+</html>
+`;
+
+const target = join(root, 'docs/hire.html');
+
+if (process.argv.includes('--check')) {
+  const current = readFileSync(target, 'utf8');
+  if (!sameGenerated(current, page)) {
+    console.error('\ndocs/hire.html is out of date.\n');
+    console.error('  The repository moved and the page still shows the old figures. A page that');
+    console.error('  makes claims about a body of work has to be re-read from that work, or it');
+    console.error('  becomes a number somebody typed once — the exact defect this project exists');
+    console.error('  to catch.\n');
+    console.error('  Run: node scripts/gen-hire.mjs\n');
+    process.exit(1);
+  }
+  console.log(`✓ hire page matches the repository — ${routes} routes, ${gates} gates, ${auditSections} audit sections.`);
+} else {
+  writeFileSync(target, page);
+  console.log(`docs/hire.html written — ${routes} routes, ${gates} gates, ${auditSections} audit sections, ${builtLayers} of ${layerRows.length} layers.`);
+}

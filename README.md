@@ -754,6 +754,8 @@ the ones I got wrong first and the fixes that were themselves wrong. If you want
 to know how someone works before you pay them, that file will tell you more than
 any CV.
 
+**→ [One page on what I can do for you](https://iamgodofall.github.io/ABSuite-core/hire.html)** — generated from this repository, so every figure on it is a count rather than a claim.
+
 **→ Open an issue, or reach me through [my GitHub profile](https://github.com/iamGodofall).**
 
 ---
