@@ -61,11 +61,14 @@ export interface Plan {
  *             single developer securing a single service needs nothing else,
  *             and should not be made to pay for what they can run themselves.
  *
- *   team      IT WORKS ACROSS YOUR SERVICES. Revocation that only takes effect
- *             in one process is not revocation: the moment there are two
- *             services, a killed token is still live in the other one. That is
- *             the first thing you cannot self-host your way out of, and it is
- *             what the tier is actually for.
+ *   team      IT WORKS ACROSS YOUR SERVICES, AND IT WAKES YOU. Revocation that
+ *             only takes effect in one process is not revocation: the moment
+ *             there are two services, a killed token is still live in the other
+ *             one. And a tamper-evident ledger is worth exactly as much as the
+ *             SPEED at which tampering is noticed — a notice on a page is only
+ *             as fast as the next time somebody opens it. Both are things a
+ *             customer cannot self-host their way around: they can run the
+ *             sweep, they cannot be woken by it.
  *
  *   business  IT SATISFIES SOMEBODY WHO DOES NOT TRUST YOU. A year of history
  *             and an export an auditor verifies holding only a public key,
@@ -109,7 +112,7 @@ export const PLANS: Record<PlanId, Plan> = {
     label: 'Team',
     priceCents: 4900,
     limits: { agents: 25, validations: 500_000, auditRetentionDays: 90, schedules: 50, benchmarkRuns: 2_000 },
-    features: ['Revocation shared across every service', '90-day audit retention', 'Email support'],
+    features: ['Revocation shared across every service', 'Alerted the moment the chain breaks', '90-day audit retention'],
   },
   business: {
     id: 'business',
