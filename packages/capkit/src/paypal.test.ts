@@ -1,0 +1,95 @@
+/**
+ * PayPal subscription events -> entitlement decisions.
+ *
+ * The assertions that matter are the refusals. A mapper that returns a plan for
+ * everything is trivially "working"; what makes this one safe is that an
+ * unrecognised plan id, a PayPal catalogue id, and an unknown event type all
+ * come back as `ignore` rather than as a guess.
+ */
+import { planFromPayPalEvent, planFromStripeEvent, PLANS } from './billing';
+
+const sub = (over: Record<string, unknown> = {}) => ({
+  event_type: 'BILLING.SUBSCRIPTION.ACTIVATED',
+  resource: { id: 'I-SUB123', custom_id: 'business', status: 'ACTIVE', ...over },
+});
+
+describe('planFromPayPalEvent', () => {
+  test('an activation sets the plan named in custom_id', () => {
+    expect(planFromPayPalEvent(sub())).toEqual({
+      action: 'set-plan', plan: 'business', customer: 'I-SUB123',
+    });
+  });
+
+  test('keys the customer on the SUBSCRIPTION id, not the payer', () => {
+    // One payer may hold several subscriptions; keying on payer_id would let a
+    // second purchase silently overwrite the first one's tier.
+    const verdict = planFromPayPalEvent(sub({ subscriber: { payer_id: 'PAYER-9' } }));
+    expect(verdict.customer).toBe('I-SUB123');
+    expect(verdict.customer).not.toBe('PAYER-9');
+  });
+
+  test('REFUSAL — an unrecognised custom_id is ignored, never guessed', () => {
+    expect(planFromPayPalEvent(sub({ custom_id: 'platinum' })).action).toBe('ignore');
+    expect(planFromPayPalEvent(sub({ custom_id: '' })).action).toBe('ignore');
+    expect(planFromPayPalEvent(sub({ custom_id: undefined })).action).toBe('ignore');
+  });
+
+  test("REFUSAL — PayPal's own plan_id is never mapped to a tier", () => {
+    // P-5ML... is a PayPal catalogue id. Honouring it would need a hand-kept
+    // lookup table, which is the class of fabrication this repo refuses.
+    const verdict = planFromPayPalEvent({
+      event_type: 'BILLING.SUBSCRIPTION.ACTIVATED',
+      resource: { id: 'I-SUB123', status: 'ACTIVE' },
+    } as Parameters<typeof planFromPayPalEvent>[0]);
+    expect(verdict.action).toBe('ignore');
+  });
+
+  test('REFUSAL — an unknown event type is ignored', () => {
+    expect(planFromPayPalEvent({ event_type: 'PAYMENT.CAPTURE.COMPLETED' }).action).toBe('ignore');
+    expect(planFromPayPalEvent({}).action).toBe('ignore');
+  });
+
+  test('a cancellation DOWNGRADES rather than deleting', () => {
+    expect(planFromPayPalEvent({ ...sub(), event_type: 'BILLING.SUBSCRIPTION.CANCELLED' })).toEqual({
+      action: 'set-plan', plan: 'free', customer: 'I-SUB123',
+    });
+  });
+
+  test('an expiry downgrades to free', () => {
+    expect(planFromPayPalEvent({ ...sub(), event_type: 'BILLING.SUBSCRIPTION.EXPIRED' }).plan).toBe('free');
+  });
+
+  test('a suspension suspends and does NOT change the plan', () => {
+    const verdict = planFromPayPalEvent({ ...sub(), event_type: 'BILLING.SUBSCRIPTION.SUSPENDED' });
+    expect(verdict.action).toBe('suspend');
+    // A billing problem is recoverable. Downgrading here would lose the tier
+    // they are still paying to hold once the payment clears.
+    expect(verdict.plan).toBeUndefined();
+  });
+
+  test('a failed payment suspends', () => {
+    expect(planFromPayPalEvent({ ...sub(), event_type: 'BILLING.SUBSCRIPTION.PAYMENT.FAILED' }).action)
+      .toBe('suspend');
+  });
+
+  test('a status of CANCELLED on an UPDATED event downgrades', () => {
+    const verdict = planFromPayPalEvent(sub({ status: 'CANCELLED' }));
+    expect(verdict).toEqual({ action: 'set-plan', plan: 'free', customer: 'I-SUB123' });
+  });
+
+  test('every real plan id round-trips through custom_id', () => {
+    for (const id of Object.keys(PLANS)) {
+      expect(planFromPayPalEvent(sub({ custom_id: id })).plan).toBe(id);
+    }
+  });
+
+  test('both providers answer in the same shape, so one path can consume them', () => {
+    const paypal = planFromPayPalEvent(sub());
+    const stripe = planFromStripeEvent({
+      type: 'customer.subscription.created',
+      data: { object: { metadata: { plan: 'business' }, status: 'active', customer: 'cus_1' } },
+    });
+    expect(Object.keys(paypal).sort()).toEqual(Object.keys(stripe).sort());
+    expect(paypal.plan).toBe(stripe.plan);
+  });
+});

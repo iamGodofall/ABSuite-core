@@ -161,6 +161,74 @@ export function verifyStripeSignature(
   return matched ? { valid: true } : { valid: false, reason: 'Signature mismatch' };
 }
 
+/**
+ * Map a PayPal subscription webhook onto the plan change it implies.
+ *
+ * Deliberately the same return type as `planFromStripeEvent`. A provider is an
+ * adapter onto one entitlement decision, not a second decision — two functions
+ * that each move a tenant between plans would drift, and the drift would show
+ * up as a customer on the wrong tier rather than as a crash.
+ *
+ * ## Where the plan id comes from
+ *
+ * PayPal has no `metadata` on a subscription the way Stripe does. `custom_id`
+ * is the field it round-trips for the merchant, so that is where the plan id
+ * lives — set when the subscription is created and echoed back on every event.
+ * `plan_id` is PayPal's OWN identifier for a billing plan and is deliberately
+ * NOT trusted here: it is a value from their catalogue that would have to be
+ * mapped by a table kept in step by hand, which is the fabrication this
+ * repository exists to refuse. Unrecognised means ignore, never a guess.
+ *
+ * ## Why `SUSPENDED` suspends but `EXPIRED` downgrades
+ *
+ * A suspension is a billing problem and is recoverable — the tenant's data
+ * stays and access resumes when they pay. An expiry or a cancellation is the
+ * end of the arrangement, so the tenant returns to the free plan and keeps
+ * their data, exactly as the Stripe path already does. Deleting on cancellation
+ * would make an accounting event destructive.
+ */
+export function planFromPayPalEvent(event: {
+  event_type?: string;
+  resource?: { custom_id?: string; status?: string; id?: string; subscriber?: { payer_id?: string } };
+}): { action: 'set-plan' | 'suspend' | 'ignore'; plan?: PlanId; customer?: string } {
+  const resource = event.resource;
+  /*
+   * The subscription id is the stable handle, not the payer id: one payer may
+   * hold several subscriptions, so keying on the payer would let a second
+   * purchase overwrite the first one's tier.
+   */
+  const customer = resource?.id;
+  const requested = resource?.custom_id ?? '';
+
+  switch (event.event_type) {
+    case 'BILLING.SUBSCRIPTION.ACTIVATED':
+    case 'BILLING.SUBSCRIPTION.UPDATED':
+    case 'BILLING.SUBSCRIPTION.RE-ACTIVATED': {
+      if (resource?.status && ['CANCELLED', 'EXPIRED'].includes(resource.status)) {
+        return { action: 'set-plan', plan: 'free', ...(customer ? { customer } : {}) };
+      }
+      if (resource?.status === 'SUSPENDED') {
+        return { action: 'suspend', ...(customer ? { customer } : {}) };
+      }
+      if (isPlanId(requested)) {
+        return { action: 'set-plan', plan: requested, ...(customer ? { customer } : {}) };
+      }
+      return { action: 'ignore' };
+    }
+
+    case 'BILLING.SUBSCRIPTION.CANCELLED':
+    case 'BILLING.SUBSCRIPTION.EXPIRED':
+      return { action: 'set-plan', plan: 'free', ...(customer ? { customer } : {}) };
+
+    case 'BILLING.SUBSCRIPTION.SUSPENDED':
+    case 'BILLING.SUBSCRIPTION.PAYMENT.FAILED':
+      return { action: 'suspend', ...(customer ? { customer } : {}) };
+
+    default:
+      return { action: 'ignore' };
+  }
+}
+
 /** Map a Stripe event onto the plan change it implies. */
 export function planFromStripeEvent(event: {
   type?: string;
