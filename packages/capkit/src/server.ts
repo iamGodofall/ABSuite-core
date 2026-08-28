@@ -256,6 +256,15 @@ function actorOf(req: express.Request): string | undefined {
   return (req as express.Request & { actor?: string }).actor || undefined;
 }
 
+/** Parse stored JSON without letting one bad row take a whole response down. */
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 function fail(res: express.Response, status: number, code: string, message: string) {
   return res.status(status).json({ error: { code, message } });
 }
@@ -1163,6 +1172,60 @@ app.post('/executions', authorise('execution:record'), (req, res) => {
 });
 
 /**
+ * A tenant's witnessing history.
+ *
+ * The paid tiers sell being seen by somebody with no stake in the answer, and a
+ * thing nobody can look at is a thing nobody believes they are buying. This is
+ * the receipts, raw, oldest first.
+ *
+ * They are served EXACTLY as the notary returned them and are not verified
+ * here. A receipt is signed by the notary's key, and checking it against a key
+ * this instance holds would be this instance vouching for its own witness —
+ * which is the property being purchased, spent.
+ */
+// public-route: unauthenticated at the router and guarded inside, matching
+// /usage — it returns 401 TENANT_KEY_REQUIRED without an X-ABSuite-Tenant-Key.
+app.get('/notary/receipts', (req, res) => {
+  const tenant = (req as TenantRequest).tenant;
+  if (!tenant) {
+    return fail(res, 401, 'TENANT_KEY_REQUIRED', 'Supply X-ABSuite-Tenant-Key to read receipts');
+  }
+
+  const plan = tenancy.planFor(tenant);
+  const rows = storage.all<{ head_hash: string; claimed_length: number; witnessed_at: string; notary_url: string; body: string }>(
+    'SELECT head_hash, claimed_length, witnessed_at, notary_url, body FROM notary_receipts ORDER BY id DESC LIMIT ?',
+    Math.min(Number(req.query.limit ?? 100), 1000)
+  );
+
+  return res.status(200).json({
+    /*
+     * The window is served beside the receipts because it is what the receipts
+     * MEAN. A list of timestamps without it is trivia; with it, it is the
+     * longest period in which this history could have been rewritten
+     * unobserved.
+     */
+    rewriteWindowHours: rewriteWindowHours(plan),
+    witnessed: rows.length > 0,
+    /*
+     * An instance nobody witnesses says so plainly. The notary's own rule: an
+     * unwitnessed chain is UNWITNESSED, never suspicious, because punishing
+     * somebody for not having started is the wrong incentive and the wrong
+     * claim.
+     */
+    note: rewriteWindowHours(plan) === null
+      ? 'This plan is not witnessed by us. Run your own notary — the package is MIT — or move to a plan that includes witnessing. An unwitnessed chain is unwitnessed, not suspicious.'
+      : 'Receipts are shown as the notary returned them and are not checked here. Verify them with the notary\'s public key.',
+    receipts: rows.map(r => ({
+      headHash: r.head_hash,
+      claimedLength: r.claimed_length,
+      witnessedAt: r.witnessed_at,
+      notary: r.notary_url,
+      receipt: safeJson(r.body),
+    })),
+  });
+});
+
+/**
  * The audit export — every record, in a file an auditor can verify alone.
  *
  * `GET /executions` already lists records for somebody holding a key to this
@@ -1187,8 +1250,18 @@ app.get('/audit/export', authorise('execution:read'), (req, res) => {
     ...(tenant ? { tenantId: tenant.id } : {}),
   }).reverse();
 
+  /*
+   * The receipts travel with the records. A bundle carrying both is evidence;
+   * one carrying only the chain is a story the chain tells about itself.
+   */
+  const receipts = storage
+    .all<{ body: string }>('SELECT body FROM notary_receipts ORDER BY id ASC')
+    .map(row => safeJson(row.body))
+    .filter(r => r !== undefined);
+
   const bundle = buildAuditExport({
     records,
+    receipts,
     publicKeyPem: signingKey.publicKeyPem,
     keyId: signingKey.keyId,
     ...(() => {

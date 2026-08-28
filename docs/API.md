@@ -110,6 +110,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/models` | `model:approve` | — |
 | POST | `/models/:name/attest` | `execution:read` | — |
 | POST | `/models/:name/supersede` | `model:approve` | — |
+| GET | `/notary/receipts` | _public_ | — |
 | GET | `/plans` | _public_ | — |
 | GET | `/ready` | _public_ | — |
 | GET | `/signup` | _public_ | — |
@@ -321,4 +322,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_130 HTTP endpoints across 5 services. Generated from source._
+_131 HTTP endpoints across 5 services. Generated from source._

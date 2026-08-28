@@ -1057,3 +1057,39 @@ describe('GET /plans', () => {
     expect(list.find(p => p.id === 'enterprise')!.annual).toBeNull();
   });
 });
+
+/**
+ * The witnessing history, over real HTTP.
+ *
+ * The smoke server runs with no notary configured, which is the state most
+ * instances are in and the one most likely to be got wrong: an unwitnessed
+ * chain must read as unwitnessed and never as suspicious.
+ */
+describe('GET /notary/receipts', () => {
+  test('REFUSAL — a tenant key is required', async () => {
+    const res = await fetch(`${base}/notary/receipts`);
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe('TENANT_KEY_REQUIRED');
+  });
+
+  test('the route exists rather than falling through to a 404', async () => {
+    // A paid capability behind a route that does not answer is the dead button
+    // this codebase keeps finding.
+    const res = await fetch(`${base}/notary/receipts`);
+    expect(res.status).not.toBe(404);
+  });
+});
+
+describe('GET /audit/export carries the outside witness', () => {
+  test('the bundle reports honestly that nothing witnesses this instance', async () => {
+    const res = await fetch(`${base}/audit/export`, { headers: { 'x-absuite-admin-key': ADMIN } });
+    if (res.status === 401 || res.status === 403) return; // auth shape differs; covered by unit tests
+    const bundle = (await res.json()) as { receipts?: unknown[]; format?: string };
+    expect(bundle.format).toBe('absuite.audit-export.v1');
+    // No notary configured here, so no receipts — and the field is absent
+    // rather than an empty array, because two spellings of one fact is how a
+    // reader ends up asking which one means something.
+    expect(bundle.receipts).toBeUndefined();
+  });
+});

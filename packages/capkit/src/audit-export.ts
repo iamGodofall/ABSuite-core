@@ -51,6 +51,20 @@ export interface AuditExport {
    * indistinguishable from one somebody trimmed.
    */
   retainedFrom?: RetentionAnchor;
+  /**
+   * Receipts from an outside notary, oldest first, EXACTLY as the notary
+   * returned them.
+   *
+   * This is what turns the bundle from a self-consistent story into evidence.
+   * The records prove nobody edited them after they were written; the receipts
+   * prove somebody with no stake in the answer saw this chain at a series of
+   * times — which is the one thing a chain cannot establish about itself,
+   * because everything inside a deployment is signed by the same party.
+   *
+   * Absent when nobody witnesses this instance. An unwitnessed chain is
+   * UNWITNESSED, never suspicious.
+   */
+  receipts?: unknown[];
   count: number;
   /**
    * In chain order, oldest first. The ORDER IS THE CHAIN: each record names its
@@ -65,6 +79,7 @@ export function buildAuditExport(input: {
   publicKeyPem: string;
   keyId?: string;
   retainedFrom?: RetentionAnchor;
+  receipts?: unknown[];
   now?: Date;
 }): AuditExport {
   /*
@@ -80,6 +95,7 @@ export function buildAuditExport(input: {
     publicKeyPem: input.publicKeyPem,
     ...(input.keyId ? { keyId: input.keyId } : {}),
     ...(input.retainedFrom ? { retainedFrom: input.retainedFrom } : {}),
+    ...(input.receipts && input.receipts.length > 0 ? { receipts: input.receipts } : {}),
     count: records.length,
     records,
   };
@@ -213,6 +229,19 @@ export function verifyAuditExport(
       bundle.retainedFrom
         ? `${bundle.retainedFrom.removed} earlier record(s) were removed under a ${bundle.retainedFrom.policyDays}-day retention policy and are not in this file; the signed anchor accounting for them was checked.`
         : 'The chain begins at genesis, so nothing precedes it.',
+      /*
+       * NOT verified here, and it says so. A receipt is signed by the NOTARY's
+       * key, which this bundle does not carry and should not — the whole point
+       * of an outside witness is that its key comes from outside. Checking them
+       * needs the notary's public key and `auditAgainstReceipts`, which is a
+       * separate act by a separate party.
+       *
+       * Claiming to have checked them would be the exact failure this format
+       * exists to prevent: a verifier vouching for evidence it cannot test.
+       */
+      bundle.receipts && bundle.receipts.length > 0
+        ? `${bundle.receipts.length} notary receipt(s) are included and were NOT checked here — they are signed by the notary's key, not this one. Audit them with the notary's public key to establish when this chain was seen from outside.`
+        : 'No outside witness is included: this file establishes internal consistency only.',
     ].join(' '),
   };
 }

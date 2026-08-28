@@ -220,3 +220,58 @@ describe('malformed bundles fail closed', () => {
     expect(verdict.checked).toBe(0);
   });
 });
+
+describe('notary receipts in the bundle', () => {
+  const RECEIPT = { version: 1, chainId: 'c1', headHash: 'abc', at: '2026-08-28T00:00:00.000Z', signature: 'sig' };
+
+  test('receipts travel with the records', () => {
+    const { key } = exported();
+    const file = buildAuditExport({
+      records: [], publicKeyPem: key.publicKeyPem, receipts: [RECEIPT], now: NOW,
+    });
+    expect(file.receipts).toEqual([RECEIPT]);
+  });
+
+  test('the verdict says the receipts were NOT checked', () => {
+    // A verifier vouching for evidence it cannot test is the exact failure this
+    // format exists to prevent. The receipt is signed by the NOTARY's key,
+    // which this bundle does not carry and should not.
+    const { key } = exported();
+    const file = buildAuditExport({
+      records: [], publicKeyPem: key.publicKeyPem, receipts: [RECEIPT], now: NOW,
+    });
+    const verdict = verifyAuditExport(file, key.publicKeyPem);
+    expect(verdict.valid).toBe(true);
+    expect(verdict.scope).toContain('NOT checked here');
+    expect(verdict.scope).toContain("notary's key");
+  });
+
+  test('an unwitnessed bundle says so, and does not imply doubt', () => {
+    const { file, key } = exported();
+    const verdict = verifyAuditExport(file, key.publicKeyPem);
+    expect(file.receipts).toBeUndefined();
+    expect(verdict.scope).toContain('internal consistency only');
+    // Nothing in the wording may read as an accusation.
+    expect(verdict.scope.toLowerCase()).not.toContain('suspicious');
+  });
+
+  test('an empty receipt list is omitted rather than serialised as []', () => {
+    // `receipts: []` and no receipts at all mean the same thing and should read
+    // the same way; two spellings of one fact is how a reader ends up asking
+    // which one means something.
+    const { key } = exported();
+    expect(buildAuditExport({ records: [], publicKeyPem: key.publicKeyPem, receipts: [], now: NOW }).receipts)
+      .toBeUndefined();
+  });
+
+  test('receipts do not affect whether the chain verifies', () => {
+    // They are evidence ABOUT the chain from outside, not part of it. A
+    // tampered receipt must not make a good chain fail, nor rescue a bad one.
+    const { file, key } = exported();
+    file.receipts = [{ ...RECEIPT, signature: 'obviously-forged' }];
+    expect(verifyAuditExport(file, key.publicKeyPem).valid).toBe(true);
+
+    file.records[1]!.action = 'edited';
+    expect(verifyAuditExport(file, key.publicKeyPem).valid).toBe(false);
+  });
+});
