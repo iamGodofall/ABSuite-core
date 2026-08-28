@@ -75,6 +75,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/auth/token` | `auth:token:create` | `agents` |
 | POST | `/auth/token/revoke` | `auth:token:revoke` | — |
 | POST | `/auth/token/validate` | `auth:token:validate` | `validations` |
+| POST | `/billing/paypal/webhook` | _public_ | — |
 | POST | `/billing/webhook` | _public_ | — |
 | GET | `/executions` | `execution:read` | — |
 | POST | `/executions` | `execution:record` | — |
@@ -317,4 +318,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_128 HTTP endpoints across 5 services. Generated from source._
+_129 HTTP endpoints across 5 services. Generated from source._

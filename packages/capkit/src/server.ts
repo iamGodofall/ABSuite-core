@@ -17,7 +17,8 @@ import { generatePolicy } from './ai-policy-generator';
 import { describeProviders } from './llm-provider';
 import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
-import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent } from './billing';
+import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent } from './billing';
+import { isPayPalCertUrl, verifyPayPalWebhook, type PayPalWebhookHeaders } from './paypal-webhook';
 import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord, type ExecutionTrace } from './trace';
 import { explainTrace } from './explain';
@@ -118,6 +119,24 @@ const metrics = createServiceMetrics('capkit');
 // node while still sitting inside their plan allowance.
 const rateLimiter = new TenantRateLimiter();
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+const PAYPAL_WEBHOOK_ID = (process.env.PAYPAL_WEBHOOK_ID || '').trim();
+
+/*
+ * Signing certificates, keyed by the URL they came from.
+ *
+ * PayPal rotates certificates rarely and re-sends the same URL for every event
+ * in between, so fetching per webhook would be one outbound request per event
+ * for an answer that almost never changes. The cache is keyed by URL rather
+ * than time-boxed: a rotation changes the URL, so a new key is a new fetch and
+ * a stale entry cannot outlive the certificate it holds.
+ *
+ * Bounded, because the key comes from a header. Without a ceiling an attacker
+ * posting a thousand distinct paypal.com URLs would grow this without limit —
+ * the host check stops them supplying their OWN certificate, not from making
+ * us remember a lot of PayPal's.
+ */
+const payPalCerts = new Map<string, string>();
+const PAYPAL_CERT_CACHE_MAX = 8;
 
 // Ed25519 keypair for signing execution traces. Asymmetric on purpose: an
 // auditor must be able to verify a trace without also being able to forge one.
@@ -1669,6 +1688,97 @@ app.post('/admin/tenants/:id/rotate-key', authorise('tenant:manage'), (req, res)
  * configured secret the endpoint refuses outright rather than accepting
  * unsigned plan changes.
  */
+/**
+ * Fetch a PayPal signing certificate, cached by URL.
+ *
+ * The URL is checked by the CALLER before this is reached. That ordering is the
+ * security property: `isPayPalCertUrl` is what makes a valid signature mean
+ * "signed by PayPal" rather than "signed by whoever chose the certificate", and
+ * it has to run before the request, not after it.
+ */
+async function payPalCert(url: string): Promise<string | undefined> {
+  const cached = payPalCerts.get(url);
+  if (cached) return cached;
+
+  try {
+    // outbound-ok: `url` has already passed isPayPalCertUrl in the route below —
+    // https, and a hostname that is paypal.com or a subdomain of it. It is never
+    // reached with a host the sender chose.
+    const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+    if (!response.ok) return undefined;
+    const pem = await response.text();
+
+    // Oldest out. A Map iterates in insertion order, so the first key is the
+    // least recently added.
+    if (payPalCerts.size >= PAYPAL_CERT_CACHE_MAX) {
+      const oldest = payPalCerts.keys().next().value;
+      if (oldest) payPalCerts.delete(oldest);
+    }
+    payPalCerts.set(url, pem);
+    return pem;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * PayPal subscription webhooks.
+ *
+ * Mirrors `/billing/webhook` deliberately — same verify-then-map-then-apply
+ * shape, same 200-on-unmappable so the sender stops retrying something we can
+ * never act on. Only the verification and the event vocabulary differ, because
+ * only those are provider-specific.
+ */
+// public-route: a payment provider cannot carry a capability token. The
+// request is authenticated inside the handler by its signature, and by the
+// certificate host check that runs before the certificate is even fetched.
+app.post('/billing/paypal/webhook', async (req, res) => {
+  const deny = (reason: string) => {
+    audit.record({ subject: 'paypal', action: 'POST /billing/paypal/webhook', resource: 'billing', result: 'deny', reason });
+    return fail(res, 400, 'SIGNATURE_INVALID', reason);
+  };
+
+  if (!PAYPAL_WEBHOOK_ID) return deny('No PayPal webhook id configured');
+
+  const raw = (req as express.Request & { rawBody?: string }).rawBody ?? '';
+  const certUrl = req.header('paypal-cert-url') ?? '';
+
+  /*
+   * The host check comes FIRST, before the certificate is fetched. An attacker
+   * choosing the certificate can satisfy every cryptographic check that
+   * follows, so this — not the signature — is what ties the event to PayPal.
+   * It is also the SSRF guard: without it this route fetches a URL the caller
+   * picked.
+   */
+  if (!isPayPalCertUrl(certUrl)) return deny('Certificate URL is not a PayPal host');
+
+  const pem = await payPalCert(certUrl);
+  if (!pem) return deny('Certificate could not be retrieved');
+
+  const verified = verifyPayPalWebhook(raw, req.headers as PayPalWebhookHeaders, PAYPAL_WEBHOOK_ID, pem);
+  if (!verified.valid) return deny(verified.reason ?? 'Signature verification failed');
+
+  const outcome = planFromPayPalEvent(req.body ?? {});
+  if (outcome.action === 'ignore' || !outcome.customer) {
+    return res.status(200).json({ received: true, applied: false });
+  }
+
+  const tenant = tenancy.tenants.byExternalRef(outcome.customer);
+  if (!tenant) {
+    // Acknowledge so PayPal stops retrying an event we cannot map.
+    return res.status(200).json({ received: true, applied: false, reason: 'No tenant for that subscription' });
+  }
+
+  if (outcome.action === 'suspend') {
+    tenancy.tenants.setStatus(tenant.id, 'suspended');
+  } else if (outcome.plan) {
+    tenancy.tenants.setPlan(tenant.id, outcome.plan);
+  }
+
+  audit.record({ subject: 'paypal', action: `billing.${outcome.action}`, resource: `tenant:${tenant.id}`, result: 'allow' });
+  return res.status(200).json({ received: true, applied: true, tenant: tenant.id, action: outcome.action });
+});
+
 // public-route: a payment provider cannot carry a capability token. The
 // request is authenticated inside the handler by its signature.
 app.post('/billing/webhook', (req, res) => {
@@ -1746,7 +1856,7 @@ function sweepRetention(): void {
    * every record is kept forever, which is what `if (!tenant) return next()` in
    * `enforceQuota` already promises about every other limit.
    */
-  const billingConfigured = Boolean((process.env.STRIPE_WEBHOOK_SECRET || '').trim());
+  const billingConfigured = Boolean(STRIPE_WEBHOOK_SECRET) || Boolean(PAYPAL_WEBHOOK_ID);
   if (!explicit && !billingConfigured) return;
 
   const days = explicit
