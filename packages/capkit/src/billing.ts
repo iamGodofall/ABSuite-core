@@ -66,9 +66,7 @@ export interface Plan {
  *             there are two services, a killed token is still live in the other
  *             one. And a tamper-evident ledger is worth exactly as much as the
  *             SPEED at which tampering is noticed — a notice on a page is only
- *             as fast as the next time somebody opens it. Both are things a
- *             customer cannot self-host their way around: they can run the
- *             sweep, they cannot be woken by it.
+ *             as fast as the next time somebody opens it.
  *
  *   business  IT SATISFIES SOMEBODY WHO DOES NOT TRUST YOU. A year of history
  *             and an export an auditor verifies holding only a public key,
@@ -78,6 +76,25 @@ export interface Plan {
  * Written here because a price is a claim about value, and the claim should be
  * legible to the next person choosing what to build. A feature that does not
  * move a customer up this ladder belongs in whichever tier they already have.
+ *
+ * ## AND THE LICENCE MEANS A FEATURE IS NEVER THE MOAT
+ *
+ * This is MIT. Anybody may take the whole codebase, delete `enforceQuota`, run
+ * every tier's features and sell the result in competition — legitimately, and
+ * that is the deal the licence makes on purpose.
+ *
+ * So the rungs above describe what each tier is FOR, not what it withholds.
+ * The thing actually being sold is that somebody else operates it: the uptime,
+ * the backups, the upgrades, the alert genuinely arriving at three in the
+ * morning, and a person to call when it does not. Pricing written as though the
+ * features were the product would be pricing a moat that does not exist.
+ *
+ * An earlier version of this comment claimed alerting was something a customer
+ * "cannot self-host their way around". Under MIT that is false — they can run
+ * the alerter, it is in this repository. What they cannot do is be woken by an
+ * instance they are not running. Corrected here rather than left, because a
+ * false claim next to a price is the same defect as a feature that does not
+ * exist.
  */
 
 /*

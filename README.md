@@ -805,10 +805,20 @@ issue tracker. How people are expected to treat each other is in
 
 ## License
 
-[MIT](./LICENSE). Copyright © 2025–2026 ABSuite Contributors.
+[MIT](./LICENSE). Copyright © 2025–2026 Themba Mpehle, trading as Enock Labs.
 
 The verification path stays free and open, permanently. That is a commitment in
 [the Constitution](./docs/CONSTITUTION.md), not a pricing decision.
+
+**You may host and sell this software, including in competition with us.** MIT
+means that and we mean it — the whole trust layer runs self-hosted, unmetered,
+with every record kept forever. What the paid plans sell is that somebody else
+operates it: the uptime, the upgrades, the alert that actually reaches you at
+three in the morning, and a person to call when it does not.
+
+**The name is not covered by the licence.** "ABSuite", "CapKit" and "Enock
+Labs" are marks of Enock Labs. Fork it, improve it, sell it — under your own
+name. See [TRADEMARKS](./LICENSE).
 
 ---
 
