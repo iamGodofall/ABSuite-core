@@ -643,7 +643,7 @@ can be proven*.
 ## Status
 
 ```text
-986 tests                     129 API endpoints
+999 tests                     129 API endpoints
 8 npm packages on npm         5 HTTP services + room + notary + MCP
 API docs drift-checked in CI  published from CI with provenance
 ```
