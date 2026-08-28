@@ -19,6 +19,7 @@ import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
 import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent } from './billing';
 import { isPayPalCertUrl, verifyPayPalWebhook, type PayPalWebhookHeaders } from './paypal-webhook';
+import { buildAuditExport } from './audit-export';
 import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord, type ExecutionTrace } from './trace';
 import { explainTrace } from './explain';
@@ -1155,6 +1156,47 @@ app.post('/executions', authorise('execution:record'), (req, res) => {
 
   metrics.increment('absuite_executions_total', { outcome: trace.outcome, module: trace.module });
   return res.status(201).json(trace);
+});
+
+/**
+ * The audit export — every record, in a file an auditor can verify alone.
+ *
+ * `GET /executions` already lists records for somebody holding a key to this
+ * instance. This is a different claim: a file that stands up to a reader with
+ * no access and no reason to trust whoever handed it to them. It carries the
+ * signatures, the links, the public key and the retention anchor, and
+ * `verifyAuditExport` re-walks it from the file alone.
+ *
+ * Scoped to the caller's tenant like every other read here, so an export can
+ * never become a way to read somebody else's records in bulk.
+ */
+app.get('/audit/export', authorise('execution:read'), (req, res) => {
+  const tenant = (req as TenantRequest).tenant;
+
+  /*
+   * Oldest first, because the ORDER IS THE CHAIN — `list` returns newest first
+   * for a screen, and handing that straight to the verifier would produce a
+   * file that fails on its first link for no reason but sort order.
+   */
+  const records = traces.list({
+    limit: Math.min(Number(req.query.limit ?? 10_000), 50_000),
+    ...(tenant ? { tenantId: tenant.id } : {}),
+  }).reverse();
+
+  const bundle = buildAuditExport({
+    records,
+    publicKeyPem: signingKey.publicKeyPem,
+    keyId: signingKey.keyId,
+    ...(() => {
+      const anchor = traces.latestRetentionAnchor(signingKey.publicKeyPem);
+      return anchor ? { retainedFrom: anchor } : {};
+    })(),
+  });
+
+  audit.record({ subject: actorOf(req) ?? 'unattributed', action: 'audit.export', resource: `records:${bundle.count}`, result: 'allow' });
+
+  res.setHeader('content-disposition', `attachment; filename="absuite-audit-${bundle.exportedAt.slice(0, 10)}.json"`);
+  return res.status(200).json(bundle);
 });
 
 app.get('/executions', authorise('execution:read'), (req, res) => {

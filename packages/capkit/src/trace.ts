@@ -1506,7 +1506,7 @@ function checkpointStatement(seq: number, hash: string): string {
  * therefore how you would make a truncation look lawful, so it takes the
  * signing key to write and the public key to honour.
  */
-function retentionStatement(seq: number, hash: string, removed: number, policyDays: number): string {
+export function retentionStatement(seq: number, hash: string, removed: number, policyDays: number): string {
   return `absuite.chain.retention.v1:${seq}:${hash}:${removed}:${policyDays}`;
 }
 

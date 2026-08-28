@@ -71,6 +71,7 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/approvals/:id/withdraw` | `execution:record` | — |
 | POST | `/approvals/attest` | `execution:read` | — |
 | GET | `/audit` | `audit:read` | — |
+| GET | `/audit/export` | `execution:read` | — |
 | GET | `/audit/verify` | `audit:read` | — |
 | POST | `/auth/token` | `auth:token:create` | `agents` |
 | POST | `/auth/token/revoke` | `auth:token:revoke` | — |
@@ -129,6 +130,8 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`POST /approvals/:id/decide`** — Grant or refuse. `approval:decide` is a separate scope from `execution:record` on purpose: an agent that can request an approval must not hold the authority to grant one, or the whole workflow is theatre performed by a single party.
 
 **`POST /approvals/attest`** — Was this action approved before it ran? Takes either the four fields or the hash of them, so an auditor holding only an execution record can ask without knowing an approval id exists.
+
+**`GET /audit/export`** — The audit export — every record, in a file an auditor can verify alone. `GET /executions` already lists records for somebody holding a key to this instance. This is a different claim: a file that stands up to a reader with no access and no reason to trust whoever handed it to them. It carries the signatures, the links, the public key and the retention anchor, and `verifyAuditExport` re-walks it from the file alone. Scoped to the caller's tenant like every other read here, so an export can never become a way to read somebody else's records in bulk.
 
 **`POST /auth/token/validate`** — Validate a token, optionally against a specific capability. `requiredScope` is honoured. It was accepted and silently ignored until 1.1.0, which meant asking "is this token good for payment:refund?" about a token holding only `payment:approve` answered `{"valid": true}` — a false allow produced by an unrecognised field, in the endpoint whose entire job is to answer that question. The response now echoes `requiredScope` back, so a caller can see the check was performed rather than assume it.
 
@@ -318,4 +321,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_129 HTTP endpoints across 5 services. Generated from source._
+_130 HTTP endpoints across 5 services. Generated from source._

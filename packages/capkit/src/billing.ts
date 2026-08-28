@@ -36,6 +36,23 @@ export interface Plan {
   features: string[];
 }
 
+/*
+ * `features` IS A PROMISE, AND EVERY ENTRY HERE MUST BE SOMETHING THE CODE DOES.
+ *
+ * Two entries were removed rather than kept as aspirations. 'SAML SSO' appeared
+ * nowhere in this repository except this array — no implementation, no route,
+ * no test — and 'SLA' is a commitment a person makes rather than a thing the
+ * software performs, so it belonged on a sales page and not in a machine-read
+ * list of capabilities.
+ *
+ * Both were being sold at $299 a month. That is the same defect as retention,
+ * which was listed here and enforced by nothing until this week — and the
+ * reason it is called out rather than quietly fixed is that a pricing table is
+ * the one place in this codebase where an unbacked claim takes somebody's
+ * money.
+ *
+ * Add an entry the day its code lands, not the day it is planned.
+ */
 export const PLANS: Record<PlanId, Plan> = {
   free: {
     id: 'free',
@@ -59,7 +76,7 @@ export const PLANS: Record<PlanId, Plan> = {
     label: 'Business',
     priceCents: 29900,
     limits: { agents: 250, validations: 5_000_000, auditRetentionDays: 365, schedules: 500, benchmarkRuns: 25_000 },
-    features: ['SAML SSO', '1-year audit retention', 'Audit export', 'SLA'],
+    features: ['1-year audit retention', 'Signed audit export', 'Priority support'],
   },
   enterprise: {
     id: 'enterprise',
