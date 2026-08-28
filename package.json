@@ -1,7 +1,7 @@
 {
   "name": "absuite-core",
   "version": "1.0.0",
-  "description": "ABSuite — Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
+  "description": "ABSuite \u2014 Agent Builder Suite. Complete infrastructure for building, deploying, and scaling production AI agents.",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -66,7 +66,8 @@
     "check:routeauth": "node scripts/check-route-auth.mjs",
     "check:metered": "node scripts/check-metered.mjs",
     "check:container-pnpm": "node scripts/check-container-pnpm.mjs",
-    "check:cross-platform": "node scripts/check-cross-platform.mjs"
+    "check:cross-platform": "node scripts/check-cross-platform.mjs",
+    "docs:dossier": "node scripts/gen-dossier.mjs"
   },
   "bin": {
     "absuite": "./packages/cli/dist/index.js"
