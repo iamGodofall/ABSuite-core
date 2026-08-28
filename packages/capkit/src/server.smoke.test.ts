@@ -68,6 +68,10 @@ beforeAll(async () => {
       // limiter itself is exercised by rate-limit.test.ts, which is where a
       // limit belongs under test rather than as a background hazard here.
       ABSUITE_RATE_LIMIT_PER_MINUTE: '10000',
+      // The PayPal route refuses outright without an id, so the refusals below
+      // would all pass for the wrong reason. Configured so the route reaches
+      // the checks that are actually under test.
+      PAYPAL_WEBHOOK_ID: 'WH-SMOKE-TEST',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -937,5 +941,78 @@ describe('the watch, over the wire', () => {
     })).json() as { notices: unknown[] };
 
     expect(after.notices.length).toBe(before.notices.length);
+  });
+});
+
+/**
+ * The PayPal webhook route, over real HTTP.
+ *
+ * `paypal-webhook.test.ts` proves the cryptography against known vectors. It
+ * cannot prove the route is mounted, that the raw body survives express's JSON
+ * parser, or that the host check runs before the certificate is fetched — and
+ * this file exists because a route that silently ignored a field is exactly the
+ * class of defect no unit test catches.
+ *
+ * WHAT THIS CANNOT PROVE, stated rather than implied: no test here verifies a
+ * genuine PayPal signature, because that needs a certificate served from a
+ * paypal.com host and an event PayPal actually signed. Everything below is a
+ * REFUSAL. The passing case waits for a deployed instance and PayPal's webhook
+ * simulator, and until that has run, "the verification works" is a claim about
+ * my reading of their scheme rather than a measurement.
+ */
+describe('POST /billing/paypal/webhook', () => {
+  const event = {
+    event_type: 'BILLING.SUBSCRIPTION.ACTIVATED',
+    resource: { id: 'I-SMOKE', custom_id: 'business', status: 'ACTIVE' },
+  };
+
+  const headers = (over: Record<string, string> = {}) => ({
+    'paypal-transmission-id': 'smoke-1',
+    'paypal-transmission-time': '2026-08-28T10:00:00Z',
+    'paypal-transmission-sig': 'ZmFrZQ==',
+    'paypal-cert-url': 'https://api.sandbox.paypal.com/v1/notifications/certs/CERT-smoke',
+    'paypal-auth-algo': 'SHA256withRSA',
+    ...over,
+  });
+
+  test('the route is mounted — a refusal, not a 404', async () => {
+    const res = await post('/billing/paypal/webhook', event, headers());
+    expect(res.status).not.toBe(404);
+    expect(res.status).toBe(400);
+  });
+
+  test('REFUSAL — a certificate URL that is not a PayPal host', async () => {
+    // The single most important assertion in this file. An attacker who chooses
+    // the certificate satisfies every cryptographic check, so this is what ties
+    // the event to PayPal. It must be answered BEFORE anything is fetched.
+    const res = await post('/billing/paypal/webhook', event, headers({
+      'paypal-cert-url': 'https://paypal.com.evil.example/cert.pem',
+    }));
+    expect(res.status).toBe(400);
+    expect(String((res.body.error as { message?: string })?.message ?? '')).toContain('not a PayPal host');
+  });
+
+  test('REFUSAL — plain http is refused even on a real PayPal host', async () => {
+    const res = await post('/billing/paypal/webhook', event, headers({
+      'paypal-cert-url': 'http://api.paypal.com/certs/x',
+    }));
+    expect(String((res.body.error as { message?: string })?.message ?? '')).toContain('not a PayPal host');
+  });
+
+  test('REFUSAL — a missing certificate URL', async () => {
+    const noCert = headers();
+    delete (noCert as Record<string, string>)['paypal-cert-url'];
+    const res = await post('/billing/paypal/webhook', event, noCert);
+    expect(res.status).toBe(400);
+  });
+
+  test('an unsigned request never reaches the entitlement path', async () => {
+    // The body names a real plan and a real ACTIVE status. If any refusal above
+    // were missing, this is the request that would grant `business` for free.
+    const res = await post('/billing/paypal/webhook', event, headers({
+      'paypal-cert-url': 'https://evil.example/?host=api.paypal.com',
+    }));
+    expect(res.status).toBe(400);
+    expect(res.body.applied).toBeUndefined();
   });
 });
