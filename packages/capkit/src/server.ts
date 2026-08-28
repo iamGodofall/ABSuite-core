@@ -1746,8 +1746,7 @@ function sweepRetention(): void {
    * every record is kept forever, which is what `if (!tenant) return next()` in
    * `enforceQuota` already promises about every other limit.
    */
-  const billingConfigured = Boolean((process.env.STRIPE_WEBHOOK_SECRET || '').trim())
-    || Boolean((process.env.PAYPAL_WEBHOOK_ID || '').trim());
+  const billingConfigured = Boolean((process.env.STRIPE_WEBHOOK_SECRET || '').trim());
   if (!explicit && !billingConfigured) return;
 
   const days = explicit
