@@ -260,6 +260,29 @@ const MIGRATIONS: string[] = [
      signature   TEXT NOT NULL
    )`,
 
+  /*
+   * Receipts from an outside notary.
+   *
+   * Stored verbatim as the notary returned them, INCLUDING the signature, and
+   * never re-serialised: a receipt is evidence produced by somebody else, and
+   * re-encoding it is how a signature stops verifying for reasons that have
+   * nothing to do with anybody lying. `body` is the exact JSON received.
+   *
+   * `head_hash` and `claimed_length` are copied out for querying only. The
+   * receipt is what counts; these are an index.
+   */
+  `CREATE TABLE IF NOT EXISTS notary_receipts (
+     id             INTEGER PRIMARY KEY AUTOINCREMENT,
+     chain_id       TEXT NOT NULL,
+     head_hash      TEXT NOT NULL,
+     claimed_length INTEGER,
+     witnessed_at   TEXT NOT NULL,
+     notary_url     TEXT NOT NULL,
+     body           TEXT NOT NULL
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_receipts_chain ON notary_receipts (chain_id, witnessed_at)`,
+
   `CREATE INDEX IF NOT EXISTS idx_notices_state ON notices (state, last_seen_at)`,
 
   `CREATE INDEX IF NOT EXISTS idx_executions_seq ON executions (seq)`,

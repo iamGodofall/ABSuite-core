@@ -17,9 +17,10 @@ import { generatePolicy } from './ai-policy-generator';
 import { describeProviders } from './llm-provider';
 import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
-import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, rewriteWindowHours, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
+import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, rewriteWindowHours, witnessDue, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
 import { isPayPalCertUrl, verifyPayPalWebhook, type PayPalWebhookHeaders } from './paypal-webhook';
 import { buildAuditExport } from './audit-export';
+import { instanceWitnessInterval, witnessHead } from './witness';
 import { isSellable, annualPitch } from './paypal-plans';
 import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord, type ExecutionTrace } from './trace';
@@ -122,6 +123,8 @@ const metrics = createServiceMetrics('capkit');
 const rateLimiter = new TenantRateLimiter();
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 const PAYPAL_WEBHOOK_ID = (process.env.PAYPAL_WEBHOOK_ID || '').trim();
+const NOTARY_WITNESS_URL = (process.env.ABSUITE_NOTARY_URL || '').trim();
+const NOTARY_CHAIN_ID = (process.env.ABSUITE_CHAIN_ID || '').trim();
 
 /*
  * Signing certificates, keyed by the URL they came from.
@@ -1913,6 +1916,88 @@ if (require.main === module) {
  * This is a real limitation and it is stated rather than implied: per-tenant
  * retention needs per-tenant chains, and that is a schema change, not a config.
  */
+/**
+ * Witness the chain head, if anybody on this instance is entitled to it.
+ *
+ * ## Why the cadence comes from the tenants and not from a setting
+ *
+ * One hash chain is shared by every tenant, so there is one cadence and it must
+ * be the shortest anybody is owed. A business tenant paying for an hour gets an
+ * hour even when a team tenant shares the instance. `instanceWitnessInterval`
+ * decides that; nothing here re-derives it.
+ *
+ * ## Why the last receipt is read from storage rather than remembered
+ *
+ * A process that restarts every deploy and holds the last witnessing in memory
+ * would witness on every boot — which is harmless, and would also mean an
+ * instance restarting hourly never actually proves it can wait. The stored
+ * receipt is the honest record of when somebody outside last saw this chain.
+ */
+async function sweepWitness(): Promise<void> {
+  if (!NOTARY_WITNESS_URL) return;
+
+  try {
+    const plans = tenancy.tenants.list(1000).map(t => tenancy.planFor(t));
+    const interval = instanceWitnessInterval(plans);
+    // Nobody here is entitled to witnessing. Free tenants run their own.
+    if (interval < 0) return;
+
+    const last = storage.get<{ witnessed_at: string }>(
+      'SELECT witnessed_at FROM notary_receipts ORDER BY id DESC LIMIT 1'
+    );
+
+    /*
+     * `witnessDue` takes a plan, and the instance cadence is not one tenant's
+     * plan — so it is asked about a plan-shaped value carrying the resolved
+     * interval. Passing any single tenant's plan here would witness at that
+     * tenant's cadence and quietly under-serve everybody paying for more.
+     */
+    if (!witnessDue({ ...PLANS.business, witnessIntervalHours: interval }, last?.witnessed_at)) return;
+
+    const chainId = NOTARY_CHAIN_ID || `absuite:${signingKey.keyId}`;
+    const head = traces.verifyChain(signingKey.publicKeyPem);
+
+    const outcome = await witnessHead(
+      NOTARY_WITNESS_URL,
+      { chainId, headHash: head.headHash, claimedLength: head.checked },
+      {
+        /*
+         * A notary on a private address is not a disinterested third party —
+         * it is on the same network as the thing it is meant to be independent
+         * of. Refusing these is a correctness rule here as much as an SSRF one,
+         * and metadata endpoints are refused by guardedFetch regardless.
+         */
+        refuse: ['loopback', 'private', 'link-local', 'carrier-grade-nat', 'unspecified', 'unique-local'],
+      }
+    );
+
+    if (!outcome.witnessed) {
+      console.warn(`[capkit] witnessing skipped: ${outcome.error ?? 'unknown'}`);
+      return;
+    }
+
+    /*
+     * Stored exactly as returned. A receipt is evidence produced by somebody
+     * else and re-serialising it is how a signature stops verifying for reasons
+     * that have nothing to do with anybody lying.
+     */
+    storage.run(
+      `INSERT INTO notary_receipts (chain_id, head_hash, claimed_length, witnessed_at, notary_url, body)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      chainId, head.headHash, head.checked, new Date().toISOString(),
+      NOTARY_WITNESS_URL, JSON.stringify(outcome.receipt)
+    );
+
+    audit.record({ subject: 'notary', action: 'chain.witnessed', resource: chainId, result: 'allow' });
+    console.log(`[capkit] chain head witnessed at ${chainId} (${head.checked} records)`);
+  } catch (error) {
+    // Same rule as the retention sweep: tidying up must never take the process
+    // with it. A missed witnessing is recoverable on the next sweep; a crash
+    // loop is not.
+    console.error('[capkit] witnessing failed:', error instanceof Error ? error.message : error);
+  }
+}
+
 function sweepRetention(): void {
   const override = Number(process.env.ABSUITE_RETENTION_DAYS);
   const explicit = Number.isFinite(override) && override !== 0;
@@ -1999,12 +2084,14 @@ function sweepRetention(): void {
   const pruneTimer = setInterval(() => {
     void revocations.prune();
     sweepRetention();
+    void sweepWitness();
   }, 3_600_000);
   pruneTimer.unref?.();
 
   // Also at boot, which is the only sweep a rarely-restarted instance gets and
   // the only one a frequently-restarted one is guaranteed.
   sweepRetention();
+  void sweepWitness();
 
   // Layer 6 begins here rather than on first request. A watch that only runs
   // when somebody opens a page is not watching; it is answering.

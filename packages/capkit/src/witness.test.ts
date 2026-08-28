@@ -73,3 +73,59 @@ describe('rewriteWindowHours — the number a compliance officer asks for', () =
     expect(rewriteWindowHours(PLANS.business)!).toBeLessThan(rewriteWindowHours(PLANS.team)!);
   });
 });
+
+import { instanceWitnessInterval, witnessHead } from './witness';
+
+describe('instanceWitnessInterval — one chain, so one cadence', () => {
+  test('takes the SHORTEST any tenant is entitled to', () => {
+    // A business tenant paying for an hour must get an hour even when a team
+    // tenant shares the instance.
+    expect(instanceWitnessInterval([PLANS.team, PLANS.business])).toBe(1);
+    expect(instanceWitnessInterval([PLANS.business, PLANS.team])).toBe(1);
+  });
+
+  test('the mirror of retention, which takes the LONGEST', () => {
+    // Both err toward over-serving. Reversing either silently under-serves
+    // somebody who paid.
+    expect(instanceWitnessInterval([PLANS.team])).toBe(24);
+    expect(instanceWitnessInterval([PLANS.business])).toBe(1);
+  });
+
+  test('a free tenant does not drag a paying one down', () => {
+    // free is -1 and must be ignored rather than treated as the minimum.
+    expect(instanceWitnessInterval([PLANS.free, PLANS.business])).toBe(1);
+    expect(instanceWitnessInterval([PLANS.free, PLANS.team])).toBe(24);
+  });
+
+  test('-1 when nobody on the instance is witnessed', () => {
+    expect(instanceWitnessInterval([PLANS.free])).toBe(-1);
+    expect(instanceWitnessInterval([])).toBe(-1);
+  });
+});
+
+describe('witnessHead', () => {
+  test('REFUSAL — an empty chain is not witnessed', async () => {
+    // A receipt for the hash of nothing is evidence of nothing that looks like
+    // evidence.
+    const out = await witnessHead('https://notary.example/witness', { chainId: 'c', headHash: '' });
+    expect(out.witnessed).toBe(false);
+    expect(out.error).toContain('No chain head');
+  });
+
+  test('a notary that cannot be reached is reported, never thrown', async () => {
+    // A notary being down must not take down the instance whose evidence it
+    // exists to strengthen.
+    const out = await witnessHead(
+      'https://127.0.0.1:1/witness',
+      { chainId: 'c', headHash: 'a'.repeat(64) },
+      { refuse: [], timeoutMs: 500 }
+    );
+    expect(out.witnessed).toBe(false);
+    expect(typeof out.error).toBe('string');
+  });
+
+  test('REFUSAL — a URL that cannot be parsed does not throw either', async () => {
+    const out = await witnessHead('not a url', { chainId: 'c', headHash: 'a'.repeat(64) });
+    expect(out.witnessed).toBe(false);
+  });
+});
