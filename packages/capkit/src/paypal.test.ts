@@ -64,6 +64,36 @@ describe('planFromPayPalEvent', () => {
     expect(planFromPayPalEvent(sub({ status: undefined })).action).toBe('ignore');
   });
 
+  test('REFUSAL — CREATED grants nothing; it is APPROVAL_PENDING', () => {
+    // Registered on the live sandbox webhook, so it WILL arrive. A created
+    // subscription exists, is unapproved and is unpaid — granting here is the
+    // APPROVED fault one step earlier. ACTIVATED always follows.
+    expect(planFromPayPalEvent({ ...sub(), event_type: 'BILLING.SUBSCRIPTION.CREATED' }).action)
+      .toBe('ignore');
+  });
+
+  test('every event registered on the real webhook is handled deliberately', () => {
+    // Taken from the sandbox webhook's own "Events Tracked" column, so this
+    // list is PayPal's rather than mine. None may throw, and none may grant a
+    // tier except on an ACTIVE status.
+    const registered = [
+      'BILLING.SUBSCRIPTION.ACTIVATED',
+      'BILLING.SUBSCRIPTION.CANCELLED',
+      'BILLING.SUBSCRIPTION.CREATED',
+      'BILLING.SUBSCRIPTION.EXPIRED',
+      'BILLING.SUBSCRIPTION.PAYMENT.FAILED',
+      'BILLING.SUBSCRIPTION.RE-ACTIVATED',
+      'BILLING.SUBSCRIPTION.SUSPENDED',
+      'BILLING.SUBSCRIPTION.UPDATED',
+    ];
+    for (const event_type of registered) {
+      const verdict = planFromPayPalEvent({ ...sub({ status: 'APPROVAL_PENDING' }), event_type });
+      expect(['set-plan', 'suspend', 'ignore']).toContain(verdict.action);
+      // Nothing unpaid may reach a paid tier.
+      expect(verdict.plan === 'team' || verdict.plan === 'business').toBe(false);
+    }
+  });
+
   test('a cancellation DOWNGRADES rather than deleting', () => {
     expect(planFromPayPalEvent({ ...sub(), event_type: 'BILLING.SUBSCRIPTION.CANCELLED' })).toEqual({
       action: 'set-plan', plan: 'free', customer: 'I-SUB123',

@@ -241,6 +241,18 @@ export function planFromPayPalEvent(event: {
     case 'BILLING.SUBSCRIPTION.PAYMENT.FAILED':
       return { action: 'suspend', ...(customer ? { customer } : {}) };
 
+    /*
+     * CREATED is named rather than left to `default`, because falling through
+     * silently reads as an oversight and this is a decision.
+     *
+     * A created subscription is APPROVAL_PENDING: it exists, nobody has
+     * approved it and nobody has paid. Granting here would be the same fault as
+     * granting on APPROVED, one step earlier. ACTIVATED is the event that says
+     * money moved, and it always follows.
+     */
+    case 'BILLING.SUBSCRIPTION.CREATED':
+      return { action: 'ignore' };
+
     default:
       return { action: 'ignore' };
   }
