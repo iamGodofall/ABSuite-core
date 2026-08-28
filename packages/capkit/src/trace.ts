@@ -377,6 +377,31 @@ export interface ChainCheckpoint {
   signature: string;
 }
 
+/**
+ * A signed note that records up to `seq` were removed under a retention policy,
+ * and that the surviving chain legitimately resumes from `hash`.
+ *
+ * Retention and truncation delete records in exactly the same way; the only
+ * thing that separates them is whether the deletion was authorised, and an
+ * anchor is what authorisation looks like when it has to survive in the same
+ * file as the gap it explains. Without one, a chain whose oldest record links
+ * to a predecessor that is gone is indistinguishable from a chain somebody
+ * trimmed — so `verifyChain` calls that BROKEN, and should.
+ */
+export interface RetentionAnchor {
+  /** The highest sequence number removed. The surviving chain starts after it. */
+  seq: number;
+  /** The hash of the record at `seq` — what the oldest survivor must link to. */
+  hash: string;
+  /** How many records this sweep removed. */
+  removed: number;
+  /** The retention window applied, in days. */
+  policyDays: number;
+  prunedAt: string;
+  keyId?: string;
+  signature: string;
+}
+
 export class SigningKey {
   private readonly privateKey: KeyObject;
   readonly publicKeyPem: string;
@@ -635,7 +660,26 @@ export class TraceStore {
     const row = this.storage.get<{ hash: string; seq: number }>(
       'SELECT hash, seq FROM executions ORDER BY seq DESC LIMIT 1'
     );
-    return { hash: row?.hash ?? GENESIS_HASH, seq: Number(row?.seq ?? 0) };
+    if (row) return { hash: row.hash, seq: Number(row.seq) };
+
+    /*
+     * No records — but "none yet" and "all of them aged out" are different
+     * chains, and only one of them starts at genesis. Resuming from the anchor
+     * keeps sequence numbers monotonic and keeps the next record linking to the
+     * last one that ever existed, so a sweep that empties the table does not
+     * silently fork a second chain sharing the first one's sequence numbers.
+     *
+     * Read unsigned on purpose: this is the write path choosing where to append,
+     * not the read path deciding what to believe. Appending after a forged
+     * anchor still produces records that verify; honouring one when *reading*
+     * is what would let a truncation pass, and that path checks the signature.
+     */
+    const anchor = this.storage.get<{ hash: string; seq: number }>(
+      'SELECT hash, seq FROM retention_anchors ORDER BY seq DESC LIMIT 1'
+    );
+    if (anchor) return { hash: anchor.hash, seq: Number(anchor.seq) };
+
+    return { hash: GENESIS_HASH, seq: 0 };
   }
 
   get headHash(): string {
@@ -1115,6 +1159,169 @@ export class TraceStore {
   }
 
   /**
+   * The newest retention anchor whose signature verifies.
+   *
+   * `publicKeyPem` is required to get one back. That is deliberately unlike
+   * `latestCheckpoint`, which returns an unverified row when no key is offered:
+   * a checkpoint that cannot be verified costs a slower walk, while an anchor
+   * that cannot be verified would excuse a gap on nobody's authority. The safe
+   * default for the first is "use it anyway"; for the second it is "do not".
+   */
+  latestRetentionAnchor(publicKeyPem?: string): RetentionAnchor | undefined {
+    if (!publicKeyPem) return undefined;
+
+    const rows = this.storage.all<Record<string, unknown>>(
+      'SELECT seq, hash, removed, policy_days, pruned_at, key_id, signature FROM retention_anchors ORDER BY seq DESC'
+    );
+
+    for (const row of rows) {
+      const candidate: RetentionAnchor = {
+        seq: Number(row.seq),
+        hash: String(row.hash),
+        removed: Number(row.removed),
+        policyDays: Number(row.policy_days),
+        prunedAt: String(row.pruned_at),
+        ...(row.key_id ? { keyId: String(row.key_id) } : {}),
+        signature: String(row.signature),
+      };
+      if (
+        verifySignature(
+          retentionStatement(candidate.seq, candidate.hash, candidate.removed, candidate.policyDays),
+          candidate.signature,
+          publicKeyPem
+        )
+      ) {
+        return candidate;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Remove records older than `retentionDays`, leaving a signed anchor in their
+   * place so the surviving chain still verifies.
+   *
+   * ## Why this is not a DELETE
+   *
+   * Every record links to its predecessor by hash. Delete the predecessor and
+   * the oldest survivor points at nothing the walk can produce, so `verifyChain`
+   * reports BROKEN — the product's central claim failing on its own retention
+   * feature. The anchor is what lets the walk resume: it carries the hash the
+   * oldest survivor must link to, and it is signed, because otherwise anybody
+   * who could truncate the ledger could also write the note excusing it.
+   *
+   * ## What it will not do
+   *
+   * The most recent record is never removed, whatever its age. A ledger whose
+   * every record has aged out still has a head that new records link to, and
+   * keeping one costs a row. Retention is about bounding growth, not about
+   * reaching zero.
+   *
+   * Returns what was actually taken. `removed: 0` is the ordinary answer on a
+   * young instance and is not a failure.
+   */
+  pruneToRetention(options: { retentionDays: number; now?: Date }): {
+    removed: number;
+    anchor?: RetentionAnchor;
+    oldestKept?: string;
+  } {
+    const { retentionDays } = options;
+
+    /*
+     * No signing key, no sweep — and this is a refusal rather than a fallback.
+     *
+     * An unsigned anchor would be honoured by nobody, so the records would be
+     * gone and the chain would read as truncated from then on, permanently and
+     * with no way back. Declining to prune costs disk; pruning without the
+     * means to explain it costs the ledger's only claim.
+     */
+    if (!this.signingKey) return { removed: 0 };
+
+    // -1 is the unlimited sentinel used throughout `Plan['limits']`.
+    if (retentionDays < 0) return { removed: 0 };
+    if (!Number.isFinite(retentionDays)) return { removed: 0 };
+
+    const now = options.now ?? new Date();
+    const cutoff = new Date(now.getTime() - retentionDays * 86_400_000).toISOString();
+
+    const head = this.storage.get<{ seq: number }>(
+      'SELECT seq FROM executions ORDER BY seq DESC LIMIT 1'
+    );
+    if (!head) return { removed: 0 };
+
+    /*
+     * The boundary is chosen by sequence, not by timestamp, and the two can
+     * disagree: `started_at` is when the caller says the work began, so a
+     * record written late can carry an earlier time than one already in the
+     * chain. Pruning "everything older than X" by timestamp would punch holes
+     * in the middle of the chain rather than trimming its tail, and a hole is
+     * exactly what no anchor can explain — an anchor says where the chain
+     * resumes, and a chain cannot resume in two places.
+     *
+     * So: find the highest sequence at or below which EVERY record is expired,
+     * and cut there. A record inserted out of order simply holds the boundary
+     * back until it too has aged, which is the conservative direction.
+     */
+    const firstKept = this.storage.get<{ seq: number }>(
+      'SELECT seq FROM executions WHERE started_at >= ? ORDER BY seq ASC LIMIT 1',
+      cutoff
+    );
+
+    const boundary = firstKept
+      ? Number(firstKept.seq) - 1
+      : Number(head.seq) - 1; // everything expired: keep the head regardless.
+
+    const cut = Math.min(boundary, Number(head.seq) - 1);
+    if (cut < 1) return { removed: 0 };
+
+    const boundaryRow = this.storage.get<{ hash: string }>(
+      'SELECT hash FROM executions WHERE seq = ?',
+      cut
+    );
+    if (!boundaryRow) return { removed: 0 };
+
+    const removed = Number(
+      this.storage.get<{ n: number }>('SELECT COUNT(*) AS n FROM executions WHERE seq <= ?', cut)?.n ?? 0
+    );
+    if (removed === 0) return { removed: 0 };
+
+    const anchor: RetentionAnchor = {
+      seq: cut,
+      hash: boundaryRow.hash,
+      removed,
+      policyDays: retentionDays,
+      prunedAt: now.toISOString(),
+      ...(this.signingKey.keyId ? { keyId: this.signingKey.keyId } : {}),
+      signature: this.signingKey.sign(retentionStatement(cut, boundaryRow.hash, removed, retentionDays)),
+    };
+
+    /*
+     * Anchor first, then delete. The reverse order has a window in which the
+     * records are gone and nothing explains why — and a crash inside that
+     * window leaves a ledger that reads as tampered with, permanently. Writing
+     * an anchor for records that still exist is harmless: the walk finds them
+     * and the anchor is simply not needed yet.
+     */
+    this.storage.run(
+      `INSERT INTO retention_anchors (seq, hash, removed, policy_days, pruned_at, key_id, signature)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(seq) DO UPDATE SET hash = excluded.hash, removed = excluded.removed,
+                                      policy_days = excluded.policy_days, pruned_at = excluded.pruned_at,
+                                      key_id = excluded.key_id, signature = excluded.signature`,
+      anchor.seq, anchor.hash, anchor.removed, anchor.policyDays, anchor.prunedAt,
+      anchor.keyId ?? null, anchor.signature
+    );
+
+    this.storage.run('DELETE FROM executions WHERE seq <= ?', cut);
+
+    const oldestKept = this.storage.get<{ started_at: string }>(
+      'SELECT started_at FROM executions ORDER BY seq ASC LIMIT 1'
+    )?.started_at;
+
+    return { removed, anchor, ...(oldestKept ? { oldestKept } : {}) };
+  }
+
+  /**
    * Walk the chain and report the first record that fails.
    *
    * `brokenAt` is the sequence number of the offending record — the evidence an
@@ -1147,6 +1354,15 @@ export class TraceStore {
     checkable?: boolean;
     /** Present only on a resumed pass. Its absence means the walk began at genesis. */
     verifiedFrom?: { seq: number; hash: string; verifiedAt: string };
+    /**
+     * Present when a signed retention anchor explained a gap at the tail.
+     *
+     * Distinct from `verifiedFrom`, and the difference is the whole point: a
+     * checkpoint means records were *not re-examined* and could be; an anchor
+     * means records are *gone* and cannot be. Reporting both as "resumed" would
+     * merge a shortcut with a deletion.
+     */
+    retainedFrom?: { seq: number; hash: string; removed: number; policyDays: number; prunedAt: string };
     /** What this pass did and did not re-examine. Present only when resumed. */
     scope?: string;
     /**
@@ -1186,7 +1402,24 @@ export class TraceStore {
       ? this.storage.all<Record<string, unknown>>('SELECT * FROM executions WHERE seq > ? ORDER BY seq ASC', usable.seq)
       : this.storage.all<Record<string, unknown>>('SELECT * FROM executions ORDER BY seq ASC');
 
-    let expectedPrev = usable ? usable.hash : GENESIS_HASH;
+    /*
+     * A walk from genesis over a swept ledger starts after the records that
+     * retention removed, so the oldest survivor links to something the walk
+     * never produces. A signed anchor is what says that gap was authorised and
+     * names the hash the chain resumes from.
+     *
+     * Only consulted when the walk would otherwise begin at genesis, and only
+     * when it actually explains this ledger — the anchor must sit immediately
+     * below the oldest surviving record. An anchor at seq 40 over a ledger
+     * whose oldest survivor is seq impossible-to-reconcile is not evidence of
+     * anything, and honouring it would let one stale anchor excuse every future
+     * truncation.
+     */
+    const retention = usable ? undefined : this.latestRetentionAnchor(publicKeyPem);
+    const oldestSeq = rows.length > 0 ? Number(rows[0]!.seq) : undefined;
+    const swept = retention && oldestSeq !== undefined && retention.seq === oldestSeq - 1 ? retention : undefined;
+
+    let expectedPrev = usable ? usable.hash : swept ? swept.hash : GENESIS_HASH;
 
     const resumed = usable
       ? {
@@ -1196,7 +1429,22 @@ export class TraceStore {
             `this rests on a checkpoint taken at ${usable.verifiedAt}, which lives in the same file as the records ` +
             `it vouches for. For a claim that does not, walk from genesis.`,
         }
-      : {};
+      : swept
+        ? {
+            retainedFrom: {
+              seq: swept.seq,
+              hash: swept.hash,
+              removed: swept.removed,
+              policyDays: swept.policyDays,
+              prunedAt: swept.prunedAt,
+            },
+            scope:
+              `Every surviving record was walked. ${swept.removed} record(s) up to ${swept.seq} were removed on ` +
+              `${swept.prunedAt} under a ${swept.policyDays}-day retention policy and cannot be re-examined — they ` +
+              `are gone, not unchecked. What this pass shows is that the records still held link unbroken to the ` +
+              `signed anchor left in their place.`,
+          }
+        : {};
 
     for (const row of rows) {
       const trace = rowToTrace(row);
@@ -1241,6 +1489,25 @@ export class TraceStore {
  */
 function checkpointStatement(seq: number, hash: string): string {
   return `absuite.chain.checkpoint.v1:${seq}:${hash}`;
+}
+
+/**
+ * The statement a retention anchor signs.
+ *
+ * Every field that changes what the anchor *permits* is inside the signature.
+ * `seq` and `hash` say where the surviving chain must resume from; `removed`
+ * and `policyDays` say how much was taken and under which rule. Signing the
+ * hash alone would let an anchor be replayed at a different sequence — the same
+ * hazard `checkpointStatement` guards, and the reason both carry the sequence.
+ *
+ * This one *is* a security boundary, which the checkpoint deliberately is not.
+ * A checkpoint only shortens a walk that could be done in full; an anchor
+ * vouches for records that no longer exist to be walked. Forging one is
+ * therefore how you would make a truncation look lawful, so it takes the
+ * signing key to write and the public key to honour.
+ */
+function retentionStatement(seq: number, hash: string, removed: number, policyDays: number): string {
+  return `absuite.chain.retention.v1:${seq}:${hash}:${removed}:${policyDays}`;
 }
 
 function rowToTrace(row: Record<string, unknown>): ExecutionTrace {

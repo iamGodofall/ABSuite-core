@@ -237,6 +237,29 @@ const MIGRATIONS: string[] = [
      signature   TEXT NOT NULL
    )`,
 
+  /*
+   * Retention anchors — what is left behind when a record is removed.
+   *
+   * Unlike `chain_checkpoints` above, this table IS a security boundary. A
+   * checkpoint only shortens a walk that remains possible in full; an anchor
+   * speaks for records that are gone, and is the single thing distinguishing a
+   * lawful retention sweep from somebody truncating the ledger. It is honoured
+   * only when its signature verifies against the public key.
+   *
+   * Rows accumulate rather than being replaced: each sweep is its own statement
+   * about what it took, and overwriting them would destroy the history of how
+   * the gap came to be.
+   */
+  `CREATE TABLE IF NOT EXISTS retention_anchors (
+     seq         INTEGER PRIMARY KEY,
+     hash        TEXT NOT NULL,
+     removed     INTEGER NOT NULL,
+     policy_days INTEGER NOT NULL,
+     pruned_at   TEXT NOT NULL,
+     key_id      TEXT,
+     signature   TEXT NOT NULL
+   )`,
+
   `CREATE INDEX IF NOT EXISTS idx_notices_state ON notices (state, last_seen_at)`,
 
   `CREATE INDEX IF NOT EXISTS idx_executions_seq ON executions (seq)`,

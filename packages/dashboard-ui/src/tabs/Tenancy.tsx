@@ -68,7 +68,7 @@ const METERED: Record<QuotaMetric, string | null> = {
   validations: null,
   schedules: 'Nothing increments this. Schedules are created in edge-run, which does not share the meter.',
   benchmarkRuns: 'Nothing increments this. Benchmark runs are counted in quickbench, which does not share the meter.',
-  auditRetentionDays: 'Not a counter, and not enforced. ABSuite deletes no records, so this is a commercial commitment rather than a mechanism.',
+  auditRetentionDays: 'Enforced by an hourly sweep, but not a counter — records past the window are removed and replaced by a signed anchor, so there is no running total to show. One chain is shared by all tenants, so the instance keeps the longest window any tenant is entitled to.',
 };
 
 const getAdminHeaders = (): HeadersInit => {

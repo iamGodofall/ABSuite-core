@@ -1708,6 +1708,55 @@ export { app };
 
 // Only listen when run directly, so tests can import the app without binding a port.
 if (require.main === module) {
+/**
+ * Apply audit retention.
+ *
+ * ## One chain, so one window
+ *
+ * Retention is declared per plan, but the execution ledger is a single hash
+ * chain shared by every tenant — `tenant_id` is a column on it, not a separate
+ * chain. There is therefore no way to expire one tenant's records and not
+ * another's without punching a hole in the middle of the chain, which no anchor
+ * can explain.
+ *
+ * So the instance keeps the LONGEST window any of its tenants is entitled to.
+ * A free tenant on an instance that also serves a business tenant keeps their
+ * records for a year — they are over-served, never under-served, and erring the
+ * other way would delete data somebody paid to keep. `ABSUITE_RETENTION_DAYS`
+ * overrides it for a single-tenant deployment that wants its own number.
+ *
+ * This is a real limitation and it is stated rather than implied: per-tenant
+ * retention needs per-tenant chains, and that is a schema change, not a config.
+ */
+function sweepRetention(): void {
+  const override = Number(process.env.ABSUITE_RETENTION_DAYS);
+  const days = Number.isFinite(override) && override !== 0
+    ? override
+    : tenancy.tenants
+        .list(1000)
+        .reduce((longest, tenant) => {
+          const limit = tenancy.planFor(tenant).limits.auditRetentionDays;
+          // -1 is unlimited and wins outright.
+          if (longest < 0 || limit < 0) return -1;
+          return Math.max(longest, limit);
+        }, 0);
+
+  // No tenants yet means no entitlement to reason about, so nothing is removed.
+  if (days === 0) return;
+
+  try {
+    const result = traces.pruneToRetention({ retentionDays: days });
+    if (result.removed > 0) {
+      console.log(`[capkit] retention: removed ${result.removed} record(s) older than ${days}d, anchored at seq ${result.anchor?.seq}`);
+    }
+  } catch (error) {
+    // A failed sweep must never take the process with it: the records staying
+    // is the safe direction, and an instance that will not boot because it
+    // could not tidy up is strictly worse than one holding extra rows.
+    console.error('[capkit] retention sweep failed:', error instanceof Error ? error.message : error);
+  }
+}
+
   const server = app.listen(PORT, () => {
     console.log(`[capkit] listening on :${PORT} (storage: ${storage.path})`);
     if (!ADMIN_KEY) {
@@ -1740,8 +1789,18 @@ if (require.main === module) {
   });
 
   // Expired revocations are dead weight; the token is rejected on expiry anyway.
-  const pruneTimer = setInterval(() => void revocations.prune(), 3_600_000);
+  // Retention rides the same hour rather than starting a clock of its own: two
+  // timers is two things to be wrong about, and neither sweep is urgent to the
+  // minute.
+  const pruneTimer = setInterval(() => {
+    void revocations.prune();
+    sweepRetention();
+  }, 3_600_000);
   pruneTimer.unref?.();
+
+  // Also at boot, which is the only sweep a rarely-restarted instance gets and
+  // the only one a frequently-restarted one is guaranteed.
+  sweepRetention();
 
   // Layer 6 begins here rather than on first request. A watch that only runs
   // when somebody opens a page is not watching; it is answering.
