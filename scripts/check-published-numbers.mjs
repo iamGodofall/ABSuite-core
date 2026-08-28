@@ -219,5 +219,97 @@ console.log(
   `\n${right.length} published figure(s) match the repository — ` +
   `${CHECKS} checks, ${ROUTES} routes, ${PACKAGES} packages, ${SUITES} suites, ${LAYERS_BUILT} of 8 layers.`
 );
+/* ── The pricing tables, against the plans the code actually sells ──────── */
+
+/*
+ * A PRICE IS THE ONE PUBLISHED NUMBER THAT TAKES SOMEBODY'S MONEY.
+ *
+ * Every other figure in this file is a claim about size. These are a claim
+ * about what a customer will be charged and what they get for it, and they are
+ * published in two documents and served by a running instance at `GET /plans`
+ * — four copies of one fact, three of them prose.
+ *
+ * The drift this catches is not hypothetical anywhere else in this project:
+ * `billing.ts` already carries a comment about the annual price being stored
+ * twice and silently becoming a 40% discount on the tier that just got more
+ * expensive. The same fault in a README is worse, because the reader acts on it
+ * before anybody reconciles an invoice.
+ *
+ * Parsed from the source rather than imported, for the same reason the rest of
+ * this script is: it must run before the build, against a tree that may not
+ * compile.
+ */
+const billing = read('packages/capkit/src/billing.ts');
+
+const annualMonths = Number(/ANNUAL_MONTHS_CHARGED\s*=\s*(\d+)/.exec(billing)?.[1]);
+if (!annualMonths) throw new Error('ANNUAL_MONTHS_CHARGED not found in billing.ts');
+
+const planBlock = (id) => {
+  const from = billing.indexOf(`  ${id}: {`);
+  if (from < 0) throw new Error(`plan ${id} not found in billing.ts`);
+  return billing.slice(from, billing.indexOf('\n  },', from));
+};
+const field = (id, name) => {
+  const found = new RegExp(`${name}:\\s*(-?[\\d_]+)`).exec(planBlock(id));
+  if (!found) throw new Error(`${id}.${name} not found in billing.ts`);
+  return Number(found[1].replace(/_/g, ''));
+};
+
+const money = (cents) => `$${(cents / 100).toLocaleString('en-US')}`;
+const cadence = (hours) => (hours < 0 ? 'never' : hours === 24 ? 'daily' : hours === 1 ? 'hourly' : `every ${hours} hours`);
+const window_ = (hours) => (hours < 0 ? 'unwitnessed' : hours === 1 ? '1 hour' : `${hours} hours`);
+
+/**
+ * What each row of a published pricing table must say for Team and Business.
+ *
+ * Only the two priced rungs are policed. Free is $0 and Enterprise is
+ * negotiated — neither is derived from a number that can drift.
+ */
+const priced = ['team', 'business'];
+const PRICING_ROWS = {
+  'Monthly': priced.map(id => money(field(id, 'priceCents'))),
+  'Annual': priced.map(id => money(field(id, 'priceCents') * annualMonths)),
+  'Witnessed by us': priced.map(id => cadence(field(id, 'witnessIntervalHours'))),
+  'Rewrite window': priced.map(id => window_(field(id, 'witnessIntervalHours'))),
+  'Agents': priced.map(id => field(id, 'agents').toLocaleString('en-US')),
+  'Validations / month': priced.map(id => field(id, 'validations').toLocaleString('en-US')),
+  'Audit retention': priced.map(id => `${field(id, 'auditRetentionDays')} days`),
+};
+
+/* Emphasis and italics are presentation; the cell underneath is the claim. */
+const plain = (cell) => cell.replace(/\*+/g, '').replace(/`/g, '').trim();
+
+const pricingWrong = [];
+let pricingRight = 0;
+
+for (const path of docs) {
+  read(path).split('\n').forEach((line, index) => {
+    if (!line.startsWith('|')) return;
+    const cells = line.split('|').slice(1, -1).map(plain);
+    // | label | free | team | business | enterprise |
+    if (cells.length !== 5) return;
+    const expected = PRICING_ROWS[cells[0]];
+    if (!expected) return;
+    [cells[2], cells[3]].forEach((stated, rung) => {
+      if (stated === expected[rung]) { pricingRight += 1; return; }
+      pricingWrong.push(
+        `${path}:${index + 1}\n      ${priced[rung]} "${cells[0]}" says ${stated}, billing.ts says ${expected[rung]}`
+      );
+    });
+  });
+}
+
+if (pricingWrong.length > 0) {
+  console.error(`\n${pricingWrong.length} published price(s) the code does not charge:\n`);
+  for (const line of pricingWrong) console.error(`  ✗ ${line}\n`);
+  console.error('billing.ts is the price. A table that disagrees with it is not a');
+  console.error('typo — it is a quote nobody can honour\n');
+  process.exit(1);
+}
+
+console.log(`${pricingRight} published pricing cell(s) match billing.ts — ` +
+  `team ${money(field('team', 'priceCents'))}/mo, business ${money(field('business', 'priceCents'))}/mo, ` +
+  `annual charged ${annualMonths} months.`);
+
 console.log('The test count is not policed here: test.each expands at runtime, so any');
 console.log('static parse would be an approximation enforced as though it were exact.');

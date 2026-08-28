@@ -158,6 +158,65 @@ constitutional refusal, and it is also a real gap against EU AI Act Article
 
 ---
 
+## 4t. The front door did not mention that anything was for sale
+
+`README.md` is 827 lines and, until this pass, **the word "price" did not appear
+in it once**. Grep found no `$49`, no `$299`, no plan table, no mention of a
+hosted offering — while `billing.ts` had carried a fully-argued four-rung ladder
+for weeks and `server.ts` served it at `GET /plans`.
+
+That is this project's most-repeated defect in commercial clothing: **a feature
+with no caller.** The pricing existed, was tested, was reachable over HTTP, and
+was reachable from nothing a reader would ever see. A person arriving at the
+repository could read the whole argument for why the evidence is trustworthy and
+leave without learning there was anything to buy.
+
+Three structural faults in the same file, all measured rather than felt:
+
+- **The badges sat at line 152**, after a hundred and fifty lines of prose. A
+  reader looking for "is this maintained, is it published, does CI pass" reads
+  the top of a file, not the middle of one.
+- **No map.** Eight hundred lines, eighteen top-level sections, and nothing
+  telling a reader which one answered their question.
+- **The strongest single thing in the project was halfway down.** *Verify it
+  yourself, right now* — a page that checks a real signed record in the reader's
+  own browser, with no install and no account — was at line 411.
+
+Fixed: badges to the top, a *Where to go next* table before the first long
+section, a third rung on the hero's chooser pointing at the plans, and a
+**What it costs** section that states the ladder, the rewrite window, and — in
+the same breath — that nobody has bought anything yet and no hosted instance is
+running.
+
+### And the prices themselves were policed by nothing
+
+The one table in the repository that could take somebody's money was the one
+table no check read. `DOSSIER.md` published `$49`, `$490`, `$299`, `$2,990`,
+retention days and witnessing cadences, all of them hand-copied from
+`billing.ts`, all of them free to drift the moment a price changed.
+
+`billing.ts` already carries a comment about exactly this failure one level
+down — the annual price stored as a second number beside the monthly one, so a
+raise to the monthly figure silently turns the discount into 40% on the tier
+that just got more expensive, invisible until somebody reconciles a year of
+invoices. The same drift across a README is worse, because the reader acts on it
+before any invoice exists.
+
+`check:numbers` now parses `PLANS` and `ANNUAL_MONTHS_CHARGED` out of
+`billing.ts` and compares every pricing-table row in every document against
+them: monthly, annual, witnessing cadence, rewrite window, agents, validations
+and retention. **28 cells across two documents.** Only the two priced rungs are
+policed — Free is $0 and Enterprise is negotiated, and neither is derived from a
+number that can drift.
+
+Proved by breaking it: changing the README's Team price to `$39` fails the build
+with `team "Monthly" says $39, billing.ts says $49`, exit 1. A check that can
+only pass is not a check, and a price is the one published number in this
+repository where being wrong is not an embarrassment but a quote nobody can
+honour.
+
+---
+
 ## 4s. Three design tokens the config pointed at and nothing defined
 
 The sharp-cornered buttons were not carelessness. `rounded-lg` is right there in

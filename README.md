@@ -1,5 +1,13 @@
 # ABSuite
 
+[![npm](https://img.shields.io/npm/v/%40absuitecore%2Fcapkit?label=%40absuitecore%2Fcapkit&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/capkit)
+[![npm](https://img.shields.io/npm/v/%40absuitecore%2Ftrust?label=%40absuitecore%2Ftrust&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/trust)
+[![downloads](https://img.shields.io/npm/dm/%40absuitecore%2Fcapkit?label=downloads&color=1E1B4B)](https://www.npmjs.com/package/@absuitecore/capkit)
+[![provenance](https://img.shields.io/badge/provenance-signed-1E1B4B)](https://www.npmjs.com/package/@absuitecore/capkit#provenance)
+[![CI](https://github.com/iamGodofall/ABSuite-core/actions/workflows/ci.yml/badge.svg)](https://github.com/iamGodofall/ABSuite-core/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-7C3AED)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.5-3178C6)](https://nodejs.org/)
+
 > ## Stop handing your agents your root API key.
 >
 > Most agent deployments authenticate with one long-lived key that has full
@@ -119,6 +127,7 @@ out if you already have an authenticating proxy in front.
 |---|---|---|
 | **Build with it** | `npm install @absuitecore/capkit` | One package, one dependency in your application. Add any of the other seven only when you need them. |
 | **Run it** | the `docker run` above | Everything at once, nothing to assemble, nothing to choose between. |
+| **Have someone else witness it** | [the plans below](#what-it-costs) | Self-hosting proves your chain to you. A witness with no stake in the answer proves it to an auditor. |
 
 There is deliberately **no "install everything" npm package.** Pulling eight
 packages into an application that needs one is a worse default, not a friendlier
@@ -149,13 +158,20 @@ signatures over them are not**, which is the only claim this product has ever
 made. The demo asserts its own result, so it cannot print a reassuring story
 while the code underneath has stopped working.
 
-[![npm](https://img.shields.io/npm/v/%40absuitecore%2Fcapkit?label=%40absuitecore%2Fcapkit&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/capkit)
-[![npm](https://img.shields.io/npm/v/%40absuitecore%2Ftrust?label=%40absuitecore%2Ftrust&color=7C3AED)](https://www.npmjs.com/package/@absuitecore/trust)
-[![downloads](https://img.shields.io/npm/dm/%40absuitecore%2Fcapkit?label=downloads&color=1E1B4B)](https://www.npmjs.com/package/@absuitecore/capkit)
-[![provenance](https://img.shields.io/badge/provenance-signed-1E1B4B)](https://www.npmjs.com/package/@absuitecore/capkit#provenance)
-[![CI](https://github.com/iamGodofall/ABSuite-core/actions/workflows/ci.yml/badge.svg)](https://github.com/iamGodofall/ABSuite-core/actions/workflows/ci.yml)
-[![MIT License](https://img.shields.io/badge/license-MIT-7C3AED)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%E2%89%A522.5-3178C6)](https://nodejs.org/)
+---
+
+### Where to go next
+
+| If you want to | Go to |
+|---|---|
+| Check a real signed record yourself, in a browser, right now | [Verify it yourself](#verify-it-yourself-right-now) |
+| Understand how it reaches your system | [How it connects](#how-it-connects) · [The path an action takes](#the-path-an-action-takes) |
+| Know what it costs and what is actually being sold | [What it costs](#what-it-costs) |
+| Judge whether the argument holds | [Why this exists](#why-this-exists) · [Evaluating this against anything else](#evaluating-this-against-anything-else) |
+| Know what it will *not* do | [What it refuses to do](#what-it-refuses-to-do) · [Security](#security) |
+| See what is built and what is not | [Status](#status) · [AUDIT.md](docs/AUDIT.md) · [ROADMAP.md](docs/ROADMAP.md) |
+| Read the whole case in one document | [The dossier](docs/DOSSIER.md) · [PDF](docs/ABSuite-Dossier.pdf) |
+| Hire me | [Work with me](#work-with-me) |
 
 ---
 
@@ -421,6 +437,73 @@ One field edited is all it takes. The page names the expected hash and the
 computed one, so the disagreement is visible rather than asserted.
 
 ---
+
+---
+
+## What it costs
+
+**Everything above this line is free, MIT, and stays that way.** The whole trust
+layer runs self-hosted, unmetered, with every record kept forever — and you may
+run your own notary, because that package is in this repository under the same
+licence. Nothing is held back to make a tier look thin.
+
+So it is worth being exact about what the paid plans sell, because a feature can
+never be the moat here: this is MIT, and anybody may delete the quota check, run
+every tier and sell the result in competition. That is the deal the licence makes
+on purpose.
+
+**What cannot be copied is not code — it is being somebody else.** A notary you
+run yourself gives you your own signature vouching for your own chain, which
+proves nothing to the auditor the exercise exists for. Nothing inside one
+deployment can close that gap, because everything inside it is signed by the same
+party. The paid plans sell witnessing by a party with no stake in the answer,
+and a fork cannot replicate it — a fork's notary is equally self-interested
+toward its own users.
+
+| | Free | **Team** | **Business** | Enterprise |
+|---|---|---|---|---|
+| Monthly | $0 | **$49** | **$299** | negotiated |
+| Annual | — | **$490** | **$2,990** | negotiated |
+| Witnessed by us | never | **daily** | **hourly** | hourly |
+| **Rewrite window** | *unwitnessed* | **24 hours** | **1 hour** | 1 hour |
+| Agents | 3 | 25 | 250 | unlimited |
+| Validations / month | 10,000 | 500,000 | 5,000,000 | unlimited |
+| Audit retention | forever, self-hosted | 90 days | 365 days | 7 years |
+| Revocation across services | — | ✓ | ✓ | ✓ |
+| Alerted when the chain breaks | — | ✓ | ✓ | ✓ |
+| Verifiable audit export | — | — | ✓ | ✓ |
+
+An annual subscription is charged ten months, so a year costs two months less
+than paying monthly. Payment is through PayPal, monthly or annually.
+
+**The rewrite window is the product.** A chain witnessed hourly can be rewritten
+within an hour and no further; witnessed daily, within a day; never witnessed,
+for as long as you hold the key. That is one number a compliance officer can put
+in a document, and it is the line on this table a competitor cannot implement by
+copying code.
+
+The ladder in one sentence each, and it is the same wording that governs which
+tier a new feature belongs in:
+
+- **Free — it works.** A developer securing one service needs nothing else and
+  should not pay for what they can run. An unwitnessed chain is reported as
+  UNWITNESSED, never as suspicious.
+- **Team — somebody else saw it.** The first rung where the evidence stops being
+  a claim about your own honesty.
+- **Business — it satisfies somebody who does not trust you.** The point where
+  the records stop being your reassurance and become evidence.
+
+The plan definitions are [in the code](packages/capkit/src/billing.ts), and a
+running instance serves them at `GET /plans` — so the table above is checkable
+rather than asserted, like everything else here. Every entry in a plan's feature
+list is something the code does today; two that were not were removed rather
+than kept as aspirations, and [AUDIT.md](docs/AUDIT.md) says which.
+
+**Nobody has bought anything yet.** No hosted instance is running, so there is
+no revenue and no customer to name. That is stated here rather than left to be
+discovered, because a pricing table is the one place in this repository where an
+unbacked claim would take somebody's money. The full commercial case — market,
+arithmetic, what is not true yet — is in [the dossier](docs/DOSSIER.md).
 
 ## Why this exists
 
