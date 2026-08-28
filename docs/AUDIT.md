@@ -188,6 +188,47 @@ section, a third rung on the hero's chooser pointing at the plans, and a
 the same breath — that nobody has bought anything yet and no hosted instance is
 running.
 
+### And the public site did not mention it either
+
+`docs/index.html` — the GitHub Pages landing page, the thing that ranks in
+search and that a buyer actually lands on — carried the identical defect one
+level further out. Measured against the live page:
+
+    'price'  0 occurrences        '$49'  0        'hosted'  0
+    'plan'   1 (incidental)       '$299' 0        'PayPal'  0
+
+Thirteen sections arguing why the evidence can be trusted, and nothing saying
+there was anything to buy. It now carries a **What it costs** section: three
+rungs, the rewrite window as the headline figure on each, and the same sentence
+the README ends on — nobody has bought anything and no hosted instance is
+running.
+
+**The prices are parsed out of `billing.ts` at generation time**, not typed into
+the template. Typing them would have created a fifth copy of one fact — code,
+README, DOSSIER, `GET /plans`, page — and `gen-site.mjs --check` now fails the
+build when the page and the code disagree, exactly as it already did for the
+layer table and the route count.
+
+**And rendering it found a defect reading the CSS could not.** The link to
+`billing.ts` came out in the browser's default blue on a near-black ground.
+There was no rule for an inline anchor inside a paragraph anywhere in the
+stylesheet, because no prose paragraph on that page had ever contained one —
+every link until now was a card, a button, or a row of `ul.links`. Off-palette
+and poor contrast, on the one page whose whole argument is that nothing should
+look better than it is. Fixed, and checked at 1280px and 390px: no horizontal
+overflow at either, no console errors.
+
+**The live site is also two figures stale.** It shows `128` where the route
+table has 131, and `42` where the suite count has 49 — because Pages deploys
+from `main` and this work is on a branch. That is the deploy being behind, not
+the generator being wrong.
+
+Worth recording that `check:numbers` failed the paragraph above while it was
+being written, reading the stale figures it quotes as claims. It cannot tell a
+report of a wrong number from an assertion of one, so the figures are shown as
+code spans — which is the escape the script already documents, and the check
+doing its job on the person documenting the check.
+
 ### And the prices themselves were policed by nothing
 
 The one table in the repository that could take somebody's money was the one

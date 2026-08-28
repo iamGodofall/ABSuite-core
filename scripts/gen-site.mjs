@@ -213,6 +213,64 @@ const figures = [
     note: 'Files, counted. Not a coverage claim — a count of the files that hold the checks.' },
 ];
 
+/**
+ * THE LADDER, READ OUT OF THE CODE THAT CHARGES IT.
+ *
+ * This page is the first thing a buyer sees, and until now it did not mention
+ * that anything was for sale at all — the same defect the README carried, one
+ * level further out. Fixing it by typing four prices into a template would have
+ * created a fifth copy of a fact that already lives in `billing.ts`, in the one
+ * place where being wrong is not an embarrassment but a quote nobody can
+ * honour.
+ *
+ * So the prices, the witnessing cadence and the retention are parsed from
+ * `packages/capkit/src/billing.ts`. `--check` fails the build when they drift,
+ * exactly as it already does for the layer table and the route count.
+ */
+const billing = read('packages/capkit/src/billing.ts');
+const annualMonths = Number(/ANNUAL_MONTHS_CHARGED\s*=\s*(\d+)/.exec(billing)?.[1]);
+if (!annualMonths) throw new Error('ANNUAL_MONTHS_CHARGED not found in billing.ts');
+
+const planField = (id, name) => {
+  const from = billing.indexOf(`  ${id}: {`);
+  if (from < 0) throw new Error(`plan ${id} not found in billing.ts`);
+  const found = new RegExp(`${name}:\\s*(-?[\\d_]+)`).exec(billing.slice(from, billing.indexOf('\n  },', from)));
+  if (!found) throw new Error(`${id}.${name} not found in billing.ts`);
+  return Number(found[1].replace(/_/g, ''));
+};
+const usd = (cents) => `$${(cents / 100).toLocaleString('en-US')}`;
+
+/**
+ * The rewrite window IS the product, so it is the big number on each rung.
+ *
+ * A chain witnessed hourly can be rewritten within an hour and no further. It
+ * is the one line on the ladder a competitor cannot implement by copying MIT
+ * code, because what it buys is a witness with no stake in the answer.
+ */
+const rungs = ['free', 'team', 'business'].map(id => {
+  const hours = planField(id, 'witnessIntervalHours');
+  const cents = planField(id, 'priceCents');
+  return {
+    id,
+    label: id === 'free' ? 'Free' : id === 'team' ? 'Team' : 'Business',
+    monthly: cents === 0 ? 'Free' : `${usd(cents)}/mo`,
+    annual: cents === 0 ? 'forever' : `${usd(cents * annualMonths)}/yr`,
+    window: hours < 0 ? 'unwitnessed' : hours === 1 ? '1 hour' : `${hours} hours`,
+    cadence: hours < 0 ? 'We witness nothing for you. Run your own notary — the package is in this repository.'
+      : hours === 24 ? 'We counter-sign your chain head once a day.'
+      : 'We counter-sign your chain head every hour.',
+    retention: planField(id, 'auditRetentionDays'),
+    line: id === 'free' ? 'It works.'
+      : id === 'team' ? 'Somebody else saw it.'
+      : 'It satisfies somebody who does not trust you.',
+    why: id === 'free'
+      ? 'The whole trust layer, self-hosted, unmetered, every record kept forever. Not a trial and not crippled. An unwitnessed chain is reported as UNWITNESSED, never as suspicious.'
+      : id === 'team'
+      ? 'Revocation that works across services rather than in one process, and an alert when the chain breaks. The first rung where the evidence stops being a claim about your own honesty.'
+      : 'A year of records and an export an auditor verifies holding only a public key. The point where the records stop being your reassurance and become evidence.',
+  };
+});
+
 const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const page = `<!doctype html>
@@ -372,6 +430,18 @@ const page = `<!doctype html>
     text-transform:uppercase; color:var(--green); margin-bottom:.55rem;
   }
   .card span { color:var(--muted); font-size:.89rem; line-height:1.55; }
+  /*
+   * An inline link inside a paragraph.
+   *
+   * There was no rule for one until the ladder was added, because no prose
+   * paragraph on this page had ever contained a link — every link was a card, a
+   * button or a row of ul.links. The first one rendered in the browser's
+   * default blue on a near-black ground: off-palette, and poor contrast on the
+   * one page whose whole argument is that nothing should look better than it is.
+   * Found by rendering it and looking, not by reading the CSS.
+   */
+  .prose a, .aside a { color:var(--white); text-decoration:none; border-bottom:1px solid rgba(0,245,140,0.32); }
+  .prose a:hover, .aside a:hover { color:var(--green); border-bottom-color:var(--green); }
   ul.links { list-style:none; padding:0; margin:0; display:grid; gap:.55rem; }
   ul.links a { color:var(--white); text-decoration:none; border-bottom:1px solid rgba(0,245,140,0.22); }
   ul.links a:hover { color:var(--green); border-bottom-color:var(--green); }
@@ -389,6 +459,26 @@ const page = `<!doctype html>
     text-transform:uppercase; color:var(--white); margin:.6rem 0 .45rem;
   }
   .fig .note { color:var(--muted); font-size:.78rem; line-height:1.55; }
+
+  /* ── the ladder ───────────────────────────────────────────────────────── */
+  .rungs { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:.8rem; margin:0 0 1.1rem; }
+  .rung {
+    border:1px solid var(--line); border-radius:var(--card); background:var(--panel);
+    padding:1.2rem 1.3rem; display:grid; align-content:start; gap:.5rem;
+  }
+  .rung[data-paid="yes"] { border-color:rgba(0,245,140,0.32); }
+  .rung .tier {
+    font:600 .61rem/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--green);
+  }
+  .rung .cost { font:800 1.5rem/1 var(--sans); letter-spacing:-.03em; color:var(--white); font-variant-numeric:tabular-nums; }
+  .rung .term { font:.78rem/1 var(--mono); color:var(--muted); }
+  .rung .claim { color:var(--white); font-size:.93rem; font-weight:600; margin-top:.3rem; }
+  .rung .why { color:var(--muted); font-size:.83rem; line-height:1.6; }
+  .rung .win {
+    margin-top:.4rem; padding-top:.7rem; border-top:1px solid var(--line-soft);
+    font:.78rem/1.55 var(--mono); color:var(--muted);
+  }
+  .rung .win b { display:block; color:var(--green); font-size:.95rem; font-weight:700; letter-spacing:-.01em; }
 
   /* ── the ascent ───────────────────────────────────────────────────────── */
   .ascent { display:grid; gap:.5rem; margin:0; padding:0; list-style:none; }
@@ -666,6 +756,49 @@ const page = `<!doctype html>
     that does not mark what is shipped is a wish list wearing an architecture diagram.</em>
   </p>
 
+  <h2>[ What it costs ]</h2>
+  <p class="prose">
+    Everything above this line is free, MIT, and stays that way &mdash; self-hosted, unmetered, every
+    record kept forever, and you may run your own notary because that package is in this repository
+    under the same licence. So it is worth being exact about what the paid plans sell, because
+    <em style="color:var(--white);font-style:normal">a feature can never be the moat here</em>: anybody
+    may take this codebase, delete the quota check, run every tier and sell the result in competition.
+    That is the deal the licence makes on purpose.
+  </p>
+  <p class="prose">
+    What cannot be copied is not code &mdash; it is being somebody else. A notary you run yourself gives
+    you your own signature vouching for your own chain, which proves nothing to the auditor the exercise
+    exists for. Nothing inside one deployment can close that gap, because everything inside it is signed
+    by the same party. <em style="color:var(--green);font-style:normal">The paid plans sell witnessing by
+    a party with no stake in the answer</em>, and a fork cannot replicate it &mdash; a fork&rsquo;s notary
+    is equally self-interested toward its own users.
+  </p>
+  <div class="rungs">
+    ${rungs.map(r => `<div class="rung" data-paid="${r.id === 'free' ? 'no' : 'yes'}">
+      <span class="tier">${esc(r.label)}</span>
+      <span class="cost">${esc(r.monthly)}</span>
+      <span class="term">${esc(r.annual)}</span>
+      <span class="claim">${esc(r.line)}</span>
+      <span class="why">${esc(r.why)}</span>
+      <span class="win"><b>${esc(r.window)}</b>rewrite window &mdash; ${esc(r.cadence)}</span>
+    </div>`).join('\n    ')}
+  </div>
+  <p class="aside">
+    A chain witnessed hourly can be rewritten within an hour and no further; witnessed daily, within a
+    day; never witnessed, for as long as you hold the key. That is one number a compliance officer can
+    put in a document, and it is the line on this table a competitor cannot implement by copying code.
+    An annual subscription is charged ${annualMonths} months, so a year costs two months less than paying
+    monthly. Enterprise is negotiated. Payment is through PayPal.
+    <br><br>
+    The prices on this page are read out of
+    <a href="https://github.com/iamGodofall/ABSuite-core/blob/main/packages/capkit/src/billing.ts">the code that charges them</a>
+    when it is generated, and the build fails if they drift &mdash; a running instance serves the same
+    ladder at <code>GET /plans</code>.
+    <em style="color:var(--white);font-style:normal">Nobody has bought anything yet and no hosted
+    instance is running.</em> That is stated here rather than left to be discovered, because a pricing
+    table is the one place in this project where an unbacked claim would take somebody&rsquo;s money.
+  </p>
+
   <h2>[ What it refuses to be ]</h2>
   <p class="prose">
     Not features postponed. Permanent refusals, each one a thing a competitor will build, sell
@@ -694,6 +827,7 @@ const page = `<!doctype html>
     <li><a href="./system.html">The system map</a> <span>— every layer, operation and package, generated from the repository</span></li>
     <li><a href="./PROTOCOL.md">The protocol</a> <span>&mdash; the record format, specified independently of this implementation</span></li>
     <li><a href="./GUIDE.md">The guide</a> <span>— every capability, in the order you would use it, with a working command for each</span></li>
+    <li><a href="./DOSSIER.md">The dossier</a> <span>&mdash; what it is, who pays, what it is worth, and what is not true yet</span></li>
     <li><a href="hire.html">Work with the engineer who built this</a> <span>— audit, integration and compliance engagements</span></li>
     <li><a href="https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md">Getting started</a> <span>— library, HTTP API and Docker</span></li>
     <li><a href="./API.md">API reference</a> <span>— every route, generated from source</span></li>

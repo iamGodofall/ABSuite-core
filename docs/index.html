@@ -155,6 +155,18 @@
     text-transform:uppercase; color:var(--green); margin-bottom:.55rem;
   }
   .card span { color:var(--muted); font-size:.89rem; line-height:1.55; }
+  /*
+   * An inline link inside a paragraph.
+   *
+   * There was no rule for one until the ladder was added, because no prose
+   * paragraph on this page had ever contained a link — every link was a card, a
+   * button or a row of ul.links. The first one rendered in the browser's
+   * default blue on a near-black ground: off-palette, and poor contrast on the
+   * one page whose whole argument is that nothing should look better than it is.
+   * Found by rendering it and looking, not by reading the CSS.
+   */
+  .prose a, .aside a { color:var(--white); text-decoration:none; border-bottom:1px solid rgba(0,245,140,0.32); }
+  .prose a:hover, .aside a:hover { color:var(--green); border-bottom-color:var(--green); }
   ul.links { list-style:none; padding:0; margin:0; display:grid; gap:.55rem; }
   ul.links a { color:var(--white); text-decoration:none; border-bottom:1px solid rgba(0,245,140,0.22); }
   ul.links a:hover { color:var(--green); border-bottom-color:var(--green); }
@@ -172,6 +184,26 @@
     text-transform:uppercase; color:var(--white); margin:.6rem 0 .45rem;
   }
   .fig .note { color:var(--muted); font-size:.78rem; line-height:1.55; }
+
+  /* ── the ladder ───────────────────────────────────────────────────────── */
+  .rungs { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:.8rem; margin:0 0 1.1rem; }
+  .rung {
+    border:1px solid var(--line); border-radius:var(--card); background:var(--panel);
+    padding:1.2rem 1.3rem; display:grid; align-content:start; gap:.5rem;
+  }
+  .rung[data-paid="yes"] { border-color:rgba(0,245,140,0.32); }
+  .rung .tier {
+    font:600 .61rem/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--green);
+  }
+  .rung .cost { font:800 1.5rem/1 var(--sans); letter-spacing:-.03em; color:var(--white); font-variant-numeric:tabular-nums; }
+  .rung .term { font:.78rem/1 var(--mono); color:var(--muted); }
+  .rung .claim { color:var(--white); font-size:.93rem; font-weight:600; margin-top:.3rem; }
+  .rung .why { color:var(--muted); font-size:.83rem; line-height:1.6; }
+  .rung .win {
+    margin-top:.4rem; padding-top:.7rem; border-top:1px solid var(--line-soft);
+    font:.78rem/1.55 var(--mono); color:var(--muted);
+  }
+  .rung .win b { display:block; color:var(--green); font-size:.95rem; font-weight:700; letter-spacing:-.01em; }
 
   /* ── the ascent ───────────────────────────────────────────────────────── */
   .ascent { display:grid; gap:.5rem; margin:0; padding:0; list-style:none; }
@@ -499,6 +531,65 @@
     that does not mark what is shipped is a wish list wearing an architecture diagram.</em>
   </p>
 
+  <h2>[ What it costs ]</h2>
+  <p class="prose">
+    Everything above this line is free, MIT, and stays that way &mdash; self-hosted, unmetered, every
+    record kept forever, and you may run your own notary because that package is in this repository
+    under the same licence. So it is worth being exact about what the paid plans sell, because
+    <em style="color:var(--white);font-style:normal">a feature can never be the moat here</em>: anybody
+    may take this codebase, delete the quota check, run every tier and sell the result in competition.
+    That is the deal the licence makes on purpose.
+  </p>
+  <p class="prose">
+    What cannot be copied is not code &mdash; it is being somebody else. A notary you run yourself gives
+    you your own signature vouching for your own chain, which proves nothing to the auditor the exercise
+    exists for. Nothing inside one deployment can close that gap, because everything inside it is signed
+    by the same party. <em style="color:var(--green);font-style:normal">The paid plans sell witnessing by
+    a party with no stake in the answer</em>, and a fork cannot replicate it &mdash; a fork&rsquo;s notary
+    is equally self-interested toward its own users.
+  </p>
+  <div class="rungs">
+    <div class="rung" data-paid="no">
+      <span class="tier">Free</span>
+      <span class="cost">Free</span>
+      <span class="term">forever</span>
+      <span class="claim">It works.</span>
+      <span class="why">The whole trust layer, self-hosted, unmetered, every record kept forever. Not a trial and not crippled. An unwitnessed chain is reported as UNWITNESSED, never as suspicious.</span>
+      <span class="win"><b>unwitnessed</b>rewrite window &mdash; We witness nothing for you. Run your own notary — the package is in this repository.</span>
+    </div>
+    <div class="rung" data-paid="yes">
+      <span class="tier">Team</span>
+      <span class="cost">$49/mo</span>
+      <span class="term">$490/yr</span>
+      <span class="claim">Somebody else saw it.</span>
+      <span class="why">Revocation that works across services rather than in one process, and an alert when the chain breaks. The first rung where the evidence stops being a claim about your own honesty.</span>
+      <span class="win"><b>24 hours</b>rewrite window &mdash; We counter-sign your chain head once a day.</span>
+    </div>
+    <div class="rung" data-paid="yes">
+      <span class="tier">Business</span>
+      <span class="cost">$299/mo</span>
+      <span class="term">$2,990/yr</span>
+      <span class="claim">It satisfies somebody who does not trust you.</span>
+      <span class="why">A year of records and an export an auditor verifies holding only a public key. The point where the records stop being your reassurance and become evidence.</span>
+      <span class="win"><b>1 hour</b>rewrite window &mdash; We counter-sign your chain head every hour.</span>
+    </div>
+  </div>
+  <p class="aside">
+    A chain witnessed hourly can be rewritten within an hour and no further; witnessed daily, within a
+    day; never witnessed, for as long as you hold the key. That is one number a compliance officer can
+    put in a document, and it is the line on this table a competitor cannot implement by copying code.
+    An annual subscription is charged 10 months, so a year costs two months less than paying
+    monthly. Enterprise is negotiated. Payment is through PayPal.
+    <br><br>
+    The prices on this page are read out of
+    <a href="https://github.com/iamGodofall/ABSuite-core/blob/main/packages/capkit/src/billing.ts">the code that charges them</a>
+    when it is generated, and the build fails if they drift &mdash; a running instance serves the same
+    ladder at <code>GET /plans</code>.
+    <em style="color:var(--white);font-style:normal">Nobody has bought anything yet and no hosted
+    instance is running.</em> That is stated here rather than left to be discovered, because a pricing
+    table is the one place in this project where an unbacked claim would take somebody&rsquo;s money.
+  </p>
+
   <h2>[ What it refuses to be ]</h2>
   <p class="prose">
     Not features postponed. Permanent refusals, each one a thing a competitor will build, sell
@@ -527,6 +618,7 @@
     <li><a href="./system.html">The system map</a> <span>— every layer, operation and package, generated from the repository</span></li>
     <li><a href="./PROTOCOL.md">The protocol</a> <span>&mdash; the record format, specified independently of this implementation</span></li>
     <li><a href="./GUIDE.md">The guide</a> <span>— every capability, in the order you would use it, with a working command for each</span></li>
+    <li><a href="./DOSSIER.md">The dossier</a> <span>&mdash; what it is, who pays, what it is worth, and what is not true yet</span></li>
     <li><a href="hire.html">Work with the engineer who built this</a> <span>— audit, integration and compliance engagements</span></li>
     <li><a href="https://github.com/iamGodofall/ABSuite-core/blob/main/GETTING-STARTED.md">Getting started</a> <span>— library, HTTP API and Docker</span></li>
     <li><a href="./API.md">API reference</a> <span>— every route, generated from source</span></li>
