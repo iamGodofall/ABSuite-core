@@ -1,6 +1,33 @@
 # ABSuite
 
-> ## Intelligence is becoming cheap. Trust is becoming expensive.
+> ## Stop handing your agents your root API key.
+>
+> Most agent deployments authenticate with one long-lived key that has full
+> account access. The agent can do anything you can do — and when something
+> goes wrong, whether a hallucinated action, a prompt injection or an ordinary
+> bug, you find out from the damage. Afterwards you cannot prove what it did,
+> and you cannot prove what it did not.
+>
+> ABSuite gives an agent a **narrow, expiring, revocable** grant instead, and
+> keeps a **signed, hash-chained record** of everything it was used for. Alter
+> one byte of that record and the chain names the exact entry that broke.
+>
+> ```typescript
+> const trace = traces.record({
+>   subject: 'agent:invoicing', scope: ['payment:approve'],
+>   action: 'approve_batch', input: { batch: 'BATCH-8891', total: 250000 },
+> });
+>
+> verifyTrace(trace, publicKeyPem).valid;   // Ed25519, not a log line
+> traces.verifyChain(publicKeyPem);         // names the first tampered record
+> ```
+>
+> Your auditor can check that holding **only a public key** — which means they
+> can verify your records without also being able to forge them.
+
+<br>
+
+> ### Intelligence is becoming cheap. Trust is becoming expensive.
 >
 > Within a few years there will be billions of AI agents taking real actions —
 > moving money, changing records, contacting customers. The scarce resource will

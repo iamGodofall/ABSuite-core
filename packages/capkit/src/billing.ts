@@ -54,6 +54,30 @@ export interface Plan {
 }
 
 /*
+ * THE LADDER, AND WHY EACH RUNG IS WORTH ITS PRICE.
+ *
+ *   free      IT WORKS. The whole trust layer, MIT, self-hosted, unmetered,
+ *             every record kept forever. Not a trial and not crippled — a
+ *             single developer securing a single service needs nothing else,
+ *             and should not be made to pay for what they can run themselves.
+ *
+ *   team      IT WORKS ACROSS YOUR SERVICES. Revocation that only takes effect
+ *             in one process is not revocation: the moment there are two
+ *             services, a killed token is still live in the other one. That is
+ *             the first thing you cannot self-host your way out of, and it is
+ *             what the tier is actually for.
+ *
+ *   business  IT SATISFIES SOMEBODY WHO DOES NOT TRUST YOU. A year of history
+ *             and an export an auditor verifies holding only a public key,
+ *             without running our code. The point at which the records stop
+ *             being your reassurance and start being evidence.
+ *
+ * Written here because a price is a claim about value, and the claim should be
+ * legible to the next person choosing what to build. A feature that does not
+ * move a customer up this ladder belongs in whichever tier they already have.
+ */
+
+/*
  * `features` IS A PROMISE, AND EVERY ENTRY HERE MUST BE SOMETHING THE CODE DOES.
  *
  * Two entries were removed rather than kept as aspirations. 'SAML SSO' appeared
@@ -77,7 +101,7 @@ export const PLANS: Record<PlanId, Plan> = {
     label: 'Free',
     priceCents: 0,
     limits: { agents: 3, validations: 10_000, auditRetentionDays: 7, schedules: 5, benchmarkRuns: 100 },
-    features: ['Self-hosted', 'All five modules', 'Local audit log'],
+    features: ['Self-hosted, unlimited', 'Capability tokens and signed records', 'Records kept forever'],
   },
   team: {
     id: 'team',
@@ -85,7 +109,7 @@ export const PLANS: Record<PlanId, Plan> = {
     label: 'Team',
     priceCents: 4900,
     limits: { agents: 25, validations: 500_000, auditRetentionDays: 90, schedules: 50, benchmarkRuns: 2_000 },
-    features: ['Shared revocation', '90-day audit retention', 'Email support'],
+    features: ['Revocation shared across every service', '90-day audit retention', 'Email support'],
   },
   business: {
     id: 'business',
@@ -93,7 +117,7 @@ export const PLANS: Record<PlanId, Plan> = {
     label: 'Business',
     priceCents: 29900,
     limits: { agents: 250, validations: 5_000_000, auditRetentionDays: 365, schedules: 500, benchmarkRuns: 25_000 },
-    features: ['1-year audit retention', 'Signed audit export', 'Priority support'],
+    features: ['1-year audit retention', 'Independently verifiable audit export', 'Priority support'],
   },
   enterprise: {
     id: 'enterprise',
