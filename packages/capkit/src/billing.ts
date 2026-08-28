@@ -210,7 +210,24 @@ export function planFromPayPalEvent(event: {
       if (resource?.status === 'SUSPENDED') {
         return { action: 'suspend', ...(customer ? { customer } : {}) };
       }
-      if (isPlanId(requested)) {
+      /*
+       * ONLY `ACTIVE` GRANTS THE TIER, and the reason is that PayPal has two
+       * states which mean "agreed but not yet paying".
+       *
+       * `SubscriptionStatus` in the official SDK is APPROVAL_PENDING, APPROVED,
+       * ACTIVE, SUSPENDED, CANCELLED, EXPIRED. APPROVED means the subscriber
+       * accepted at PayPal and billing has NOT started — an approval can still
+       * fail at the first charge, and the subscription then goes to CANCELLED
+       * without a cent moving. Granting on it hands over the paid tier for free
+       * to anyone who begins a checkout and abandons it.
+       *
+       * An earlier version of this treated any non-terminal status as good
+       * enough, because the states were assumed rather than read. Whitelisting
+       * the one status that means money has actually moved is the honest rule,
+       * and it fails closed: a status this build does not recognise is ignored,
+       * never granted.
+       */
+      if (resource?.status === 'ACTIVE' && isPlanId(requested)) {
         return { action: 'set-plan', plan: requested, ...(customer ? { customer } : {}) };
       }
       return { action: 'ignore' };

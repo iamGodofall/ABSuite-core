@@ -49,6 +49,21 @@ describe('planFromPayPalEvent', () => {
     expect(planFromPayPalEvent({}).action).toBe('ignore');
   });
 
+  test('REFUSAL — APPROVED does not grant the tier, because nobody has paid', () => {
+    // PayPal's own SubscriptionStatus: APPROVAL_PENDING, APPROVED, ACTIVE,
+    // SUSPENDED, CANCELLED, EXPIRED. The first two mean the subscriber agreed
+    // and billing has not started — an approval can still fail at the first
+    // charge. Granting here hands the paid tier to anyone who starts a checkout
+    // and walks away.
+    expect(planFromPayPalEvent(sub({ status: 'APPROVED' })).action).toBe('ignore');
+    expect(planFromPayPalEvent(sub({ status: 'APPROVAL_PENDING' })).action).toBe('ignore');
+  });
+
+  test('REFUSAL — an unrecognised status fails closed', () => {
+    expect(planFromPayPalEvent(sub({ status: 'SOMETHING_NEW' })).action).toBe('ignore');
+    expect(planFromPayPalEvent(sub({ status: undefined })).action).toBe('ignore');
+  });
+
   test('a cancellation DOWNGRADES rather than deleting', () => {
     expect(planFromPayPalEvent({ ...sub(), event_type: 'BILLING.SUBSCRIPTION.CANCELLED' })).toEqual({
       action: 'set-plan', plan: 'free', customer: 'I-SUB123',
@@ -79,7 +94,7 @@ describe('planFromPayPalEvent', () => {
 
   test('every real plan id round-trips through custom_id', () => {
     for (const id of Object.keys(PLANS)) {
-      expect(planFromPayPalEvent(sub({ custom_id: id })).plan).toBe(id);
+      expect(planFromPayPalEvent(sub({ custom_id: id, status: 'ACTIVE' })).plan).toBe(id);
     }
   });
 
