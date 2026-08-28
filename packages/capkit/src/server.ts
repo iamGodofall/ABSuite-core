@@ -1730,7 +1730,27 @@ if (require.main === module) {
  */
 function sweepRetention(): void {
   const override = Number(process.env.ABSUITE_RETENTION_DAYS);
-  const days = Number.isFinite(override) && override !== 0
+  const explicit = Number.isFinite(override) && override !== 0;
+
+  /*
+   * A SELF-HOSTED DEPLOYMENT IS NEVER SWEPT, and this is the important rule.
+   *
+   * Plan retention is a term of a commercial arrangement. Somebody running
+   * their own instance under the MIT licence has no such arrangement, so
+   * applying the free plan's seven days to them would be enforcing a contract
+   * that does not exist — deleting their records to encourage an upgrade they
+   * were never offered. That is the one thing this must never do.
+   *
+   * So the sweep runs only where money is actually in play: a billing provider
+   * is configured, or the operator named a window themselves. Everywhere else
+   * every record is kept forever, which is what `if (!tenant) return next()` in
+   * `enforceQuota` already promises about every other limit.
+   */
+  const billingConfigured = Boolean((process.env.STRIPE_WEBHOOK_SECRET || '').trim())
+    || Boolean((process.env.PAYPAL_WEBHOOK_ID || '').trim());
+  if (!explicit && !billingConfigured) return;
+
+  const days = explicit
     ? override
     : tenancy.tenants
         .list(1000)
