@@ -38,6 +38,14 @@ export interface Plan {
    * enforced by different mechanisms.
    */
   rateLimitPerMinute: number;
+  /**
+   * How often Enock Labs witnesses this tenant's chain head, in hours.
+   * `-1` means never — see the note on the ladder below.
+   *
+   * Outside `limits` for the same reason `rateLimitPerMinute` is: those are
+   * monthly counters, and this caps a CADENCE.
+   */
+  witnessIntervalHours: number;
   limits: {
     /** Distinct token subjects per month. -1 means unlimited. */
     agents: number;
@@ -56,45 +64,57 @@ export interface Plan {
 /*
  * THE LADDER, AND WHY EACH RUNG IS WORTH ITS PRICE.
  *
+ * ## The licence means a FEATURE can never be the moat
+ *
+ * This is MIT. Anybody may take the whole codebase, delete `enforceQuota`, run
+ * every tier's features and sell the result in competition — legitimately, and
+ * that is the deal the licence makes on purpose. Any rung defined by code we
+ * withhold is a rung somebody can build in an afternoon.
+ *
+ * ## What CANNOT be copied is not code — it is being somebody else
+ *
+ * The notary is the whole commercial answer, and it is structural rather than
+ * legal. Its value is that it is DISINTERESTED. A tenant may run their own —
+ * the package is MIT and in this repository — and what they get is their own
+ * signature vouching for their own chain, which proves nothing to the auditor
+ * the exercise exists for. Nothing inside one deployment can close that gap,
+ * because everything inside it is signed by the same party.
+ *
+ * So the paid tiers sell witnessing by a party with no stake in the answer, and
+ * a fork cannot replicate it: a fork's notary is equally self-interested toward
+ * its own users. It is the one asset here that gets MORE valuable as more
+ * people use it, because a widely-held witness is better evidence than an
+ * obscure one.
+ *
  *   free      IT WORKS. The whole trust layer, MIT, self-hosted, unmetered,
- *             every record kept forever. Not a trial and not crippled — a
- *             single developer securing a single service needs nothing else,
- *             and should not be made to pay for what they can run themselves.
+ *             every record kept forever, and a notary you may run yourself.
+ *             Not a trial and not crippled — a developer securing one service
+ *             needs nothing else and should not pay for what they can run.
+ *             `witnessIntervalHours: -1` because we witness nothing for them,
+ *             and an unwitnessed chain is reported as UNWITNESSED, never as
+ *             suspicious. Punishing somebody for not having started would be
+ *             the wrong incentive and the wrong claim.
  *
- *   team      IT WORKS ACROSS YOUR SERVICES, AND IT WAKES YOU. Revocation that
- *             only takes effect in one process is not revocation: the moment
- *             there are two services, a killed token is still live in the other
- *             one. And a tamper-evident ledger is worth exactly as much as the
- *             SPEED at which tampering is noticed — a notice on a page is only
- *             as fast as the next time somebody opens it.
+ *   team      SOMEBODY ELSE SAW IT. Daily notarisation by us, revocation that
+ *             works across services rather than in one process, and an alert
+ *             when the chain breaks rather than a notice on a page nobody
+ *             opens. The first rung where the evidence stops being a claim
+ *             about your own honesty.
  *
- *   business  IT SATISFIES SOMEBODY WHO DOES NOT TRUST YOU. A year of history
- *             and an export an auditor verifies holding only a public key,
- *             without running our code. The point at which the records stop
- *             being your reassurance and start being evidence.
+ *   business  IT SATISFIES SOMEBODY WHO DOES NOT TRUST YOU. Hourly witnessing,
+ *             so the window in which history could be rewritten is an hour
+ *             rather than a day; a year of records; and an export an auditor
+ *             verifies holding only a public key. The point where the records
+ *             stop being your reassurance and become evidence.
+ *
+ * The cadence IS the product on the paid tiers. A chain witnessed hourly can be
+ * rewritten within an hour and no further; witnessed daily, within a day. That
+ * is a number a compliance officer can reason about, and it is the only thing
+ * on this ladder a competitor cannot simply implement.
  *
  * Written here because a price is a claim about value, and the claim should be
  * legible to the next person choosing what to build. A feature that does not
  * move a customer up this ladder belongs in whichever tier they already have.
- *
- * ## AND THE LICENCE MEANS A FEATURE IS NEVER THE MOAT
- *
- * This is MIT. Anybody may take the whole codebase, delete `enforceQuota`, run
- * every tier's features and sell the result in competition — legitimately, and
- * that is the deal the licence makes on purpose.
- *
- * So the rungs above describe what each tier is FOR, not what it withholds.
- * The thing actually being sold is that somebody else operates it: the uptime,
- * the backups, the upgrades, the alert genuinely arriving at three in the
- * morning, and a person to call when it does not. Pricing written as though the
- * features were the product would be pricing a moat that does not exist.
- *
- * An earlier version of this comment claimed alerting was something a customer
- * "cannot self-host their way around". Under MIT that is false — they can run
- * the alerter, it is in this repository. What they cannot do is be woken by an
- * instance they are not running. Corrected here rather than left, because a
- * false claim next to a price is the same defect as a feature that does not
- * exist.
  */
 
 /*
@@ -118,6 +138,10 @@ export const PLANS: Record<PlanId, Plan> = {
   free: {
     id: 'free',
     rateLimitPerMinute: 60,
+    // Never witnessed by us. Run your own notary — the code is MIT and in this
+    // repository. What that cannot give you is a DISINTERESTED witness, which
+    // is the point of the whole exercise.
+    witnessIntervalHours: -1,
     label: 'Free',
     priceCents: 0,
     limits: { agents: 3, validations: 10_000, auditRetentionDays: 7, schedules: 5, benchmarkRuns: 100 },
@@ -126,22 +150,25 @@ export const PLANS: Record<PlanId, Plan> = {
   team: {
     id: 'team',
     rateLimitPerMinute: 300,
+    witnessIntervalHours: 24,
     label: 'Team',
     priceCents: 4900,
     limits: { agents: 25, validations: 500_000, auditRetentionDays: 90, schedules: 50, benchmarkRuns: 2_000 },
-    features: ['Revocation shared across every service', 'Alerted the moment the chain breaks', '90-day audit retention'],
+    features: ['Daily independent notarisation', 'Revocation shared across every service', 'Alerted the moment the chain breaks'],
   },
   business: {
     id: 'business',
     rateLimitPerMinute: 1200,
+    witnessIntervalHours: 1,
     label: 'Business',
     priceCents: 29900,
     limits: { agents: 250, validations: 5_000_000, auditRetentionDays: 365, schedules: 500, benchmarkRuns: 25_000 },
-    features: ['1-year audit retention', 'Independently verifiable audit export', 'Priority support'],
+    features: ['Hourly independent notarisation', '1-year audit retention', 'Independently verifiable audit export'],
   },
   enterprise: {
     id: 'enterprise',
     rateLimitPerMinute: -1,
+    witnessIntervalHours: 1,
     label: 'Enterprise',
     priceCents: 0, // negotiated
     limits: { agents: -1, validations: -1, auditRetentionDays: 2555, schedules: -1, benchmarkRuns: -1 },
@@ -173,6 +200,51 @@ export function annualSavingCents(plan: Plan): number {
  */
 export function priceForTerm(plan: Plan, term: BillingTerm): number {
   return term === 'annual' ? annualPriceCents(plan) : plan.priceCents;
+}
+
+/**
+ * Is this tenant's chain due to be witnessed?
+ *
+ * Pure, and separate from anything that does the witnessing, so the DECISION
+ * can be tested against every tier and every clock without a notary running.
+ *
+ * `lastWitnessedAt` absent means never witnessed, which is due immediately on
+ * any tier that gets witnessing at all — a tenant who paid today should not
+ * wait a day for the first receipt, and the first one is the most valuable
+ * because everything before it is unattested.
+ */
+export function witnessDue(
+  plan: Plan,
+  lastWitnessedAt: Date | string | undefined,
+  now: Date = new Date()
+): boolean {
+  // -1 is the never sentinel. Free tenants are not witnessed by us at all.
+  if (plan.witnessIntervalHours < 0) return false;
+  if (!lastWitnessedAt) return true;
+
+  const last = lastWitnessedAt instanceof Date ? lastWitnessedAt : new Date(lastWitnessedAt);
+  if (Number.isNaN(last.getTime())) {
+    /*
+     * An unreadable timestamp is treated as never witnessed. Witnessing again
+     * costs thirty-two bytes and a signature; NOT witnessing because a date
+     * failed to parse leaves a gap in the evidence that nobody would notice
+     * until an audit needed it.
+     */
+    return true;
+  }
+
+  return now.getTime() - last.getTime() >= plan.witnessIntervalHours * 3_600_000;
+}
+
+/**
+ * The longest window in which this tenant's history could be rewritten without
+ * an outside witness noticing, in hours. `null` when nobody is witnessing.
+ *
+ * This is the number a compliance officer actually asks for, so it is computed
+ * rather than left for a sales page to assert.
+ */
+export function rewriteWindowHours(plan: Plan): number | null {
+  return plan.witnessIntervalHours < 0 ? null : plan.witnessIntervalHours;
 }
 
 export function getPlan(id: string): Plan {

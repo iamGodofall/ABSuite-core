@@ -17,7 +17,7 @@ import { generatePolicy } from './ai-policy-generator';
 import { describeProviders } from './llm-provider';
 import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
-import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
+import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, rewriteWindowHours, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
 import { isPayPalCertUrl, verifyPayPalWebhook, type PayPalWebhookHeaders } from './paypal-webhook';
 import { buildAuditExport } from './audit-export';
 import { isSellable, annualPitch } from './paypal-plans';
@@ -1673,6 +1673,13 @@ app.get('/plans', (_req, res) => {
   res.status(200).json({
     plans: Object.values(PLANS).map(plan => ({
       ...plan,
+      /*
+       * The window in which history could be rewritten unwitnessed. Served
+       * rather than left to a page to assert, because it is the number a
+       * compliance officer actually asks for and the one thing on this price
+       * list a competitor cannot simply implement.
+       */
+      rewriteWindowHours: rewriteWindowHours(plan),
       annual: isSellable(plan)
         ? {
             priceCents: annualPriceCents(plan),
