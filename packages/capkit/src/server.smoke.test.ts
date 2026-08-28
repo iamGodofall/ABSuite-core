@@ -1016,3 +1016,44 @@ describe('POST /billing/paypal/webhook', () => {
     expect(res.body.applied).toBeUndefined();
   });
 });
+
+/**
+ * The price list, over real HTTP.
+ *
+ * A pricing page is the one surface where a wrong number takes somebody's
+ * money, so the figures are asserted against the plan definitions rather than
+ * against themselves.
+ */
+describe('GET /plans', () => {
+  const plans = async () => {
+    const res = await fetch(`${base}/plans`);
+    return (await res.json()) as { plans: Array<Record<string, unknown>> };
+  };
+
+  test('serves both terms, and monthly still means monthly', async () => {
+    const { plans: list } = await plans();
+    const business = list.find(p => p.id === 'business')!;
+    // Unchanged for anything already reading it.
+    expect(business.priceCents).toBe(29900);
+    const annual = business.annual as Record<string, unknown>;
+    expect(annual.priceCents).toBe(299000);
+    expect(annual.yearly).toBe('2990.00');
+  });
+
+  test('the advertised saving is really two months', async () => {
+    const { plans: list } = await plans();
+    for (const plan of list) {
+      const annual = plan.annual as { savingCents: number } | null;
+      if (!annual) continue;
+      expect(annual.savingCents).toBe((plan.priceCents as number) * 2);
+    }
+  });
+
+  test('free and enterprise advertise no annual price', async () => {
+    const { plans: list } = await plans();
+    expect(list.find(p => p.id === 'free')!.annual).toBeNull();
+    // priceCents 0 there means negotiated; a "$0.00 a year" enterprise line
+    // would be an offer nobody made.
+    expect(list.find(p => p.id === 'enterprise')!.annual).toBeNull();
+  });
+});

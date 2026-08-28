@@ -330,7 +330,7 @@ ABSuite does not simulate intelligence.
 It observes intelligence.
 
 - If there are 8 records, show 8.
-- If there are 1016 tests, show 1016 — and when that number changes, this line
+- If there are 1028 tests, show 1028 — and when that number changes, this line
   is wrong until somebody updates it. It said 496 for months.
 - If Governance is partly built, say so.
 

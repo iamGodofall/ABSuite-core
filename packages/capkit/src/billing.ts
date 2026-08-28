@@ -10,6 +10,23 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export type PlanId = 'free' | 'team' | 'business' | 'enterprise';
 
+/**
+ * Months charged on an annual subscription.
+ *
+ * Ten, so a year costs two months less than paying monthly. That is the whole
+ * offer and it is stated as a MULTIPLIER rather than as a second price per
+ * tier, because two independently-typed numbers drift: somebody raises the
+ * monthly price, forgets the annual one, and the discount silently becomes 40%
+ * on the tier that just got more expensive. Nothing fails, and the loss is
+ * invisible until somebody reconciles a year of invoices.
+ *
+ * Change this one number and every annual price moves with it.
+ */
+export const ANNUAL_MONTHS_CHARGED = 10;
+
+/** How a subscription is billed. The TIER is the same either way. */
+export type BillingTerm = 'monthly' | 'annual';
+
 export interface Plan {
   id: PlanId;
   label: string;
@@ -87,6 +104,32 @@ export const PLANS: Record<PlanId, Plan> = {
     features: ['Unlimited', 'On-premise', 'Compliance support', 'Dedicated support'],
   },
 };
+
+/**
+ * What a year costs, derived from the month.
+ *
+ * `priceCents` stays the single authored number. An annual figure stored beside
+ * it would be a second source of truth for the same fact.
+ */
+export function annualPriceCents(plan: Plan): number {
+  return plan.priceCents * ANNUAL_MONTHS_CHARGED;
+}
+
+/** What an annual subscriber saves against paying monthly, in cents. */
+export function annualSavingCents(plan: Plan): number {
+  return plan.priceCents * 12 - annualPriceCents(plan);
+}
+
+/**
+ * The price for one term.
+ *
+ * Callers ask for a term rather than reaching for `priceCents` directly, so a
+ * screen or an invoice cannot accidentally quote the monthly figure against an
+ * annual subscription.
+ */
+export function priceForTerm(plan: Plan, term: BillingTerm): number {
+  return term === 'annual' ? annualPriceCents(plan) : plan.priceCents;
+}
 
 export function getPlan(id: string): Plan {
   return PLANS[(id as PlanId)] ?? PLANS.free;

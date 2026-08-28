@@ -19,7 +19,7 @@
  * is what posts them, and it is a tool an operator runs once rather than
  * something the server does.
  */
-import { PLANS, type PlanId, type Plan } from './billing';
+import { PLANS, priceForTerm, annualSavingCents, type PlanId, type Plan, type BillingTerm } from './billing';
 
 /** The product every billing plan hangs off. PayPal requires one. */
 export const PAYPAL_PRODUCT = {
@@ -77,28 +77,48 @@ export function sellablePlans(): Plan[] {
  * only thing that maps a PayPal subscription onto a tier. PayPal's own
  * `plan_id` is deliberately not used for that — see the note there.
  */
-export function billingPlanRequest(plan: Plan, productId: string = PAYPAL_PRODUCT.id) {
+export function billingPlanRequest(
+  plan: Plan,
+  term: BillingTerm = 'monthly',
+  productId: string = PAYPAL_PRODUCT.id
+) {
   if (!isSellable(plan)) {
     throw new Error(`${plan.id} is not sold through PayPal (priceCents is ${plan.priceCents})`);
   }
 
+  const annual = term === 'annual';
+
   return {
     product_id: productId,
-    name: `ABSuite ${plan.label}`,
-    description: `${plan.label} — ${plan.features.join(', ')}`,
+    name: `ABSuite ${plan.label} (${annual ? 'Annual' : 'Monthly'})`,
+    description: annual
+      ? `${plan.label}, billed yearly — ${plan.features.join(', ')}`
+      : `${plan.label} — ${plan.features.join(', ')}`,
     status: 'ACTIVE',
-    // The plan id travels here so every webhook carries it back.
+    /*
+     * THE TIER TRAVELS HERE, AND THE TERM DELIBERATELY DOES NOT.
+     *
+     * `custom_id` is the only field mapping a PayPal subscription onto an
+     * ABSuite plan, and `planFromPayPalEvent` refuses anything that is not a
+     * known plan id. Encoding the term — `team:annual` — would break that check
+     * on every annual subscriber, and it would be encoding the wrong thing
+     * anyway: an annual customer is on the SAME tier with the same quotas, they
+     * have simply paid for longer. How long they paid for is PayPal's business
+     * and shows on the subscription itself.
+     */
     custom_id: plan.id,
     billing_cycles: [
       {
-        frequency: { interval_unit: 'MONTH', interval_count: 1 },
+        frequency: annual
+          ? { interval_unit: 'YEAR', interval_count: 1 }
+          : { interval_unit: 'MONTH', interval_count: 1 },
         tenure_type: 'REGULAR',
         sequence: 1,
         // Zero means "until cancelled". A finite count would silently expire
         // every subscriber's plan on a date nobody chose.
         total_cycles: 0,
         pricing_scheme: {
-          fixed_price: { value: centsToAmount(plan.priceCents), currency_code: 'USD' },
+          fixed_price: { value: centsToAmount(priceForTerm(plan, term)), currency_code: 'USD' },
         },
       },
     ],
@@ -117,9 +137,29 @@ export function billingPlanRequest(plan: Plan, productId: string = PAYPAL_PRODUC
   };
 }
 
-/** Every plan ABSuite sells, ready to POST. */
+export const BILLING_TERMS: readonly BillingTerm[] = ['monthly', 'annual'];
+
+/**
+ * Every plan ABSuite sells, in both terms, ready to POST.
+ *
+ * PayPal needs a separate billing plan per price, so two sellable tiers become
+ * four plans. Generated from one list rather than written out, so a third tier
+ * or a third term does not need this function edited.
+ */
 export function allBillingPlanRequests(productId: string = PAYPAL_PRODUCT.id) {
-  return sellablePlans().map(plan => billingPlanRequest(plan, productId));
+  return sellablePlans().flatMap(plan =>
+    BILLING_TERMS.map(term => billingPlanRequest(plan, term, productId))
+  );
+}
+
+/** What an annual subscriber saves, for a page that has to say so honestly. */
+export function annualPitch(plan: Plan): { yearly: string; monthlyEquivalent: string; saving: string } {
+  return {
+    yearly: centsToAmount(priceForTerm(plan, 'annual')),
+    // What they effectively pay per month on the annual plan.
+    monthlyEquivalent: centsToAmount(Math.round(priceForTerm(plan, 'annual') / 12)),
+    saving: centsToAmount(annualSavingCents(plan)),
+  };
 }
 
 export type BillingPlanRequest = ReturnType<typeof billingPlanRequest>;

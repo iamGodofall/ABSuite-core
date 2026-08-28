@@ -17,9 +17,10 @@ import { generatePolicy } from './ai-policy-generator';
 import { describeProviders } from './llm-provider';
 import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
-import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent } from './billing';
+import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
 import { isPayPalCertUrl, verifyPayPalWebhook, type PayPalWebhookHeaders } from './paypal-webhook';
 import { buildAuditExport } from './audit-export';
+import { isSellable, annualPitch } from './paypal-plans';
 import { createServiceMetrics } from './metrics';
 import { TraceStore, SigningKey, verifyTrace, replayManifest, compareReplay, hashPayload, normaliseCost, CANONICAL_VERSION, SUPPORTED_CANONICAL_VERSIONS, type GovernanceRecord, type CostRecord, type ExecutionTrace } from './trace';
 import { explainTrace } from './explain';
@@ -1654,9 +1655,34 @@ app.post('/executions/checkpoint', authorise('execution:verify'), (_req, res) =>
 
 // ---- Billing & tenancy ----
 
+/**
+ * The published price list, in both terms.
+ *
+ * `priceCents` stays exactly what it was — the monthly figure — so nothing that
+ * already reads this route changes meaning. Annual arrives as its own object
+ * rather than by redefining the old field, because a consumer that had been
+ * quoting `priceCents` monthly and silently started quoting a year is the worst
+ * outcome available here.
+ *
+ * The saving is served rather than left to the reader to compute. A page doing
+ * its own arithmetic on two numbers is a page that will one day advertise a
+ * discount the billing plan does not give.
+ */
 // public-route: the published price list.
 app.get('/plans', (_req, res) => {
-  res.status(200).json({ plans: Object.values(PLANS) });
+  res.status(200).json({
+    plans: Object.values(PLANS).map(plan => ({
+      ...plan,
+      annual: isSellable(plan)
+        ? {
+            priceCents: annualPriceCents(plan),
+            savingCents: annualSavingCents(plan),
+            monthsCharged: ANNUAL_MONTHS_CHARGED,
+            ...annualPitch(plan),
+          }
+        : null,
+    })),
+  });
 });
 
 /** A tenant's own usage and quota position, for a billing page. */
