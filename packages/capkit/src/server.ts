@@ -1947,6 +1947,26 @@ app.post('/billing/webhook', (req, res) => {
     return res.status(200).json({ received: true, applied: false });
   }
 
+  /*
+   * Checkout completion, which is where a self-service tenant first acquires a
+   * customer reference. Resolved by tenant id rather than by that reference,
+   * because the whole point is that it does not have one yet.
+   */
+  if (outcome.action === 'bind') {
+    const bound = tenancy.tenants.bindExternalRef(outcome.tenantId ?? '', outcome.customer);
+    if (!bound.ok) {
+      // 200 so Stripe stops retrying something a retry cannot fix, and audited
+      // as a denial so a refused binding is visible rather than merely absent.
+      audit.record({ subject: 'stripe', action: 'billing.bind', resource: `tenant:${outcome.tenantId ?? 'unknown'}`, result: 'deny', reason: bound.reason });
+      return res.status(200).json({ received: true, applied: false, reason: bound.reason });
+    }
+
+    if (outcome.plan) tenancy.tenants.setPlan(bound.tenant.id, outcome.plan);
+
+    audit.record({ subject: 'stripe', action: 'billing.bind', resource: `tenant:${bound.tenant.id}`, result: 'allow' });
+    return res.status(200).json({ received: true, applied: true, tenant: bound.tenant.id, action: 'bind' });
+  }
+
   const tenant = tenancy.tenants.byExternalRef(outcome.customer);
   if (!tenant) {
     // Acknowledge so Stripe stops retrying an event we cannot map.

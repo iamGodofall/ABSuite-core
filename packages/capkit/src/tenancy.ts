@@ -29,6 +29,16 @@ export interface CreatedTenant extends Tenant {
   apiKey: string;
 }
 
+/**
+ * `/signup` writes `signup:<email>` into `external_ref`, using that column as
+ * the uniqueness index for an email address. Payment binding has to tell that
+ * placeholder apart from a real customer reference, and both ends of the check
+ * read this one function so they cannot drift apart.
+ */
+export function isSignupPlaceholder(externalRef: string): boolean {
+  return externalRef.startsWith('signup:');
+}
+
 export function hashApiKey(apiKey: string): string {
   return createHash('sha256').update(apiKey).digest('hex');
 }
@@ -122,6 +132,52 @@ export class TenantStore {
   setPlan(id: string, plan: PlanId): Tenant | undefined {
     this.storage.run('UPDATE tenants SET plan = ? WHERE id = ?', plan, id);
     return this.get(id);
+  }
+
+  /**
+   * Bind a payment-provider customer to this tenant, once.
+   *
+   * The webhook resolves a tenant by `byExternalRef`, so until this runs a
+   * paying customer cannot be matched to the account they paid for. Checkout
+   * completion is the first moment both identifiers exist together, which is
+   * why the binding happens there rather than at signup.
+   *
+   * Re-binding to a DIFFERENT reference is refused. A tenant whose external
+   * reference can be moved is a tenant whose billing can be redirected by
+   * whoever checks out next, and the same argument applies to reading the
+   * refusal as an error: re-sending the same binding is Stripe retrying a
+   * delivery, not an attack, so it succeeds unchanged.
+   */
+  bindExternalRef(id: string, externalRef: string): { ok: true; tenant: Tenant } | { ok: false; reason: string } {
+    const ref = externalRef.trim();
+    if (!ref) return { ok: false, reason: 'An external reference is required' };
+    if (isSignupPlaceholder(ref)) return { ok: false, reason: 'A signup placeholder is not a payment reference' };
+
+    const tenant = this.get(id);
+    if (!tenant) return { ok: false, reason: 'No such tenant' };
+
+    /*
+     * `/signup` stores `signup:<email>` here, using this column as the
+     * uniqueness index for an email address. That is a placeholder, not a
+     * payment binding, and refusing to replace it would mean no self-service
+     * account could ever be bound to a customer — the exact gap this exists
+     * to close. Anything else in the column IS a payment binding and is final.
+     */
+    const occupied = tenant.externalRef && !isSignupPlaceholder(tenant.externalRef);
+
+    if (occupied && tenant.externalRef !== ref) {
+      return { ok: false, reason: 'This tenant is already bound to a different customer' };
+    }
+
+    const holder = this.byExternalRef(ref);
+    if (holder && holder.id !== id) {
+      return { ok: false, reason: 'That customer is already bound to another tenant' };
+    }
+
+    if (tenant.externalRef === ref) return { ok: true, tenant };
+
+    this.storage.run('UPDATE tenants SET external_ref = ? WHERE id = ?', ref, id);
+    return { ok: true, tenant: this.get(id) as Tenant };
   }
 
   setStatus(id: string, status: TenantStatus): Tenant | undefined {

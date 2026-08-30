@@ -3,7 +3,7 @@ import { readFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Storage } from './storage';
-import { TenantService, TenantStore, MeterStore, hashApiKey, currentPeriod } from './tenancy';
+import { TenantService, TenantStore, MeterStore, hashApiKey, currentPeriod, isSignupPlaceholder } from './tenancy';
 import { PLANS, getPlan, checkQuota, verifyStripeSignature, planFromStripeEvent } from './billing';
 import { SqliteRevocationStore } from './revocation-store';
 import { MetricsRegistry, createServiceMetrics } from './metrics';
@@ -268,6 +268,33 @@ describe('stripe webhooks', () => {
     expect(planFromStripeEvent({ type: 'ping' }).action).toBe('ignore');
   });
 
+  test('checkout completion binds the customer to the tenant that opened it', () => {
+    expect(planFromStripeEvent({
+      type: 'checkout.session.completed',
+      data: { object: { customer: 'cus_new', client_reference_id: 'ten_abc', metadata: { plan: 'team' } } },
+    })).toEqual({ action: 'bind', customer: 'cus_new', tenantId: 'ten_abc', plan: 'team' });
+  });
+
+  test('a checkout that cannot be bound binds nothing', () => {
+    // No reference: a payment link opened without ?client_reference_id.
+    expect(planFromStripeEvent({
+      type: 'checkout.session.completed',
+      data: { object: { customer: 'cus_new' } },
+    }).action).toBe('ignore');
+
+    // No customer: nothing to bind to.
+    expect(planFromStripeEvent({
+      type: 'checkout.session.completed',
+      data: { object: { client_reference_id: 'ten_abc' } },
+    }).action).toBe('ignore');
+
+    // Whitespace is not a reference.
+    expect(planFromStripeEvent({
+      type: 'checkout.session.completed',
+      data: { object: { customer: 'cus_new', client_reference_id: '   ' } },
+    }).action).toBe('ignore');
+  });
+
   test('a cancelled subscription downgrades rather than deleting', () => {
     const outcome = planFromStripeEvent({
       type: 'customer.subscription.updated',
@@ -373,5 +400,78 @@ describe('concurrent write safety', () => {
     expect(a.get<{ n: number }>('SELECT COUNT(*) AS n FROM usage')?.n).toBe(2);
     a.close();
     b.close();
+  });
+});
+
+describe('binding a payment customer to a tenant', () => {
+  const service = () => {
+    const storage = freshStorage();
+    return new TenantStore(storage);
+  };
+
+  test('binds once, and is idempotent when Stripe retries the same delivery', () => {
+    const tenants = service();
+    const t = tenants.create('Acme');
+    expect(t.externalRef).toBeUndefined();
+
+    const first = tenants.bindExternalRef(t.id, 'cus_1');
+    expect(first.ok).toBe(true);
+    expect(tenants.byExternalRef('cus_1')?.id).toBe(t.id);
+
+    // A redelivery of the same event must not be an error.
+    expect(tenants.bindExternalRef(t.id, 'cus_1').ok).toBe(true);
+  });
+
+  test('refuses to move an existing binding', () => {
+    const tenants = service();
+    const t = tenants.create('Acme');
+    tenants.bindExternalRef(t.id, 'cus_1');
+
+    const moved = tenants.bindExternalRef(t.id, 'cus_2');
+    expect(moved.ok).toBe(false);
+    // The original binding survives the refusal.
+    expect(tenants.get(t.id)?.externalRef).toBe('cus_1');
+    expect(tenants.byExternalRef('cus_2')).toBeUndefined();
+  });
+
+  test('refuses to give one customer to a second tenant', () => {
+    const tenants = service();
+    const a = tenants.create('Acme');
+    const b = tenants.create('Beta');
+    tenants.bindExternalRef(a.id, 'cus_1');
+
+    const stolen = tenants.bindExternalRef(b.id, 'cus_1');
+    expect(stolen.ok).toBe(false);
+    expect(tenants.byExternalRef('cus_1')?.id).toBe(a.id);
+  });
+
+  test('replaces the signup placeholder, which is what a real account carries', () => {
+    // How POST /signup actually creates a tenant: the column is the email
+    // uniqueness index, so it is never empty on a self-service account.
+    const tenants = service();
+    const t = tenants.create('Stranger Ltd', 'free', 'signup:stranger@example.com');
+    expect(t.externalRef).toBe('signup:stranger@example.com');
+
+    const bound = tenants.bindExternalRef(t.id, 'cus_STRANGER');
+    expect(bound.ok).toBe(true);
+    expect(tenants.byExternalRef('cus_STRANGER')?.id).toBe(t.id);
+
+    // And once it is a real customer, it is final.
+    expect(tenants.bindExternalRef(t.id, 'cus_OTHER').ok).toBe(false);
+  });
+
+  test('a placeholder is never accepted as a payment reference', () => {
+    const tenants = service();
+    const t = tenants.create('Acme');
+    expect(tenants.bindExternalRef(t.id, 'signup:someone@example.com').ok).toBe(false);
+    expect(isSignupPlaceholder('signup:a@b.c')).toBe(true);
+    expect(isSignupPlaceholder('cus_123')).toBe(false);
+  });
+
+  test('refuses an unknown tenant and an empty reference', () => {
+    const tenants = service();
+    const t = tenants.create('Acme');
+    expect(tenants.bindExternalRef('ten_nope', 'cus_1').ok).toBe(false);
+    expect(tenants.bindExternalRef(t.id, '  ').ok).toBe(false);
   });
 });

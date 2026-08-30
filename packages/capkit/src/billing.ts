@@ -434,16 +434,50 @@ export function planFromPayPalEvent(event: {
   }
 }
 
-/** Map a Stripe event onto the plan change it implies. */
+/**
+ * Map a Stripe event onto the plan change it implies.
+ *
+ * `bind` is the one action that does not change a plan. Every other case
+ * resolves the tenant by its stored customer reference, and a self-service
+ * signup has none — the Stripe customer does not exist until somebody pays.
+ * `checkout.session.completed` is the first event carrying both identifiers:
+ * the customer Stripe just created, and the `client_reference_id` the checkout
+ * was opened with. Binding there, rather than guessing at signup, is why the
+ * subscription events below can go on assuming the reference is present.
+ */
 export function planFromStripeEvent(event: {
   type?: string;
-  data?: { object?: { metadata?: { plan?: string }; status?: string; customer?: string } };
-}): { action: 'set-plan' | 'suspend' | 'ignore'; plan?: PlanId; customer?: string } {
+  data?: {
+    object?: {
+      metadata?: { plan?: string };
+      status?: string;
+      customer?: string;
+      client_reference_id?: string;
+    };
+  };
+}): { action: 'set-plan' | 'suspend' | 'bind' | 'ignore'; plan?: PlanId; customer?: string; tenantId?: string } {
   const object = event.data?.object;
   const customer = object?.customer;
   const requested = object?.metadata?.plan ?? '';
 
   switch (event.type) {
+    /*
+     * The binding moment. A session that completed without a customer or
+     * without a reference binds nothing — an unbindable checkout is a
+     * misconfigured payment link, and inventing a tenant to attach it to
+     * would be worse than leaving it unbound and visible.
+     */
+    case 'checkout.session.completed': {
+      const tenantId = object?.client_reference_id?.trim() ?? '';
+      if (!customer || !tenantId) return { action: 'ignore' };
+      return {
+        action: 'bind',
+        customer,
+        tenantId,
+        ...(isPlanId(requested) ? { plan: requested } : {}),
+      };
+    }
+
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
       if (object?.status && ['canceled', 'unpaid', 'incomplete_expired'].includes(object.status)) {
