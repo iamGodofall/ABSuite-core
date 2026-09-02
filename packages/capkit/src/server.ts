@@ -19,6 +19,7 @@ import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
 import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, rewriteWindowHours, witnessDue, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
 import { isPayPalCertUrl, verifyPayPalWebhook, type PayPalWebhookHeaders } from './paypal-webhook';
+import { verifyPaystackSignature, planFromPaystackEvent } from './paystack';
 import { buildAuditExport } from './audit-export';
 import { instanceWitnessInterval, witnessHead } from './witness';
 import { isSellable, annualPitch } from './paypal-plans';
@@ -123,6 +124,8 @@ const metrics = createServiceMetrics('capkit');
 const rateLimiter = new TenantRateLimiter();
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 const PAYPAL_WEBHOOK_ID = (process.env.PAYPAL_WEBHOOK_ID || '').trim();
+/* Paystack signs with the secret key itself — see paystack.ts. Never logged. */
+const PAYSTACK_SECRET_KEY = (process.env.PAYSTACK_SECRET_KEY || '').trim();
 const NOTARY_WITNESS_URL = (process.env.ABSUITE_NOTARY_URL || '').trim();
 const NOTARY_CHAIN_ID = (process.env.ABSUITE_CHAIN_ID || '').trim();
 
@@ -1983,6 +1986,56 @@ app.post('/billing/webhook', (req, res) => {
   return res.status(200).json({ received: true, applied: true, tenant: tenant.id, action: outcome.action });
 });
 
+/**
+ * Paystack — the local rail, and the third to arrive.
+ *
+ * Same three steps as the other two: verify, map, apply. The differences are
+ * that the signature is SHA-512 over the raw body keyed by the secret key, and
+ * that the shapes it is written against have not yet been seen from a live
+ * account. See paystack.ts. It fails closed, and it says what it did.
+ */
+app.post('/billing/paystack/webhook', (req, res) => {
+  const raw = (req as express.Request & { rawBody?: string }).rawBody ?? '';
+  const signature = req.header('x-paystack-signature') || '';
+
+  const verified = verifyPaystackSignature(raw, signature, PAYSTACK_SECRET_KEY);
+  if (!verified.valid) {
+    audit.record({ subject: 'paystack', action: 'POST /billing/paystack/webhook', resource: 'billing', result: 'deny', reason: verified.reason ?? 'invalid' });
+    return fail(res, 400, 'SIGNATURE_INVALID', verified.reason ?? 'Signature verification failed');
+  }
+
+  const outcome = planFromPaystackEvent(req.body ?? {});
+  if (outcome.action === 'ignore' || !outcome.customer) {
+    return res.status(200).json({ received: true, applied: false });
+  }
+
+  if (outcome.action === 'bind') {
+    const bound = tenancy.tenants.bindExternalRef(outcome.tenantId ?? '', outcome.customer);
+    if (!bound.ok) {
+      audit.record({ subject: 'paystack', action: 'billing.bind', resource: `tenant:${outcome.tenantId ?? 'unknown'}`, result: 'deny', reason: bound.reason });
+      return res.status(200).json({ received: true, applied: false, reason: bound.reason });
+    }
+    if (outcome.plan) tenancy.tenants.setPlan(bound.tenant.id, outcome.plan);
+    audit.record({ subject: 'paystack', action: 'billing.bind', resource: `tenant:${bound.tenant.id}`, result: 'allow' });
+    return res.status(200).json({ received: true, applied: true, tenant: bound.tenant.id, action: 'bind' });
+  }
+
+  const tenant = tenancy.tenants.byExternalRef(outcome.customer);
+  if (!tenant) {
+    // Acknowledge so Paystack stops retrying an event we cannot map.
+    return res.status(200).json({ received: true, applied: false, reason: 'No tenant for that customer' });
+  }
+
+  if (outcome.action === 'suspend') {
+    tenancy.tenants.setStatus(tenant.id, 'suspended');
+  } else if (outcome.plan) {
+    tenancy.tenants.setPlan(tenant.id, outcome.plan);
+  }
+
+  audit.record({ subject: 'paystack', action: `billing.${outcome.action}`, resource: `tenant:${tenant.id}`, result: 'allow' });
+  return res.status(200).json({ received: true, applied: true, tenant: tenant.id, action: outcome.action });
+});
+
 app.use((req, res) => fail(res, 404, 'NOT_FOUND', `No route for ${req.method} ${req.path}`));
 
 export { app };
@@ -2109,7 +2162,7 @@ function sweepRetention(): void {
    * every record is kept forever, which is what `if (!tenant) return next()` in
    * `enforceQuota` already promises about every other limit.
    */
-  const billingConfigured = Boolean(STRIPE_WEBHOOK_SECRET) || Boolean(PAYPAL_WEBHOOK_ID);
+  const billingConfigured = Boolean(STRIPE_WEBHOOK_SECRET) || Boolean(PAYPAL_WEBHOOK_ID) || Boolean(PAYSTACK_SECRET_KEY);
   if (!explicit && !billingConfigured) return;
 
   const days = explicit
