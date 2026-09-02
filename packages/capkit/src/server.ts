@@ -2251,6 +2251,23 @@ function sweepRetention(): void {
   }
 }
 
+  /*
+   * Say it at every boot when the disk will not survive a restart.
+   *
+   * HOSTING.md: "A SQLite file written to local disk is gone — along with every
+   * record ever written. The chain would not even break; it would simply cease
+   * to exist, quietly, on a redeploy nobody thought was risky." An operator who
+   * deploys to a host with no volume gets a service that answers /health
+   * perfectly while losing every signed record, and nothing else in the system
+   * would ever mention it. render.free.yaml sets this deliberately.
+   */
+  if (/^(1|true|yes|on)$/i.test((process.env.ABSUITE_STORAGE_IS_EPHEMERAL || '').trim())) {
+    console.warn('[capkit] ABSUITE_STORAGE_IS_EPHEMERAL is set — this instance has NO persistent disk.');
+    console.warn('[capkit] Every execution record written here is destroyed on the next restart or deploy,');
+    console.warn('[capkit] and /health will go on reporting healthy while that happens. Demonstration only:');
+    console.warn('[capkit] never point a customer, a pilot or a payment webhook you rely on at this instance.');
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`[capkit] listening on :${PORT} (storage: ${storage.path})`);
     if (!ADMIN_KEY) {

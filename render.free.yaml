@@ -1,0 +1,65 @@
+# Render, FREE tier — A DEMONSTRATION INSTANCE. NOT FOR ANYBODY'S RECORDS.
+#
+# Identical to render.yaml except that it has no disk, because Render's free
+# instance types cannot have one. That is not a smaller version of the same
+# thing. docs/HOSTING.md names the consequence exactly:
+#
+#   "A SQLite file written to local disk is gone — along with every record ever
+#    written. The chain would not even break; it would simply cease to exist,
+#    quietly, on a redeploy nobody thought was risky."
+#
+# So every record written here dies at the next restart, while /health goes on
+# answering "healthy". ABSUITE_STORAGE_IS_EPHEMERAL below makes the server say
+# so at every boot, because a warning nobody sees is not a warning.
+#
+# Use it for: a live URL in the MCP README, showing an auditor the verification
+# flow, and exercising a real payment webhook — the one thing that cannot be
+# tested locally. Never for a pilot, a trial, or a first customer.
+#
+# See docs/DEPLOY-RENDER.md.
+
+services:
+  - type: web
+    name: absuite-demo
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: ABSUITE_DB_PATH
+        value: /tmp/absuite.db
+      # Generated once by Render and never printed in a build log. Read it from
+      # the dashboard's Environment tab; the username is `absuite`.
+      - key: ABSUITE_PUBLIC_PASSWORD
+        generateValue: true
+      # Mints capability tokens.
+      - key: CAPKIT_ADMIN_KEY
+        generateValue: true
+      # Reads the record and sets provider credentials. Forty-eight routes sit
+      # behind it; without it the instance is healthy and reports UNKNOWN for
+      # everything.
+      - key: ABSUITE_ADMIN_API_KEY
+        generateValue: true
+      # capkit refuses to start without this when NODE_ENV=production.
+      - key: CAPKIT_HMAC_SECRET
+        generateValue: true
+      # Signs execution traces. NOT generated here: it is an Ed25519 private
+      # key, it has structure, and it must stay the same forever — a new one
+      # makes every existing record fail verification. Generate it once with
+      # `node scripts/gen-deploy-secrets.mjs` and paste it in.
+      - key: CAPKIT_TRACE_PRIVATE_KEY
+        sync: false
+      - key: CAPKIT_TRACE_KEY_ID
+        sync: false
+      # Makes the boot log state that nothing written here survives a restart.
+      - key: ABSUITE_STORAGE_IS_EPHEMERAL
+        value: "true"
+      # A demo with no way in is not a demo.
+      - key: ABSUITE_SIGNUP_ENABLED
+        value: "true"
+
