@@ -11,23 +11,37 @@
  * difference between a customer in Johannesburg or Lagos being able to pay with
  * the card in their pocket and being asked to have a PayPal account.
  *
- * ## THE SHAPES BELOW ARE FROM PAYSTACK'S PUBLISHED WEBHOOK DOCUMENTATION AND
- * ## HAVE NOT BEEN SEEN FROM A LIVE ACCOUNT.
+ * ## WHAT HAS BEEN SEEN FROM A LIVE ACCOUNT, AND WHAT HAS NOT
  *
- * Every other verification path in this package was written against something
- * that could be exercised. This one could not be, from where it was written, so
- * it is stated rather than implied: the signature algorithm, the event names
- * and the field paths are what Paystack documents, and the first live delivery
- * is the thing that confirms them. Treat this as Near rather than Built until a
- * real event has been through it, and read `/billing/paystack/webhook`'s
- * response — which names what it did — rather than assuming silence is success.
+ * This was first written against Paystack's documentation alone, and said so.
+ * A test-mode key then made most of it checkable, so the claim is narrowed
+ * rather than left where it was.
+ *
+ * VERIFIED against a real transaction on a live test account: metadata sent to
+ * `/transaction/initialize` comes back as an OBJECT carrying exactly the keys
+ * it was given; the customer identifier lives at `data.customer.customer_code`
+ * (`CUS_…`); `data.status` is the string this gates on, and reads `abandoned`
+ * for a checkout nobody completed — so the gate refuses one, which is the
+ * behaviour that matters; and an amount is charged in the currency it is told,
+ * unconverted. `paystack.fixture.test.ts` pins that captured payload.
+ *
+ * STILL UNVERIFIED, because it needs a public URL Paystack can reach: the
+ * webhook ENVELOPE — that a delivery wraps that same `data` as
+ * `{ event, data }` — and the HMAC-SHA512 signature over the raw body. Those
+ * are documented and consistent with what was seen, which is an argument
+ * rather than evidence. The first real delivery settles them.
  *
  * It fails closed in the meantime. An event whose shape does not match is
  * ignored, never guessed at, so the failure mode of being wrong here is that
  * nothing happens rather than that the wrong tenant is upgraded.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { isPlanId, type PlanId } from './billing';
+import { isPlanId, PLANS, type PlanId } from './billing';
+import { guardedFetch } from './guarded-fetch';
+import { type AddressRange } from './outbound';
+
+/** The one host this ever talks to. Every hop is checked against it. */
+export const PAYSTACK_API_HOST = 'api.paystack.co';
 
 /**
  * Verify a Paystack webhook.
@@ -79,6 +93,9 @@ export interface PaystackEvent {
     customer?: { customer_code?: string };
     plan?: { plan_code?: string; name?: string };
     subscription_code?: string;
+    /** Present on a charge. Read by nothing here — kept so a captured payload types. */
+    currency?: string;
+    amount?: number;
     metadata?: { tenant_id?: string; plan?: string } | string;
   };
 }
@@ -206,4 +223,104 @@ export function planFromPaystackEvent(event: PaystackEvent): {
     default:
       return { action: 'ignore' };
   }
+}
+
+/**
+ * Open a checkout, which is the half that makes the binding above possible.
+ *
+ * ## WITHOUT THIS, NOTHING SETS THE METADATA THE WEBHOOK READS
+ *
+ * `planFromPaystackEvent` binds on `metadata.tenant_id`, and metadata is set
+ * when a transaction is INITIALISED — not by the hosted payment page, which has
+ * no idea which tenant is looking at it. A webhook handler with nothing
+ * creating its events is the same fault this whole path was written to fix, one
+ * step earlier, so the two ship together.
+ *
+ * ## The amount is never converted, and that is the important rule here
+ *
+ * `PLANS` holds prices in US cents. Paystack takes the smallest unit of
+ * whatever currency it is told, so handing 4900 to a ZAR charge bills R49
+ * instead of $49 — the Team plan for about a fifteenth of its price, silently,
+ * on every sale. There is no exchange rate in this repository and inventing one
+ * would be a fabrication of exactly the kind the plan-code rule refuses.
+ *
+ * So: USD uses the catalogue price. Any other currency REQUIRES an explicit
+ * amount from the caller, in that currency's smallest unit, and is refused
+ * without one. An operator selling in rands states the rand price.
+ */
+export async function initialisePaystackCheckout(options: {
+  secretKey: string;
+  email: string;
+  tenantId: string;
+  plan: PlanId;
+  /** Smallest unit of `currency`. Required for anything but USD. */
+  amount?: number;
+  currency?: string;
+  callbackUrl?: string;
+  refuse: AddressRange[];
+  timeoutMs?: number;
+}): Promise<{ authorizationUrl: string; reference: string }> {
+  const currency = (options.currency ?? 'USD').toUpperCase();
+  const catalogue = PLANS[options.plan];
+
+  if (!catalogue) throw new Error(`Unknown plan: ${options.plan}`);
+  if (catalogue.priceCents <= 0) {
+    throw new Error(`${options.plan} is not a plan anyone pays for; there is nothing to charge.`);
+  }
+
+  const amount = options.amount ?? (currency === 'USD' ? catalogue.priceCents : undefined);
+  if (amount === undefined) {
+    throw new Error(
+      `Refusing to charge in ${currency} without an explicit amount. The catalogue price is in US ` +
+      `cents and this repository holds no exchange rate, so converting it would be a guess. Pass ` +
+      `the ${currency} price in its smallest unit.`
+    );
+  }
+  if (!Number.isInteger(amount) || amount <= 0) {
+    throw new Error('amount must be a positive whole number of the currency\'s smallest unit');
+  }
+
+  const response = await guardedFetch(
+    `https://${PAYSTACK_API_HOST}/transaction/initialize`,
+    {
+      method: 'POST',
+      headers: {
+        // Paystack's secret key. Never logged, never echoed to a caller.
+        authorization: `Bearer ${options.secretKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: options.email,
+        amount,
+        currency,
+        ...(options.callbackUrl ? { callback_url: options.callbackUrl } : {}),
+        /*
+         * The whole point. `tenant_id` is what charge.success carries back and
+         * what the binding reads; `plan` is the tier, stated by us rather than
+         * read from Paystack's own catalogue.
+         */
+        metadata: { tenant_id: options.tenantId, plan: options.plan },
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
+    },
+    { refuse: options.refuse, only: [PAYSTACK_API_HOST], verb: 'open a checkout with' }
+  );
+
+  const body = (await response.json().catch(() => null)) as
+    | { status?: boolean; message?: string; data?: { authorization_url?: string; reference?: string } }
+    | null;
+
+  if (!response.ok || body?.status !== true || !body?.data?.authorization_url) {
+    /*
+     * Paystack's own message, and nothing of ours. A failure here is most often
+     * a key for the wrong mode or a currency the account cannot accept, and
+     * both are things the operator has to read to fix.
+     */
+    throw new Error(`Paystack refused the checkout: ${body?.message ?? `HTTP ${response.status}`}`);
+  }
+
+  return {
+    authorizationUrl: body.data.authorization_url,
+    reference: String(body.data.reference ?? ''),
+  };
 }

@@ -17,9 +17,9 @@ import { generatePolicy } from './ai-policy-generator';
 import { describeProviders } from './llm-provider';
 import { getStorage } from './storage';
 import { TenantService, currentPeriod, type Tenant } from './tenancy';
-import { PLANS, isPlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, rewriteWindowHours, witnessDue, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
+import { PLANS, isPlanId, type PlanId, verifyStripeSignature, planFromStripeEvent, planFromPayPalEvent, rewriteWindowHours, witnessDue, annualPriceCents, annualSavingCents, ANNUAL_MONTHS_CHARGED } from './billing';
 import { isPayPalCertUrl, verifyPayPalWebhook, type PayPalWebhookHeaders } from './paypal-webhook';
-import { verifyPaystackSignature, planFromPaystackEvent } from './paystack';
+import { verifyPaystackSignature, planFromPaystackEvent, initialisePaystackCheckout } from './paystack';
 import { buildAuditExport } from './audit-export';
 import { instanceWitnessInterval, witnessHead } from './witness';
 import { isSellable, annualPitch } from './paypal-plans';
@@ -2010,6 +2010,49 @@ app.post('/billing/webhook', (req, res) => {
  * that the shapes it is written against have not yet been seen from a live
  * account. See paystack.ts. It fails closed, and it says what it did.
  */
+/**
+ * Address ranges no outbound call from this service may reach. The same list
+ * the witness client uses — named once so the two cannot drift apart.
+ */
+const OUTBOUND_REFUSE = ['loopback', 'private', 'link-local', 'carrier-grade-nat', 'unspecified', 'unique-local'] as const;
+
+/**
+ * Open a Paystack checkout for the calling tenant.
+ *
+ * This is the half that makes the webhook's binding possible: `metadata` is
+ * set when a transaction is initialised, and the hosted payment page has no
+ * idea which tenant is looking at it. Authenticated by the tenant key alone —
+ * buying is something an account does, not something an agent is granted.
+ */
+app.post('/billing/paystack/checkout', async (req, res) => {
+  const tenant = (req as express.Request & { tenant?: Tenant }).tenant;
+  if (!tenant) return fail(res, 401, 'TENANT_REQUIRED', 'Send your tenant key in X-ABSuite-Tenant-Key');
+  if (!PAYSTACK_SECRET_KEY) return fail(res, 503, 'PAYSTACK_NOT_CONFIGURED', 'This instance has no Paystack key configured');
+
+  const { plan, email, amount, currency, callbackUrl } = req.body ?? {};
+  if (!isPlanId(String(plan ?? ''))) return fail(res, 400, 'INVALID_REQUEST', 'plan must be one of: free, team, business, enterprise');
+  if (!email || typeof email !== 'string') return fail(res, 400, 'INVALID_REQUEST', 'email is required');
+
+  try {
+    const checkout = await initialisePaystackCheckout({
+      secretKey: PAYSTACK_SECRET_KEY,
+      email,
+      tenantId: tenant.id,
+      plan: String(plan) as PlanId,
+      ...(amount !== undefined ? { amount: Number(amount) } : {}),
+      ...(currency ? { currency: String(currency) } : {}),
+      ...(callbackUrl ? { callbackUrl: String(callbackUrl) } : {}),
+      refuse: [...OUTBOUND_REFUSE],
+    });
+    audit.record({ subject: `tenant:${tenant.id}`, action: 'billing.checkout', resource: `tenant:${tenant.id}`, result: 'allow' });
+    return res.status(200).json(checkout);
+  } catch (error) {
+    // Paystack's own message. Never the key, which nothing here can reach.
+    audit.record({ subject: `tenant:${tenant.id}`, action: 'billing.checkout', resource: `tenant:${tenant.id}`, result: 'deny', reason: (error as Error).message });
+    return fail(res, 400, 'CHECKOUT_FAILED', (error as Error).message);
+  }
+});
+
 app.post('/billing/paystack/webhook', (req, res) => {
   const raw = (req as express.Request & { rawBody?: string }).rawBody ?? '';
   const signature = req.header('x-paystack-signature') || '';
@@ -2129,7 +2172,7 @@ async function sweepWitness(): Promise<void> {
          * of. Refusing these is a correctness rule here as much as an SSRF one,
          * and metadata endpoints are refused by guardedFetch regardless.
          */
-        refuse: ['loopback', 'private', 'link-local', 'carrier-grade-nat', 'unspecified', 'unique-local'],
+        refuse: [...OUTBOUND_REFUSE],
       }
     );
 
