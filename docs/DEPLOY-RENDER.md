@@ -49,9 +49,20 @@ that records will not survive a restart. Nothing about it pretends otherwise.
 **What it must never be used for**: anybody's real records. Not a pilot, not a
 "just for now", not a first customer while an upgrade is pending.
 
-```
-Render → New → Blueprint → point at this repo → render.free.yaml
-```
+**A Blueprint reads `render.yaml`, by that name.** So one of these, and the
+second is the one that definitely works:
+
+- If Render's Blueprint form lets you name the file, point it at
+  `render.free.yaml`. Check whether it does rather than assuming — this
+  document has no way to check itself, and Render's UI changes.
+- Otherwise create the service by hand: **New → Web Service → Docker**, with
+  `deploy/Dockerfile`, health check `/health`, instance type **Free**, and the
+  environment variables copied from `render.free.yaml`. It is a form to fill in
+  once, and it removes the guesswork entirely.
+
+Do NOT solve it by renaming `render.free.yaml` to `render.yaml`. That would
+make the free, disk-less, record-destroying configuration the default the next
+person deploys, which is the whole thing this file exists to prevent.
 
 Free web services also sleep after inactivity, so the first request after a
 quiet period waits for a cold start. For a demo that is fine. For a webhook it
@@ -121,6 +132,24 @@ proves the trace key survived, which is the only failure here that loses data
 silently.
 
 ---
+
+## Test mode is enough to close the last unknown
+
+Live Paystack needs bank and identity documents, and that approval sits outside
+this repository's control. It is worth being exact about what that actually
+blocks, because the answer is: almost nothing on the path that matters.
+
+The one thing nothing local can prove is the webhook — that a real delivery
+wraps its payload as `{ event, data }`, and that the HMAC-SHA512 signature over
+the raw body verifies. **A test-mode payment fires a real webhook, from
+Paystack's servers, to a real URL, signed with the test secret key.** It
+exercises the identical code path. Point the Test Webhook URL at the free demo
+instance, pay with the test card from Paystack's docs, and the last unverified
+claim in the payment layer is settled — with no live activation, no bank
+document, and no money.
+
+What live mode adds is the ability to take real money. That is the last step,
+not a prerequisite for any of the ones before it.
 
 ## Which one, and when
 
