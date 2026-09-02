@@ -6,7 +6,9 @@
  * unrecognised plan id, a PayPal catalogue id, and an unknown event type all
  * come back as `ignore` rather than as a guess.
  */
-import { planFromPayPalEvent, planFromStripeEvent, PLANS } from './billing';
+import { planFromPayPalEvent, planFromStripeEvent, readPayPalCustomId, PLANS } from './billing';
+import { Storage } from './storage';
+import { TenantStore } from './tenancy';
 
 const sub = (over: Record<string, unknown> = {}) => ({
   event_type: 'BILLING.SUBSCRIPTION.ACTIVATED',
@@ -136,5 +138,58 @@ describe('planFromPayPalEvent', () => {
     });
     expect(Object.keys(paypal).sort()).toEqual(Object.keys(stripe).sort());
     expect(paypal.plan).toBe(stripe.plan);
+  });
+});
+
+describe('paypal binds the tenant that opened the checkout', () => {
+  test('custom_id carrying a tenant binds and sets the tier', () => {
+    expect(planFromPayPalEvent(sub({ custom_id: 'ten_abc:business' }))).toEqual({
+      action: 'bind', customer: 'I-SUB123', tenantId: 'ten_abc', plan: 'business',
+    });
+  });
+
+  test('a plan-only custom_id keeps working exactly as it did', () => {
+    // Every subscription created before binding existed carries this shape.
+    expect(planFromPayPalEvent(sub({ custom_id: 'business' }))).toEqual({
+      action: 'set-plan', plan: 'business', customer: 'I-SUB123',
+    });
+  });
+
+  test('a tenant with an unrecognised tier binds without granting one', () => {
+    const out = planFromPayPalEvent(sub({ custom_id: 'ten_abc:platinum' }));
+    expect(out.action).toBe('bind');
+    expect(out.plan).toBeUndefined();
+    expect(out.tenantId).toBe('ten_abc');
+  });
+
+  test('a subscription that is not ACTIVE binds nothing', () => {
+    // APPROVED means agreed and not yet paying. Binding there would hand the
+    // tier to anyone who begins a checkout and abandons it.
+    expect(planFromPayPalEvent(sub({ custom_id: 'ten_abc:business', status: 'APPROVED' })).action).toBe('ignore');
+    expect(planFromPayPalEvent(sub({ custom_id: 'ten_abc:business', status: 'SUSPENDED' })).action).toBe('suspend');
+  });
+
+  test('readPayPalCustomId splits on the first colon only', () => {
+    expect(readPayPalCustomId('ten_abc:business')).toEqual({ tenantId: 'ten_abc', plan: 'business' });
+    expect(readPayPalCustomId('business')).toEqual({ tenantId: '', plan: 'business' });
+    expect(readPayPalCustomId('  ten_abc : team ')).toEqual({ tenantId: 'ten_abc', plan: 'team' });
+    expect(readPayPalCustomId(undefined)).toEqual({ tenantId: '', plan: '' });
+  });
+
+  test('binds a tenant created the way POST /signup creates one', () => {
+    const tenants = new TenantStore(new Storage(':memory:'));
+    const t = tenants.create('Acme', 'free', 'signup:acme@example.com');
+
+    const outcome = planFromPayPalEvent(sub({ custom_id: `${t.id}:team` }));
+    expect(outcome.action).toBe('bind');
+
+    const bound = tenants.bindExternalRef(outcome.tenantId as string, outcome.customer as string);
+    expect(bound.ok).toBe(true);
+    expect(tenants.byExternalRef('I-SUB123')?.id).toBe(t.id);
+
+    // A second subscription cannot steal the tenant.
+    const other = planFromPayPalEvent(sub({ id: 'I-SUB999', custom_id: `${t.id}:business` }));
+    expect(tenants.bindExternalRef(other.tenantId as string, other.customer as string).ok).toBe(false);
+    expect(tenants.get(t.id)?.externalRef).toBe('I-SUB123');
   });
 });

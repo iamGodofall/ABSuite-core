@@ -1917,6 +1917,22 @@ app.post('/billing/paypal/webhook', async (req, res) => {
     return res.status(200).json({ received: true, applied: false });
   }
 
+  /*
+   * PayPal has no checkout-completion event to bind on, so the binding rides
+   * ACTIVATED — the first event carrying the subscription id and the one that
+   * says money moved. `custom_id` names the tenant; see readPayPalCustomId.
+   */
+  if (outcome.action === 'bind') {
+    const bound = tenancy.tenants.bindExternalRef(outcome.tenantId ?? '', outcome.customer);
+    if (!bound.ok) {
+      audit.record({ subject: 'paypal', action: 'billing.bind', resource: `tenant:${outcome.tenantId ?? 'unknown'}`, result: 'deny', reason: bound.reason });
+      return res.status(200).json({ received: true, applied: false, reason: bound.reason });
+    }
+    if (outcome.plan) tenancy.tenants.setPlan(bound.tenant.id, outcome.plan);
+    audit.record({ subject: 'paypal', action: 'billing.bind', resource: `tenant:${bound.tenant.id}`, result: 'allow' });
+    return res.status(200).json({ received: true, applied: true, tenant: bound.tenant.id, action: 'bind' });
+  }
+
   const tenant = tenancy.tenants.byExternalRef(outcome.customer);
   if (!tenant) {
     // Acknowledge so PayPal stops retrying an event we cannot map.

@@ -338,6 +338,25 @@ export function verifyStripeSignature(
 }
 
 /**
+ * Read what `custom_id` carries.
+ *
+ * PayPal gives a subscription ONE free-text field that survives to every event,
+ * and it has to hold two things: which tenant opened the checkout, and which
+ * tier they bought. `<tenantId>:<plan>` is the format, chosen because neither a
+ * tenant id nor a plan id contains a colon, so the split cannot be ambiguous.
+ *
+ * A value with no colon is read as a plan and no tenant, which is exactly what
+ * every subscription created before this existed carries. Those keep working
+ * and simply cannot bind, which is the behaviour they already had.
+ */
+export function readPayPalCustomId(customId: string | undefined): { tenantId: string; plan: string } {
+  const raw = (customId ?? '').trim();
+  const colon = raw.indexOf(':');
+  if (colon === -1) return { tenantId: '', plan: raw };
+  return { tenantId: raw.slice(0, colon).trim(), plan: raw.slice(colon + 1).trim() };
+}
+
+/**
  * Map a PayPal subscription webhook onto the plan change it implies.
  *
  * Deliberately the same return type as `planFromStripeEvent`. A provider is an
@@ -366,7 +385,7 @@ export function verifyStripeSignature(
 export function planFromPayPalEvent(event: {
   event_type?: string;
   resource?: { custom_id?: string; status?: string; id?: string; subscriber?: { payer_id?: string } };
-}): { action: 'set-plan' | 'suspend' | 'ignore'; plan?: PlanId; customer?: string } {
+}): { action: 'set-plan' | 'suspend' | 'bind' | 'ignore'; plan?: PlanId; customer?: string; tenantId?: string } {
   const resource = event.resource;
   /*
    * The subscription id is the stable handle, not the payer id: one payer may
@@ -374,7 +393,7 @@ export function planFromPayPalEvent(event: {
    * purchase overwrite the first one's tier.
    */
   const customer = resource?.id;
-  const requested = resource?.custom_id ?? '';
+  const { tenantId, plan: requested } = readPayPalCustomId(resource?.custom_id);
 
   switch (event.event_type) {
     case 'BILLING.SUBSCRIPTION.ACTIVATED':
@@ -403,6 +422,25 @@ export function planFromPayPalEvent(event: {
        * and it fails closed: a status this build does not recognise is ignored,
        * never granted.
        */
+      /*
+       * ACTIVE, and `custom_id` names the tenant: bind, which also sets the
+       * tier. Done here rather than on a dedicated event because PayPal has no
+       * checkout-completion webhook to bind on — ACTIVATED is both the first
+       * event carrying the subscription id and the one that says money moved.
+       *
+       * Binding on UPDATED and RE-ACTIVATED too is deliberate and safe: the
+       * store refuses to move an existing binding and treats re-binding the
+       * same pair as a redelivery, so the extra attempts either no-op or
+       * recover a subscription whose ACTIVATED was never received.
+       */
+      if (resource?.status === 'ACTIVE' && tenantId && customer) {
+        return {
+          action: 'bind',
+          customer,
+          tenantId,
+          ...(isPlanId(requested) ? { plan: requested } : {}),
+        };
+      }
       if (resource?.status === 'ACTIVE' && isPlanId(requested)) {
         return { action: 'set-plan', plan: requested, ...(customer ? { customer } : {}) };
       }
