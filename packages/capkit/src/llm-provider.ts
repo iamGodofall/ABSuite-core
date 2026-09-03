@@ -41,14 +41,25 @@
  *                       model table. Unversioned by construction: these ids
  *                       never carry a date suffix, so the name tracks the
  *                       model rather than a snapshot of it.
- *   zhipu, moonshot     glm-4.6, kimi-k2-turbo-preview — adopted from
- *                       A.I.A.N.'s catalogue, which the operator maintains and
- *                       is actively building on.
+ *   zhipu               glm-5.3
+ *   moonshot            kimi-k3
+ *   vertex              gemini-3.8-flash
+ *   minimax             minimax-m3
  *
- * The rest were LEFT ALONE, which is a decision rather than an oversight.
- * `gpt-4o`, `gemini-2.0-flash`, `minimax-text` and the others are probably
- * behind too, and this session had no authoritative source for them. A value
- * copied from somewhere plausible would be a fabrication wearing a fix.
+ * Those four came from a public catalogue of what each vendor is currently
+ * serving, read by `scripts/check-model-ids.mjs --survey`. Two of them had
+ * ALREADY been corrected once in this repository, from a sibling project's
+ * hand-maintained table, and were still a generation behind when asked —
+ * `glm-4.6` against `glm-5.3`, `kimi-k2-turbo-preview` against `kimi-k3`.
+ * Adopting from another hand-kept list inherits its staleness; that is the
+ * whole argument for asking instead, made at this file's expense.
+ *
+ * `gpt-4o` was LEFT ALONE, which is a decision rather than an oversight. It is
+ * plainly behind — OpenAI's current generation is the 5.6 line — but that line
+ * carries several differently-named flagships at the same price, and picking
+ * between them by tiebreak would be a coin flip presented as a finding. An
+ * operator running OpenAI will set their own; `defaultModel` is a starting
+ * suggestion, never an approval.
  *
  * ## AND THE REAL ANSWER TO "KEEP THEM CURRENT" IS NOT AN EDIT
  *
@@ -56,10 +67,19 @@
  * schedule. Correcting four of them today buys a few months. Two things carry
  * further:
  *
- * PREFER AN ALIAS THE PROVIDER MAINTAINS. `claude-opus-5`, `mistral-large-
- * latest`, `qwen-max` and `openrouter/auto` all resolve to whatever is current
- * on the provider's side, so they cannot go stale here. Where a provider
- * offers one, it belongs in this column ahead of any pinned snapshot.
+ * PREFER AN ALIAS THE PROVIDER MAINTAINS, and the evidence for this is now
+ * unusually clean: surveyed against what vendors actually serve, EVERY PINNED
+ * VERSION IN THIS FILE HAD DRIFTED AND NO ALIAS HAD. `claude-opus-5`,
+ * `mistral-large-latest`, `qwen-max`, `deepseek-chat` and `openrouter/auto`
+ * resolve to whatever is current on the provider's side and cannot go stale
+ * here at all; `glm-4`, `kimi-k2`, `gemini-2.0-flash`, `minimax-text` and
+ * `gpt-4o` were every one of them behind. Where a provider offers an alias it
+ * belongs in this column ahead of any pinned snapshot — including ahead of a
+ * pinned snapshot that happens to be current today.
+ *
+ * The survey cannot see aliases (it reads a catalogue of concrete models), so
+ * it reports them as BEHIND. That is a false negative and the script says so:
+ * never trade an alias for a pin on the strength of it.
  *
  * AND ASK. `scripts/check-model-ids.mjs` queries each provider a deployment is
  * configured for and reports whether the id set here is still served — OK,
@@ -181,7 +201,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'moonshot',
     label: 'Kimi (Moonshot AI)',
     type: 'hosted',
-    defaultModel: 'kimi-k2-turbo-preview',
+    defaultModel: 'kimi-k3',
     description: 'Kimi models via the Moonshot API.',
     envKeys: ['MOONSHOT_API_KEY', 'KIMI_API_KEY'],
   },
@@ -189,7 +209,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'zhipu',
     label: 'GLM (Zhipu AI)',
     type: 'hosted',
-    defaultModel: 'glm-4.6',
+    defaultModel: 'glm-5.3',
     description: 'GLM models via Zhipu AI.',
     envKeys: ['ZHIPU_API_KEY', 'GLM_API_KEY'],
   },
@@ -197,7 +217,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'minimax',
     label: 'MiniMax',
     type: 'hosted',
-    defaultModel: 'minimax-text',
+    defaultModel: 'minimax-m3',
     description: 'MiniMax models.',
     envKeys: ['MINIMAX_API_KEY'],
   },
@@ -241,7 +261,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'google',
     label: 'Google',
     type: 'hosted',
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-3.8-flash',
     description: 'Gemini models via the Google AI API.',
     envKeys: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
   },
@@ -300,7 +320,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'vertex',
     label: 'Google Vertex AI',
     type: 'hosted',
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-3.8-flash',
     description: 'Several vendors through one Google Cloud project.',
     envKeys: ['GOOGLE_VERTEX_PROJECT'],
   },

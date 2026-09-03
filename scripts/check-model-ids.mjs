@@ -76,6 +76,83 @@ async function servedModels(spec) {
   return rows.map((m) => m?.id ?? m?.name).filter(Boolean).map(String);
 }
 
+/*
+ * `--survey` — what is current, without any credentials at all.
+ *
+ * The check above can only speak about providers you hold a key for, which on
+ * a fresh machine is none of them, and "0 verified" is a true answer to a
+ * useless question. OpenRouter publishes its catalogue unauthenticated, and it
+ * carries most of these vendors with a release date and a price, so a survey
+ * needs no key from anybody.
+ *
+ * ## IT READS AN ALIAS AS BEHIND, AND THAT IS A FALSE NEGATIVE
+ *
+ * The catalogue lists concrete models, not the alias names a vendor keeps
+ * pointed at them — so `qwen-max` and `mistral-large-latest` report BEHIND
+ * here while resolving perfectly well at the vendor. Do not "fix" one of those
+ * into a pinned version on the strength of this output: that trades a name
+ * that cannot go stale for one that certainly will, which is backwards, and it
+ * is the one way this instrument can make things worse.
+ *
+ * The authenticated check has no such blind spot — a vendor's own list
+ * contains its aliases — which is the division of labour between the two.
+ *
+ * IT IS EVIDENCE ABOUT GENERATIONS, NOT ABOUT NATIVE IDS. OpenRouter names a
+ * model `z-ai/glm-5.3`; the string a provider's own API wants is usually the
+ * half after the slash, and usually is not always. So this is the instrument
+ * that tells you a default is a generation behind — the provider's own list,
+ * through the check above, is what confirms the replacement string.
+ */
+if (process.argv.includes('--survey')) {
+  const response = await fetch('https://openrouter.ai/api/v1/models', { signal: AbortSignal.timeout(20_000) });
+  if (!response.ok) { console.error(`Could not read the public catalogue: HTTP ${response.status}`); process.exit(2); }
+  const rows = (await response.json()).data ?? [];
+
+  // OpenRouter's vendor namespace for each provider named in llm-provider.ts.
+  const NAMESPACE = {
+    anthropic: 'anthropic', openai: 'openai', 'azure-openai': 'openai', vertex: 'google',
+    deepseek: 'deepseek', qwen: 'qwen', moonshot: 'moonshotai', zhipu: 'z-ai',
+    minimax: 'minimax', mistral: 'mistralai', bedrock: 'anthropic',
+  };
+
+  const { providers: all } = describeProviders(process.env);
+  for (const p of all) {
+    const ns = NAMESPACE[p.name];
+    if (!ns) continue;
+
+    const family = rows
+      .filter((m) => m.id.startsWith(`${ns}/`) && !m.id.includes(':'))
+      .sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+    if (!family.length) continue;
+
+    /*
+     * THREE STATES, BECAUSE "STILL SERVED" IS NOT "LATEST".
+     *
+     * The first version of this printed CURRENT for anything the catalogue
+     * still listed, and duly called `gpt-4o` current — true, and useless to
+     * somebody asking whether they are on the newest generation. A vendor
+     * keeps old models listed for years; that a string still resolves says
+     * nothing about whether anyone should be sending it.
+     *
+     *   LATEST  among the newest handful this vendor has released
+     *   LISTED  still served, but a newer generation exists
+     *   BEHIND  the catalogue no longer lists it at all
+     */
+    const bare = p.defaultModel.replace(/^anthropic\./, '');
+    const newestIds = family.slice(0, 6).map((m) => m.id.split('/')[1]);
+    const listed = family.some((m) => m.id.split('/')[1] === bare);
+
+    const verdict = newestIds.includes(bare) ? 'LATEST' : listed ? 'LISTED' : 'BEHIND';
+    console.log(`  ${verdict.padEnd(7)} ${p.name.padEnd(13)} ${p.defaultModel.padEnd(24)} newest: ${newestIds.slice(0, 4).join(', ')}`);
+  }
+  console.log('\n  LISTED and BEHIND both mean a newer generation exists. Neither is an error;');
+  console.log('  an alias that a provider keeps pointed at its current model reads LATEST on');
+  console.log('  its own, which is why aliases are preferred in llm-provider.ts.');
+  console.log('  This names the generation to move to. Confirm the exact string against the');
+  console.log('  provider\'s own API — run without --survey once you hold a key.');
+  process.exit(0);
+}
+
 const { providers } = describeProviders(process.env);
 
 const results = [];
