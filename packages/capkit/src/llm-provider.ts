@@ -5,6 +5,40 @@
  * derived from environment variables only. Nothing here claims a provider is
  * available unless its credentials are genuinely present — the dashboard
  * renders this directly, so an optimistic answer would be a lie on screen.
+ *
+ * ## THERE IS A SECOND PROVIDER REGISTRY, AND THE TWO HAVE ALREADY DRIFTED
+ *
+ * `A.I.A.N.` carries its own at `src/ai/catalog.ts` — richer than this one,
+ * with per-million pricing, free-tier flags, a budget ceiling and automatic
+ * fallback. Both export a function called `describeProviders`. Neither knows
+ * the other exists.
+ *
+ * They are already out of step, measured rather than assumed:
+ *
+ *     provider     here                      A.I.A.N.'s catalogue
+ *     ---------------------------------------------------------------------
+ *     zhipu        glm-4                     glm-4.6, glm-4.5-air
+ *     anthropic    claude-sonnet-4-5         claude-sonnet-5, claude-opus-5,
+ *                                            claude-haiku-4-5, claude-fable-5
+ *     gemini       gemini-2.0-flash          gemini-2.5-flash-lite,
+ *                                            gemini-2.5-flash
+ *     moonshot     kimi-k2                   kimi-k2-turbo-preview,
+ *                                            kimi-k2-0905-preview
+ *     groq         llama-3.3-70b-versatile   (agrees)
+ *     deepseek     deepseek-chat             (agrees)
+ *
+ * Four of six disagree, and the defaults here are a generation behind. This is
+ * the trap the sibling repositories both open with — `mandalorian-project`'s
+ * "the same function defined twice, with the linker choosing", and Flappy Bird
+ * Galaxy's "two systems drawing the same thing" — arrived at across two repos
+ * rather than inside one, which is why neither repository's own checks can see
+ * it.
+ *
+ * THE MODEL IDS ABOVE WERE NOT CORRECTED HERE, DELIBERATELY. A published
+ * package's defaults are what its callers actually send, and a value guessed
+ * from the other file would be a fabrication wearing a fix. Whoever resolves
+ * this should verify each id against the provider's own documentation, decide
+ * which registry survives, and delete the other. See docs/PROVIDERS.md.
  */
 
 export interface ProviderOption {
