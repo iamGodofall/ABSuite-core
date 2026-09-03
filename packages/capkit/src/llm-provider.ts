@@ -34,11 +34,41 @@
  * rather than inside one, which is why neither repository's own checks can see
  * it.
  *
- * THE MODEL IDS ABOVE WERE NOT CORRECTED HERE, DELIBERATELY. A published
- * package's defaults are what its callers actually send, and a value guessed
- * from the other file would be a fabrication wearing a fix. Whoever resolves
- * this should verify each id against the provider's own documentation, decide
- * which registry survives, and delete the other. See docs/PROVIDERS.md.
+ * FOUR OF THOSE ROWS HAVE SINCE BEEN CORRECTED, and the provenance of each
+ * matters more than the value:
+ *
+ *   anthropic, bedrock  claude-opus-5 — the flagship, from Anthropic's current
+ *                       model table. Unversioned by construction: these ids
+ *                       never carry a date suffix, so the name tracks the
+ *                       model rather than a snapshot of it.
+ *   zhipu, moonshot     glm-4.6, kimi-k2-turbo-preview — adopted from
+ *                       A.I.A.N.'s catalogue, which the operator maintains and
+ *                       is actively building on.
+ *
+ * The rest were LEFT ALONE, which is a decision rather than an oversight.
+ * `gpt-4o`, `gemini-2.0-flash`, `minimax-text` and the others are probably
+ * behind too, and this session had no authoritative source for them. A value
+ * copied from somewhere plausible would be a fabrication wearing a fix.
+ *
+ * ## AND THE REAL ANSWER TO "KEEP THEM CURRENT" IS NOT AN EDIT
+ *
+ * Every id here is a string typed by a person, retired on somebody else's
+ * schedule. Correcting four of them today buys a few months. Two things carry
+ * further:
+ *
+ * PREFER AN ALIAS THE PROVIDER MAINTAINS. `claude-opus-5`, `mistral-large-
+ * latest`, `qwen-max` and `openrouter/auto` all resolve to whatever is current
+ * on the provider's side, so they cannot go stale here. Where a provider
+ * offers one, it belongs in this column ahead of any pinned snapshot.
+ *
+ * AND ASK. `scripts/check-model-ids.mjs` queries each provider a deployment is
+ * configured for and reports whether the id set here is still served — OK,
+ * STALE, or UNKNOWN, and never OK for something it could not reach. Verified
+ * against a live list of 424 models: passes on a served id, exits 1 on a
+ * retired one. That turns a table kept in step by hand into one that says when
+ * it has drifted, which is the whole objection this file raised.
+ *
+ * See docs/PROVIDERS.md for which registry should survive.
  */
 
 export interface ProviderOption {
@@ -151,7 +181,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'moonshot',
     label: 'Kimi (Moonshot AI)',
     type: 'hosted',
-    defaultModel: 'kimi-k2',
+    defaultModel: 'kimi-k2-turbo-preview',
     description: 'Kimi models via the Moonshot API.',
     envKeys: ['MOONSHOT_API_KEY', 'KIMI_API_KEY'],
   },
@@ -159,7 +189,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'zhipu',
     label: 'GLM (Zhipu AI)',
     type: 'hosted',
-    defaultModel: 'glm-4',
+    defaultModel: 'glm-4.6',
     description: 'GLM models via Zhipu AI.',
     envKeys: ['ZHIPU_API_KEY', 'GLM_API_KEY'],
   },
@@ -195,7 +225,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'anthropic',
     label: 'Anthropic',
     type: 'hosted',
-    defaultModel: 'claude-sonnet-4-5',
+    defaultModel: 'claude-opus-5',
     description: 'Claude models via the Anthropic API.',
     envKeys: ['ANTHROPIC_API_KEY'],
   },
@@ -262,7 +292,7 @@ const DEFINITIONS: ProviderDefinition[] = [
     name: 'bedrock',
     label: 'AWS Bedrock',
     type: 'hosted',
-    defaultModel: 'anthropic.claude-sonnet-4-5',
+    defaultModel: 'anthropic.claude-opus-5',
     description: 'Several vendors through one AWS region.',
     envKeys: ['AWS_BEDROCK_REGION'],
   },
