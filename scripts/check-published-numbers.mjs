@@ -89,6 +89,22 @@ const SERVICES = [...read('scripts/run-room.mjs')
 const ADMIN_ROUTES = [...read('packages/dashboard-ui/server.ts')
   .matchAll(/^app\.(?:get|post|put|delete|patch)\([^)]*requireAdminAccess/gm)].length;
 
+/**
+ * Numbered sections in the defect record.
+ *
+ * The README published this as **"forty-seven numbered sections"** while
+ * `AUDIT.md` held fifty-one — spelled out, in the paragraph that makes the
+ * entire case for hiring the author, on a page whose argument is that its
+ * figures are counted rather than typed. `gen-hire.mjs` had been counting it
+ * correctly and printing it on the site the whole time, so the two surfaces
+ * disagreed in public and neither one said so.
+ *
+ * It is the same expression the generator uses, kept here rather than imported
+ * for the reason the rest of this file is: this must run against a tree that
+ * may not build.
+ */
+const AUDIT_SECTIONS = [...read('docs/AUDIT.md').matchAll(/^##\s+\d+[a-z]?\./gm)].length;
+
 const LAYERS_BUILT = [...read('docs/CONSTITUTION.md')
   .matchAll(/^\|\s*\d\s*\|\s*\*\*[^*]+\*\*\s*\|[^|]+\|\s*(Built|Partly built|Not built)\s*\|/gm)]
   .filter(match => match[1] === 'Built').length;
@@ -103,6 +119,20 @@ const LAYERS_BUILT = [...read('docs/CONSTITUTION.md')
  * misread gets disabled within a week. Each of these matches a figure being
  * stated as fact about this repository, and nothing else.
  */
+/**
+ * English number words for 20-99, generated. See the AUDIT_SECTIONS claim below
+ * for why this is not a typed list.
+ */
+const NUMBER_WORDS = (() => {
+  const tens = ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const units = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+  const table = {};
+  tens.forEach((ten, t) => units.forEach((unit, u) => {
+    table[unit ? `${ten}-${unit}` : ten] = (t + 2) * 10 + u;
+  }));
+  return table;
+})();
+
 const CLAIMS = [
   { what: 'checks in pnpm verify', actual: CHECKS,
     find: /(\d+)\s+(?:build\s+)?(?:gates?|checks)\b/gi,
@@ -122,6 +152,13 @@ const CLAIMS = [
     find: /(\d+)\s+of\s+8\s+layers\s+built/gi },
   { what: 'routes behind ABSUITE_ADMIN_API_KEY', actual: ADMIN_ROUTES,
     find: /(\d+)\s+routes\s+sit\s+behind\s+it\b/gi },
+  // Word form first, because that is the shape this one shipped wrong in. The
+  // map is BUILT rather than typed — a hand-written list of number words in the
+  // guard against hand-written numbers is the joke this file exists to refuse —
+  // and it covers 20-99, which is where a growing defect log lives.
+  { what: 'numbered sections in AUDIT.md', actual: AUDIT_SECTIONS,
+    find: /\b(?:(\d+)|([a-z]+(?:-[a-z]+)?))\s+numbered\s+sections\b/gi,
+    words: NUMBER_WORDS },
   // Written as digits and as words, because both shipped. "six services plus
   // the interface" is the phrasing that double-counted the room, so the word
   // form has to be caught — a check that only reads digits misses the way this

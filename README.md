@@ -753,7 +753,7 @@ can be proven*.
 ## Status
 
 ```text
-1063 tests                     131 API endpoints
+1063 tests                     133 API endpoints
 8 npm packages on npm         5 HTTP services + room + notary + MCP
 API docs drift-checked in CI  published from CI with provenance
 ```
@@ -859,14 +859,14 @@ including, in writing, where the evidence does not reach. See
 them.
 
 The case for hiring me is this repository. [AUDIT.md](docs/AUDIT.md) is a running
-record of this project's own defects — forty-seven numbered sections, including
+record of this project's own defects — fifty-one numbered sections, including
 the ones I got wrong first and the fixes that were themselves wrong. If you want
 to know how someone works before you pay them, that file will tell you more than
 any CV.
 
 **→ [One page on what I can do for you](https://iamgodofall.github.io/ABSuite-core/hire.html)** — generated from this repository, so every figure on it is a count rather than a claim.
 
-**→ Open an issue, or reach me through [my GitHub profile](https://github.com/iamGodofall).**
+**→ Email me: [info@socialfeed.co.za](mailto:info@socialfeed.co.za?subject=ABSuite%20-%20agent%20governance%20enquiry)** — or open an issue, or reach me through [my GitHub profile](https://github.com/iamGodofall).
 
 ---
 

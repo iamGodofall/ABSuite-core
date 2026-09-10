@@ -124,7 +124,7 @@ Every row below is code in this repository. Reproduce with
 |---|---|
 | Source lines (excluding tests) | **22,349** |
 | Test lines | **11,787** |
-| Tests | **1,063** across 49 suites |
+| Tests | **1,063** across 51 suites |
 | Gates run by `pnpm verify` | **27** |
 | `check:*` scripts in total | **28** (one, `check:live`, runs against a deployed instance) |
 | HTTP routes, documented and drift-checked | **131** |

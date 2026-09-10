@@ -247,7 +247,25 @@ const page = `<!doctype html>
     Tell me what your agents do and what you need to be able to prove about them. If ABSuite is the wrong tool
     for it, I will say so — that answer costs you one email and saves you a quarter.
   </p>
-  <a class="cta" href="https://github.com/iamGodofall">Reach me through GitHub &rarr;</a>
+  <!--
+    THE PAGE ASKED FOR AN EMAIL AND GAVE A GITHUB PROFILE.
+
+    The line above says the answer "costs you one email", and the only control
+    under it linked to a profile page — so a buyer who read that sentence and
+    reached for their mail client had nowhere to send it. The address is the
+    one already published on the sibling project's commercial licence page, so
+    this exposes nothing new; it removes the step where somebody has to work
+    out how to make contact and, most of the time, does not.
+
+    The subject line is prefilled because an inbox with one address serving
+    several projects needs to know which one this is.
+  -->
+  <a class="cta" href="mailto:info@socialfeed.co.za?subject=ABSuite%20-%20agent%20governance%20enquiry">Email me &rarr;</a>
+  <p class="lede" style="margin-top:.9rem;font-size:.95rem">
+    <a href="mailto:info@socialfeed.co.za">info@socialfeed.co.za</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/iamGodofall">GitHub</a>
+  </p>
 
   <footer>
     Everything above is generated from
