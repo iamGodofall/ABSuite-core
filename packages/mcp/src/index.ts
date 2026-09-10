@@ -8,7 +8,16 @@ export { AbsuiteMcpServer, TOOLS, runStdio, type AbsuiteMcpOptions } from './ser
 
 export {
   PROTOCOL_VERSION,
+  SUPPORTED_VERSIONS,
+  MODERN_VERSIONS,
+  LEGACY_VERSIONS,
+  META_PROTOCOL_VERSION,
+  META_CLIENT_INFO,
+  META_CLIENT_CAPABILITIES,
+  META_SERVER_INFO,
   ErrorCode,
+  requestedVersion,
+  unsupportedVersion,
   parseRequest,
   splitMessages,
   success,

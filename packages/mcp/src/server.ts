@@ -21,12 +21,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ErrorCode,
+  LEGACY_VERSIONS,
+  META_SERVER_INFO,
+  MODERN_VERSIONS,
   PROTOCOL_VERSION,
+  SUPPORTED_VERSIONS,
   failure,
   parseRequest,
+  requestedVersion,
   splitMessages,
   success,
   textResult,
+  unsupportedVersion,
   type JsonRpcResponse,
   type ToolDefinition,
   type ToolResult,
@@ -43,8 +49,8 @@ export interface AbsuiteMcpOptions {
 }
 
 /**
- * Reported to the MCP host on `initialize`, read from the manifest rather than
- * typed in. A host that is told the wrong server version has no way to know it.
+ * Reported to the MCP host, read from the manifest rather than typed in. A host
+ * that is told the wrong server version has no way to know it.
  */
 const SERVER_VERSION = ((): string => {
   try {
@@ -55,6 +61,16 @@ const SERVER_VERSION = ((): string => {
     return 'unknown';
   }
 })();
+
+/**
+ * One definition, read by both `initialize` and `server/discover`.
+ *
+ * The two answer the same question to two eras of client, and a server that
+ * described itself differently depending on which door was used would be
+ * telling two truths about one thing.
+ */
+const INSTRUCTIONS =
+  'ABSuite governs agent actions. Every tool call is checked against a capability token before it runs, and completed calls produce a signed execution trace that can be verified independently.';
 
 const DEFAULT_SERVICES = {
   capkit: process.env.CAPKIT_URL || 'http://localhost:8081',
@@ -210,16 +226,76 @@ export class AbsuiteMcpServer {
       return null;
     }
 
+    /*
+     * ERA IS DECIDED PER REQUEST, WHICH IS THE WHOLE POINT OF THE NEW REVISION.
+     *
+     * The spec's rule for a dual-era server: "A request carrying modern
+     * per-request `_meta` is served statelessly according to this revision. An
+     * `initialize` request selects legacy semantics." So a declared version is
+     * checked here, once, above every method — including `server/discover` and
+     * `tools/call` — and a request that declares nothing falls through to the
+     * handshake path this package has always had.
+     *
+     * `server/discover` is the deliberate exception and it is not laziness: it
+     * is the stdio BACKWARD-COMPATIBILITY PROBE. A dual-era client sends it
+     * first precisely to find out what this server speaks, and answering "you
+     * asked for a version I do not serve" to the question "which versions do
+     * you serve" would make the probe useless to the client that needs it most.
+     */
+    const declared = requestedVersion(request);
+    if (declared !== null && request.method !== 'server/discover'
+        && !SUPPORTED_VERSIONS.includes(declared as (typeof SUPPORTED_VERSIONS)[number])) {
+      return unsupportedVersion(request.id!, declared);
+    }
+
     switch (request.method) {
-      case 'initialize':
-        this.initialised = true;
+      /*
+       * MANDATORY from 2026-07-28: "Servers MUST implement server/discover."
+       *
+       * It is also what makes this server usable by a client that has never
+       * met it: one round trip returns the revisions on offer, the
+       * capabilities and the identity, instead of probing tools/list,
+       * prompts/list and resources/list separately.
+       *
+       * It reports no `ttlMs` and no `cacheScope` on purpose. The tools this
+       * server exposes are FILTERED BY THE CALLER'S CAPABILITY TOKEN, so the
+       * capability surface is a property of who is asking; inviting a shared
+       * cache to hold one caller's view and serve it to another is the
+       * confused-deputy problem this whole package exists to prevent.
+       */
+      case 'server/discover':
         return success(request.id!, {
-          protocolVersion: PROTOCOL_VERSION,
+          resultType: 'complete',
+          supportedVersions: [...SUPPORTED_VERSIONS],
+          capabilities: { tools: { listChanged: false } },
+          _meta: { [META_SERVER_INFO]: { name: 'absuite', version: SERVER_VERSION } },
+          instructions: INSTRUCTIONS,
+        });
+
+      /*
+       * LEGACY ONLY. Reaching this method at all means the client did not
+       * declare a version in `_meta`, which is what identifies it as speaking
+       * a handshake revision.
+       *
+       * It used to answer with one hardcoded constant whatever the client
+       * asked for. That is wrong in both directions: a client asking for a
+       * revision this server does support was told a different one, and a
+       * client asking for something unknown got a confident answer rather than
+       * this server's best offer. Echo what was asked when it is on the list;
+       * otherwise name the newest LEGACY revision — never the modern one,
+       * because a client that speaks the handshake cannot speak that.
+       */
+      case 'initialize': {
+        this.initialised = true;
+        const asked = String((request.params ?? {}).protocolVersion ?? '');
+        const speaking = LEGACY_VERSIONS.includes(asked) ? asked : LEGACY_VERSIONS[0];
+        return success(request.id!, {
+          protocolVersion: speaking,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: 'absuite', version: SERVER_VERSION },
-          instructions:
-            'ABSuite governs agent actions. Every tool call is checked against a capability token before it runs, and completed calls produce a signed execution trace that can be verified independently.',
+          instructions: INSTRUCTIONS,
         });
+      }
 
       case 'ping':
         return success(request.id!, {});

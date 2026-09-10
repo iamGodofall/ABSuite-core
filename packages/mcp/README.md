@@ -7,6 +7,26 @@ that path: every tool call is authorised against a capability token before it
 runs, and every completed call produces an Ed25519-signed execution trace that
 anyone can verify independently.
 
+## Protocol revisions
+
+| revision | era | how a client opens |
+|---|---|---|
+| **2026-07-28** | modern | no handshake — every request declares its own version in `_meta` |
+| 2025-11-25 | legacy | `initialize` |
+| 2025-06-18 | legacy | `initialize` |
+
+MCP changed *shape* at `2026-07-28`, not just version: there is no
+`initialize` handshake, each request carries
+`_meta["io.modelcontextprotocol/protocolVersion"]`, and the server accepts or
+rejects it independently. This server is **dual-era** — it answers modern
+requests statelessly and still completes the handshake for older clients, so
+upgrading it breaks nothing that works today.
+
+A request naming a revision this server does not serve gets the spec's
+`UnsupportedProtocolVersionError` (`-32022`) with the list of revisions it does
+serve, so the client can pick one and retry. `server/discover` is implemented
+as the spec requires and returns the same list in one round trip.
+
 ```bash
 npm install -g @absuitecore/mcp
 ```
