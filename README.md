@@ -859,7 +859,7 @@ including, in writing, where the evidence does not reach. See
 them.
 
 The case for hiring me is this repository. [AUDIT.md](docs/AUDIT.md) is a running
-record of this project's own defects — fifty-one numbered sections, including
+record of this project's own defects — fifty-two numbered sections, including
 the ones I got wrong first and the fixes that were themselves wrong. If you want
 to know how someone works before you pay them, that file will tell you more than
 any CV.

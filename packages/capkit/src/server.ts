@@ -2023,6 +2023,10 @@ const OUTBOUND_REFUSE = ['loopback', 'private', 'link-local', 'carrier-grade-nat
  * set when a transaction is initialised, and the hosted payment page has no
  * idea which tenant is looking at it. Authenticated by the tenant key alone —
  * buying is something an account does, not something an agent is granted.
+ *
+ * tenant-route: authenticated by the caller's own tenant key (401
+ * TENANT_REQUIRED without one), not by the admin key. Neither admin-guarded nor
+ * public, and calling it either would be false.
  */
 app.post('/billing/paystack/checkout', async (req, res) => {
   const tenant = (req as express.Request & { tenant?: Tenant }).tenant;
@@ -2053,6 +2057,12 @@ app.post('/billing/paystack/checkout', async (req, res) => {
   }
 });
 
+/**
+ * public-route: Paystack calls this from its own servers with no key of ours,
+ * so it cannot carry one. It is authenticated by the HMAC signature over the
+ * RAW body, verified on the first lines below, and a request that fails that
+ * check is refused before anything is read out of it.
+ */
 app.post('/billing/paystack/webhook', (req, res) => {
   const raw = (req as express.Request & { rawBody?: string }).rawBody ?? '';
   const signature = req.header('x-paystack-signature') || '';

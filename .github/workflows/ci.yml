@@ -156,6 +156,90 @@ jobs:
         if: always()
         run: pnpm check:styles
 
+      # ── The fifteen that `verify` ran and CI did not ──────────────────────
+      #
+      # Not one of these was a decision. Adding a gate meant remembering a
+      # second, hand-kept list, and fifteen times nobody did — so the checks
+      # written after this project's worst findings had never once run here.
+      # `check:ci-gates` below is what stops the sixteenth.
+      #
+      # Every one of them passes. There was never a technical reason for the
+      # omission.
+
+      # Written after five published numbers were found wrong on the live site,
+      # on the repository whose whole argument is that its figures are counted.
+      - name: Every published number matches a measurement
+        if: always()
+        run: pnpm check:numbers
+
+      # Written after twelve routes shipped with no authentication decision
+      # (AUDIT §3x). Two more had arrived since, and nothing said so.
+      - name: Every route is guarded, tenant-scoped, or public on purpose
+        if: always()
+        run: pnpm check:routeauth
+
+      # Written after the SSRF findings (§3n, §3j, §3z) — the ones where a
+      # tool could be made to fetch the cloud metadata service.
+      - name: The outbound guard is in place
+        if: always()
+        run: pnpm check:outbound
+
+      - name: The system map matches the repository
+        if: always()
+        run: pnpm check:map
+
+      - name: The product site matches the repository
+        if: always()
+        run: pnpm check:site
+
+      - name: The MCP protocol conformance
+        if: always()
+        run: pnpm check:protocol
+
+      - name: The surface primitives
+        if: always()
+        run: pnpm check:surface
+
+      - name: The documented APIs exist
+        if: always()
+        run: pnpm check:apis
+
+      - name: Configuration is read by something
+        if: always()
+        run: pnpm check:config
+
+      - name: Metering is wired
+        if: always()
+        run: pnpm check:metered
+
+      - name: The package listings are one list
+        if: always()
+        run: pnpm check:listings
+
+      - name: The Python client
+        if: always()
+        run: pnpm check:python
+
+      - name: The container uses pnpm as declared
+        if: always()
+        run: pnpm check:container-pnpm
+
+      - name: Cross-platform paths
+        if: always()
+        run: pnpm check:cross-platform
+
+      - name: The demo runs
+        if: always()
+        run: pnpm check:demo
+
+      # LAST, and it is the one that keeps the list above honest: it fails if
+      # anything `pnpm verify` runs is missing from this file without a written
+      # reason. A gate nothing runs is the defect this whole job exists to
+      # catch, and for fifteen gates it was this job.
+      - name: CI runs every gate `pnpm verify` runs
+        if: always()
+        run: pnpm check:ci-gates
+
   test:
     name: Test
     runs-on: ubuntu-latest

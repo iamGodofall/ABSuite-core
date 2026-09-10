@@ -598,7 +598,7 @@ other line exists to make step 6 easier, and none of them substitutes for it.
 ```bash
 git clone https://github.com/iamGodofall/ABSuite-core && cd ABSuite-core
 pnpm install
-pnpm verify        # build, 1,063 tests, 27 gates
+pnpm verify        # build, 1,063 tests, 28 gates
 pnpm demo          # sign, verify, tamper one byte, watch the chain name it
 pnpm gen:layers    # the six-of-eight table in §5.1
 ```

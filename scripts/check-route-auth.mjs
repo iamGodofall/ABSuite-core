@@ -62,13 +62,34 @@ const ROUTE = /^app\.(get|post|put|delete|patch)\(\s*['"]([^'"]+)['"]/;
 const ANNOTATION = /public-route:\s*\S/;
 const GUARD = /requireAdminAccess|authorise\(|requireCapability|capabilityGuard/;
 
-/** Is there a `public-route:` in the comment block directly above? */
-function annotatedAbove(lines, index) {
+/**
+ * A THIRD ANSWER, BECAUSE THE BILLING ROUTES HAVE A GUARD THIS GATE CANNOT SEE.
+ *
+ * Every pattern in `GUARD` is middleware, sitting on the route's own line. The
+ * Paystack checkout is authenticated differently and correctly: it reads the
+ * caller's tenant key off the request and answers 401 TENANT_REQUIRED without
+ * one — a guard on the first line of the BODY, which a line-level scan cannot
+ * reach.
+ *
+ * Annotating it `public-route:` would have made this gate green by writing
+ * something false into the source, on the route that opens a payment. Buying is
+ * something an ACCOUNT does; it is neither admin-guarded nor public, and the
+ * honest answer is a third one.
+ *
+ * It is deliberately still an ANNOTATION rather than a body scan. This gate's
+ * own stated purpose is that somebody decides — "the step that did not happen
+ * for /endpoint-check" — and inferring a guard from the body would make the
+ * decision automatic again, which is what it exists to prevent.
+ */
+const TENANT = /tenant-route:\s*\S/;
+
+/** Is there a `public-route:` or `tenant-route:` in the block directly above? */
+function annotatedAbove(lines, index, pattern) {
   for (let i = index - 1; i >= 0; i--) {
     const line = (lines[i] ?? '').trim();
     if (line === '') continue;
     if (!/^(\/\/|\/\*|\*)/.test(line)) return false;
-    if (ANNOTATION.test(line)) return true;
+    if (pattern.test(line)) return true;
   }
   return false;
 }
@@ -76,6 +97,7 @@ function annotatedAbove(lines, index) {
 const undecided = [];
 let guarded = 0;
 let declared = 0;
+let tenantScoped = 0;
 let total = 0;
 
 for (const file of FILES) {
@@ -87,7 +109,8 @@ for (const file of FILES) {
     total++;
 
     if (GUARD.test(line)) { guarded++; return; }
-    if (ANNOTATION.test(line) || annotatedAbove(lines, index)) { declared++; return; }
+    if (ANNOTATION.test(line) || annotatedAbove(lines, index, ANNOTATION)) { declared++; return; }
+    if (TENANT.test(line) || annotatedAbove(lines, index, TENANT)) { tenantScoped++; return; }
 
     undecided.push({ file, method: match[1].toUpperCase(), path: match[2], line: index + 1 });
   });
@@ -112,13 +135,18 @@ if (undecided.length > 0) {
     console.error(`    ${route.method} ${route.path}\n`);
   }
   console.error(
-    'Add `requireAdminAccess`, or say why it is public on the line above:\n' +
-    '  // public-route: the interface polls this before an admin key exists\n\n' +
+    'Add `requireAdminAccess`, or say on the line above which of the other two\n' +
+    'this is:\n' +
+    '  // public-route: the interface polls this before an admin key exists\n' +
+    '  // tenant-route: authenticated by the caller\'s own tenant key, not the admin key\n\n' +
     'The annotation does not make a route safe. It makes somebody decide, which is\n' +
     'the step that did not happen for /endpoint-check.'
   );
   process.exit(1);
 }
 
-console.log(`\x1b[32m✓\x1b[0m ${guarded} guarded, ${declared} declared public with a reason, 0 undecided.`);
+console.log(
+  `\x1b[32m✓\x1b[0m ${guarded} guarded, ${tenantScoped} tenant-scoped, ` +
+  `${declared} declared public with a reason, 0 undecided.`,
+);
 console.log(`  ${total} route(s) across ${FILES.join(', ')}.\n`);

@@ -1317,6 +1317,88 @@ time than acting on it would have.
 
 ---
 
+## 4c. Fifteen gates that `pnpm verify` ran and CI did not
+
+The gate list in `pnpm verify` was 27 at the time, and is 28 now that
+`check:ci-gates` has joined it. `.github/workflows/ci.yml` hand-listed **12**
+of them as twelve separate steps. Fifteen had never run in CI at all — not once, on any
+commit, on any branch.
+
+The list is the finding, because of *which* fifteen:
+
+| gate | written after |
+|---|---|
+| `check:numbers` | figures published that no measurement produced — §3e, §4a |
+| `check:routeauth` | twelve routes with no authentication decision — §3x |
+| `check:outbound` | the SSRF findings — §3j, §3n, §3z |
+| `check:map`, `check:site` | generated pages drifting from the repository |
+| `check:protocol` | MCP conformance |
+| `check:surface`, `check:config`, `check:metered`, `check:apis`, `check:listings`, `check:python`, `check:container-pnpm`, `check:cross-platform`, `check:demo` | each its own earlier defect |
+
+**Every check written after this project's worst findings was in the group that
+did not run.** That is not a coincidence: those gates were added later, and later
+is exactly when a second hand-kept list gets forgotten.
+
+Nothing was misconfigured and no gate was excluded on purpose. Adding one to
+`verify` and adding one to `ci.yml` are two edits in two files, and fifteen times
+the second was not made. It is this project's favourite defect — something built
+and reachable from nothing — wearing a workflow file.
+
+### What it cost, measured rather than supposed
+
+Every one of the fifteen passes today except two, and both of those were live
+defects found by running them for the first time:
+
+- `check:numbers` — five wrong figures on the published site, and §4a's recorded
+  fix had never worked at all.
+- `check:routeauth` — **two routes neither guarded nor declared public, and both
+  of them take money**: the Paystack checkout and the Paystack webhook.
+
+### The billing routes were safe, and the gate could not tell
+
+Worth being exact, because "two unguarded payment routes" is a much worse
+sentence than the truth. Both are authenticated:
+
+- the **webhook** verifies Paystack's HMAC over the raw body and refuses before
+  reading anything out of it;
+- the **checkout** reads the caller's tenant key and answers `401
+  TENANT_REQUIRED` without one.
+
+The gate looks for middleware on the route's own line. The checkout's guard is
+the first line of the **body**, which a line-level scan cannot reach.
+
+Annotating it `public-route:` would have turned the gate green by writing
+something false into the source, on the route that opens a payment. So the gate
+learned a third answer — `tenant-route:` — because buying is something an
+*account* does: neither admin-guarded nor public, and calling it either is a lie.
+It is still an annotation rather than a body scan, deliberately: this gate exists
+so that **somebody decides**, and inferring the guard would make the decision
+automatic again.
+
+### The fix is the list, not the fifteen steps
+
+Adding fifteen steps fixes today. `check:ci-gates` fixes the class: it reads the
+gate list out of `verify` itself and fails if `ci.yml` is missing any of them
+without a written reason. It also fails on a **stale exemption** — a gate
+excluded here but no longer in `verify` — because that is how one comes back
+quietly.
+
+`EXCLUDED` is empty, and that is the point: there was never a technical reason
+for the omissions.
+
+**Not `run: pnpm verify` as one step**, which would have been shorter. One step
+stops at the first failure, and the separate steps carry `if: always()` precisely
+so a run names *every* red gate rather than the first — the property added the
+week a single stale document hid the state of twelve others. Checking the LIST
+keeps both.
+
+Control: delete the `check:outbound` step and `check:ci-gates` names it and exits
+1; restore it and the run is green. And it caught its own commit — adding a gate
+moved `verify` from 27 to 28, and `check:numbers` immediately failed three
+documents still saying 27.
+
+---
+
 ## 4b. Every document, checked for what it names
 
 The remaining thirteen documents were swept mechanically: every route, script and
@@ -2822,8 +2904,8 @@ Chased down in §3f and published on 2026-08-02.
   against the running stack — every layer, every standing view, every console.
 - **All five services plus the dashboard answer `/health`**, and a record written
   through the API verifies and reports its five conditions correctly.
-- **1063 tests, 51 suites, 27 checks, exit 0.** `pnpm verify` runs a build, the
-  suite, and 27 checks. `check:numbers` compares every figure the documents
+- **1063 tests, 51 suites, 28 checks, exit 0.** `pnpm verify` runs a build, the
+  suite, and 28 checks. `check:numbers` compares every figure the documents
   publish against what the repository measures, and `check:config` fails the
   build if a variable is offered to an operator and read by nothing (§3c).
 
