@@ -77,6 +77,8 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 | POST | `/auth/token/revoke` | `auth:token:revoke` | — |
 | POST | `/auth/token/validate` | `auth:token:validate` | `validations` |
 | POST | `/billing/paypal/webhook` | _public_ | — |
+| POST | `/billing/paystack/checkout` | _public_ | — |
+| POST | `/billing/paystack/webhook` | _public_ | — |
 | POST | `/billing/webhook` | _public_ | — |
 | GET | `/executions` | `execution:read` | — |
 | POST | `/executions` | `execution:record` | — |
@@ -135,6 +137,8 @@ Capability tokens, audit, verifiable execution, tenancy and billing.
 **`GET /audit/export`** — The audit export — every record, in a file an auditor can verify alone. `GET /executions` already lists records for somebody holding a key to this instance. This is a different claim: a file that stands up to a reader with no access and no reason to trust whoever handed it to them. It carries the signatures, the links, the public key and the retention anchor, and `verifyAuditExport` re-walks it from the file alone. Scoped to the caller's tenant like every other read here, so an export can never become a way to read somebody else's records in bulk.
 
 **`POST /auth/token/validate`** — Validate a token, optionally against a specific capability. `requiredScope` is honoured. It was accepted and silently ignored until 1.1.0, which meant asking "is this token good for payment:refund?" about a token holding only `payment:approve` answered `{"valid": true}` — a false allow produced by an unrecognised field, in the endpoint whose entire job is to answer that question. The response now echoes `requiredScope` back, so a caller can see the check was performed rather than assume it.
+
+**`POST /billing/paystack/checkout`** — Open a Paystack checkout for the calling tenant. This is the half that makes the webhook's binding possible: `metadata` is set when a transaction is initialised, and the hosted payment page has no idea which tenant is looking at it. Authenticated by the tenant key alone — buying is something an account does, not something an agent is granted.
 
 **`GET /executions-verify-chain`** — Walk the chain. `?from=checkpoint` resumes from the last signed checkpoint. The default is a full walk and stays that way: a caller who did not ask for the cheaper answer must never silently receive it. A resumed response carries `verifiedFrom` and `scope`, so the two claims cannot be confused by anything reading this route.
 
@@ -322,4 +326,4 @@ attests it. See [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 ---
 
-_131 HTTP endpoints across 5 services. Generated from source._
+_133 HTTP endpoints across 5 services. Generated from source._
