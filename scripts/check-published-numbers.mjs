@@ -150,8 +150,12 @@ const CLAIMS = [
     find: /(\d+)\s+suites\b/gi },
   { what: 'layers built', actual: LAYERS_BUILT,
     find: /(\d+)\s+of\s+8\s+layers\s+built/gi },
+  // Word form as well as digits: the figure that shipped wrong here was
+  // "Twenty-eight read routes sit behind it", and a digit-only pattern walked
+  // past it exactly as it walked past "forty-seven numbered sections".
   { what: 'routes behind ABSUITE_ADMIN_API_KEY', actual: ADMIN_ROUTES,
-    find: /(\d+)\s+routes\s+sit\s+behind\s+it\b/gi },
+    find: /\b(?:(\d+)|([a-z]+(?:-[a-z]+)?))\s+(?:read\s+)?routes\s+sit\s+behind\s+it\b/gi,
+    words: NUMBER_WORDS },
   // Word form first, because that is the shape this one shipped wrong in. The
   // map is BUILT rather than typed — a hand-written list of number words in the
   // guard against hand-written numbers is the joke this file exists to refuse —
@@ -180,7 +184,8 @@ const DATED = ['docs/UI-OVERHAUL-BRIEF.md'];
  * meant a published number in a *program* was outside the one check built to
  * catch published numbers. A claim is a claim wherever a person reads it.
  */
-const docs = ['README.md', 'deploy/serve-all.mjs', ...readdirSync(join(root, 'docs'))
+const docs = ['README.md', 'deploy/serve-all.mjs', 'render.yaml', 'render.free.yaml',
+  ...readdirSync(join(root, 'docs'))
   .filter(name => name.endsWith('.md')).map(name => `docs/${name}`)]
   .filter(path => !DATED.includes(path));
 
@@ -206,6 +211,23 @@ const docs = ['README.md', 'deploy/serve-all.mjs', ...readdirSync(join(root, 'do
  * pattern below just refuses to see the inside of a `**bold**` span as italic,
  * which is how the stale headline hid behind a rule written for something else.
  */
+/**
+ * QUOTING IS A MARKDOWN RULE, AND APPLYING IT TO A PROGRAM BLANKED THE PROGRAM.
+ *
+ * `deploy/serve-all.mjs` was added to the scan list because it printed a wrong
+ * route count to whoever was deploying — AUDIT records that fix as done. **It
+ * never worked.** Every number in a program lives inside a string literal, and
+ * the single-quote span below marked the whole line as "being shown rather than
+ * asserted". So the file was opened, read, and suppressed line by line, and the
+ * figure in it drifted from 28 to 45 against a dashboard serving 48 without the
+ * gate saying a word.
+ *
+ * In prose a quoted number is usually a citation. In a program a quoted number
+ * is the message the operator reads — it is the most asserted thing in the file.
+ * So the exemption applies to Markdown only, which is where it was aimed.
+ */
+const quotesAreCitations = (path) => path.endsWith('.md');
+
 const quotedRanges = (line) => {
   const ranges = [];
   const spans = [/"[^"]*"/g, /'[^']*'/g, /[“][^”]*[”]/g, /`[^`]*`/g, /(?<!\*)\*(?!\*)[^*]+\*(?!\*)/g];
@@ -223,7 +245,7 @@ for (const path of docs) {
   lines.forEach((line, index) => {
     // A line explicitly marked as historical is a record, not a claim.
     if (/superseded|was\s+\d|it said|for months|described as|\d\s*\/\s*\d/i.test(line)) return;
-    const quoted = quotedRanges(line);
+    const quoted = quotesAreCitations(path) ? quotedRanges(line) : [];
     for (const claim of CLAIMS) {
       if (claim.ignore?.test(line)) continue;
       for (const match of line.matchAll(claim.find)) {

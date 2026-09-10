@@ -1404,6 +1404,50 @@ looks — *a number written as a word is a number the checker cannot see.*
 
 Proved by putting `28` back: the gate names the file and line.
 
+### CORRECTION, 2026-09-10 — none of the paragraph above was true in practice
+
+**The gate did scan the file. It could not see a single number in it, and the
+figure drifted from 28 to 45 while the dashboard served 48.**
+
+The cause is one line written for a different purpose. `quotedRanges` exempts
+anything inside quotation marks, because in prose a quoted number is usually a
+citation — §3e really does write *"six services"* in order to correct it. **In a
+program every number lives inside a string literal.** So the single-quote span
+matched the whole line, every line, and `deploy/serve-all.mjs` was opened, read
+and suppressed in its entirety. Adding it to the list did nothing at all.
+
+That is worse than the defect it was meant to close, because the record above
+says it is closed. A check that cannot fail is this project's stated worst
+outcome; a check that cannot fail *and is written up as working* is the same
+thing with the evidence pointing the wrong way.
+
+Two changes, and the second is the one that generalises:
+
+- Quoting is a **Markdown** rule now (`quotesAreCitations`), which is where it
+  was aimed. In a program a quoted number is not a citation — it is the message
+  the operator reads, which makes it the most asserted thing in the file.
+- `render.yaml` and `render.free.yaml` joined the list for the same reason the
+  program did. Both explain `ABSUITE_ADMIN_API_KEY` to a person, with a count.
+
+And the "smaller lesson" above turned out to be the recurring one rather than a
+footnote. The same escape had happened a third time in `README.md` —
+*"forty-seven numbered sections"* against fifty-one — and the admin-route claim
+still matched digits alone, so the exact historical string would have walked past
+again. Both claims read words now, from a map that is **generated** rather than
+typed.
+
+Controls, run in both directions:
+
+| | |
+|---|---|
+| `45 routes sit behind it` | exit 1, names the file, line and both figures |
+| `48 routes sit behind it` | exit 0 |
+| `Twenty-eight read routes sit behind it` | exit 1, reads it as 28 |
+| `forty-seven numbered sections` | exit 1, against the counted 51 |
+
+Figures matched by the gate went from 26 to 28 on a tree where nothing else
+changed, which is the measure of how much it had not been looking at.
+
 ---
 
 ## 3z. DNS rebinding, closed
